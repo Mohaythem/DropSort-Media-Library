@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="DropSort">
+  <rect width="256" height="256" rx="48" fill="#0b1e1b"/>
+  <path d="M54 52h74c43 0 74 28 74 76s-31 76-74 76H54V52Zm40 38v76h33c21 0 35-14 35-38s-14-38-35-38H94Z" fill="#ffeeb3"/>
+  <path d="M111 126c0-22 18-40 40-40h42v34h-39c-6 0-10 4-10 10s4 10 10 10h15c22 0 40 18 40 40s-18 40-40 40h-47v-34h44c6 0 10-4 10-10s-4-10-10-10h-15c-22 0-40-18-40-40Z" fill="#e87454"/>
+</svg>
