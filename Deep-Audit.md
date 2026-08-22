@@ -491,7 +491,8 @@ Branch: `main`
 Remote base inspected: `d5d7fb2f0887904ee2f882eae7cb6421568f5522`  
 Integration: local `main` extends fetched remote `main`; remote `Skills.md` is preserved. No force push or history rewrite.
 
-Final commit SHA: pending staged review and commit.  
-Push result: pending.  
-Remote verification: pending.
+Baseline commit SHA: `ce4e87ff44a57dd0513969dada0e2cc8065d092f`.  
+Push result: successful ordinary fast-forward, `d5d7fb2..ce4e87f main -> main`; no force option.  
+Remote verification: local `HEAD`, fetched `origin/main`, and `git ls-remote` matched the baseline SHA; the remote tree contained 418 files, every required baseline path, unchanged seed `Skills.md`, and zero forbidden generated/media/runtime paths. The seed commit remains an ancestor.  
+This verification record is a follow-up documentation commit; its SHA is reported in the final task handoff.
 
