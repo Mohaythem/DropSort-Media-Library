@@ -142,7 +142,7 @@ data. Poster-cache behavior remains the established bounded/atomic Phase 4C desi
 - `tests/unit/ui/test_movie_card.py`
 - `tests/unit/ui/test_movie_details_view.py`
 - `README.md`
-- `PROJECT_STATUS.md`
+- `docs/status/PROJECT_STATUS.md`
 
 ## Database migration and dependencies
 

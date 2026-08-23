@@ -3,7 +3,7 @@
 > Historical report correction (2026-08-15): later user acceptance found that the packaged Clear
 > Library button did not pass the real confirmation result and that one leading-domain filename still
 > reached matching with noisy title text. The original GREEN result below records the earlier test
-> evidence only; current release status is governed by `PROJECT_STATUS.md` and remains blocked pending
+> evidence only; current release status is governed by `docs/status/PROJECT_STATUS.md` and remains blocked pending
 > retest of the corrected release candidate.
 
 ## Result
@@ -119,7 +119,7 @@ that physical fixture hashes remain unchanged and no journal row is created or r
 - `src/dropsort/ui/reconciliation/relink_dialog.py`
 - `src/dropsort/ui/settings/settings_view.py`
 - focused application, database, poster, UI, architecture, and bootstrap tests
-- `PROJECT_STATUS.md`, `README.md`, and `RELEASE_CHECKLIST.md`
+- `docs/status/PROJECT_STATUS.md`, `README.md`, and `docs/status/RELEASE_CHECKLIST.md`
 
 ## Review findings and fixes
 

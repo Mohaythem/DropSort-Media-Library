@@ -122,7 +122,7 @@ change, or unsafe root read stops with a controlled root-level failure.
 - `tests/integration/media/discovery/test_scanner.py`
 - `tests/integration/ui/test_desktop_import_flow.py`
 - `README.md`
-- `PROJECT_STATUS.md`
+- `docs/status/PROJECT_STATUS.md`
 
 ## Database migration and dependencies
 

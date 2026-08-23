@@ -1,7 +1,7 @@
 # DropSort Python Baseline — Deep Audit
 
 Audit date: 2026-08-23  
-Authoritative product document: `The Idea-v3.md`  
+Authoritative product document: `docs/source/The Idea-v3.md`  
 Audited baseline: `D:\DropSort_ chat\DropSort`, before feature changes
 
 ## 1. Executive Summary
@@ -23,7 +23,7 @@ Evidence:
 - `src/dropsort/application/bootstrap/desktop.py` composes the database, migrations, application services, and PySide6 window.
 - `tests/` imports and exercises the same `src/dropsort` package.
 - `DropSort.spec`, `packaging/build_release.ps1`, migrations, assets, and current V2 reports all reference this tree.
-- `The Idea-v3.md` is present here and explicitly governs the renewed Python direction.
+- `docs/source/The Idea-v3.md` is present in the selected root and explicitly governs the renewed Python direction.
 - No pre-existing `.git` repository was present. Numerous `.build-*`, `.pytest-*`, virtual-environment, coverage, release, and ZIP artifacts are generated outputs, not competing source roots.
 
 Observed fact: this is the only internally coherent source/test/package/documentation root found.  
@@ -476,7 +476,7 @@ Tests changed: one privacy-only Windows user-path fixture was generalized; asser
 
 Baseline-only changes:
 
-- added `Deep-Audit.md`;
+- added `docs/audits/Deep-Audit.md`;
 - expanded `.gitignore`;
 - preserved remote `Skills.md`;
 - staged the existing Python source, tests, specifications, documentation, assets, and packaging metadata on top of remote history;
@@ -487,12 +487,12 @@ Generated artifacts, runtime DBs, caches, environments, release output, and ZIP 
 ## 26. GitHub Upload Result
 
 Target: `https://github.com/Mohaythem/DropSort-Media-Library`  
-Branch: `main`  
+Branch: `codex/audited-python-baseline`  
 Remote base inspected: `d5d7fb2f0887904ee2f882eae7cb6421568f5522`  
-Integration: local `main` extends fetched remote `main`; remote `Skills.md` is preserved. No force push or history rewrite.
+Integration: the dedicated audited-baseline branch descends from the fetched remote history; remote `Skills.md` is preserved. The accidental `main` upload is removed with ordinary revert commits, never force-push or history rewrite.
 
 Baseline commit SHA: `ce4e87ff44a57dd0513969dada0e2cc8065d092f`.  
 Push result: successful ordinary fast-forward, `d5d7fb2..ce4e87f main -> main`; no force option.  
 Remote verification: local `HEAD`, fetched `origin/main`, and `git ls-remote` matched the baseline SHA; the remote tree contained 418 files, every required baseline path, unchanged seed `Skills.md`, and zero forbidden generated/media/runtime paths. The seed commit remains an ancestor.  
-This verification record is a follow-up documentation commit; its SHA is reported in the final task handoff.
+Final dedicated-branch and restored-`main` SHAs are reported in the final task handoff.
 

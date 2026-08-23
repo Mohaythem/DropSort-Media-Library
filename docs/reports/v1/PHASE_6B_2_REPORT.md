@@ -99,7 +99,7 @@ this process because no credential was supplied. No credential was printed, pers
 - `src/dropsort/ui/settings/settings_view.py`
 - `tests/unit/ui/test_operation_history_main_window.py`
 - `tests/unit/ui/test_theme.py`
-- `README.md`, `PROJECT_STATUS.md`, and `RELEASE_CHECKLIST.md`
+- `README.md`, `docs/status/PROJECT_STATUS.md`, and `docs/status/RELEASE_CHECKLIST.md`
 
 ## Review findings and fixes
 

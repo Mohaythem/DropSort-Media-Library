@@ -73,7 +73,7 @@ shutdown waits for pending tasks.
 - `src/dropsort/ui/main_window/window.py`
 - `tests/unit/ui/test_desktop_bootstrap.py`
 - `README.md`
-- `PROJECT_STATUS.md`
+- `docs/status/PROJECT_STATUS.md`
 
 No migration was required; the existing reverse-operation foreign key and indexes were sufficient.
 Dependencies changed: none.

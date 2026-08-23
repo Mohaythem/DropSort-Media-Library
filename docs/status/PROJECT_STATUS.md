@@ -464,9 +464,9 @@ Final release candidate: `release\DropSort\DropSort.exe` in a 190-file one-direc
 licenses, all six migration scripts, no Margarine asset, no forbidden runtime/test artifacts, no
 developer-path match, and no assigned TMDB token or bearer-token pattern.
 
-The final V1 UX follow-up is documented in `PHASE_6B_2_REPORT.md`; the preceding polish is documented in
-`PHASE_6B_3_REPORT.md`; this remaining-issues pass is documented in
-`PHASE_6B_FINAL_REMAINING_ISSUES_REPORT.md`. Source verification is `1023 passed, 5 skipped, 0 failed`
+The final V1 UX follow-up is documented in `docs/reports/v1/PHASE_6B_2_REPORT.md`; the preceding polish is documented in
+`docs/reports/v1/PHASE_6B_3_REPORT.md`; this remaining-issues pass is documented in
+`docs/reports/v1/PHASE_6B_FINAL_REMAINING_ISSUES_REPORT.md`. Source verification is `1023 passed, 5 skipped, 0 failed`
 with `95%` total branch coverage. Manual TMDB verification is
 still pending because this process had no credential; the expected user retest is Edit Search ->
 `Kaze Tachinu` or `The Wind Rises` -> review candidate -> explicit Add to DropSort Library, with

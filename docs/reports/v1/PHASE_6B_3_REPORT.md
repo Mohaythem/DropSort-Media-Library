@@ -68,8 +68,8 @@ authorization, filesystem safety, or any physical-media operation.
 - `tests/unit/ui/test_settings_view.py`
 - `tests/unit/ui/test_theme.py`
 - `README.md`
-- `PROJECT_STATUS.md`
-- `RELEASE_CHECKLIST.md`
+- `docs/status/PROJECT_STATUS.md`
+- `docs/status/RELEASE_CHECKLIST.md`
 
 ## Tests and coverage
 

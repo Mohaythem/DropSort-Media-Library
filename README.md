@@ -5,8 +5,8 @@ safety-first filesystem core.
 
 > **Audited baseline (2026-08-23):** This README describes the implemented Python application,
 > not a claim that every current product contract or test is satisfied. The factual baseline is
-> recorded in [`Deep-Audit.md`](Deep-Audit.md). The current source of product and architecture
-> truth is the root [`The Idea-v3.md`](The%20Idea-v3.md). The audit found 1,172 passing tests,
+> recorded in [`docs/audits/Deep-Audit.md`](docs/audits/Deep-Audit.md). The current source of product
+> and architecture truth is [`docs/source/The Idea-v3.md`](docs/source/The%20Idea-v3.md). The audit found 1,172 passing tests,
 > 11 failing tests, and 5 host-privilege skips, plus important gaps around startup reconciliation,
 > offline registration, poster network activity, missing-state persistence, and Clear Library
 > semantics. Feature work should start from those documented facts.
@@ -91,9 +91,9 @@ implemented.
 
 ## Source of truth
 
-The active product and architecture source of truth is the root `The Idea-v3.md`. The root
-`Skills.md` preserves the repository skill plan. Files under `docs/source/` are supporting or
-historical source material and do not override `The Idea-v3.md`.
+The active product and architecture source of truth is `docs/source/The Idea-v3.md`. The root
+`Skills.md` preserves the repository skill plan. See `docs/README.md` for the documentation map;
+historical source material does not override `The Idea-v3.md`.
 
 ## Run the Windows release
 
@@ -174,6 +174,6 @@ network connection or credential.
 .venv\Scripts\python.exe -m pytest --cov=src/dropsort --cov-branch --cov-report=term-missing -q -W error
 ```
 
-See `PROJECT_STATUS.md` for the detailed implementation boundary, current release-candidate baseline,
+See `docs/status/PROJECT_STATUS.md` for the detailed implementation boundary, current release-candidate baseline,
 and historical limitations. For the verified current baseline, including the current failing tests
-and source-traced product-contract gaps, use `Deep-Audit.md`.
+and source-traced product-contract gaps, use `docs/audits/Deep-Audit.md`.

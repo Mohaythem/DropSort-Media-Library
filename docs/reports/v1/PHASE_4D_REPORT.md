@@ -100,7 +100,7 @@ the eviction order deterministic.
 - `tests/unit/ui/test_movie_details_view.py`
 - `tests/unit/ui/test_theme.py`
 - `tests/unit/ui/test_ui_architecture.py`
-- `PROJECT_STATUS.md`
+- `docs/status/PROJECT_STATUS.md`
 - `README.md`
 
 ## Tests and coverage

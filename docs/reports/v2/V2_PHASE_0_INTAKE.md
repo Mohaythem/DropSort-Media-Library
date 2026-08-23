@@ -79,12 +79,12 @@ Meaningful repository contents include 114 test Python files and 27 documentatio
 | `src/dropsort/**` | CURRENT | Primary implementation truth. |
 | `tests/**` | CURRENT | Current executable contracts and safety expectations. |
 | `database/migrations/**` | CURRENT | Only versions 0001–0003 exist. |
-| `PROJECT_STATUS.md` | MOSTLY CURRENT | Current 1023/5/95% baseline and V1/V2 acceptance gate. |
+| `docs/status/PROJECT_STATUS.md` | MOSTLY CURRENT | Current 1023/5/95% baseline and V1/V2 acceptance gate. |
 | `README.md` | CURRENT FOR V1 | Accurate V1 boundaries, with acceptance caveats. |
-| `RELEASE_CHECKLIST.md` | OPEN | Several packaged/live/acceptance items remain unchecked. |
-| `PHASE_6B_FINAL_REMAINING_ISSUES_REPORT.md` | CURRENT HISTORICAL | Latest package/UX evidence, explicitly qualified as user-retest pending. |
+| `docs/status/RELEASE_CHECKLIST.md` | OPEN | Several packaged/live/acceptance items remain unchecked. |
+| `docs/reports/v1/PHASE_6B_FINAL_REMAINING_ISSUES_REPORT.md` | CURRENT HISTORICAL | Latest package/UX evidence, explicitly qualified as user-retest pending. |
 | `PHASE_6B_2/3_REPORT.md` | PARTIALLY STALE | Earlier three-theme naming and earlier counts. |
-| `PHASE_4D_REPORT.md` | HISTORICAL ONLY | Describes Margarine; current source uses Inter/Noto Sans Arabic. |
+| `docs/reports/v1/PHASE_4D_REPORT.md` | HISTORICAL ONLY | Describes Margarine; current source uses Inter/Noto Sans Arabic. |
 | `docs/architecture/**`, ADR-0001..0008 | FOUNDATION/HISTORICAL | Rules remain useful; early phase descriptions are stale. |
 | ADR-0009..0014 | CURRENT IMPLEMENTED | Provider, matcher, catalog, query, discovery, and import boundaries match code. |
 | `docs/source/The Idea.md` | HISTORICAL ONLY | Contains future TV/watcher/collection and old rating/status concepts. |
@@ -92,7 +92,7 @@ Meaningful repository contents include 114 test Python files and 27 documentatio
 Conflicts found:
 
 1. Current code uses exactly four themes: Main, Dark, Slate, Light. Older reports use Deep Ink/Modern Charcoal/Clean Light Blue or Margarine.
-2. Newest reports use ready language while `PROJECT_STATUS.md` and `RELEASE_CHECKLIST.md` retain unchecked acceptance. The checklist/status gate governs V2.
+2. Newest reports use ready language while `docs/status/PROJECT_STATUS.md` and `docs/status/RELEASE_CHECKLIST.md` retain unchecked acceptance. The checklist/status gate governs V2.
 3. Historical idea text proposes User Rating, My Rating 9/10, Favorite, and Watch Later. Current V2 must use NO OPINION, LIKED, and BLACKLISTED, with no personal numeric rating or rating snapshot.
 
 ## 5. Current Architecture
@@ -508,7 +508,7 @@ Expected untouched: File Engine, safety, operation states/recovery, scanner/pars
 
 Concrete blockers:
 
-1. `PROJECT_STATUS.md` explicitly says Release Freeze or V2 must wait for user acceptance; `RELEASE_CHECKLIST.md` still has unchecked live/packaged acceptance.
+1. `docs/status/PROJECT_STATUS.md` explicitly says Release Freeze or V2 must wait for user acceptance; `docs/status/RELEASE_CHECKLIST.md` still has unchecked live/packaged acceptance.
 2. Clear Library deletes Movies and has no local/personal retention policy.
 3. Git metadata is absent, so production change traceability is not normal.
 

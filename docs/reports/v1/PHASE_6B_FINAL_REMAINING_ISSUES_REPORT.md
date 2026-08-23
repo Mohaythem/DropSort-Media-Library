@@ -98,8 +98,8 @@ restore fully readable branding and labels.
 - `src/dropsort/application/runtime/__init__.py`
 - `DropSort.spec`
 - `README.md`
-- `PROJECT_STATUS.md`
-- `RELEASE_CHECKLIST.md`
+- `docs/status/PROJECT_STATUS.md`
+- `docs/status/RELEASE_CHECKLIST.md`
 - focused UI/application/release regression tests under `tests/unit/`
 
 Single-instance implementation and focused tests:

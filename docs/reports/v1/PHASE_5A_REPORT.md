@@ -65,7 +65,7 @@ filesystem success remains journaled/recoverable; ambiguous states preserve file
 - `tests/unit/ui/test_movie_details_view.py`
 - `tests/unit/ui/test_ui_architecture.py`
 - `README.md`
-- `PROJECT_STATUS.md`
+- `docs/status/PROJECT_STATUS.md`
 
 No database migration was required.
 
