@@ -492,7 +492,8 @@ Remote base inspected: `d5d7fb2f0887904ee2f882eae7cb6421568f5522`
 Integration: the dedicated audited-baseline branch descends from the fetched remote history; remote `Skills.md` is preserved. The accidental `main` upload is removed with ordinary revert commits, never force-push or history rewrite.
 
 Baseline commit SHA: `ce4e87ff44a57dd0513969dada0e2cc8065d092f`.  
-Push result: successful ordinary fast-forward, `d5d7fb2..ce4e87f main -> main`; no force option.  
-Remote verification: local `HEAD`, fetched `origin/main`, and `git ls-remote` matched the baseline SHA; the remote tree contained 418 files, every required baseline path, unchanged seed `Skills.md`, and zero forbidden generated/media/runtime paths. The seed commit remains an ancestor.  
-Final dedicated-branch and restored-`main` SHAs are reported in the final task handoff.
+Documentation-organization commit: `1fe58272ad7b7970e89b52fb4dd65296b0afc0ed`.  
+Dedicated-branch push: successful at `origin/codex/audited-python-baseline`; direct `git ls-remote` verification matched `1fe58272ad7b7970e89b52fb4dd65296b0afc0ed`.  
+`main` correction: ordinary fast-forward to revert commit `02ba6ba4d42a316357530c661993277e0723f9ee`; its tree exactly matches pre-baseline commit `d5d7fb2f0887904ee2f882eae7cb6421568f5522` and contains only the original `README.md` and `Skills.md`.  
+No force push or history rewrite was used. The final dedicated-branch SHA containing this record is reported in the final task handoff.
 
