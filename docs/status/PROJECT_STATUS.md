@@ -1,6 +1,20 @@
 # DropSort Project Status
 
-Last verified: 2026-08-15 on native Windows / Python 3.12 / NTFS.
+Last verified: 2026-08-23 on native Windows / Python 3.12 / NTFS.
+
+## Python Stabilization Pass 1 status
+
+**IMPLEMENTED AND SOURCE-VERIFIED ON `codex`.** Desktop startup now performs one local SQLite
+Library query only. It does not start reconciliation, catalog-wide file inspection, metadata repair,
+global poster refresh, or a progress-driven full Library reload. Check Library remains explicit and
+manual. Committed status changes carry `media_file_id`, `movie_id`, and new status; the UI uses a
+one-movie projection to update only affected cards while missing items remain registered.
+
+Verification: eight focused stabilization tests plus affected MainWindow tests passed `29/29`;
+the broader affected gate passed `109` with the one audited bootstrap contract failure; the full
+suite is `1,175 passed, 11 failed, 5 skipped`, matching the same 11 pre-existing failures recorded
+by the Deep Audit. Compileall and an offscreen guarded startup smoke passed. No migration or runtime
+dependency changed.
 
 ## DropSort V1 status
 
@@ -150,10 +164,11 @@ Transient inspection errors preserve the last persisted status. Missing movies r
 catalog; cards show a subtle missing indicator and Movie Details retains the
 last known path.
 
-The first Library entry in each desktop session starts the same check automatically after the
-catalog has rendered. Progress is inline and non-modal. Automatic and manual checks coalesce so
-only one reconciliation runs at a time. Status writes compare the inspected path with the row's
-current path, preventing an old check from overwriting a successful Relink.
+Opening the application or entering Library performs no reconciliation. Check Library starts only
+after the explicit user action. Its committed file-status progress includes stable media-file and
+movie identities, and Library refreshes only those movie summaries/cards. Progress and completion
+do not reload the full Library. Status writes still compare the inspected path with the row's current
+path, preventing an old check from overwriting a successful Relink.
 
 For a missing row, **Locate File** opens a native picker and a read-only Relink preview. The
 candidate must be a supported regular non-reparse file with exact size/extension, compatible
@@ -266,6 +281,10 @@ Relink use case: 97% branch coverage
 Reconciliation UI: 98% branch coverage
 Availability inspector: 96% branch coverage
 ```
+
+Current Python Stabilization Pass 1 gate: `29 passed` focused; full suite `1,175 passed, 11 failed,
+5 skipped`. The 11 failures exactly match the audited pre-Pass-1 list; no new failure was introduced.
+Compileall and the guarded offscreen startup smoke passed.
 
 The five skips are legitimate Windows symlink-creation privilege limitations. Link/reparse behavior
 also has deterministic mocked coverage. UI tests run headlessly; the offscreen Qt plugin exposes no
@@ -415,8 +434,8 @@ workflow exists**.
   shutdown waits for the bounded request timeout.
 - TMDB is the only real metadata adapter; no multi-provider aggregation exists.
 - Play depends on the user's Windows file association and does not embed a player.
-- Reconciliation runs once on first Library entry and remains manually available; it inspects only
-  cataloged paths and does not search whole drives.
+- Reconciliation is manual-only through Check Library; it inspects only cataloged paths and does not
+  search whole drives.
 - Relink blocks different-size/different-extension/weak-title/technical-conflict candidates; no
   advanced Replace Media File flow or persistent full-film hash catalog exists.
 - The Phase 4D Windows visual smoke test was performed at the current desktop scale; 125% and 150%
@@ -450,6 +469,8 @@ Dependencies changed in Phase 6B: runtime dependencies none. PyInstaller `>=6.21
 to the optional packaging dependency group; the verified build used 6.22.0. No migration was added.
 
 Dependencies changed in Phase 6B.1: none. No migration was added.
+
+Dependencies changed in Python Stabilization Pass 1: none. No migration was added.
 
 ## Exact recommended next phase
 

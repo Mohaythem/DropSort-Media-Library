@@ -110,6 +110,7 @@ class CheckLibrary:
                     needs_review,
                     provider_unavailable,
                     tuple(issue_items),
+                    (movie.id,) if item.repaired_fields else (),
                 )
                 _emit(progress, latest)
         return latest

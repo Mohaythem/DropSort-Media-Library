@@ -201,6 +201,38 @@ class LibraryView(QWidget):
         self.search_candidates_changed.emit(movie_search_suggestions(self._all_items))
         self._apply_search()
 
+    def refresh_movies(self, movie_ids: tuple[int, ...]) -> None:
+        """Refresh only existing Library items identified by stable MovieId."""
+
+        if not self._has_snapshot:
+            return
+        items = list(self._all_items)
+        indexes = {item.movie_id: index for index, item in enumerate(items)}
+        changed = False
+        for movie_id in dict.fromkeys(movie_ids):
+            index = indexes.get(movie_id)
+            if index is None:
+                continue
+            try:
+                item = self._actions.get_movie_item(movie_id)
+            except LibraryQueryError:
+                LOGGER.warning(
+                    "Local movie summary refresh failed for movie %s",
+                    movie_id,
+                    exc_info=True,
+                )
+                self.invalidate_snapshot()
+                continue
+            if item != items[index]:
+                items[index] = item
+                changed = True
+        if not changed:
+            return
+        self._all_items = tuple(items)
+        self._grid.set_items(self._all_items)
+        self.search_candidates_changed.emit(movie_search_suggestions(self._all_items))
+        self._apply_search()
+
     def set_search_query(self, query: str) -> None:
         normalized = query.strip()
         if normalized == self._search_query:

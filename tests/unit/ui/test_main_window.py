@@ -10,7 +10,6 @@ from dropsort.application.dto.library import MovieDetails, MovieListItem
 from dropsort.application.errors import (
     CatalogClearBlockedError,
     CatalogClearError,
-    LibraryReconciliationCancelled,
     MovieNotFoundError,
 )
 from dropsort.application.dto.reconciliation import LibraryReconciliationProgress
@@ -42,6 +41,13 @@ class FakeActions:
         if self.details_error:
             raise MovieNotFoundError("technical detail")
         return self.details
+    def get_movie_item(self, movie_id: int) -> MovieListItem:
+        self.calls.append(f"item:{movie_id}")
+        for item in self.movies:
+            if item.movie_id == movie_id:
+                return item
+        raise MovieNotFoundError(f"movie {movie_id} was not found")
+
 
 
 def _button(window: MainWindow, name: str) -> QPushButton:
@@ -424,6 +430,7 @@ def test_main_window_opens_library_check_refreshes_and_invalidates_on_close(
     class FakeCheckDialog(QDialog):
         completed = Signal(object)
 
+        progress_changed = Signal(object)
         def __init__(self, actions, runner, parent=None, **_kwargs):
             super().__init__(parent)
             self.invalidated = False
@@ -451,7 +458,7 @@ def test_main_window_opens_library_check_refreshes_and_invalidates_on_close(
     window.show_library_file_check()
     assert len(created) == 1
     dialog.completed.emit(object())
-    assert actions.calls == ["library", "library"]
+    assert actions.calls == ["library"]
     window.close()
     assert dialog.invalidated is True
     dialog.done(0)
@@ -474,11 +481,16 @@ class DeferredProgressRunner:
 
 class ReconciliationActions:
     def __init__(self) -> None:
-        self.cancellations = []
+        self.reconcile_calls = 0
+        self.check_calls = 0
 
     def reconcile_library_files(self, *, progress=None, cancellation=None):
-        self.cancellations.append(cancellation)
-        value = LibraryReconciliationProgress(2, 2, 1, 1, 0, 1)
+        self.reconcile_calls += 1
+        raise AssertionError("startup must not reconcile library files")
+
+    def check_library(self, *, progress=None, cancellation=None):
+        self.check_calls += 1
+        value = LibraryReconciliationProgress(2, 2, 1, 1, 0, 0)
         if progress is not None:
             progress(value)
         return value
@@ -550,173 +562,6 @@ def test_real_clear_button_reaches_application_action(
     assert window.library_view.card_count == 0
 
 
-def test_first_library_entry_starts_one_background_reconciliation_after_render(
-    qapp,
-    movie_item_factory,
-    movie_details_factory,
-) -> None:
-    item = movie_item_factory()
-    actions = FakeActions((item,), movie_details_factory())
-    runner = DeferredProgressRunner()
-    window = MainWindow(
-        actions,
-        reconciliation_actions=ReconciliationActions(),
-        task_runner=runner,
-        load_on_show=False,
-    )
-
-    window.show_library()
-    window.show_library()
-
-    # Re-entering Library reuses the rendered snapshot instead of querying and
-    # rebuilding every card again. Explicit catalog-change paths still force a
-    # refresh through _refresh_library_snapshot().
-    assert actions.calls == ["library"]
-    assert len(runner.progressive) == 1
-    assert "checking" in window.library_view.reconciliation_message.casefold()
-
-
-def test_auto_reconciliation_progress_refreshes_once_and_manual_does_not_duplicate(
-    qapp,
-    movie_item_factory,
-    movie_details_factory,
-    monkeypatch,
-) -> None:
-    created = []
-
-    class FakeCheckDialog(QDialog):
-        completed = Signal(object)
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(kwargs.get("parent"))
-            self.attached = None
-            self.progress = []
-            self.successes = []
-            created.append(self)
-
-        def attach_to_existing(self, token, cancellation):
-            self.attached = (token, cancellation)
-
-        def _on_progress(self, token, value):
-            self.progress.append((token, value))
-
-        def _on_success(self, token, value):
-            self.successes.append((token, value))
-
-        def _on_failure(self, token, error):
-            return None
-
-        def invalidate_pending(self):
-            return None
-
-    monkeypatch.setattr(
-        "dropsort.ui.main_window.window.LibraryFileCheckDialog",
-        FakeCheckDialog,
-    )
-    item = movie_item_factory()
-    actions = FakeActions((item,), movie_details_factory())
-    runner = DeferredProgressRunner()
-    window = MainWindow(
-        actions,
-        reconciliation_actions=ReconciliationActions(),
-        task_runner=runner,
-        load_on_show=False,
-    )
-    window.show_library()
-    window.show_library_file_check()
-    token, task, on_progress, on_success, _on_failure = runner.progressive[0]
-
-    assert len(created) == 1
-    assert created[0].attached[0] == window._reconciliation_token
-    progress = LibraryReconciliationProgress(2, 1, 0, 1, 0, 1)
-    on_progress(token, progress)
-    assert "1 / 2" in window.library_view.reconciliation_message
-    result = task(lambda value: on_progress(token, value))
-    on_success(token, result)
-
-    assert actions.calls == ["library", "library"]
-    assert "complete" in window.library_view.reconciliation_message.casefold()
-    assert len(created[0].successes) == 1
-    window.show_library_file_check()
-    assert len(created) == 1
-
-
-def test_explicit_full_library_check_waits_behind_startup_file_reconciliation(
-    qapp,
-    movie_item_factory,
-    movie_details_factory,
-    monkeypatch,
-) -> None:
-    created = []
-
-    class FullReconciliationActions(ReconciliationActions):
-        def check_library(self, *, progress=None, cancellation=None):
-            raise AssertionError("queued full check should start through the dialog runner")
-
-    class FakeCheckDialog(QDialog):
-        completed = Signal(object)
-
-        def __init__(self, *args, **kwargs):
-            super().__init__(kwargs.get("parent"))
-            self.waited = False
-            self.started = 0
-            created.append(self)
-
-        @property
-        def is_running(self):
-            return self.started > 0
-
-        def wait_for_automatic_file_check(self):
-            self.waited = True
-
-        def start_check(self):
-            self.started += 1
-
-        def invalidate_pending(self):
-            return None
-
-    monkeypatch.setattr(
-        "dropsort.ui.main_window.window.LibraryFileCheckDialog",
-        FakeCheckDialog,
-    )
-    window = MainWindow(
-        FakeActions((movie_item_factory(),), movie_details_factory()),
-        reconciliation_actions=FullReconciliationActions(),
-        task_runner=DeferredProgressRunner(),
-        load_on_show=False,
-    )
-    window.show_library()
-    window.show_library_file_check()
-
-    assert created[0].waited is True
-    assert created[0].started == 0
-    token, _task, _on_progress, on_success, _on_failure = window._task_runner.progressive[0]
-    on_success(token, LibraryReconciliationProgress(1, 1, 1, 0, 0, 0))
-    assert created[0].started == 1
-
-
-def test_window_close_cancels_auto_reconciliation_and_ignores_late_result(
-    qapp,
-    movie_item_factory,
-    movie_details_factory,
-) -> None:
-    actions = FakeActions((movie_item_factory(),), movie_details_factory())
-    runner = DeferredProgressRunner()
-    window = MainWindow(
-        actions,
-        reconciliation_actions=ReconciliationActions(),
-        task_runner=runner,
-        load_on_show=False,
-    )
-    window.show_library()
-    token, _task, _on_progress, on_success, _on_failure = runner.progressive[0]
-
-    window.close()
-    on_success(token, LibraryReconciliationProgress(1, 1, 1, 0, 0, 0))
-
-    assert actions.calls == ["library"]
-
-
 def test_clear_library_result_immediately_invalidates_details_and_shows_empty_library(
     qapp,
     movie_item_factory,
@@ -762,34 +607,6 @@ def test_clear_library_result_immediately_invalidates_details_and_shows_empty_li
     assert "library cleared" in window.settings_view._clear_feedback.text().casefold()
 
 
-def test_automatic_reconciliation_controlled_and_unexpected_failures_are_nonfatal(
-    qapp,
-    movie_item_factory,
-    movie_details_factory,
-) -> None:
-    actions = FakeActions((movie_item_factory(),), movie_details_factory())
-    runner = DeferredProgressRunner()
-    window = MainWindow(
-        actions,
-        reconciliation_actions=ReconciliationActions(),
-        task_runner=runner,
-        load_on_show=False,
-    )
-    window.show_library()
-    token = window._reconciliation_token
-    cancelled = LibraryReconciliationCancelled(
-        LibraryReconciliationProgress(2, 1, 1, 0, 0, 0)
-    )
-
-    window._automatic_reconciliation_failed(token, cancelled)
-    assert "cancelled" in window.library_view.reconciliation_message.casefold()
-
-    window._reconciliation_active = True
-    window._automatic_reconciliation_failed(token, RuntimeError("inspection failed"))
-    assert "could not complete" in window.library_view.reconciliation_message.casefold()
-    window._automatic_reconciliation_progress(token - 1, object())
-    window._automatic_reconciliation_succeeded(token - 1, object())
-
 
 def test_clear_library_busy_unavailable_invalid_and_controlled_failures_have_feedback(
     qapp,
@@ -814,10 +631,10 @@ def test_clear_library_busy_unavailable_invalid_and_controlled_failures_have_fee
     )
     assert window.settings_view is not None
 
-    window._reconciliation_active = True
+    window.check_library_page._state = window.check_library_page.State.RUNNING
     window._clear_library_data_requested()
     assert "busy" in window.settings_view._clear_feedback.text().casefold()
-    window._reconciliation_active = False
+    window.check_library_page._state = window.check_library_page.State.IDLE
     window._clear_library_data_requested()
     assert "unavailable" in window.settings_view._clear_feedback.text().casefold()
 

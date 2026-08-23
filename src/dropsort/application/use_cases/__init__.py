@@ -1,6 +1,7 @@
 from dropsort.application.use_cases.confirm_movie_import import ConfirmMovieImport
 from dropsort.application.use_cases.discover_media import DiscoverMedia
 from dropsort.application.use_cases.get_movie_details import GetMovieDetails
+from dropsort.application.use_cases.get_movie_list_item import GetMovieListItem
 from dropsort.application.use_cases.list_movies import ListMovies
 from dropsort.application.use_cases.propose_movie_import import ProposeMovieImport
 from dropsort.application.use_cases.prepare_folder_import_review import (
@@ -43,6 +44,7 @@ __all__ = [
     "DiscoverMedia",
     "ConfirmMovieImport",
     "GetMovieDetails",
+    "GetMovieListItem",
     "ListMovies",
     "ProposeMovieImport",
     "PrepareFolderImportReview",

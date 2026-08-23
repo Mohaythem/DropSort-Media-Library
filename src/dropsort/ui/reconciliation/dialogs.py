@@ -53,6 +53,7 @@ def _progress_percentage(checked: int, total: int) -> int:
 
 class LibraryFileCheckDialog(QDialog):
     completed = Signal(object)
+    progress_changed = Signal(object)
 
     class State(StrEnum):
         IDLE = "IDLE"
@@ -275,6 +276,7 @@ class LibraryFileCheckDialog(QDialog):
         ):
             return
         self._render(value)
+        self.progress_changed.emit(value)
 
     def _on_success(self, token: int, value: object) -> None:
         if token != self._token or not isinstance(

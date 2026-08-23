@@ -52,6 +52,7 @@ class LibraryHealthProgress:
     metadata_needs_review: int
     metadata_provider_unavailable: int
     items: tuple[MetadataHealthItem, ...] = ()
+    changed_movie_ids: tuple[int, ...] = ()
 
     @property
     def total(self) -> int:

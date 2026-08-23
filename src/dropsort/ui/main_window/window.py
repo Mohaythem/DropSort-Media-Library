@@ -27,15 +27,12 @@ from PySide6.QtWidgets import (
 )
 
 from dropsort.application.dto.reconciliation import LibraryReconciliationProgress
+from dropsort.application.dto.library_health import LibraryHealthProgress
 from dropsort.application.dto.catalog_maintenance import ClearLibraryDataResult
 from dropsort.application.errors import (
     CatalogClearBlockedError,
     CatalogClearError,
     LibraryQueryError,
-    LibraryReconciliationCancelled,
-)
-from dropsort.application.use_cases import (
-    ReconciliationCancellation,
 )
 from dropsort.library.playback import LocalMediaActions
 from dropsort.posters import PosterActions
@@ -224,14 +221,6 @@ class MainWindow(QMainWindow):
         self._task_runner = task_runner or QtTaskRunner(self)
         self._reconciliation_actions = reconciliation_actions
         self._library_check_dialogs: set[LibraryFileCheckDialog] = set()
-        self._coalesced_reconciliation_dialogs: set[LibraryFileCheckDialog] = set()
-        self._queued_full_library_check_dialogs: set[LibraryFileCheckDialog] = set()
-        self._queued_full_library_check_page = False
-        self._automatic_reconciliation_started = False
-        self._reconciliation_active = False
-        self._reconciliation_token = 0
-        self._reconciliation_cancellation: ReconciliationCancellation | None = None
-        self._reconciliation_refreshed_changes = 0
         self._maintenance_token = 0
         self._maintenance_active = False
         self._single_instance_closing = False
@@ -423,9 +412,7 @@ class MainWindow(QMainWindow):
         self.library_view.check_files_requested.connect(self.show_check_library_from_library)
         self.library_view.clear_search_requested.connect(self._clear_search_state)
         self.check_library_page.start_requested.connect(self._start_check_library_page)
-        self.check_library_page.completed.connect(
-            lambda _result: self._refresh_library_snapshot()
-        )
+        self.check_library_page.progress_changed.connect(self._library_check_progress)
         self.check_library_page.back_requested.connect(self._return_from_check_library)
         self.library_view.search_candidates_changed.connect(self._set_search_suggestions)
         self.details_view.back_requested.connect(self.navigate_back)
@@ -562,7 +549,6 @@ class MainWindow(QMainWindow):
         self._set_navigation_checked("library")
         self._set_header_section(TextId.LIBRARY_HEADING, search_visible=True)
         self._set_current_page(self.library_view)
-        self._start_automatic_reconciliation()
 
     def show_personal_library(self) -> None:
         if self.personal_view is None or self._current_section == "personal":
@@ -603,14 +589,6 @@ class MainWindow(QMainWindow):
 
     def _start_check_library_page(self) -> None:
         if self.check_library_page.is_running:
-            return
-        if (
-            self._reconciliation_active
-            and self._reconciliation_cancellation is not None
-            and callable(getattr(self._reconciliation_actions, "check_library", None))
-        ):
-            self.check_library_page.wait_for_automatic_file_check()
-            self._queued_full_library_check_page = True
             return
         self.check_library_page.start_check()
 
@@ -795,6 +773,25 @@ class MainWindow(QMainWindow):
         else:
             self.personal_view.invalidate_snapshot()
 
+    def _library_check_progress(self, value: object) -> None:
+        if isinstance(value, LibraryHealthProgress):
+            movie_ids = [
+                change.movie_id for change in value.file_progress.changes
+            ]
+            movie_ids.extend(value.changed_movie_ids)
+        elif isinstance(value, LibraryReconciliationProgress):
+            movie_ids = [change.movie_id for change in value.changes]
+        else:
+            return
+        changed_movie_ids = tuple(dict.fromkeys(movie_ids))
+        if not changed_movie_ids:
+            return
+        self.library_view.refresh_movies(changed_movie_ids)
+        if self.personal_view is not None:
+            self.personal_view.invalidate_snapshot()
+        if self.history_view is not None:
+            self.history_view.invalidate_snapshot()
+
     def _personal_changed(self, movie_id: int) -> None:
         # MovieDetails already receives the authoritative PersonalMovieSnapshot
         # returned by the mutation and updates its controls in-place. Reloading
@@ -839,121 +836,15 @@ class MainWindow(QMainWindow):
             parent=self,
             localizer=self._localizer,
         )
-        dialog.completed.connect(lambda _result: self._refresh_library_snapshot())
+        dialog.progress_changed.connect(self._library_check_progress)
         dialog.finished.connect(
             lambda _result, active=dialog: self._discard_check_dialog(active)
         )
         self._library_check_dialogs.add(dialog)
-        if self._reconciliation_active and self._reconciliation_cancellation is not None:
-            if callable(getattr(self._reconciliation_actions, "check_library", None)):
-                self._queued_full_library_check_dialogs.add(dialog)
-                dialog.wait_for_automatic_file_check()
-            else:
-                self._coalesced_reconciliation_dialogs.add(dialog)
-                dialog.attach_to_existing(
-                    self._reconciliation_token,
-                    self._reconciliation_cancellation,
-                )
         dialog.show()
 
     def _discard_check_dialog(self, dialog: LibraryFileCheckDialog) -> None:
         self._library_check_dialogs.discard(dialog)
-        self._coalesced_reconciliation_dialogs.discard(dialog)
-        self._queued_full_library_check_dialogs.discard(dialog)
-
-    def _start_automatic_reconciliation(self) -> None:
-        if self._automatic_reconciliation_started or self._reconciliation_actions is None:
-            return
-        action = getattr(self._reconciliation_actions, "reconcile_library_files", None)
-        if not callable(action):
-            return
-        self._automatic_reconciliation_started = True
-        self._reconciliation_active = True
-        self._reconciliation_token += 1
-        token = self._reconciliation_token
-        cancellation = ReconciliationCancellation()
-        self._reconciliation_cancellation = cancellation
-        self._reconciliation_refreshed_changes = 0
-        self.library_view.show_reconciliation_message(
-            self._localizer.text(TextId.CHECK_FILES_BACKGROUND)
-        )
-        self._task_runner.submit_progressive(
-            token,
-            lambda report: action(progress=report, cancellation=cancellation),
-            self._automatic_reconciliation_progress,
-            self._automatic_reconciliation_succeeded,
-            self._automatic_reconciliation_failed,
-        )
-
-    def _automatic_reconciliation_progress(self, token: int, value: object) -> None:
-        if (
-            token != self._reconciliation_token
-            or not self._reconciliation_active
-            or not isinstance(value, LibraryReconciliationProgress)
-        ):
-            return
-        self.library_view.show_reconciliation_progress(value)
-        for dialog in tuple(self._coalesced_reconciliation_dialogs):
-            dialog._on_progress(token, value)
-        if value.status_changes > self._reconciliation_refreshed_changes:
-            self._reconciliation_refreshed_changes = value.status_changes
-            self._refresh_library_snapshot()
-
-    def _automatic_reconciliation_succeeded(self, token: int, value: object) -> None:
-        if (
-            token != self._reconciliation_token
-            or not self._reconciliation_active
-            or not isinstance(value, LibraryReconciliationProgress)
-        ):
-            return
-        self._reconciliation_active = False
-        self._reconciliation_cancellation = None
-        for dialog in tuple(self._coalesced_reconciliation_dialogs):
-            dialog._on_success(token, value)
-        self._coalesced_reconciliation_dialogs.clear()
-        queued = tuple(self._queued_full_library_check_dialogs)
-        self._queued_full_library_check_dialogs.clear()
-        for dialog in queued:
-            if dialog in self._library_check_dialogs:
-                dialog.start_check()
-        if self._queued_full_library_check_page:
-            self._queued_full_library_check_page = False
-            self.check_library_page.start_check()
-        self.library_view.show_reconciliation_message(self._localizer.text(
-            TextId.CHECK_FILES_COMPLETE,
-            present=value.present,
-            missing=value.missing,
-            errors=value.errors,
-        ))
-        if value.status_changes > self._reconciliation_refreshed_changes:
-            self._reconciliation_refreshed_changes = value.status_changes
-            self._refresh_library_snapshot()
-
-    def _automatic_reconciliation_failed(self, token: int, error: BaseException) -> None:
-        if token != self._reconciliation_token or not self._reconciliation_active:
-            return
-        self._reconciliation_active = False
-        self._reconciliation_cancellation = None
-        for dialog in tuple(self._coalesced_reconciliation_dialogs):
-            dialog._on_failure(token, error)
-        self._coalesced_reconciliation_dialogs.clear()
-        queued = tuple(self._queued_full_library_check_dialogs)
-        self._queued_full_library_check_dialogs.clear()
-        for dialog in queued:
-            if dialog in self._library_check_dialogs:
-                dialog.start_check()
-        if self._queued_full_library_check_page:
-            self._queued_full_library_check_page = False
-            self.check_library_page.start_check()
-        if isinstance(error, LibraryReconciliationCancelled):
-            message = self._localizer.text(TextId.CHECK_FILES_BACKGROUND_CANCELLED)
-        else:
-            LOGGER.warning(
-                "Automatic library reconciliation failed",
-                exc_info=(type(error), error, error.__traceback__),
-            )
-            message = self._localizer.text(TextId.CHECK_FILES_BACKGROUND_FAILED)
-        self.library_view.show_reconciliation_message(message)
 
     def _clear_library_data_requested(self) -> None:
         if self.settings_view is None or self._settings_actions is None:
@@ -979,7 +870,7 @@ class MainWindow(QMainWindow):
         )
 
     def _catalog_maintenance_is_busy(self) -> bool:
-        if self._maintenance_active or self._reconciliation_active:
+        if self._maintenance_active:
             return True
         if any(dialog.is_running for dialog in self._library_check_dialogs):
             return True
@@ -1023,10 +914,6 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: QCloseEvent) -> None:
         self._single_instance_closing = True
-        if self._reconciliation_cancellation is not None:
-            self._reconciliation_cancellation.cancel()
-        self._reconciliation_token += 1
-        self._reconciliation_active = False
         self._maintenance_token += 1
         self._maintenance_active = False
         if self.import_view is not None:
@@ -1041,7 +928,6 @@ class MainWindow(QMainWindow):
         for dialog in tuple(self._library_check_dialogs):
             dialog.invalidate_pending()
         self.check_library_page.invalidate_pending()
-        self._coalesced_reconciliation_dialogs.clear()
         super().closeEvent(event)
 
     def wait_for_pending_tasks(self) -> None:

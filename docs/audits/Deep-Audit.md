@@ -8,9 +8,14 @@ Audited baseline: `D:\DropSort_ chat\DropSort`, before feature changes
 
 DropSort is a substantial Python/PySide6/SQLite Windows desktop application, not a skeleton or abandoned rewrite. Its strongest area is the filesystem mutation core: approved-root checks, collision prevention, durable operation journaling, content verification, database commit ordering, and ambiguity-preserving recovery are implemented and tested. Stable `Movie`, `MediaFile`, and `WatchEvent` identities exist, and missing files remain registered rather than being deleted.
 
-The current implementation does not yet satisfy several central contracts in `The Idea-v3.md`. Startup automatically reconciles every registered file; progress can cause repeated full Library queries; poster cache misses can call TMDB when Library cards are constructed; Add Movies cannot register a local file unless TMDB matching and detail retrieval succeed; Play/Open Folder do not persist newly discovered missing state; and Clear Library Data retains active personal state and watch history.
+At this audit's original baseline, startup automatically reconciled every registered file and progress
+could cause repeated full Library queries. Python Stabilization Pass 1 has now remediated those two
+findings. Poster cache misses can still call TMDB when Library cards are constructed; Add Movies
+cannot register a local file unless TMDB matching and detail retrieval succeed; Play/Open Folder do
+not persist newly discovered missing state; and Clear Library Data retains active personal state and
+watch history.
 
-No product behavior was changed in this task. The repository baseline was documented, generated/private artifacts were excluded, the existing remote history and `Skills.md` were preserved, and verification failures were recorded rather than repaired.
+No product behavior was changed during the original audit task. Section 27 records the later Pass 1 implementation and verification delta.
 
 ## 2. Selected Project Root and Why
 
@@ -388,9 +393,9 @@ Recommended future change: address these in a focused baseline-stabilization tas
 | Stable MovieId/MediaFileId | Aligned | Stable PKs and in-place relink |
 | Registered may be missing | Aligned | `MISSING` persists without deletion |
 | TMDB optional enrichment | Not aligned | registration requires candidate/details |
-| Startup loads local state only | Not aligned | automatic reconciliation scans registered files |
-| Check Library explicit/manual | Partially aligned | page is manual; reconcile also runs at startup |
-| Incremental UI updates | Partially aligned | stable grid; broad summary queries remain |
+| Startup loads local state only | Aligned in Pass 1 | one local Library snapshot; no startup reconciliation |
+| Check Library explicit/manual | Aligned in Pass 1 | reconciliation starts only from explicit user action |
+| Incremental UI updates | Aligned for reconciliation in Pass 1 | changed MovieIds use one-item summary queries; unaffected cards persist |
 | Opening Library avoids network | Not aligned | poster cache miss can call TMDB |
 | Safe filesystem operations | Strongly aligned in code | policy, journal, verification, recovery |
 | Explicit recovery state | Aligned | durable nonterminal/recovery states |
@@ -447,7 +452,7 @@ Recommended future change: address these in a focused baseline-stabilization tas
 
 ## 23. Highest-Priority Risks
 
-1. **Product-contract risk:** startup silently performs full filesystem reconciliation and repeated broad refreshes.
+1. **Product-contract risk (remediated in Pass 1):** startup no longer reconciles files or repeats broad refreshes.
 2. **Local-first risk:** TMDB failure prevents valid local registration.
 3. **Privacy/network risk:** opening Library can fetch posters on cache miss.
 4. **State-semantics risk:** Clear Library does not produce empty active state.
@@ -497,3 +502,20 @@ Dedicated-branch rename: `origin/codex` was created and directly verified at `ff
 `main` correction: ordinary fast-forward to revert commit `02ba6ba4d42a316357530c661993277e0723f9ee`; its tree exactly matches pre-baseline commit `d5d7fb2f0887904ee2f882eae7cb6421568f5522` and contains only the original `README.md` and `Skills.md`.  
 No force push or history rewrite was used. The final dedicated-branch SHA containing this record is reported in the final task handoff.
 
+## 27. Python Stabilization Pass 1 Remediation
+
+Implemented on 2026-08-23 on branch `codex`:
+
+- removed automatic startup reconciliation and progress-triggered full Library reloads;
+- retained Check Library as an explicit manual action;
+- added committed `media_file_id`, `movie_id`, and availability-status progress identity;
+- added a one-movie SQLite summary query and `GetMovieListItem`;
+- updated only affected cached cards while retaining missing movies;
+- added eight focused startup, manual-check, identity, query, and UI-stability tests.
+
+Verification: `29 passed` in the focused stabilization/MainWindow gate. The full suite reported
+`1,175 passed, 11 failed, 5 skipped`. The 11 failures exactly match section 20's audited baseline;
+compileall and an offscreen startup smoke guarded against any reconciliation invocation also passed.
+
+Deferred by scope: poster cache-miss network behavior, offline registration, Play/Open Folder
+missing-state persistence, Clear Library semantics, packaging rebuild, and UI redesign.

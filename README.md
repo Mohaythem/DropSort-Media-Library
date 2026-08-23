@@ -7,7 +7,8 @@ safety-first filesystem core.
 > not a claim that every current product contract or test is satisfied. The factual baseline is
 > recorded in [`docs/audits/Deep-Audit.md`](docs/audits/Deep-Audit.md). The current source of product
 > and architecture truth is [`docs/source/The Idea-v3.md`](docs/source/The%20Idea-v3.md). The audit found 1,172 passing tests,
-> 11 failing tests, and 5 host-privilege skips, plus important gaps around startup reconciliation,
+> 11 failing tests, and 5 host-privilege skips. Python Stabilization Pass 1 has since fixed the
+> startup reconciliation/full-refresh gap; important remaining gaps include
 > offline registration, poster network activity, missing-state persistence, and Clear Library
 > semantics. Feature work should start from those documented facts.
 
@@ -44,11 +45,12 @@ explicit confirmation. It creates a new linked journal operation through the Pha
 it never edits history or overwrites an occupied destination. Recovery exposes only deterministic
 safe actions and preserves both files whenever state is ambiguous.
 
-The first Library visit in a desktop session automatically checks only cataloged paths in the
-background; the screen renders first and shows truthful inline present/missing/error progress. The
-explicit **Check Library Files** dialog has distinct running, completed, failed, and cancelled
-states; its terminal result, not the progress count, controls the Done/Cancel controls. Automatic
-and manual requests coalesce onto one check and never run duplicate jobs. Missing records are never deleted and remain
+Desktop startup now loads the local SQLite Library snapshot only. It does not reconcile cataloged
+paths, verify files, refresh metadata, or trigger a catalog-wide Library reload. **Check Library**
+is the sole explicit reconciliation action and retains distinct running, completed, failed, and
+cancelled states. Committed availability changes report stable media-file/movie identities; the UI
+re-queries and replaces only affected movie cards rather than reloading the full grid. Missing
+records are never deleted and remain
 visible in Movie Details with their last known location. **Locate File** opens a conservative
 read-only preview; only **Confirm Relink** corrects the same catalog row after size, extension,
 title/year/technical, reparse, path-ownership, and TOCTOU checks. Relink closes after success,

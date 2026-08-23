@@ -3,7 +3,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from dropsort.application.dto.library import MediaFileAvailability
 from dropsort.library.movies import MediaFile
+
+
+@dataclass(frozen=True, slots=True)
+class MediaFileStatusChange:
+    media_file_id: int
+    movie_id: int
+    status: MediaFileAvailability
+
+    def __post_init__(self) -> None:
+        for field_name in ("media_file_id", "movie_id"):
+            value = getattr(self, field_name)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                raise ValueError(f"{field_name} must be a positive integer")
+        if not isinstance(self.status, MediaFileAvailability):
+            raise ValueError("status must be MediaFileAvailability")
 
 
 @dataclass(frozen=True, slots=True)
@@ -14,6 +30,7 @@ class LibraryReconciliationProgress:
     missing: int
     errors: int
     status_changes: int
+    changes: tuple[MediaFileStatusChange, ...] = ()
 
     def __post_init__(self) -> None:
         values = (
@@ -32,6 +49,12 @@ class LibraryReconciliationProgress:
             raise ValueError("inspection counts must equal checked")
         if self.status_changes > self.checked:
             raise ValueError("status_changes cannot exceed checked")
+        if not isinstance(self.changes, tuple) or any(
+            not isinstance(change, MediaFileStatusChange) for change in self.changes
+        ):
+            raise ValueError("changes must be a tuple of MediaFileStatusChange values")
+        if len({change.media_file_id for change in self.changes}) != len(self.changes):
+            raise ValueError("changes cannot repeat a media_file_id")
 
     @property
     def remaining(self) -> int:

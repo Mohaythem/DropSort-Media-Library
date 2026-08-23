@@ -43,6 +43,7 @@ from dropsort.application.use_cases import (
     ConfirmMovieImport,
     DiscoverMedia,
     GetMovieDetails,
+    GetMovieListItem,
     ListMovies,
     PrepareFolderImportReview,
     ProposeMovieImport,
@@ -114,10 +115,14 @@ class LocalLibraryActions:
     """Concrete composition adapter; widgets consume only its protocol."""
 
     _list_movies: ListMovies
+    _get_movie_item: GetMovieListItem
     _get_movie_details: GetMovieDetails
 
     def list_movies(self) -> tuple[MovieListItem, ...]:
         return tuple(item for item in self._list_movies.execute() if item.media_file_count > 0)
+
+    def get_movie_item(self, movie_id: int) -> MovieListItem:
+        return self._get_movie_item.execute(movie_id)
 
     def get_movie_details(self, movie_id: int) -> MovieDetails:
         return self._get_movie_details.execute(movie_id)
@@ -351,6 +356,7 @@ def create_library_actions(database: Database) -> LocalLibraryActions:
     repository = SqliteMovieLibraryReadRepository(database)
     return LocalLibraryActions(
         _list_movies=ListMovies(repository),
+        _get_movie_item=GetMovieListItem(repository),
         _get_movie_details=GetMovieDetails(repository),
     )
 

@@ -44,6 +44,7 @@ class LibraryCheckPage(QWidget):
     back_requested = Signal()
     start_requested = Signal()
     completed = Signal(object)
+    progress_changed = Signal(object)
 
     class State(StrEnum):
         IDLE = "IDLE"
@@ -282,6 +283,7 @@ class LibraryCheckPage(QWidget):
             return
         self._last_value = value
         self._render_progress(value)
+        self.progress_changed.emit(value)
 
     def _on_success(self, token: int, value: object) -> None:
         if token != self._token or not isinstance(
