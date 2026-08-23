@@ -487,13 +487,13 @@ Generated artifacts, runtime DBs, caches, environments, release output, and ZIP 
 ## 26. GitHub Upload Result
 
 Target: `https://github.com/Mohaythem/DropSort-Media-Library`  
-Branch: `codex/audited-python-baseline`  
+Branch: `codex`  
 Remote base inspected: `d5d7fb2f0887904ee2f882eae7cb6421568f5522`  
 Integration: the dedicated audited-baseline branch descends from the fetched remote history; remote `Skills.md` is preserved. The accidental `main` upload is removed with ordinary revert commits, never force-push or history rewrite.
 
 Baseline commit SHA: `ce4e87ff44a57dd0513969dada0e2cc8065d092f`.  
 Documentation-organization commit: `1fe58272ad7b7970e89b52fb4dd65296b0afc0ed`.  
-Dedicated-branch push: successful at `origin/codex/audited-python-baseline`; direct `git ls-remote` verification matched `1fe58272ad7b7970e89b52fb4dd65296b0afc0ed`.  
+Dedicated-branch rename: `origin/codex` was created and directly verified at `ffc8a6883b8e0a4c97f575bc589ae6273e85c037`; the old `origin/codex/audited-python-baseline` ref was then removed.  
 `main` correction: ordinary fast-forward to revert commit `02ba6ba4d42a316357530c661993277e0723f9ee`; its tree exactly matches pre-baseline commit `d5d7fb2f0887904ee2f882eae7cb6421568f5522` and contains only the original `README.md` and `Skills.md`.  
 No force push or history rewrite was used. The final dedicated-branch SHA containing this record is reported in the final task handoff.
 
