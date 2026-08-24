@@ -1071,7 +1071,11 @@ class MovieDetailsView(QWidget):
         self._scroll.verticalScrollBar().setValue(0)
         self._poster.clear()
         self._poster.setText(title_initials(details.title))
-        if self._poster_loader is not None and details.poster_reference is not None:
+        if (
+            self._poster_loader is not None
+            and details.provider is not None
+            and details.poster_reference is not None
+        ):
             self._poster_loader.request(
                 self,
                 PosterRequest(details.provider, details.poster_reference),

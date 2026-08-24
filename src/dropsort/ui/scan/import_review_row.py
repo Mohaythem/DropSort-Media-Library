@@ -127,11 +127,10 @@ class ImportReviewRow(QFrame):
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(SPACE_4)
 
-        confirmable = proposal.status in {
-            ImportProposalStatus.MATCH_PROPOSED,
-            ImportProposalStatus.REVIEW_REQUIRED,
-            ImportProposalStatus.MANUAL_SELECTION,
-        }
+        confirmable = (
+            proposal.discovery.classification.value == "MOVIE_CANDIDATE"
+            and proposal.status is not ImportProposalStatus.ALREADY_IN_LIBRARY
+        )
 
         self.import_button = QPushButton()
         self.import_button.setObjectName("confirmImportButton")
@@ -271,8 +270,6 @@ class ImportReviewRow(QFrame):
 
     def _request_confirmation(self) -> None:
         candidate = self.selected_candidate
-        if candidate is None:
-            return
         self.import_button.setEnabled(False)
         self.candidate_selector.setEnabled(False)
         self._status.setText(self._localizer.text(TextId.ADDING_TO_LIBRARY))

@@ -15,6 +15,7 @@ from dropsort.library.movies.models import (
     MediaFileStatus,
     MediaFileStatusUpdate,
     Movie,
+    MetadataStatus,
     MovieCatalogData,
     VerifiedMediaFileFacts,
 )
@@ -44,6 +45,7 @@ __all__ = [
     "MediaFile",
     "MediaFileAssociationConflict",
     "MediaFileCatalogLookup",
+    "MetadataStatus",
     "MediaFilePathConflictError",
     "MediaFileRepository",
     "MediaFileStatus",

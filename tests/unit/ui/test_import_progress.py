@@ -52,8 +52,16 @@ class Actions:
         self.cancellations.append(cancellation)
         return self.session
 
-    def confirm_movie_import(self, command):
+    def register_movie_import(self, command):
         return object()
+
+    def enrich_movie_import(self, command, registration):
+        return registration
+
+    def confirm_movie_import(self, command):
+        return self.enrich_movie_import(command, self.register_movie_import(command))
+
+
 
 
 def test_scan_progress_controls_and_cancellation_are_visible(

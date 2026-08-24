@@ -3,11 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
+from types import SimpleNamespace
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel
 
+from dropsort.application.dto.catalog import MovieFileIngestionResult
 from dropsort.application.dto.import_review import (
     ImportReviewProgress,
     ImportReviewSession,
@@ -63,6 +65,9 @@ class FakeImportActions:
     confirm_error: BaseException | None = None
     prepare_calls: list[tuple[Path, bool]] = field(default_factory=list)
     confirmations: list[ConfirmMovieImportCommand] = field(default_factory=list)
+    enrichments: list[
+        tuple[ConfirmMovieImportCommand, MovieFileIngestionResult]
+    ] = field(default_factory=list)
 
     def prepare_import_review(
         self,
@@ -77,11 +82,26 @@ class FakeImportActions:
             raise self.prepare_error
         return self.session
 
-    def confirm_movie_import(self, command: ConfirmMovieImportCommand) -> object:
+    def register_movie_import(self, command: ConfirmMovieImportCommand) -> object:
         self.confirmations.append(command)
         if self.confirm_error:
             raise self.confirm_error
-        return object()
+        return MovieFileIngestionResult(
+            movie=SimpleNamespace(id=99), media_file=SimpleNamespace(id=100)
+        )
+
+    def enrich_movie_import(
+        self,
+        command: ConfirmMovieImportCommand,
+        registration: MovieFileIngestionResult,
+    ) -> MovieFileIngestionResult:
+        self.enrichments.append((command, registration))
+        return registration
+
+    def confirm_movie_import(self, command: ConfirmMovieImportCommand) -> object:
+        registration = self.register_movie_import(command)
+        assert isinstance(registration, MovieFileIngestionResult)
+        return self.enrich_movie_import(command, registration)
 
 
 def _session(root: Path, *proposals) -> ImportReviewSession:
@@ -257,8 +277,8 @@ def test_matched_proposal_performs_zero_catalog_writes_until_explicit_click(
     root = Path.cwd() / "movies"
     actions = FakeImportActions(_session(root, proposal_factory()))
     view = ImportView(actions, runner=ImmediateRunner())
-    refreshed: list[bool] = []
-    view.catalog_changed.connect(lambda: refreshed.append(True))
+    refreshed: list[int] = []
+    view.catalog_changed.connect(refreshed.append)
 
     view.start_scan(root)
     assert actions.confirmations == []
@@ -266,9 +286,43 @@ def test_matched_proposal_performs_zero_catalog_writes_until_explicit_click(
     QTest.mouseClick(view.rows[0].import_button, Qt.MouseButton.LeftButton)
 
     assert len(actions.confirmations) == 1
-    assert refreshed == [True]
+    assert refreshed == [99, 99]
+    assert len(actions.enrichments) == 1
     assert view.row_count == 0
     assert "All done" in view.findChild(QLabel, "importQueueEmptyLabel").text()
+
+
+def test_local_registration_is_published_before_deferred_enrichment(
+    qapp: QApplication,
+    proposal_factory,
+) -> None:
+    root = Path.cwd() / "movies"
+    actions = FakeImportActions(_session(root, proposal_factory()))
+    runner = DeferredRunner()
+    view = ImportView(actions, runner=runner)
+    refreshed: list[int] = []
+    view.catalog_changed.connect(refreshed.append)
+
+    view.start_scan(root)
+    scan_task = runner.tasks[0]
+    scan_task.on_success(scan_task.token, scan_task.task())
+    QTest.mouseClick(view.rows[0].import_button, Qt.MouseButton.LeftButton)
+
+    registration_task = runner.tasks[1]
+    registration = registration_task.task()
+    registration_task.on_success(registration_task.token, registration)
+
+    assert view.row_count == 0
+    assert refreshed == [99]
+    assert actions.enrichments == []
+    assert len(runner.tasks) == 3
+
+    enrichment_task = runner.tasks[2]
+    enrichment = enrichment_task.task()
+    enrichment_task.on_success(enrichment_task.token, enrichment)
+
+    assert refreshed == [99, 99]
+    assert len(actions.enrichments) == 1
 
 
 def test_failed_import_is_friendly_and_can_be_retried(

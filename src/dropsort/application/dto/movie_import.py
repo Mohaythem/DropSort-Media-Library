@@ -122,19 +122,19 @@ class MovieImportProposal:
 
 @dataclass(frozen=True, slots=True)
 class ConfirmMovieImportCommand:
-    """Explicit caller intent to import one candidate from a prior proposal."""
+    """Explicit caller intent to register locally, with an optional enrichment hint."""
 
     proposal: MovieImportProposal
-    chosen_candidate: MovieCandidate
+    chosen_candidate: MovieCandidate | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.proposal, MovieImportProposal):
             raise ValueError("proposal must be MovieImportProposal")
-        if not isinstance(self.chosen_candidate, MovieCandidate):
-            raise ValueError("chosen_candidate must be MovieCandidate")
         if self.proposal.status not in {
             ImportProposalStatus.MATCH_PROPOSED,
             ImportProposalStatus.REVIEW_REQUIRED,
+            ImportProposalStatus.NO_MATCH,
+            ImportProposalStatus.METADATA_UNAVAILABLE,
             ImportProposalStatus.MANUAL_SELECTION,
         }:
             raise ValueError("proposal is not confirmable")
@@ -142,5 +142,8 @@ class ConfirmMovieImportCommand:
             DiscoveryClassification.MOVIE_CANDIDATE
         ):
             raise ValueError("only a movie discovery can be confirmed")
-        if self.chosen_candidate not in self.proposal.candidates:
-            raise ValueError("chosen candidate must be one of the proposal candidates")
+        if self.chosen_candidate is not None:
+            if not isinstance(self.chosen_candidate, MovieCandidate):
+                raise ValueError("chosen_candidate must be MovieCandidate or None")
+            if self.chosen_candidate not in self.proposal.candidates:
+                raise ValueError("chosen candidate must be one of the proposal candidates")

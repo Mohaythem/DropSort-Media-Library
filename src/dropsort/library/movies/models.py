@@ -12,6 +12,13 @@ class MediaFileStatus(StrEnum):
     MISSING = "MISSING"
 
 
+class MetadataStatus(StrEnum):
+    PENDING = "PENDING"
+    READY = "READY"
+    FAILED = "FAILED"
+    NEEDS_MATCH = "NEEDS_MATCH"
+
+
 @dataclass(frozen=True, slots=True)
 class MediaFileStatusUpdate:
     media_file_id: int
@@ -30,8 +37,8 @@ class MediaFileStatusUpdate:
 
 @dataclass(frozen=True, slots=True)
 class MovieCatalogData:
-    provider: str
-    external_id: str
+    provider: str | None
+    external_id: str | None
     title: str
     original_title: str | None
     year: int | None
@@ -40,14 +47,26 @@ class MovieCatalogData:
     runtime_minutes: int | None
     rating: float | None
     poster_reference: str | None
+    metadata_status: MetadataStatus = MetadataStatus.READY
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "provider", _clean_required_text(self.provider, "provider"))
-        object.__setattr__(
-            self,
-            "external_id",
-            _clean_required_text(self.external_id, "external_id"),
-        )
+        if (self.provider is None) != (self.external_id is None):
+            raise ValueError("provider and external_id must both be populated or both be None")
+        if self.provider is not None and self.external_id is not None:
+            object.__setattr__(
+                self,
+                "provider",
+                _clean_required_text(self.provider, "provider"),
+            )
+            object.__setattr__(
+                self,
+                "external_id",
+                _clean_required_text(self.external_id, "external_id"),
+            )
+        if not isinstance(self.metadata_status, MetadataStatus):
+            raise ValueError("metadata_status must be MetadataStatus")
+        if self.metadata_status is MetadataStatus.READY and self.provider is None:
+            raise ValueError("READY metadata requires a populated external identity")
         object.__setattr__(self, "title", _clean_required_text(self.title, "title"))
         _validate_optional_text(self.original_title, "original_title")
         _validate_year(self.year)
@@ -90,12 +109,16 @@ class Movie:
         _validate_aware_datetime(self.updated_at, "updated_at")
 
     @property
-    def provider(self) -> str:
+    def provider(self) -> str | None:
         return self.data.provider
 
     @property
-    def external_id(self) -> str:
+    def external_id(self) -> str | None:
         return self.data.external_id
+
+    @property
+    def metadata_status(self) -> MetadataStatus:
+        return self.data.metadata_status
 
     @property
     def title(self) -> str:

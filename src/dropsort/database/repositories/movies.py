@@ -9,6 +9,7 @@ from dropsort.library.movies import (
     CatalogDataError,
     CatalogIntegrityError,
     CatalogRecordNotFoundError,
+    MetadataStatus,
     Movie,
     MovieCatalogData,
     MovieIdentityConflictError,
@@ -43,14 +44,19 @@ class SqliteMovieRepository:
         sql = """
             INSERT INTO movies(
                 provider, external_id, title, original_title, year, overview, genres,
-                runtime_minutes, rating, poster_path, date_added, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                runtime_minutes, rating, poster_path, metadata_status,
+                date_added, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         values = (*_metadata_values(data), now.isoformat(), now.isoformat(), now.isoformat())
         try:
             movie_id = self._insert(sql, values)
         except sqlite3.IntegrityError as error:
-            if self.get_by_external_id(data.provider, data.external_id) is not None:
+            if (
+                data.provider is not None
+                and data.external_id is not None
+                and self.get_by_external_id(data.provider, data.external_id) is not None
+            ):
                 raise MovieIdentityConflictError(
                     f"movie identity already exists: {data.provider}:{data.external_id}"
                 ) from error
@@ -76,15 +82,71 @@ class SqliteMovieRepository:
         sql = """
             UPDATE movies
                SET title = ?, original_title = ?, year = ?, overview = ?, genres = ?,
-                   runtime_minutes = ?, rating = ?, poster_path = ?, updated_at = ?
+                   runtime_minutes = ?, rating = ?, poster_path = ?, metadata_status = ?,
+                   updated_at = ?
              WHERE id = ?
         """
-        descriptive_values = _metadata_values(data)[2:]
-        self._execute(sql, (*descriptive_values, now.isoformat(), movie_id))
-        movie = self.get_by_id(movie_id)
-        if movie is None:
-            raise CatalogRecordNotFoundError(movie_id)
-        return movie
+        self._execute(
+            sql,
+            (*_descriptive_values(data), now.isoformat(), movie_id),
+        )
+        return self._require(movie_id)
+
+    def attach_external_metadata(
+        self,
+        movie_id: int,
+        data: MovieCatalogData,
+        *,
+        now: datetime,
+    ) -> Movie:
+        _require_aware(now)
+        if data.provider is None or data.external_id is None:
+            raise ValueError("external metadata must contain an identity")
+        if data.metadata_status is not MetadataStatus.READY:
+            raise ValueError("attached external metadata must be READY")
+        current = self._require(movie_id)
+        if current.provider is not None and (
+            current.provider,
+            current.external_id,
+        ) != (data.provider, data.external_id):
+            raise MovieIdentityConflictError(
+                "external identity replacement requires explicit conflict resolution"
+            )
+        try:
+            self._execute(
+                """
+                UPDATE movies
+                   SET provider = ?, external_id = ?, title = ?, original_title = ?,
+                       year = ?, overview = ?, genres = ?, runtime_minutes = ?,
+                       rating = ?, poster_path = ?, metadata_status = ?, updated_at = ?
+                 WHERE id = ?
+                """,
+                (*_metadata_values(data), now.isoformat(), movie_id),
+            )
+        except sqlite3.IntegrityError as error:
+            raise MovieIdentityConflictError(
+                f"movie identity already exists: {data.provider}:{data.external_id}"
+            ) from error
+        return self._require(movie_id)
+
+    def update_metadata_status(
+        self,
+        movie_id: int,
+        status: MetadataStatus,
+        *,
+        now: datetime,
+    ) -> Movie:
+        _require_aware(now)
+        if not isinstance(status, MetadataStatus):
+            raise ValueError("status must be MetadataStatus")
+        current = self._require(movie_id)
+        if status is MetadataStatus.READY and current.provider is None:
+            raise CatalogIntegrityError("READY metadata requires an external identity")
+        self._execute(
+            "UPDATE movies SET metadata_status = ?, updated_at = ? WHERE id = ?",
+            (status.value, now.isoformat(), movie_id),
+        )
+        return self._require(movie_id)
 
     def list_all(self) -> tuple[Movie, ...]:
         rows = self._fetchall("SELECT * FROM movies ORDER BY date_added, id", ())
@@ -104,6 +166,13 @@ class SqliteMovieRepository:
             (after_id, limit),
         )
         return tuple(movie_from_row(row) for row in rows)
+
+    def _require(self, movie_id: int) -> Movie:
+        movie = self.get_by_id(movie_id)
+        if movie is None:
+            raise CatalogRecordNotFoundError(movie_id)
+        return movie
+
 
     def _fetchone(self, sql: str, values: tuple[object, ...]) -> sqlite3.Row | None:
         if self._connection is not None:
@@ -138,6 +207,12 @@ def _metadata_values(data: MovieCatalogData) -> tuple[object, ...]:
     return (
         data.provider,
         data.external_id,
+        *_descriptive_values(data),
+    )
+
+
+def _descriptive_values(data: MovieCatalogData) -> tuple[object, ...]:
+    return (
         data.title,
         data.original_title,
         data.year,
@@ -146,6 +221,7 @@ def _metadata_values(data: MovieCatalogData) -> tuple[object, ...]:
         data.runtime_minutes,
         data.rating,
         data.poster_reference,
+        data.metadata_status.value,
     )
 
 
@@ -168,6 +244,7 @@ def movie_from_row(row: sqlite3.Row) -> Movie:
             runtime_minutes=row["runtime_minutes"],
             rating=row["rating"],
             poster_reference=row["poster_path"],
+            metadata_status=MetadataStatus(row["metadata_status"]),
         )
         return Movie(
             id=row["id"],

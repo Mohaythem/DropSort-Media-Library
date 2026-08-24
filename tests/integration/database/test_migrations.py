@@ -35,7 +35,7 @@ def test_initial_migration_is_idempotent(tmp_path: Path) -> None:
         "settings",
         "schema_migrations",
     }.issubset(tables)
-    assert version_count == 4
+    assert version_count == 5
 
 
 def test_catalog_migration_adds_genres_and_media_file_movie_index(harness) -> None:

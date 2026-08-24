@@ -6,8 +6,13 @@ from pathlib import Path
 import pytest
 
 from dropsort.application.dto.movie_import import ConfirmMovieImportCommand
-from dropsort.application.errors import MovieImportCatalogError
-from dropsort.application.use_cases import ConfirmMovieImport, ProposeMovieImport, RegisterMovieFile
+from dropsort.application.dto import MetadataEnrichmentOutcome
+from dropsort.application.use_cases import (
+    ConfirmMovieImport,
+    EnrichMovieMetadata,
+    ProposeMovieImport,
+    RegisterLocalMovieFile,
+)
 from dropsort.database.repositories import (
     MediaFileRepository,
     SqliteCatalogUnitOfWork,
@@ -61,11 +66,14 @@ def _proposal_command(harness, provider: Provider, discovery: DiscoveredMedia):
 
 
 def _confirmer(harness, provider: Provider) -> ConfirmMovieImport:
-    registrar = RegisterMovieFile(
-        lambda: SqliteCatalogUnitOfWork(harness.database),
+    unit_of_work_factory = lambda: SqliteCatalogUnitOfWork(harness.database)
+    registrar = RegisterLocalMovieFile(unit_of_work_factory, now=lambda: NOW)
+    enricher = EnrichMovieMetadata(
+        provider,
+        unit_of_work_factory,
         now=lambda: NOW,
     )
-    return ConfirmMovieImport(provider, registrar, now=lambda: NOW)
+    return ConfirmMovieImport(registrar, enricher, now=lambda: NOW)
 
 
 def _confirm(harness, provider: Provider, discovery: DiscoveredMedia):
@@ -99,7 +107,10 @@ def test_confirmed_import_creates_catalog_association_and_is_idempotent(
     assert _counts(harness) == (1, 1)
 
 
-def test_same_movie_can_confirm_second_physical_file(harness, tmp_path: Path) -> None:
+def test_second_local_file_keeps_its_own_ids_when_external_identity_collides(
+    harness,
+    tmp_path: Path,
+) -> None:
     provider = Provider()
 
     first = _confirm(harness, provider, _discovery(tmp_path / "1080p.mkv"))
@@ -109,9 +120,12 @@ def test_same_movie_can_confirm_second_physical_file(harness, tmp_path: Path) ->
         _discovery(tmp_path / "2160p.mkv", "2160p"),
     )
 
-    assert first.movie.id == second.movie.id
+    assert first.movie.id != second.movie.id
     assert first.media_file.id != second.media_file.id
-    assert _counts(harness) == (1, 2)
+    assert second.enrichment is not None
+    assert second.enrichment.outcome is MetadataEnrichmentOutcome.IDENTITY_COLLISION
+    assert second.enrichment.collision_movie_id == first.movie.id
+    assert _counts(harness) == (2, 2)
 
 
 def test_already_in_library_path_short_circuits_before_metadata_search(
@@ -148,7 +162,7 @@ def test_matched_proposal_alone_performs_zero_catalog_writes(
     assert _counts(harness) == (0, 0)
 
 
-def test_same_file_different_movie_conflict_is_controlled(
+def test_same_file_repeat_never_replaces_existing_local_identity(
     harness,
     tmp_path: Path,
 ) -> None:
@@ -156,8 +170,11 @@ def test_same_file_different_movie_conflict_is_controlled(
     conflicting = Provider("2")
     discovery = _discovery(tmp_path / "Movie.mkv")
     stale_command = _proposal_command(harness, conflicting, discovery)
-    _confirm(harness, provider, discovery)
+    original = _confirm(harness, provider, discovery)
 
-    with pytest.raises(MovieImportCatalogError):
-        _confirmer(harness, conflicting).execute(stale_command)
+    repeated = _confirmer(harness, conflicting).execute(stale_command)
+
+    assert repeated.movie.id == original.movie.id
+    assert repeated.media_file.id == original.media_file.id
+    assert repeated.movie.metadata_status.value == "NEEDS_MATCH"
     assert _counts(harness) == (1, 1)

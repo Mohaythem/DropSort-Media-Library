@@ -47,7 +47,8 @@ from dropsort.application.use_cases import (
     ListMovies,
     PrepareFolderImportReview,
     ProposeMovieImport,
-    RegisterMovieFile,
+    RegisterLocalMovieFile,
+    EnrichMovieMetadata,
     OrganizeMediaFile,
     GetOperationDetails,
     ListOperationHistory,
@@ -208,6 +209,19 @@ class LocalImportActions:
         command: ConfirmMovieImportCommand,
     ) -> MovieFileIngestionResult:
         return self._confirm_import.execute(command)
+
+    def register_movie_import(
+        self,
+        command: ConfirmMovieImportCommand,
+    ) -> MovieFileIngestionResult:
+        return self._confirm_import.register(command)
+
+    def enrich_movie_import(
+        self,
+        command: ConfirmMovieImportCommand,
+        registration: MovieFileIngestionResult,
+    ) -> MovieFileIngestionResult:
+        return self._confirm_import.enrich(command, registration)
 
     def manual_movie_search(self, title: str, year: str | None = None):
         return self._manual_search.execute(title, year)
@@ -395,10 +409,12 @@ def create_import_actions(
         MovieMatcher(),
         MediaFileRepository(database),
     )
-    registrar = RegisterMovieFile(lambda: SqliteCatalogUnitOfWork(database))
+    unit_of_work_factory = lambda: SqliteCatalogUnitOfWork(database)
+    registrar = RegisterLocalMovieFile(unit_of_work_factory)
+    enricher = EnrichMovieMetadata(cached_provider, unit_of_work_factory)
     return LocalImportActions(
         _prepare_review=PrepareFolderImportReview(discover, propose),
-        _confirm_import=ConfirmMovieImport(cached_provider, registrar),
+        _confirm_import=ConfirmMovieImport(registrar, enricher),
         _manual_search=ManualMovieSearch(cached_provider),
     )
 

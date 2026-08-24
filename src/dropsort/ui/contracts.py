@@ -89,6 +89,18 @@ class ImportUiActions(Protocol):
         command: ConfirmMovieImportCommand,
     ) -> MovieFileIngestionResult: ...
 
+    def register_movie_import(
+        self,
+        command: ConfirmMovieImportCommand,
+    ) -> MovieFileIngestionResult: ...
+
+    def enrich_movie_import(
+        self,
+        command: ConfirmMovieImportCommand,
+        registration: MovieFileIngestionResult,
+    ) -> MovieFileIngestionResult: ...
+
+
     def manual_movie_search(self, title: str, year: str | None = None) -> ManualMovieSearchResult: ...
 
 

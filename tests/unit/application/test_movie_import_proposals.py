@@ -75,7 +75,9 @@ def test_confirm_command_requires_candidate_from_confirmable_proposal(tmp_path: 
         ConfirmMovieImportCommand(proposal, _candidate("different"))
 
 
-def test_non_confirmable_proposal_cannot_be_confirmed(tmp_path: Path) -> None:
+def test_no_match_proposal_is_locally_confirmable_without_candidate(
+    tmp_path: Path,
+) -> None:
     proposal = MovieImportProposal(
         status=ImportProposalStatus.NO_MATCH,
         discovery=_discovery(tmp_path),
@@ -86,7 +88,10 @@ def test_non_confirmable_proposal_cannot_be_confirmed(tmp_path: Path) -> None:
         existing_media_file_id=None,
     )
 
-    with pytest.raises(ValueError, match="confirmable"):
+    command = ConfirmMovieImportCommand(proposal)
+
+    assert command.chosen_candidate is None
+    with pytest.raises(ValueError, match="proposal candidates"):
         ConfirmMovieImportCommand(proposal, _candidate())
 
 

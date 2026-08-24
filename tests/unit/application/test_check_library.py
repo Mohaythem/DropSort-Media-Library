@@ -14,7 +14,7 @@ from dropsort.application.dto.library_health import (
 from dropsort.application.dto.reconciliation import LibraryReconciliationProgress
 from dropsort.application.errors import LibraryReconciliationCancelled
 from dropsort.application.use_cases import CheckLibrary, ReconciliationCancellation
-from dropsort.library.movies import Movie, MovieCatalogData
+from dropsort.library.movies import MetadataStatus, Movie, MovieCatalogData
 from dropsort.metadata.contracts import (
     MetadataAuthenticationError,
     MetadataError,
@@ -229,6 +229,23 @@ def test_missing_provider_identity_is_needs_match_and_never_guessed() -> None:
     assert result.items[0].issues == (MetadataHealthIssue.NEEDS_MATCH,)
     assert provider.calls == []
     assert movies.updated == []
+
+def test_identityless_pending_local_movie_is_retained_and_never_contacts_provider() -> None:
+    movie = _movie(
+        provider=None,
+        external_id=None,
+        metadata_status=MetadataStatus.PENDING,
+    )
+    movies = FakeMovies((movie,))
+    provider = FakeProvider()
+
+    result = _check(movies, provider).execute()
+
+    assert result.items[0].movie_id == movie.id
+    assert result.items[0].status is MetadataHealthStatus.NEEDS_MATCH
+    assert result.items[0].issues == (MetadataHealthIssue.NEEDS_MATCH,)
+    assert provider.calls == []
+    assert movies.movies == (movie,)
 
 
 @pytest.mark.parametrize(

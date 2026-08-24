@@ -4,8 +4,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
-
 MAX_LIBRARY_PAGE_SIZE = 1_000
+
+
+class MovieMetadataStatus(StrEnum):
+    PENDING = "PENDING"
+    READY = "READY"
+    FAILED = "FAILED"
+    NEEDS_MATCH = "NEEDS_MATCH"
 
 
 class MediaFileAvailability(StrEnum):
@@ -31,7 +37,7 @@ class MovieListQuery:
 @dataclass(frozen=True, slots=True)
 class MovieListItem:
     movie_id: int
-    provider: str
+    provider: str | None
     title: str
     original_title: str | None
     year: int | None
@@ -40,11 +46,18 @@ class MovieListItem:
     media_file_count: int
     date_added: datetime
     missing_file_count: int = 0
+    metadata_status: MovieMetadataStatus = MovieMetadataStatus.READY
 
     def __post_init__(self) -> None:
         _validate_positive_id(self.movie_id, "movie_id")
-        if not isinstance(self.provider, str) or not self.provider.strip():
-            raise ValueError("provider must be non-empty text")
+        if self.provider is not None and (
+            not isinstance(self.provider, str) or not self.provider.strip()
+        ):
+            raise ValueError("provider must be non-empty text or None")
+        if not isinstance(self.metadata_status, MovieMetadataStatus):
+            raise ValueError("metadata_status must be MovieMetadataStatus")
+        if self.metadata_status is MovieMetadataStatus.READY and self.provider is None:
+            raise ValueError("READY metadata requires a provider")
         if (
             isinstance(self.media_file_count, bool)
             or not isinstance(self.media_file_count, int)
@@ -91,8 +104,8 @@ class MediaFileDetails:
 @dataclass(frozen=True, slots=True)
 class MovieDetails:
     movie_id: int
-    provider: str
-    external_id: str
+    provider: str | None
+    external_id: str | None
     title: str
     original_title: str | None
     year: int | None
@@ -103,9 +116,16 @@ class MovieDetails:
     poster_reference: str | None
     date_added: datetime
     media_files: tuple[MediaFileDetails, ...]
+    metadata_status: MovieMetadataStatus = MovieMetadataStatus.READY
 
     def __post_init__(self) -> None:
         _validate_positive_id(self.movie_id, "movie_id")
+        if (self.provider is None) != (self.external_id is None):
+            raise ValueError("provider and external_id must both be populated or both be None")
+        if not isinstance(self.metadata_status, MovieMetadataStatus):
+            raise ValueError("metadata_status must be MovieMetadataStatus")
+        if self.metadata_status is MovieMetadataStatus.READY and self.provider is None:
+            raise ValueError("READY metadata requires an external identity")
         if not isinstance(self.genres, tuple):
             raise ValueError("genres must be a tuple")
         if not isinstance(self.media_files, tuple):

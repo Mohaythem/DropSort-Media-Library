@@ -54,18 +54,23 @@ def test_review_row_allows_explicit_candidate_selection(
     assert row.selected_candidate == second
 
 
-def test_non_confirmable_statuses_never_offer_import(
+def test_valid_local_movies_remain_addable_without_metadata(
     qapp: QApplication,
     proposal_factory,
 ) -> None:
     for status in (
         ImportProposalStatus.NO_MATCH,
         ImportProposalStatus.METADATA_UNAVAILABLE,
-        ImportProposalStatus.ALREADY_IN_LIBRARY,
     ):
         row = ImportReviewRow(proposal_factory(status=status))
-        assert row.can_import is False
-        assert row.import_button.isHidden()
+        assert row.can_import is True
+        assert row.import_button.isHidden() is False
+
+    existing = ImportReviewRow(
+        proposal_factory(status=ImportProposalStatus.ALREADY_IN_LIBRARY)
+    )
+    assert existing.can_import is False
+    assert existing.import_button.isHidden()
 
 
 def test_import_requires_button_click_and_disables_duplicate_clicks(
@@ -94,7 +99,7 @@ def test_dismiss_button_is_a_session_only_action(qapp: QApplication, proposal_fa
     assert dismissed == [row]
 
 
-def test_missing_candidate_cannot_emit_confirmation(
+def test_missing_candidate_emits_local_only_confirmation(
     qapp: QApplication,
     proposal_factory,
 ) -> None:
@@ -105,10 +110,10 @@ def test_missing_candidate_cannot_emit_confirmation(
 
     row.import_button.click()
 
-    assert confirmations == []
+    assert confirmations == [(row.proposal, None)]
 
 
-def test_missing_tmdb_credential_offers_settings_without_import(
+def test_missing_tmdb_credential_offers_settings_and_local_import(
     qapp: QApplication,
     proposal_factory,
 ) -> None:
@@ -123,7 +128,7 @@ def test_missing_tmdb_credential_offers_settings_without_import(
     assert "TMDB is not configured" in row.explanation_text
     assert "Settings" in row.explanation_text
     assert row.settings_button.isHidden() is False
-    assert row.import_button.isHidden() is True
+    assert row.import_button.isHidden() is False
 
     row.settings_button.click()
 

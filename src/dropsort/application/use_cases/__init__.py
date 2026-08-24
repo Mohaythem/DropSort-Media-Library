@@ -9,6 +9,8 @@ from dropsort.application.use_cases.prepare_folder_import_review import (
     PrepareFolderImportReview,
 )
 from dropsort.application.use_cases.register_movie_file import RegisterMovieFile
+from dropsort.application.use_cases.register_local_movie_file import RegisterLocalMovieFile
+from dropsort.application.use_cases.enrich_movie_metadata import EnrichMovieMetadata
 from dropsort.application.use_cases.organize_media_file import OrganizeMediaFile
 from dropsort.application.use_cases.operation_history import (
     GetOperationDetails,
@@ -50,6 +52,8 @@ __all__ = [
     "PrepareFolderImportReview",
     "ImportReviewCancellation",
     "RegisterMovieFile",
+    "RegisterLocalMovieFile",
+    "EnrichMovieMetadata",
     "OrganizeMediaFile",
     "GetOperationDetails",
     "ListOperationHistory",

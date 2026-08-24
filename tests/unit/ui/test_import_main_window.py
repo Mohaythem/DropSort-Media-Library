@@ -3,11 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from types import SimpleNamespace
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLineEdit, QPushButton
 
 from dropsort.application.dto.import_review import ImportReviewSession
+from dropsort.application.dto.catalog import MovieFileIngestionResult
 from dropsort.application.dto.library import MovieDetails, MovieListItem
 from dropsort.application.dto.movie_import import (
     ConfirmMovieImportCommand,
@@ -43,6 +45,11 @@ class CombinedActions:
     def get_movie_details(self, movie_id: int) -> MovieDetails:
         return self.details
 
+    def get_movie_item(self, movie_id: int) -> MovieListItem:
+        self.library_calls.append(f"item:{movie_id}")
+        return self.item
+
+
     def prepare_import_review(
         self,
         root: Path,
@@ -53,8 +60,22 @@ class CombinedActions:
     ) -> ImportReviewSession:
         return self.session
 
+    def register_movie_import(self, command: ConfirmMovieImportCommand) -> object:
+        return MovieFileIngestionResult(
+            movie=SimpleNamespace(id=self.item.movie_id), media_file=SimpleNamespace(id=1)
+        )
+
+    def enrich_movie_import(
+        self,
+        command: ConfirmMovieImportCommand,
+        registration: MovieFileIngestionResult,
+    ) -> MovieFileIngestionResult:
+        return registration
+
     def confirm_movie_import(self, command: ConfirmMovieImportCommand) -> object:
-        return object()
+        registration = self.register_movie_import(command)
+        assert isinstance(registration, MovieFileIngestionResult)
+        return self.enrich_movie_import(command, registration)
 
 
 @dataclass
@@ -156,15 +177,13 @@ def test_successful_explicit_import_refreshes_local_library_snapshot(
     window.show_import()
     assert window.import_view is not None
 
-    window.import_view.catalog_changed.emit()
+    window.import_view.catalog_changed.emit(actions.item.movie_id)
 
-    # Hidden Library UI is invalidated, not synchronously rebuilt behind the
-    # Add Movies page.  The fresh query runs only when Library is revisited.
-    assert actions.library_calls == ["library"]
-    assert window.library_view._has_snapshot is False
+    assert actions.library_calls == ["library", f"item:{actions.item.movie_id}"]
+    assert window.library_view._has_snapshot is True
     assert window.current_section == "import"
     window.show_library()
-    assert actions.library_calls == ["library", "library"]
+    assert actions.library_calls == ["library", f"item:{actions.item.movie_id}"]
 
 
 def test_window_without_import_composition_has_no_scan_or_import_controls(
@@ -210,10 +229,10 @@ def test_close_invalidates_import_worker_results_and_library_refreshes_library_s
     assert window.import_view is not None
     token_before = window.import_view._session_token
 
-    window.import_view.catalog_changed.emit()
+    window.import_view.catalog_changed.emit(actions.item.movie_id)
     window.close()
 
-    assert actions.library_calls == ["library"]
+    assert actions.library_calls == ["library", f"item:{actions.item.movie_id}"]
     assert window.import_view._session_token > token_before
 
 

@@ -369,7 +369,7 @@ class MainWindow(QMainWindow):
         self._stack.addWidget(self.details_view)
         if self.import_view is not None:
             self._stack.addWidget(self.import_view)
-            self.import_view.catalog_changed.connect(self._refresh_library_snapshot)
+            self.import_view.catalog_changed.connect(self._movie_imported)
             self.import_view.settings_requested.connect(self.show_settings)
         if self.settings_view is not None:
             self._stack.addWidget(self.settings_view)
@@ -611,7 +611,10 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     def show_import(self) -> None:
-        if self.import_view is None or self._current_section == "import":
+        if self.import_view is None:
+            self.show_library()
+            return
+        if self._current_section == "import":
             return
         self._clear_search_state(render_library=False)
         self._current_section = "import"
@@ -772,6 +775,14 @@ class MainWindow(QMainWindow):
             self.personal_view.refresh()
         else:
             self.personal_view.invalidate_snapshot()
+
+    def _movie_imported(self, movie_id: int) -> None:
+        self.library_view.refresh_movies((movie_id,))
+        if self.personal_view is not None:
+            self.personal_view.invalidate_snapshot()
+        if self.history_view is not None:
+            self.history_view.invalidate_snapshot()
+
 
     def _library_check_progress(self, value: object) -> None:
         if isinstance(value, LibraryHealthProgress):

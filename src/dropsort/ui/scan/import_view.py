@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from dropsort.application.dto.catalog import MovieFileIngestionResult
 from dropsort.application.dto.import_review import (
     ImportReviewProgress,
     ImportReviewSession,
@@ -55,7 +56,7 @@ REVIEW_ROW_BATCH_SIZE = 25
 
 
 class ImportView(QWidget):
-    catalog_changed = Signal()
+    catalog_changed = Signal(int)
     settings_requested = Signal()
 
     def __init__(
@@ -500,17 +501,72 @@ class ImportView(QWidget):
         self._catalog_tasks_active += 1
         self._runner.submit(
             token,
-            lambda: self._actions.confirm_movie_import(command),
-            lambda delivered_token, _result: self._import_succeeded(delivered_token, row),
+            lambda: self._actions.register_movie_import(command),
+            lambda delivered_token, result: self._registration_succeeded(
+                delivered_token,
+                row,
+                command,
+                result,
+            ),
             lambda delivered_token, error: self._import_failed(delivered_token, row, error),
         )
 
-    def _import_succeeded(self, token: int, row: ImportReviewRow) -> None:
+    def _registration_succeeded(
+        self,
+        token: int,
+        row: ImportReviewRow,
+        command: ConfirmMovieImportCommand,
+        result: object,
+    ) -> None:
         self._catalog_tasks_active = max(0, self._catalog_tasks_active - 1)
         if token != self._session_token:
             return
+        if not isinstance(result, MovieFileIngestionResult):
+            return
+
+        should_enrich = (
+            command.chosen_candidate is not None
+            or command.proposal.status
+            in {
+                ImportProposalStatus.NO_MATCH,
+                ImportProposalStatus.REVIEW_REQUIRED,
+            }
+        )
+        if should_enrich:
+            self._catalog_tasks_active += 1
         self._remove_row(row)
-        self.catalog_changed.emit()
+        self.catalog_changed.emit(result.movie.id)
+        if not should_enrich:
+            return
+
+        self._runner.submit(
+            token,
+            lambda: self._actions.enrich_movie_import(command, result),
+            self._enrichment_succeeded,
+            self._enrichment_failed,
+        )
+
+    def _enrichment_succeeded(self, token: int, result: object) -> None:
+        self._catalog_tasks_active = max(0, self._catalog_tasks_active - 1)
+        if token != self._session_token:
+            return
+        if isinstance(result, MovieFileIngestionResult):
+            self.catalog_changed.emit(result.movie.id)
+        self._finish_catalog_tasks_if_idle()
+
+    def _enrichment_failed(self, token: int, error: BaseException) -> None:
+        self._catalog_tasks_active = max(0, self._catalog_tasks_active - 1)
+        if token != self._session_token:
+            return
+        LOGGER.error(
+            "Optional metadata enrichment failed after local registration",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        self._finish_catalog_tasks_if_idle()
+
+    def _finish_catalog_tasks_if_idle(self) -> None:
+        if self._scan_result_ready and not self._rows and self._catalog_tasks_active == 0:
+            self._show_all_done()
 
     def _dismiss_row(self, row: object) -> None:
         if isinstance(row, ImportReviewRow):

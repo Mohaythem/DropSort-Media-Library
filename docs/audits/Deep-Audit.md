@@ -9,13 +9,15 @@ Audited baseline: `D:\DropSort_ chat\DropSort`, before feature changes
 DropSort is a substantial Python/PySide6/SQLite Windows desktop application, not a skeleton or abandoned rewrite. Its strongest area is the filesystem mutation core: approved-root checks, collision prevention, durable operation journaling, content verification, database commit ordering, and ambiguity-preserving recovery are implemented and tested. Stable `Movie`, `MediaFile`, and `WatchEvent` identities exist, and missing files remain registered rather than being deleted.
 
 At this audit's original baseline, startup automatically reconciled every registered file and progress
-could cause repeated full Library queries. Python Stabilization Pass 1 has now remediated those two
-findings. Poster cache misses can still call TMDB when Library cards are constructed; Add Movies
-cannot register a local file unless TMDB matching and detail retrieval succeed; Play/Open Folder do
-not persist newly discovered missing state; and Clear Library Data retains active personal state and
-watch history.
+could cause repeated full Library queries. Python Stabilization Pass 1 remediated those two findings.
+Python Stabilization Pass 2 now also remediates the Add Movies/TMDB coupling: explicit local
+registration commits stable Movie and MediaFile identities before optional enrichment, including
+offline, missing-credential, no-match, and ambiguous cases. Poster cache misses can still call TMDB
+when Library cards are constructed; Play/Open Folder does not persist newly discovered missing
+state; and Clear Library Data retains active personal state and watch history.
 
-No product behavior was changed during the original audit task. Section 27 records the later Pass 1 implementation and verification delta.
+No product behavior was changed during the original audit task. Sections 27 and 28 record the later
+Pass 1 and Pass 2 implementation and verification deltas without rewriting the original findings.
 
 ## 2. Selected Project Root and Why
 
@@ -519,3 +521,42 @@ compileall and an offscreen startup smoke guarded against any reconciliation inv
 
 Deferred by scope: poster cache-miss network behavior, offline registration, Play/Open Folder
 missing-state persistence, Clear Library semantics, packaging rebuild, and UI redesign.
+
+## 28. Python Stabilization Pass 2 Remediation
+
+Implemented on 2026-08-25 on branch `codex` from accepted SHA
+`92fdfb537e164d936e84071047ca1bbc173d0cd9`.
+
+Pass 2 replaces the external-identity-first import assumption with two explicit boundaries.
+Transaction A registers a provisional `PENDING` Movie and its MediaFile atomically from local
+parser/discovery facts, with no TMDB, poster, filesystem mutation, or operation-journal call.
+Transaction B performs metadata I/O before its write transaction, reloads by stable `MovieId`, and
+updates the same Movie to `READY`, `PENDING`, `FAILED`, or `NEEDS_MATCH`.
+
+Migration `0005_offline_movie_registration` permits only null/null or populated/populated external
+identity pairs, rejects blanks and invalid states, keeps populated identity uniqueness, and migrates
+existing Movies to `READY`. The foreign-key rebuild is atomic, runs `foreign_key_check` before
+acceptance, restores enforcement on success/failure, preserves all referenced identities/state/
+operation evidence, and has a fail-closed down migration.
+
+External identity collisions use Strategy B: both Movies, their MediaFiles, personal/watch state, and
+operation attribution remain separate; the provisional Movie becomes `NEEDS_MATCH`; the result
+exposes both IDs; no automatic merge or title/year deduplication occurs.
+
+The UI now permits explicit local Add for no-match and metadata-unavailable rows, publishes the
+Transaction A result immediately, inserts/updates only the affected Library card, then schedules
+Transaction B separately. Identity-less Movies use safe poster placeholders. Check Library retains
+them as valid local members and remains explicit/manual.
+
+Verification: migration `5 passed`; focused Add/enrichment/import `72 passed`; final two-stage
+callback gate `46 passed`; persistence/personal/Check Library/Pass 1 gate `95 passed`; full suite
+`1,217 collected, 1,202 passed, 10 failed, 5 skipped` in 333.77 seconds. The accepted baseline had
+11 failures; the remaining ten are the isolated pre-existing UI/localization/theme/source-inspection
+contracts, so Pass 2 adds no failure. Compileall, diff whitespace, native disposable offline launch,
+restart persistence, and deterministic same-ID `PENDING -> READY` smoke passed. Live TMDB remains
+unverified because no credential was configured.
+
+Deferred by scope: the full poster-network redesign, Clear Library semantics, missing-state
+persistence from Play/Open Folder, changed-file physical identity, packaging/release work, code
+signing, licensing, and release-verifier redesign. See
+`docs/reports/python-stabilization/02-offline-registration-tmdb.md`.

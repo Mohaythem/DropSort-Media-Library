@@ -1,6 +1,6 @@
 # DropSort Project Status
 
-Last verified: 2026-08-23 on native Windows / Python 3.12 / NTFS.
+Last verified: 2026-08-25 on native Windows / Python 3.12 / NTFS.
 
 ## Python Stabilization Pass 1 status
 
@@ -15,6 +15,28 @@ the broader affected gate passed `109` with the one audited bootstrap contract f
 suite is `1,175 passed, 11 failed, 5 skipped`, matching the same 11 pre-existing failures recorded
 by the Deep Audit. Compileall and an offscreen guarded startup smoke passed. No migration or runtime
 dependency changed.
+
+## Python Stabilization Pass 2 status
+
+**IMPLEMENTED AND SOURCE-VERIFIED ON `codex`.** Add Movies now commits a provisional local Movie
+plus MediaFile before optional TMDB enrichment. Migration `0005_offline_movie_registration`
+preserves all stable IDs/references/evidence, supports nullable paired external identity, persists
+`PENDING / READY / FAILED / NEEDS_MATCH`, validates foreign keys before commit, restores
+foreign-key enforcement after success/failure, and fails closed on unsafe downgrade.
+
+The UI exposes no-match and metadata-unavailable local Add, publishes Transaction A success before
+Transaction B runs, and updates only the affected Library card. Identity collision never merges:
+both Movies and all file/personal/watch/history attribution remain separate, the provisional Movie
+becomes `NEEDS_MATCH`, and the typed result exposes both IDs. Check Library remains manual and
+retains identity-less local Movies. Nullable identity uses a safe poster placeholder.
+
+Verification: migration `5/5`; focused Add/enrichment/import `72/72`; final callback-order gate
+`46/46`; persistence/personal/Check Library/Pass 1 gate `95/95`; full suite `1,202 passed,
+10 failed, 5 skipped` from 1,217 collected in 333.77 seconds. This is zero new failures versus the
+accepted 11-failure baseline. Compileall, diff check, disposable native offline launch, restart, and
+same-ID deterministic enrichment smoke passed. Live TMDB is unverified because no credential was
+configured. Full evidence is in
+`docs/reports/python-stabilization/02-offline-registration-tmdb.md`.
 
 ## DropSort V1 status
 
@@ -82,21 +104,21 @@ temporary roots and never use the real profile. Poster binaries are not stored i
 files are disposable without affecting catalog records or user media.
 
 From **Add Movies**, the user can choose a folder, select recursive or non-recursive scanning, and
-run the established read-only discovery -> metadata -> matching proposal flow in a background
-thread. The review screen distinguishes proposed matches, review-required items, no-match results,
-TV episodes, discovery errors, metadata failures, and paths already in the library. A candidate can
-be changed only to another candidate already present in the proposal.
+run read-only discovery plus optional metadata/matching proposal work in a background thread. The
+review screen distinguishes proposed matches, review-required items, no-match results, TV episodes,
+discovery errors, metadata failures, and paths already in the Library. Missing credentials, offline
+providers, zero results, and ambiguous results no longer disable explicit local Add for a valid movie.
 
-Large scans now show monotonic directory/file/media counters immediately. Discovery uses an
-indeterminate bar because no denominator is fabricated; metadata preparation uses real completed /
-total progress. Cancel is cooperative, stops new proposal work, discards incomplete results, restores
-inputs, and never creates catalog or journal state. Each scan owns an independent cancellation token;
-stale progress/results and batched row timers cannot affect a restarted session. Review rows are
-inserted in batches of 25 and duplicate case-folded paths are suppressed.
+Large scans still show monotonic directory/file/media counters. Cancel remains cooperative, discards
+incomplete results, restores inputs, and creates no catalog or journal state. Nothing is added merely
+because scanning or matching runs. Only **Add to DropSort Library** authorizes Transaction A.
 
-Nothing is added merely because the matcher returns `MATCHED`. A movie/file association is written
-only after the user clicks **Add to DropSort Library** for that row. The existing file remains at its
-current path. A successful import refreshes the local library snapshot without restarting the app.
+Transaction A atomically registers the local Movie and MediaFile with stable IDs and `PENDING`
+metadata before any provider/detail request. The completed row is removed and the one affected
+Library card is inserted/refreshed immediately. Optional Transaction B enrichment then runs
+separately by stable `MovieId` and may produce `READY`, `PENDING`, `FAILED`, or
+`NEEDS_MATCH`. TMDB failure never undoes local registration. Registration remains catalog-only:
+the existing file path/bytes and filesystem-operation journal are unchanged.
 
 Movie Details now exposes **Play Movie** and **Open Folder** on every physical-media row. Each
 button is bound to that exact file, so multiple versions are never silently ranked or selected.

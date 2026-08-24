@@ -4,6 +4,7 @@ from dropsort.application.dto.library import (
     MediaFileAvailability,
     MediaFileDetails,
     MovieDetails,
+    MovieMetadataStatus,
     MovieListItem,
 )
 from dropsort.library.movies import MovieDetailsSnapshot, MovieSummary
@@ -22,6 +23,7 @@ def to_list_item(summary: MovieSummary) -> MovieListItem:
         media_file_count=summary.media_file_count,
         date_added=movie.date_added,
         missing_file_count=summary.missing_file_count,
+        metadata_status=MovieMetadataStatus(movie.metadata_status.value),
     )
 
 
@@ -51,6 +53,7 @@ def to_movie_details(snapshot: MovieDetailsSnapshot) -> MovieDetails:
         genres=movie.genres,
         runtime_minutes=movie.runtime_minutes,
         rating=movie.rating,
+        metadata_status=MovieMetadataStatus(movie.metadata_status.value),
         poster_reference=movie.poster_reference,
         date_added=movie.date_added,
         media_files=files,

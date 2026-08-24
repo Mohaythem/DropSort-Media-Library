@@ -8,6 +8,7 @@ from typing import Protocol
 from dropsort.library.movies.models import (
     MediaFile,
     MediaFileStatusUpdate,
+    MetadataStatus,
     Movie,
     MovieCatalogData,
     VerifiedMediaFileFacts,
@@ -26,6 +27,22 @@ class MovieRepository(Protocol):
         self,
         movie_id: int,
         data: MovieCatalogData,
+        *,
+        now: datetime,
+    ) -> Movie: ...
+
+    def attach_external_metadata(
+        self,
+        movie_id: int,
+        data: MovieCatalogData,
+        *,
+        now: datetime,
+    ) -> Movie: ...
+
+    def update_metadata_status(
+        self,
+        movie_id: int,
+        status: MetadataStatus,
         *,
         now: datetime,
     ) -> Movie: ...

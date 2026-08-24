@@ -60,7 +60,11 @@ class MovieCard(QFrame):
         layout.addWidget(self._poster)
         self._poster_token = 1
         self._poster_loaded = False
-        if poster_loader is not None and item.poster_reference is not None:
+        if (
+            poster_loader is not None
+            and item.provider is not None
+            and item.poster_reference is not None
+        ):
             poster_loader.request(
                 self,
                 PosterRequest(item.provider, item.poster_reference),
