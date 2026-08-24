@@ -264,7 +264,7 @@ def test_personal_actions_never_create_file_operations_or_mutate_media(
     assert sha256(media.read_bytes()).hexdigest() == digest
 
 
-def test_clear_local_library_retains_personal_movies_and_history(harness, tmp_path: Path) -> None:
+def test_clear_local_library_removes_all_active_personal_state_and_preserves_journal(harness, tmp_path: Path) -> None:
     local_only = _movie(harness, "local-only")
     liked = _movie(harness, "liked")
     watched = _movie(harness, "watched-clear")
@@ -311,24 +311,28 @@ def test_clear_local_library_retains_personal_movies_and_history(harness, tmp_pa
         execution_lock=threading.Lock(),
     ).execute()
 
-    assert result.movies_removed == 1
+    assert result.movies_removed == 5
     assert result.media_files_removed == 6
     with harness.database.connection() as connection:
-        retained = {
-            row["external_id"]
-            for row in connection.execute("SELECT external_id FROM movies").fetchall()
-        }
-        assert retained == {"liked", "watched-clear", "watchlisted", "multiple"}
-        assert connection.execute("SELECT COUNT(*) FROM media_files").fetchone()[0] == 0
-        assert connection.execute("SELECT COUNT(*) FROM metadata_cache").fetchone()[0] == 0
+        for table in (
+            "movies", "media_files", "metadata_cache",
+            "movie_personal_state", "watch_events",
+        ):
+            assert connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
         assert connection.execute("SELECT COUNT(*) FROM file_operations").fetchone()[0] == 1
     assert physical.exists()
     assert sha256(physical.read_bytes()).hexdigest() == digest
-    assert GetPersonalMovieState(personal).execute(multiple.id).preference is PersonalPreference.BLACKLISTED
+
+    restarted_personal = SqlitePersonalLibraryRepository(harness.database)
+    for section in PersonalLibrarySection:
+        assert restarted_personal.list_movies(section, limit=100, offset=0) == ()
+    with pytest.raises(PersonalMovieNotFoundError):
+        GetPersonalMovieState(restarted_personal).execute(multiple.id)
+
     reimported = EnsureLogicalMovie(SqliteMovieRepository(harness.database)).execute(
         _data("liked", "Reimported title")
     )
-    assert reimported.id == liked.id
-    reimported_file = tmp_path / "reimported-liked.mkv"
-    _file(harness, reimported.id, reimported_file)
-    assert MediaFileRepository(harness.database).list_for_movie(liked.id)
+    snapshot = GetPersonalMovieState(restarted_personal).execute(reimported.id)
+    assert snapshot.preference is PersonalPreference.NO_OPINION
+    assert snapshot.is_watchlisted is False
+    assert snapshot.watch_count == 0

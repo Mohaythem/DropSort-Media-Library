@@ -221,6 +221,8 @@ class MainWindow(QMainWindow):
         self._task_runner = task_runner or QtTaskRunner(self)
         self._reconciliation_actions = reconciliation_actions
         self._library_check_dialogs: set[LibraryFileCheckDialog] = set()
+        self._library_check_seen_changes: set[tuple[int, object]] = set()
+        self._library_check_seen_metadata_ids: set[int] = set()
         self._maintenance_token = 0
         self._maintenance_active = False
         self._single_instance_closing = False
@@ -590,6 +592,7 @@ class MainWindow(QMainWindow):
     def _start_check_library_page(self) -> None:
         if self.check_library_page.is_running:
             return
+        self._reset_library_check_coalescing()
         self.check_library_page.start_check()
 
     def _return_from_check_library(self) -> None:
@@ -784,16 +787,31 @@ class MainWindow(QMainWindow):
             self.history_view.invalidate_snapshot()
 
 
+    def _reset_library_check_coalescing(self) -> None:
+        self._library_check_seen_changes.clear()
+        self._library_check_seen_metadata_ids.clear()
+
     def _library_check_progress(self, value: object) -> None:
+        movie_ids: list[int] = []
         if isinstance(value, LibraryHealthProgress):
-            movie_ids = [
-                change.movie_id for change in value.file_progress.changes
-            ]
-            movie_ids.extend(value.changed_movie_ids)
+            changes = value.file_progress.changes
+            metadata_ids = value.changed_movie_ids
         elif isinstance(value, LibraryReconciliationProgress):
-            movie_ids = [change.movie_id for change in value.changes]
+            changes = value.changes
+            metadata_ids = ()
         else:
             return
+        for change in changes:
+            key = (change.media_file_id, change.status)
+            if key in self._library_check_seen_changes:
+                continue
+            self._library_check_seen_changes.add(key)
+            movie_ids.append(change.movie_id)
+        for movie_id in metadata_ids:
+            if movie_id in self._library_check_seen_metadata_ids:
+                continue
+            self._library_check_seen_metadata_ids.add(movie_id)
+            movie_ids.append(movie_id)
         changed_movie_ids = tuple(dict.fromkeys(movie_ids))
         if not changed_movie_ids:
             return
@@ -803,14 +821,19 @@ class MainWindow(QMainWindow):
         if self.history_view is not None:
             self.history_view.invalidate_snapshot()
 
-    def _personal_changed(self, movie_id: int) -> None:
-        # MovieDetails already receives the authoritative PersonalMovieSnapshot
-        # returned by the mutation and updates its controls in-place. Reloading
-        # the whole details DTO here used to repaint the hero/poster/media cards
-        # after every Like / Blacklist / Watch action, producing a visible flash.
-        # Defer Personal Library refresh until it is visited again instead.
+    def _personal_changed(
+        self,
+        movie_id: int,
+        sections: object | None = None,
+    ) -> None:
+        # Details already owns the authoritative mutation result. Invalidate
+        # only Personal projections whose membership can actually change.
         del movie_id
-        if self.personal_view is not None:
+        if self.personal_view is None:
+            return
+        if isinstance(sections, tuple):
+            self.personal_view.invalidate_sections(sections)
+        else:
             self.personal_view.invalidate_snapshot()
 
     def _organization_completed(self, movie_id: int) -> None:
@@ -841,6 +864,7 @@ class MainWindow(QMainWindow):
             dialog.raise_()
             dialog.activateWindow()
             return
+        self._reset_library_check_coalescing()
         dialog = LibraryFileCheckDialog(
             self._reconciliation_actions,
             self._task_runner,
@@ -902,7 +926,13 @@ class MainWindow(QMainWindow):
             return
         assert self.settings_view is not None
         self.settings_view.show_clear_result(value)
+        self.library_view.clear_snapshot()
+        if self.personal_view is not None:
+            self.personal_view.clear_snapshots_after_catalog_clear()
+        if self.history_view is not None:
+            self.history_view.invalidate_snapshot()
         self.details_view.clear_movie()
+        # Load the authoritative empty Library exactly once.
         self.show_library()
 
     def _clear_library_failed(self, token: int, error: BaseException) -> None:

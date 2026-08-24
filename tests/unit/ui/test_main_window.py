@@ -672,3 +672,58 @@ def test_settings_clear_result_warns_when_only_poster_cleanup_failed(
 
     assert "poster cache cleanup" in view._clear_feedback.text().casefold()
     assert "media files were unaffected" in view._clear_feedback.text().casefold()
+
+
+def test_clear_success_discards_library_personal_cards_and_search_suggestions(
+    qapp, movie_item_factory, movie_details_factory
+) -> None:
+    item = movie_item_factory(movie_id=9, title="Stale title")
+    library = FakeActions((item,), movie_details_factory(movie_id=9))
+
+    class PersonalActions:
+        def list_personal_movies(self, _section):
+            return ()
+
+        def get_personal_snapshot(self, _movie_id):
+            return None
+
+    class SettingsActions:
+        def metadata_credential_status(self):
+            return MetadataCredentialStatus(
+                False, MetadataCredentialOrigin.NOT_CONFIGURED
+            )
+
+        def apply_tmdb_session_token(self, _token):
+            raise AssertionError
+
+        def clear_tmdb_session_token(self):
+            raise AssertionError
+
+        def clear_library_data(self):
+            library.movies = ()
+            return ClearLibraryDataResult(1, 1, 0, 0)
+
+    window = MainWindow(
+        library,
+        personal_actions=PersonalActions(),
+        settings_actions=SettingsActions(),
+        task_runner=ImmediateRunner(),
+        load_on_show=False,
+    )
+    window.show_library()
+    assert window.library_view.card_count == 1
+    assert window._search_completer.model().stringList()
+    assert window.personal_view is not None
+    window.personal_view._loaded(0, (item,))
+    assert window.personal_view.card_count == 1
+    window.show_settings()
+
+    window.settings_view.clear_library_requested.emit()
+
+    assert window.current_section == "library"
+    assert window.library_view.card_count == 0
+    assert window.personal_view.card_count == 0
+    assert window.personal_view._snapshots == {}
+    assert window._search_completer.model().stringList() == []
+    window.show_personal_library()
+    assert window.personal_view.card_count == 0

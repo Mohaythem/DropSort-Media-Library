@@ -130,6 +130,7 @@ class TextId(StrEnum):
     PERSONAL_EMPTY_LIKED_DESCRIPTION = "personal.empty_liked_description"
     PERSONAL_EMPTY_BLACKLISTED = "personal.empty_blacklisted"
     PERSONAL_EMPTY_BLACKLISTED_DESCRIPTION = "personal.empty_blacklisted_description"
+    PERSONAL_LOADING = "personal.loading"
     PERSONAL_LOAD_ERROR = "personal.load_error"
     PERSONAL_NO_LOCAL_COPY = "personal.no_local_copy"
     STATUS_PRESENT = "status.present"
@@ -541,6 +542,7 @@ _ENGLISH: dict[TextId, str] = {
     TextId.PERSONAL_EMPTY_LIKED_DESCRIPTION: "Movies you like will appear here.",
     TextId.PERSONAL_EMPTY_BLACKLISTED: "Your blacklist is empty.",
     TextId.PERSONAL_EMPTY_BLACKLISTED_DESCRIPTION: "Movies you blacklist will appear here.",
+    TextId.PERSONAL_LOADING: "Loading Personal Library...",
     TextId.PERSONAL_LOAD_ERROR: "Personal Library could not be loaded. Please try again.",
     TextId.PERSONAL_NO_LOCAL_COPY: "No local copy",
     TextId.STATUS_PRESENT: "Present",
@@ -951,6 +953,7 @@ _ARABIC: dict[TextId, str] = {
     TextId.PERSONAL_EMPTY_LIKED_DESCRIPTION: "ستظهر هنا الأفلام التي تعجبك.",
     TextId.PERSONAL_EMPTY_BLACKLISTED: "قائمة الحظر فارغة.",
     TextId.PERSONAL_EMPTY_BLACKLISTED_DESCRIPTION: "ستظهر هنا الأفلام التي تحظرها.",
+    TextId.PERSONAL_LOADING: "جارٍ تحميل المكتبة الشخصية...",
     TextId.PERSONAL_LOAD_ERROR: "تعذر تحميل المكتبة الشخصية. حاول مرة أخرى.",
     TextId.PERSONAL_NO_LOCAL_COPY: "لا توجد نسخة محلية",
     TextId.STATUS_PRESENT: "موجود",

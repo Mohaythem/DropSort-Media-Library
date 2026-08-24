@@ -143,7 +143,7 @@ def test_check_progress_without_item_changes_never_reloads_library(
     assert actions.calls == ["library"]
 
 
-def test_one_availability_change_queries_and_replaces_only_affected_card(
+def test_one_availability_change_queries_and_updates_only_affected_card_in_place(
     qapp,
     movie_item_factory,
     movie_details_factory,
@@ -174,7 +174,7 @@ def test_one_availability_change_queries_and_replaces_only_affected_card(
 
     cards_after = {card.item.movie_id: card for card in window.library_view.cards}
     assert actions.calls == ["library", "item:1"]
-    assert cards_after[1] is not cards_before[1]
+    assert cards_after[1] is cards_before[1]
     assert cards_after[2] is cards_before[2]
     assert cards_after[1].item.missing_file_count == 1
 
@@ -221,6 +221,7 @@ def test_manual_check_completion_and_navigation_do_not_reload_library(
         (MediaFileStatusChange(51, 5, MediaFileAvailability.MISSING),),
     )
 
+    on_progress(token, value)
     on_progress(token, value)
     on_success(token, value)
     window.show_library()

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel
 
 from dropsort.ui.library.movie_card import MovieCard
+from dropsort.ui.library.movie_grid import MovieGrid
 from dropsort.posters import PosterAsset
+from dropsort.application.dto.library import MovieMetadataStatus
 from dropsort.ui.common.theme import CARD_HEIGHT
 
 
@@ -140,3 +144,87 @@ def test_movie_card_extreme_and_arabic_titles_do_not_change_card_geometry(
     assert arabic_card.height() == CARD_HEIGHT
     assert arabic_title.toolTip() == arabic
     assert arabic_title.text().count("\n") <= 1
+
+
+def test_stable_movie_id_updates_card_in_place_without_repeating_same_poster(
+    qapp, movie_item_factory
+) -> None:
+    loader = DeferredPosterLoader()
+    item = movie_item_factory(movie_id=7)
+    grid = MovieGrid(poster_loader=loader)
+    grid.set_items((item,))
+    card = grid.cards[0]
+    assert len(loader.requests) == 1
+
+    updated = replace(
+        item,
+        title="Updated title",
+        year=2025,
+        rating=7.2,
+        missing_file_count=1,
+    )
+    grid.set_items((updated,))
+
+    assert grid.cards[0] is card
+    assert card.item.movie_id == 7
+    assert _label(card, "movieTitleLabel").toolTip() == "Updated title"
+    assert _label(card, "movieYearLabel").text() == "2025"
+    assert _label(card, "movieCompactRatingValue").text() == "7.2"
+    assert _label(card, "movieAvailabilityLabel").property("availability") == "PARTIAL"
+    assert len(loader.requests) == 1
+
+    poster_changed = replace(updated, poster_reference="/new-poster.jpg")
+    grid.set_items((poster_changed,))
+    assert grid.cards[0] is card
+    assert len(loader.requests) == 2
+
+
+def test_movie_grid_creates_only_new_ids_and_removes_only_missing_ids(
+    qapp, movie_item_factory
+) -> None:
+    first = movie_item_factory(movie_id=1)
+    second = movie_item_factory(movie_id=2, title="Second")
+    grid = MovieGrid()
+    grid.set_items((first,))
+    first_card = grid.cards[0]
+
+    grid.set_items((first, second))
+    assert grid.cards[0] is first_card
+    assert len(grid.cards) == 2
+    second_card = grid.cards[1]
+
+    grid.set_items((second,))
+    assert grid.cards == (second_card,)
+    assert 1 not in grid._cards_by_id
+
+
+def test_registration_then_enrichment_updates_same_movie_card(
+    qapp, movie_item_factory
+) -> None:
+    local = movie_item_factory(
+        movie_id=42,
+        provider=None,
+        poster_reference=None,
+        rating=None,
+        title="Local title",
+        metadata_status=MovieMetadataStatus.PENDING,
+    )
+    enriched = replace(
+        local,
+        provider="tmdb",
+        poster_reference="/enriched.jpg",
+        rating=8.1,
+        title="Enriched title",
+        metadata_status=MovieMetadataStatus.READY,
+    )
+    loader = DeferredPosterLoader()
+    grid = MovieGrid(poster_loader=loader)
+
+    grid.set_items((local,))
+    card = grid.cards[0]
+    grid.set_items((enriched,))
+
+    assert grid.cards[0] is card
+    assert grid.cards[0].item.movie_id == 42
+    assert _label(card, "movieTitleLabel").toolTip() == "Enriched title"
+    assert len(loader.requests) == 1

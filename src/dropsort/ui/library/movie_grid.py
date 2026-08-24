@@ -60,6 +60,7 @@ class MovieGrid(QScrollArea):
         items: tuple[MovieListItem, ...],
         *,
         retain_unlisted: bool = False,
+        visible_items: tuple[MovieListItem, ...] | None = None,
     ) -> None:
         """Replace the visible source snapshot while reusing stable cards.
 
@@ -83,15 +84,17 @@ class MovieGrid(QScrollArea):
 
         for item in items:
             existing = self._cards_by_id.get(item.movie_id)
-            if existing is None or existing.item != item:
-                if existing is not None:
-                    self._discard_card(item.movie_id)
+            if existing is None:
                 self._cards_by_id[item.movie_id] = self._create_card(item)
                 source_changed = True
+            elif existing.item != item:
+                existing.update_item(item)
 
         self._source_ids = incoming_ids
-        self.show_items(items, force=source_changed)
-
+        self.show_items(
+            items if visible_items is None else tuple(visible_items),
+            force=source_changed,
+        )
     def show_items(
         self,
         items: tuple[MovieListItem, ...],
@@ -103,19 +106,19 @@ class MovieGrid(QScrollArea):
         items = tuple(items)
         visible_ids = tuple(item.movie_id for item in items)
         cards: list[MovieCard] = []
-        replaced = False
+        created = False
 
         for item in items:
             card = self._cards_by_id.get(item.movie_id)
-            if card is None or card.item != item:
-                if card is not None:
-                    self._discard_card(item.movie_id)
+            if card is None:
                 card = self._create_card(item)
                 self._cards_by_id[item.movie_id] = card
-                replaced = True
+                created = True
+            elif card.item != item:
+                card.update_item(item)
             cards.append(card)
 
-        if not force and not replaced and visible_ids == self._visible_ids:
+        if not force and not created and visible_ids == self._visible_ids:
             return
 
         visible_set = set(visible_ids)

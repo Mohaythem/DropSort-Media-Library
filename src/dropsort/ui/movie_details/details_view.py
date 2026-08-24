@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QPushButton,
     QDateEdit,
     QToolButton,
@@ -24,7 +25,11 @@ from PySide6.QtWidgets import (
 from dropsort.application.dto.library import MediaFileDetails, MovieDetails
 from dropsort.application.dto.library import MediaFileAvailability
 from dropsort.application.dto.personal_library import PersonalMovieSnapshot
-from dropsort.library.personal import PersonalPreference, WatchEvent
+from dropsort.library.personal import (
+    PersonalLibrarySection,
+    PersonalPreference,
+    WatchEvent,
+)
 from dropsort.library.playback import (
     LocalMediaActionError,
     LocalMediaActions,
@@ -57,6 +62,29 @@ from dropsort.ui.organization import OrganizeFileDialog
 from dropsort.ui.reconciliation import RelinkMediaFileDialog
 from dropsort.ui.posters import PosterRequestDispatcher
 from dropsort.ui.localization import TextId, UiLocalizer
+
+
+_PERSONAL_PREFERENCE_SECTIONS = (
+    PersonalLibrarySection.LIKED,
+    PersonalLibrarySection.BLACKLISTED,
+)
+_PERSONAL_WATCHLIST_SECTIONS = (
+    PersonalLibrarySection.WATCHLIST,
+    PersonalLibrarySection.READY_TO_WATCH,
+)
+_PERSONAL_WATCH_EVENT_SECTIONS = (PersonalLibrarySection.READY_TO_WATCH,)
+
+
+def _personal_sections_for_action(
+    action: str | None,
+) -> tuple[PersonalLibrarySection, ...]:
+    if action in {"like", "blacklist", "clear_preference"}:
+        return _PERSONAL_PREFERENCE_SECTIONS
+    if action in {"add_watchlist", "remove_watchlist"}:
+        return _PERSONAL_WATCHLIST_SECTIONS
+    if action in {"record_watch", "record_watch_date", "remove_watch_event"}:
+        return _PERSONAL_WATCH_EVENT_SECTIONS
+    return tuple(PersonalLibrarySection)
 
 
 MIN_VALID_WATCH_YEAR = 1901
@@ -215,7 +243,7 @@ class MovieDetailsView(QWidget):
     back_requested = Signal()
     organization_completed = Signal(int)
     relink_completed = Signal(int)
-    personal_changed = Signal(int)
+    personal_changed = Signal(int, object)
 
     def __init__(
         self,
@@ -438,6 +466,7 @@ class MovieDetailsView(QWidget):
         )
         self._content_layout.addWidget(self._details_columns)
         self._media_file_count = 0
+        self._media_file_panels: dict[int, QFrame] = {}
         self._localizer.language_changed.connect(self._refresh_rating_text)
         self._localizer.language_changed.connect(self._refresh_watch_date_accessibility)
 
@@ -896,7 +925,10 @@ class MovieDetailsView(QWidget):
         self._personal_snapshot = value
         self._render_personal(action=action)
         self._set_personal_controls_enabled(True)
-        self.personal_changed.emit(value.state.movie_id)
+        self.personal_changed.emit(
+            value.state.movie_id,
+            _personal_sections_for_action(action),
+        )
         if self._restore_focus_after_personal_action:
             self._restore_focus_after_personal_action = False
             self.take_stable_focus()
@@ -1128,24 +1160,40 @@ class MovieDetailsView(QWidget):
         self.update_media_files(details.media_files)
 
     def update_media_files(self, media_files: tuple[MediaFileDetails, ...]) -> None:
-        """Repaint only the Media Files region after a file-level mutation.
+        """Diff Media Files by stable MediaFileId and update rows in place."""
 
-        Personal-state changes already update in-place from their returned
-        snapshot, and file actions should likewise avoid resetting the poster,
-        hero text, overview, and personal controls just to show a new path or
-        availability state.
-        """
-
-        self._clear_files()
         self._media_file_count = len(media_files)
-        if media_files:
-            for media_file in media_files:
-                self._files.addWidget(self._media_file_panel(media_file))
-        else:
+        desired_ids = {item.media_file_id for item in media_files}
+        for media_file_id in tuple(self._media_file_panels):
+            if media_file_id in desired_ids:
+                continue
+            panel = self._media_file_panels.pop(media_file_id)
+            self._files.removeWidget(panel)
+            panel.hide()
+            panel.setParent(None)
+            panel.deleteLater()
+
+        # Remove only the transient empty label, never surviving file panels.
+        for index in reversed(range(self._files.count())):
+            widget = self._files.itemAt(index).widget()
+            if widget is not None and widget.objectName() == "mediaEmptyLabel":
+                self._files.removeWidget(widget)
+                widget.deleteLater()
+
+        if not media_files:
             empty = QLabel(self._localizer.text(TextId.DETAILS_NO_FILES))
             empty.setObjectName("mediaEmptyLabel")
             empty.setProperty("role", "muted")
             self._files.addWidget(empty)
+            return
+
+        for media_file in media_files:
+            panel = self._media_file_panels.get(media_file.media_file_id)
+            panel = self._media_file_panel(media_file, panel=panel)
+            self._media_file_panels[media_file.media_file_id] = panel
+            self._files.removeWidget(panel)
+            self._files.addWidget(panel)
+            panel.show()
 
     def _refresh_rating_text(self) -> None:
         self._rating_stars.setText(provider_rating_stars(self._current_rating))
@@ -1212,11 +1260,23 @@ class MovieDetailsView(QWidget):
             if widget is not None:
                 widget.hide()
                 widget.setParent(None)
+                widget.deleteLater()
+        self._media_file_panels.clear()
 
-    def _media_file_panel(self, media_file: MediaFileDetails) -> QFrame:
-        panel = QFrame()
+    def _media_file_panel(
+        self,
+        media_file: MediaFileDetails,
+        *,
+        panel: QFrame | None = None,
+    ) -> QFrame:
+        if panel is None:
+            panel = QFrame()
+            layout = QVBoxLayout(panel)
+        else:
+            layout = panel.layout()
+            assert isinstance(layout, QVBoxLayout)
+            self._clear_layout_widgets(layout)
         panel.setObjectName("mediaFileEntry")
-        layout = QVBoxLayout(panel)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(SPACE_SMALL)
 
@@ -1351,6 +1411,19 @@ class MovieDetailsView(QWidget):
         organize.clicked.connect(partial(self._open_organization_dialog, media_file))
         locate.clicked.connect(partial(self._open_relink_dialog, media_file))
         return panel
+
+    def _clear_layout_widgets(self, layout: QLayout) -> None:
+        while layout.count():
+            item = layout.takeAt(0)
+            child_layout = item.layout()
+            if child_layout is not None:
+                self._clear_layout_widgets(child_layout)
+                child_layout.deleteLater()
+            widget = item.widget()
+            if widget is not None:
+                widget.hide()
+                widget.setParent(None)
+                widget.deleteLater()
 
     def _open_relink_dialog(self, media_file: MediaFileDetails) -> None:
         if self._reconciliation_actions is None or self._reconciliation_runner is None:

@@ -560,3 +560,37 @@ Deferred by scope: the full poster-network redesign, Clear Library semantics, mi
 persistence from Play/Open Folder, changed-file physical identity, packaging/release work, code
 signing, licensing, and release-verifier redesign. See
 `docs/reports/python-stabilization/02-offline-registration-tmdb.md`.
+
+## 29. Python Stabilization Pass 3 Remediation
+
+Implemented on 2026-08-25 on branch `codex` from accepted SHA
+`83d0d8e4ff9ab3975581bb5f2ec0da83cc162d58`.
+
+Personal Library requests now carry section plus generation ownership. Late results may warm only
+their own still-current cache and can paint only the section/request they own. Uncached targets use
+a localized target loading/error state; same-section stale content is permitted, while cross-section
+content is impossible.
+
+Clear Library now atomically removes every active Movie, MediaFile, metadata-cache row, personal
+preference/watchlist row, and Watch Event. It preserves physical media and the immutable
+filesystem-operation/recovery journal. UI success handling explicitly drops Library cards/source,
+all Personal caches, details state, and old search suggestions, then performs one authoritative local
+Library reload.
+
+MovieCard, MediaFile panel, and Operation History row presentation now follow stable MovieId,
+MediaFileId, and operation-id identity. Card DTO updates mutate visible fields in place and restart a
+poster request only when poster identity changes. Personal invalidation is projection-specific, and
+manual Check Library coalesces repeated identical change identities within one run.
+
+The isolated runtime A/B trace proved startup performs one Library source load before show and no
+post-show full reload. Poster suppression did not remove the four observed geometry passes; cached
+and uncached posters both use per-card delivery, while only uncached assets fetch. Poster networking
+was therefore not redesigned.
+
+Verification: 13/13 new acceptance tests; Clear gate 7/7; startup/refresh/check gate 65/65; full
+suite 1,230 collected, 1,215 passed, 10 failed, 5 skipped in 331.82 seconds. The same ten accepted
+baseline failures remain and no new failure was introduced. Full evidence is in
+`docs/reports/python-stabilization/03-refresh-state-flicker-remediation.md`.
+
+Deferred deliberately: Poster Phase 3, V7 UI port, packaging/release, and unsafe derivation of a
+MovieId from History results that currently expose only MediaFileId.

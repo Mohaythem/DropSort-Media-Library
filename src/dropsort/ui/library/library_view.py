@@ -180,6 +180,15 @@ class LibraryView(QWidget):
             return
         self.show_library()
 
+    def clear_snapshot(self) -> None:
+        """Drop every catalog-derived UI snapshot after Clear Library."""
+
+        self._all_items = ()
+        self._has_snapshot = False
+        self._grid.set_items(())
+        self.search_candidates_changed.emit(())
+        self._apply_search(render_grid=False)
+
     def invalidate_snapshot(self) -> None:
         """Mark cached library data stale without repainting the current UI."""
 
@@ -197,9 +206,10 @@ class LibraryView(QWidget):
             return
         self._all_items = tuple(items)
         self._has_snapshot = True
-        self._grid.set_items(self._all_items)
+        filtered = filter_movie_items(self._all_items, self._search_query)
+        self._grid.set_items(self._all_items, visible_items=filtered)
         self.search_candidates_changed.emit(movie_search_suggestions(self._all_items))
-        self._apply_search()
+        self._apply_search(render_grid=False)
 
     def refresh_movies(self, movie_ids: tuple[int, ...]) -> None:
         """Refresh or insert Library items identified by stable MovieId."""
@@ -234,9 +244,10 @@ class LibraryView(QWidget):
             return
         items.sort(key=lambda value: (value.date_added, value.movie_id), reverse=True)
         self._all_items = tuple(items)
-        self._grid.set_items(self._all_items)
+        filtered = filter_movie_items(self._all_items, self._search_query)
+        self._grid.set_items(self._all_items, visible_items=filtered)
         self.search_candidates_changed.emit(movie_search_suggestions(self._all_items))
-        self._apply_search()
+        self._apply_search(render_grid=False)
 
     def set_search_query(self, query: str) -> None:
         normalized = query.strip()
@@ -262,7 +273,7 @@ class LibraryView(QWidget):
     def search_suggestions(self) -> tuple[str, ...]:
         return movie_search_suggestions(self._all_items)
 
-    def _apply_search(self) -> None:
+    def _apply_search(self, *, render_grid: bool = True) -> None:
         items = filter_movie_items(self._all_items, self._search_query)
         self._reconciliation.setVisible(
             bool(self._reconciliation.text()) and not self._search_query
@@ -276,7 +287,8 @@ class LibraryView(QWidget):
             if self._search_query
             else self._localizer.text(TextId.LIBRARY_COUNT, count=len(items))
         )
-        self._grid.show_items(items)
+        if render_grid:
+            self._grid.show_items(items)
         if items:
             self._state_host.hide()
             self._grid.show()

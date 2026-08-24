@@ -513,3 +513,45 @@ def test_closing_details_invalidates_late_preview_delivery(qapp: QApplication) -
 
     assert dialog.active_preview_dialogs == ()
     assert actions.calls[-1] == "discard:preview-1"
+
+
+def test_history_diffs_rows_by_operation_id_and_updates_survivor_in_place(
+    qapp: QApplication,
+) -> None:
+    actions = FakeHistoryActions()
+    view = OperationHistoryView(actions, runner=ImmediateRunner())
+    view.refresh()
+    original = view._rows_by_id["operation-1"]
+
+    changed = _item(
+        state=OperationStatus.RECOVERY_REQUIRED,
+        destination_path=r"D:\Movies\Changed.mkv",
+        updated_at=datetime(2026, 8, 12, 12, 2, tzinfo=UTC),
+    )
+    inserted = _item(
+        operation_id="operation-2",
+        source_path=r"D:\Incoming\Second.mkv",
+        destination_path=r"D:\Movies\Second.mkv",
+        media_file_id=11,
+        movie_title="Second",
+    )
+    actions.items = (inserted, changed)
+    view.invalidate_snapshot()
+    view.refresh()
+
+    assert view._rows_by_id["operation-1"] is original
+    assert view.row_count == 2
+    assert "Recovery required" in _label(
+        view, "operationHistoryState_operation-1"
+    ).text()
+    assert r"D:\Movies\Changed.mkv" in _label(
+        view, "operationHistoryPath_operation-1"
+    ).text()
+
+    inserted_row = view._rows_by_id["operation-2"]
+    actions.items = (inserted,)
+    view.invalidate_snapshot()
+    view.refresh()
+
+    assert view._rows == [inserted_row]
+    assert "operation-1" not in view._rows_by_id

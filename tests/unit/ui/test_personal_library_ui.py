@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import QDateEdit, QFrame, QLabel, QPushButton
 
 from dropsort.application.dto.personal_library import PersonalMovieSnapshot
-from dropsort.application.dto.library import MovieDetails
+from dropsort.application.dto.library import MediaFileAvailability, MovieDetails
 from dropsort.library.personal import (
     PersonalLibrarySection,
     PersonalMovieState,
@@ -250,11 +251,11 @@ def test_personal_library_revisited_tab_reuses_cache_before_background_refresh(
     runner.succeed((watch_item,))
     watch_card = view._grid.cards[0]
     view.refresh(PersonalLibrarySection.LIKED)
-    # NO SNAPSHOT for the target tab is not the same as an empty screen: keep
-    # the last painted cards until the first result for the new tab arrives.
-    assert not view._grid.isHidden()
-    assert view._grid.cards[0].item.movie_id == watch_item.movie_id
-    assert view._snapshot_stale is False
+    # An uncached target owns its loading state; another tab's cards must not
+    # be presented underneath the selected tab.
+    assert view._grid.isHidden()
+    assert view.card_count == 0
+    assert view._state.text() == view._localizer.text(TextId.PERSONAL_LOADING)
     runner.succeed((liked_item,))
     liked_card = view._grid.cards[0]
 
@@ -611,3 +612,181 @@ def test_personal_composition_adapter_routes_every_personal_action() -> None:
     assert adapter.record_watch(1).state == state.state
     assert adapter.remove_watch_event(event.id).state == state.state
     assert adapter.list_personal_movies(PersonalLibrarySection.WATCHLIST) == ()
+
+
+def _complete_personal_request(
+    runner: DeferredRunner,
+    index: int,
+    value: tuple,
+) -> None:
+    token, _task, on_success, _on_failure = runner.pending.pop(index)
+    on_success(token, value)
+
+
+def test_personal_failure_never_leaves_other_section_cards_visible(
+    qapp, movie_item_factory
+) -> None:
+    runner = DeferredRunner()
+    view = PersonalLibraryView(FakePersonalActions(), runner=runner)
+    liked = movie_item_factory(movie_id=2, title="Liked")
+
+    view.refresh(PersonalLibrarySection.LIKED)
+    runner.succeed((liked,))
+    view.refresh(PersonalLibrarySection.WATCHLIST)
+
+    assert view.card_count == 0
+    runner.fail(RuntimeError("watchlist unavailable"))
+
+    assert view.current_section is PersonalLibrarySection.WATCHLIST
+    assert view.card_count == 0
+    assert view._grid.isHidden()
+    assert view._state.text() == view._localizer.text(TextId.PERSONAL_LOAD_ERROR)
+
+
+def test_late_likes_result_cannot_overwrite_fresh_cached_watchlist(
+    qapp, movie_item_factory
+) -> None:
+    runner = DeferredRunner()
+    view = PersonalLibraryView(FakePersonalActions(), runner=runner)
+    watch = movie_item_factory(movie_id=1, title="Watch")
+    liked = movie_item_factory(movie_id=2, title="Liked")
+
+    view.refresh(PersonalLibrarySection.WATCHLIST)
+    runner.succeed((watch,))
+    view.refresh(PersonalLibrarySection.LIKED)
+    view._tabs.setCurrentIndex(0)
+    assert view._grid.cards[0].item.movie_id == watch.movie_id
+
+    runner.succeed((liked,))
+
+    assert view.current_section is PersonalLibrarySection.WATCHLIST
+    assert view._grid.cards[0].item.movie_id == watch.movie_id
+
+
+def test_reordered_personal_completions_only_paint_active_section(
+    qapp, movie_item_factory
+) -> None:
+    runner = DeferredRunner()
+    view = PersonalLibraryView(FakePersonalActions(), runner=runner)
+    watch = movie_item_factory(movie_id=1, title="Watch")
+    liked_old = movie_item_factory(movie_id=2, title="Old Liked")
+    blacklisted = movie_item_factory(movie_id=3, title="Blocked")
+    liked_new = movie_item_factory(movie_id=4, title="New Liked")
+
+    view.refresh(PersonalLibrarySection.WATCHLIST)
+    view.refresh(PersonalLibrarySection.LIKED)
+    view.refresh(PersonalLibrarySection.BLACKLISTED)
+    view.refresh(PersonalLibrarySection.LIKED)
+
+    _complete_personal_request(runner, 1, (liked_old,))
+    _complete_personal_request(runner, 0, (watch,))
+    _complete_personal_request(runner, 0, (blacklisted,))
+    assert view.card_count == 0
+    _complete_personal_request(runner, 0, (liked_new,))
+
+    assert view.current_section is PersonalLibrarySection.LIKED
+    assert [card.item.movie_id for card in view._grid.cards] == [liked_new.movie_id]
+
+
+def test_same_section_stale_snapshot_survives_failed_refresh(
+    qapp, movie_item_factory
+) -> None:
+    runner = DeferredRunner()
+    view = PersonalLibraryView(FakePersonalActions(), runner=runner)
+    watch = movie_item_factory(movie_id=1, title="Watch")
+
+    view.refresh(PersonalLibrarySection.WATCHLIST)
+    runner.succeed((watch,))
+    view.invalidate_sections((PersonalLibrarySection.WATCHLIST,))
+    view.activate()
+    runner.fail(RuntimeError("temporary failure"))
+
+    assert view.current_section is PersonalLibrarySection.WATCHLIST
+    assert [card.item.movie_id for card in view._grid.cards] == [watch.movie_id]
+    assert view._state.text() == view._localizer.text(TextId.PERSONAL_LOAD_ERROR)
+
+
+def test_media_file_rows_keep_stable_identity_across_one_file_update(
+    qapp, movie_details_factory
+) -> None:
+    details = movie_details_factory()
+    view = MovieDetailsView()
+    view.set_movie(details)
+    first = view._media_file_panels[10]
+    unrelated = view._media_file_panels[11]
+    changed = replace(
+        details.media_files[0],
+        current_path=r"D:\Relinked\The Dark Knight.mkv",
+        status=MediaFileAvailability.MISSING,
+    )
+
+    view.update_media_files((changed, details.media_files[1]))
+
+    assert view._media_file_panels[10] is first
+    assert view._media_file_panels[11] is unrelated
+    path = first.findChild(QLabel, "mediaPathLabel")
+    assert path is not None
+    assert r"D:\Relinked\The Dark Knight.mkv" in path.source_text()
+    play = first.findChild(QPushButton, "playMovieButton_10")
+    assert play is not None and play.property("mediaFileId") == 10
+
+def test_repeated_personal_tab_changes_do_not_duplicate_selection_signal(
+    qapp, movie_item_factory
+) -> None:
+    runner = DeferredRunner()
+    view = PersonalLibraryView(FakePersonalActions(), runner=runner)
+    watch = movie_item_factory(movie_id=1, title="Watch")
+    liked = movie_item_factory(movie_id=2, title="Liked")
+    view.refresh(PersonalLibrarySection.WATCHLIST)
+    runner.succeed((watch,))
+    view.refresh(PersonalLibrarySection.LIKED)
+    runner.succeed((liked,))
+
+    for _index in range(3):
+        view._tabs.setCurrentIndex(0)
+        view._tabs.setCurrentIndex(2)
+    selected: list[int] = []
+    view.movie_selected.connect(selected.append)
+    view._grid.cards[0].selected.emit(2)
+
+    assert selected == [2]
+
+
+def test_personal_action_emits_only_deterministically_affected_sections(
+    qapp, movie_details_factory
+) -> None:
+    actions = FakePersonalActions()
+    view = MovieDetailsView(personal_actions=actions, personal_runner=ImmediateRunner())
+    delivered: list[tuple[int, tuple[PersonalLibrarySection, ...]]] = []
+    view.personal_changed.connect(
+        lambda movie_id, sections: delivered.append((movie_id, sections))
+    )
+    view.set_movie(movie_details_factory(media_files=()))
+
+    view._like_button.click()
+    view._watchlist_button.click()
+    view._mark_watched_button.click()
+
+    assert delivered[0][1] == (
+        PersonalLibrarySection.LIKED,
+        PersonalLibrarySection.BLACKLISTED,
+    )
+    assert delivered[1][1] == (
+        PersonalLibrarySection.WATCHLIST,
+        PersonalLibrarySection.READY_TO_WATCH,
+    )
+    assert delivered[2][1] == (PersonalLibrarySection.READY_TO_WATCH,)
+
+def test_catalog_clear_invalidates_all_pending_personal_deliveries(
+    qapp, movie_item_factory
+) -> None:
+    runner = DeferredRunner()
+    view = PersonalLibraryView(FakePersonalActions(), runner=runner)
+    view.refresh(PersonalLibrarySection.LIKED)
+
+    view.clear_snapshots_after_catalog_clear()
+    runner.succeed((movie_item_factory(movie_id=7, title="Late"),))
+
+    assert view._snapshots == {}
+    assert view.card_count == 0
+    assert view._grid._cards_by_id == {}

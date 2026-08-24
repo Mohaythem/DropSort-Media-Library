@@ -81,6 +81,7 @@ class OperationHistoryView(QWidget):
         self._runner = runner or QtTaskRunner()
         self._token = 0
         self._rows: list[QFrame] = []
+        self._rows_by_id: dict[str, QFrame] = {}
         self._dialogs: set[OperationDetailsDialog] = set()
         self._items: tuple[OperationHistoryItem, ...] = ()
         self._has_snapshot = False
@@ -196,11 +197,29 @@ class OperationHistoryView(QWidget):
             return
         self._items = incoming
         self._has_rendered_snapshot = True
-        self._clear_rows()
-        for item in self._items:
-            row = self._row(item)
-            self._rows.append(row)
+        desired_ids = {item.operation_id for item in incoming}
+        for operation_id in tuple(self._rows_by_id):
+            if operation_id in desired_ids:
+                continue
+            row = self._rows_by_id.pop(operation_id)
+            self._rows_layout.removeWidget(row)
+            row.hide()
+            row.setParent(None)
+            row.deleteLater()
+
+        rows: list[QFrame] = []
+        for item in incoming:
+            row = self._rows_by_id.get(item.operation_id)
+            if row is None:
+                row = self._row(item)
+                self._rows_by_id[item.operation_id] = row
+            else:
+                self._update_row(row, item)
+            self._rows_layout.removeWidget(row)
             self._rows_layout.addWidget(row)
+            row.show()
+            rows.append(row)
+        self._rows = rows
         self._state.setText(
             self._localizer.text(TextId.HISTORY_EMPTY) if not self._items else ""
         )
@@ -256,10 +275,11 @@ class OperationHistoryView(QWidget):
         timestamp.setObjectName(f"operationHistoryTimestamp_{item.operation_id}")
         timestamp.setProperty("role", "muted")
         footer.addWidget(timestamp)
-        if item.reverses_operation_id is not None:
-            reverse = QLabel(self._localizer.text(TextId.HISTORY_REVERSE))
-            reverse.setProperty("role", "muted")
-            footer.addWidget(reverse)
+        reverse = QLabel(self._localizer.text(TextId.HISTORY_REVERSE))
+        reverse.setObjectName(f"operationHistoryReverse_{item.operation_id}")
+        reverse.setProperty("role", "muted")
+        reverse.setVisible(item.reverses_operation_id is not None)
+        footer.addWidget(reverse)
         footer.addStretch(1)
         details = QPushButton(self._localizer.text(TextId.DETAILS))
         details.setObjectName(f"operationDetailsButton_{item.operation_id}")
@@ -273,6 +293,38 @@ class OperationHistoryView(QWidget):
         footer.addWidget(details)
         layout.addLayout(footer)
         return row
+
+    def _update_row(self, row: QFrame, item: OperationHistoryItem) -> None:
+        title = row.findChild(QLabel, f"operationHistoryTitle_{item.operation_id}")
+        state = row.findChild(QLabel, f"operationHistoryState_{item.operation_id}")
+        path = row.findChild(QLabel, f"operationHistoryPath_{item.operation_id}")
+        timestamp = row.findChild(
+            QLabel, f"operationHistoryTimestamp_{item.operation_id}"
+        )
+        status_icon = row.findChild(
+            QToolButton, f"operationStatusIcon_{item.operation_id}"
+        )
+        reverse = row.findChild(
+            QLabel, f"operationHistoryReverse_{item.operation_id}"
+        )
+        assert title is not None and state is not None and path is not None
+        assert timestamp is not None and status_icon is not None and reverse is not None
+        title.setText(item.movie_title or self._localizer.text(TextId.HISTORY_UNLINKED))
+        state.setText(
+            f"{_operation_text(self._localizer, item.operation.value)}  ·  "
+            f"{_status_text(self._localizer, item.state.value)}"
+        )
+        state.setProperty("operationState", item.state.value)
+        path.setText(
+            f"{self._localizer.text(TextId.HISTORY_FROM)}: {item.source_path}  →  "
+            f"{self._localizer.text(TextId.HISTORY_TO)}: {item.destination_path}"
+        )
+        timestamp.setText(format_datetime(item.created_at))
+        status_icon.setAccessibleName(
+            _status_text(self._localizer, item.state.value)
+        )
+        set_fluent_icon(status_icon, _status_icon_name(item.state))
+        reverse.setVisible(item.reverses_operation_id is not None)
 
     def _select_and_load(self, operation_id: str) -> None:
         self._load_details(operation_id)
@@ -355,6 +407,7 @@ class OperationHistoryView(QWidget):
             row.hide()
             row.setParent(None)
         self._rows.clear()
+        self._rows_by_id.clear()
 
     def invalidate_pending_tasks(self) -> None:
         self._history_refresh_active = False

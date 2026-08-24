@@ -54,6 +54,21 @@ def _seed_catalog(harness, media_path: Path, *, operation_state: str = "COMMITTE
         )
         connection.execute(
             """
+            INSERT INTO movie_personal_state(
+                movie_id, preference, watchlist_added_at, created_at, updated_at
+            ) VALUES (?, 'LIKED', ?, ?, ?)
+            """,
+            (movie_id, timestamp, timestamp, timestamp),
+        )
+        connection.execute(
+            """
+            INSERT INTO watch_events(movie_id, watched_at, created_at)
+            VALUES (?, ?, ?)
+            """,
+            (movie_id, timestamp, timestamp),
+        )
+        connection.execute(
+            """
             INSERT INTO file_operations(
                 id, operation_type, source_path, destination_path, state,
                 media_file_id, created_at, updated_at
@@ -78,6 +93,13 @@ def _counts(harness) -> tuple[int, int, int, int]:
         )  # type: ignore[return-value]
 
 
+def _personal_counts(harness) -> tuple[int, int]:
+    with harness.database.connection() as connection:
+        return (
+            int(connection.execute("SELECT COUNT(*) FROM movie_personal_state").fetchone()[0]),
+            int(connection.execute("SELECT COUNT(*) FROM watch_events").fetchone()[0]),
+        )
+
 def test_clear_is_transactional_preserves_history_and_never_mutates_media(
     harness,
     tmp_path: Path,
@@ -98,6 +120,7 @@ def test_clear_is_transactional_preserves_history_and_never_mutates_media(
     assert result.poster_files_removed == 2
     assert result.warning is None
     assert _counts(harness) == (0, 0, 0, 1)
+    assert _personal_counts(harness) == (0, 0)
     assert media.read_bytes() == b"immutable movie bytes"
     assert sha256(media.read_bytes()).hexdigest() == digest
     with harness.database.connection() as connection:
@@ -124,6 +147,7 @@ def test_clear_blocks_nonterminal_operation_without_deleting_anything(
         ).execute()
 
     assert _counts(harness) == (1, 1, 1, 1)
+    assert _personal_counts(harness) == (1, 1)
     assert cache.calls == 0
     assert media.read_bytes() == b"movie"
 
@@ -149,6 +173,7 @@ def test_clear_rolls_back_on_database_failure(harness, tmp_path: Path) -> None:
         ).execute()
 
     assert _counts(harness) == (1, 1, 1, 1)
+    assert _personal_counts(harness) == (1, 1)
     assert cache.calls == 0
 
 
@@ -182,4 +207,3 @@ def test_clear_refuses_while_shared_catalog_operation_lock_is_busy(harness) -> N
             ).execute()
     finally:
         lock.release()
-

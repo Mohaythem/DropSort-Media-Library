@@ -2,6 +2,34 @@
 
 Last verified: 2026-08-25 on native Windows / Python 3.12 / NTFS.
 
+
+
+## Python Stabilization Pass 3 status
+
+**IMPLEMENTED AND SOURCE-VERIFIED ON `codex`.** Personal Library async delivery is owned by
+request generation and section, so late or failed loads cannot paint another tab. Same-section stale
+snapshots remain available; uncached targets use a localized loading/error state.
+
+Clear Library now removes all active Movies, MediaFiles, metadata cache, Likes, Blacklist,
+Watchlist, and Watch Events in one transaction while preserving physical media and immutable
+filesystem operation/recovery evidence. Successful UI delivery discards all Library/Personal card
+snapshots, details state, and old search suggestions before exactly one authoritative local reload.
+
+Stable MovieId DTO changes update the same MovieCard and restart poster work only for a changed
+poster identity. Media panels and History rows retain stable MediaFileId/operation-id ownership.
+Personal invalidation is projection-specific, layered grid presentation is reduced to one source
+presentation call, and repeated identical Check Library change identities are coalesced per run.
+
+Runtime tracing across empty, one-card, multi-card uncached, multi-card cached, and poster-suppressed
+startup proved one pre-show Library load and no post-show full reload. Multiple geometry passes
+remain even with posters suppressed; asynchronous poster replacement remains per-card and is not
+claimed fully flicker-free.
+
+Verification: compileall passed; 13/13 new acceptance tests; Clear 7/7; startup/refresh/check 65/65;
+full suite 1,230 collected, 1,215 passed, 10 failed, 5 skipped in 331.82 seconds. The ten failures are
+the accepted baseline set; new failures are zero. V7 was not ported, Poster Phase 3 was not started,
+and no release was packaged. See
+`docs/reports/python-stabilization/03-refresh-state-flicker-remediation.md`.
 ## Python Stabilization Pass 1 status
 
 **IMPLEMENTED AND SOURCE-VERIFIED ON `codex`.** Desktop startup now performs one local SQLite

@@ -46,14 +46,13 @@ class PersonalLibraryView(QWidget):
         self._state_error = False
         self._has_snapshot = False
         self._snapshot_stale = False
-        self._refresh_preserved_snapshot = False
-        self._refresh_active = False
         self._visible_section: PersonalLibrarySection | None = None
         self._snapshots: dict[
             PersonalLibrarySection, tuple[MovieListItem, ...]
         ] = {}
         self._stale_sections: set[PersonalLibrarySection] = set()
-        self._pending_section = self._section
+        self._active_request: tuple[int, PersonalLibrarySection] | None = None
+        self._latest_generation_by_section: dict[PersonalLibrarySection, int] = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(SPACE_36, SPACE_36, SPACE_36, SPACE_36)
         layout.setSpacing(SPACE_MEDIUM)
@@ -156,10 +155,35 @@ class PersonalLibraryView(QWidget):
         self.refresh()
 
     def invalidate_snapshot(self) -> None:
-        """Mark cached personal sections stale without blanking the visible tab."""
+        """Mark every cached personal projection stale without repainting it."""
 
-        self._stale_sections.update(self._snapshots)
+        self.invalidate_sections(tuple(_SECTIONS))
+
+    def invalidate_sections(
+        self, sections: tuple[PersonalLibrarySection, ...]
+    ) -> None:
+        """Invalidate only projections affected by a personal mutation."""
+
+        self._stale_sections.update(
+            section for section in sections if section in self._snapshots
+        )
         self._snapshot_stale = self._section in self._stale_sections
+
+    def clear_snapshots_after_catalog_clear(self) -> None:
+        """Discard all catalog-derived Personal state after an authoritative clear."""
+
+        self.invalidate_pending()
+        self._snapshots.clear()
+        self._stale_sections.clear()
+        self._all_items = ()
+        self._has_snapshot = False
+        self._snapshot_stale = False
+        self._visible_section = None
+        self._grid.set_items((), retain_unlisted=False)
+        self._grid.hide()
+        self._empty_host.hide()
+        self._state.hide()
+        self.search_candidates_changed.emit(())
 
     def _adopt_cached_section(self, section: PersonalLibrarySection) -> bool:
         cached = self._snapshots.get(section)
@@ -171,14 +195,18 @@ class PersonalLibraryView(QWidget):
         self._has_snapshot = True
         self._visible_section = section
         self._snapshot_stale = section in self._stale_sections
-        self._grid.set_items(cached, retain_unlisted=True)
-        self._apply_search()
+        filtered = filter_movie_items(cached, self._search_query)
+        self._grid.set_items(
+            cached,
+            retain_unlisted=True,
+            visible_items=filtered,
+        )
+        self._render_filtered_items(filtered)
         return True
 
     def refresh(self, section: PersonalLibrarySection | None = None) -> None:
         target = section or self._section
-        section_changed = target is not self._section
-        if section_changed:
+        if target is not self._section:
             self._section = target
             self._tabs.blockSignals(True)
             self._tabs.setCurrentIndex(_section_index(target))
@@ -186,46 +214,39 @@ class PersonalLibraryView(QWidget):
 
         cached = self._snapshots.get(target)
         if cached is not None:
-            self._all_items = cached
-            self._has_snapshot = True
-            self._visible_section = target
-            self._snapshot_stale = target in self._stale_sections
-            self._grid.set_items(cached, retain_unlisted=True)
-            self._apply_search()
-
-        # Repeated activation of the same tab while its query is already in
-        # flight must not schedule duplicate reads.  This is a frequent source
-        # of the visible "double refresh" effect when navigation and tab clicks
-        # happen close together.
-        if self._refresh_active and self._pending_section is target:
-            return
-
-        # If the target has never been loaded, keep the currently painted
-        # snapshot in place until the new local result arrives.  The selected
-        # tab changes immediately, but the content never disappears for a frame.
-        # A truly empty first launch still has no snapshot to preserve.
-        preserve_snapshot = cached is not None or self._visible_section is not None
-        if cached is None:
-            # NO SNAPSHOT and STALE SNAPSHOT are different states. When an
-            # unvisited tab temporarily keeps another tab painted, do not label
-            # that preserved content as the target tab's stale cache.
+            self._adopt_cached_section(target)
+        elif self._visible_section is not target:
+            # Never paint cards owned by one Personal tab underneath another.
+            self._all_items = ()
+            self._has_snapshot = False
             self._snapshot_stale = False
-
-        self._token += 1
-        token = self._token
-        self._pending_section = target
-        self._refresh_active = True
-        self._state_error = False
-        self._state.hide()
-        self._refresh_preserved_snapshot = preserve_snapshot
-        if not preserve_snapshot:
+            self._visible_section = None
+            self._grid.set_items((), retain_unlisted=True)
             self._grid.hide()
             self._empty_host.hide()
+            self._state_error = False
+            self._state.setText(self._localizer.text(TextId.PERSONAL_LOADING))
+            self._state.show()
+
+        if self._active_request is not None and self._active_request[1] is target:
+            return
+
+        self._token += 1
+        generation = self._token
+        self._active_request = (generation, target)
+        self._latest_generation_by_section[target] = generation
+        self._state_error = False
+        if cached is not None:
+            self._state.hide()
         self._runner.submit(
-            token,
+            generation,
             lambda target=target: self._actions.list_personal_movies(target),
-            self._loaded,
-            self._failed,
+            lambda delivered, value, target=target: self._loaded(
+                delivered, value, target
+            ),
+            lambda delivered, error, target=target: self._failed(
+                delivered, error, target
+            ),
         )
 
     def set_search_query(self, query: str) -> None:
@@ -237,7 +258,9 @@ class PersonalLibraryView(QWidget):
 
     def invalidate_pending(self) -> None:
         self._token += 1
-        self._refresh_active = False
+        for section in _SECTIONS:
+            self._latest_generation_by_section[section] = self._token
+        self._active_request = None
 
     def wait_for_pending_tasks(self) -> None:
         waiter = getattr(self._runner, "wait_for_done", None)
@@ -251,32 +274,59 @@ class PersonalLibraryView(QWidget):
         if target is self._section:
             return
         self._section = target
+        # Changing tabs transfers visible ownership immediately. A late result
+        # may warm its own section cache but cannot paint this target tab.
+        self._active_request = None
         if self._adopt_cached_section(target):
             if self._snapshot_stale:
                 self.refresh()
             return
         self.refresh()
 
-    def _loaded(self, token: int, value: object) -> None:
-        if token != self._token or not isinstance(value, tuple):
+    def _loaded(
+        self,
+        token: int,
+        value: object,
+        section: PersonalLibrarySection | None = None,
+    ) -> None:
+        section = section or self._section
+        if (
+            self._latest_generation_by_section.get(section, token) != token
+            or not isinstance(value, tuple)
+        ):
             return
         items = tuple(item for item in value if isinstance(item, MovieListItem))
-        section = self._pending_section
-        self._refresh_active = False
         self._snapshots[section] = items
         self._stale_sections.discard(section)
+        direct_delivery = (
+            section not in self._latest_generation_by_section
+            and self._active_request is None
+        )
+        if (
+            not direct_delivery
+            and self._active_request != (token, section)
+        ) or self._section is not section:
+            return
+        self._active_request = None
         self._all_items = items
         self._has_snapshot = True
         self._visible_section = section
         self._snapshot_stale = False
-        self._refresh_preserved_snapshot = False
-        self._grid.set_items(items, retain_unlisted=True)
+        filtered = filter_movie_items(items, self._search_query)
+        self._grid.set_items(
+            items,
+            retain_unlisted=True,
+            visible_items=filtered,
+        )
         self.search_candidates_changed.emit(movie_search_suggestions(items))
-        self._apply_search()
+        self._render_filtered_items(filtered)
 
     def _apply_search(self) -> None:
         items = filter_movie_items(self._all_items, self._search_query)
         self._grid.show_items(items)
+        self._render_filtered_items(items)
+
+    def _render_filtered_items(self, items: tuple[MovieListItem, ...]) -> None:
         if items:
             self._empty_host.hide()
             self._grid.show()
@@ -293,29 +343,41 @@ class PersonalLibraryView(QWidget):
             self._render_empty_state()
             self._empty_host.show()
 
-    def _failed(self, token: int, error: BaseException) -> None:
-        if token != self._token:
+    def _failed(
+        self,
+        token: int,
+        error: BaseException,
+        section: PersonalLibrarySection | None = None,
+    ) -> None:
+        section = section or self._section
+        if self._latest_generation_by_section.get(section, token) != token:
             return
-        self._refresh_active = False
-        LOGGER.warning("Personal library query failed", exc_info=(type(error), error, error.__traceback__))
-        if self._refresh_preserved_snapshot and self._visible_section is not None:
-            # A stale refresh should never blank an already useful page. Keep
-            # the last known snapshot visible and surface the error above it.
-            self._refresh_preserved_snapshot = False
-            if self._pending_section in self._snapshots:
-                self._stale_sections.add(self._pending_section)
-            self._snapshot_stale = self._pending_section in self._stale_sections
-            self._state_error = True
-            self._state.setText(self._localizer.text(TextId.PERSONAL_LOAD_ERROR))
-            self._state.show()
+        LOGGER.warning(
+            "Personal library query failed",
+            exc_info=(type(error), error, error.__traceback__),
+        )
+        if section in self._snapshots:
+            self._stale_sections.add(section)
+        direct_delivery = (
+            section not in self._latest_generation_by_section
+            and self._active_request is None
+        )
+        if (
+            not direct_delivery
+            and self._active_request != (token, section)
+        ) or self._section is not section:
             return
-        self._has_snapshot = False
-        self._snapshot_stale = False
-        self._refresh_preserved_snapshot = False
-        self._all_items = ()
-        self._grid.set_items((), retain_unlisted=True)
-        self._grid.hide()
-        self._empty_host.hide()
+        self._active_request = None
+        if section in self._snapshots:
+            self._adopt_cached_section(section)
+        else:
+            self._has_snapshot = False
+            self._snapshot_stale = False
+            self._all_items = ()
+            self._visible_section = None
+            self._grid.set_items((), retain_unlisted=True)
+            self._grid.hide()
+            self._empty_host.hide()
         self._state_error = True
         self._state.setText(self._localizer.text(TextId.PERSONAL_LOAD_ERROR))
         self._state.show()
