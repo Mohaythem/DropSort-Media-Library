@@ -132,23 +132,24 @@ class ImportReviewRow(QFrame):
             and proposal.status is not ImportProposalStatus.ALREADY_IN_LIBRARY
         )
 
-        self.import_button = QPushButton()
+        self.import_button = QPushButton(action_host)
         self.import_button.setObjectName("confirmImportButton")
         self.import_button.setProperty("role", "primaryAction")
         self.import_button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         set_fluent_icon(self.import_button, FluentIconName.ADD_MOVIES)
+        action_layout.addWidget(self.import_button)
         self.import_button.setVisible(confirmable)
         self.import_button.clicked.connect(self._request_confirmation)
         self._localizer.bind_text(self.import_button, TextId.ADD_TO_LIBRARY)
-        action_layout.addWidget(self.import_button)
 
-        self.manual_search_button = QPushButton()
+        self.manual_search_button = QPushButton(action_host)
         self.manual_search_button.setObjectName("editSearchButton")
         self.manual_search_button.setProperty("role", "secondaryAction")
         self.manual_search_button.setSizePolicy(
             QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
         )
         set_fluent_icon(self.manual_search_button, FluentIconName.SEARCH)
+        action_layout.addWidget(self.manual_search_button)
         self.manual_search_button.setVisible(
             proposal.discovery.classification.value == "MOVIE_CANDIDATE"
             and proposal.status
@@ -161,7 +162,6 @@ class ImportReviewRow(QFrame):
             lambda: self.manual_search_requested.emit(self.proposal, self)
         )
         self._localizer.bind_text(self.manual_search_button, TextId.EDIT_SEARCH)
-        action_layout.addWidget(self.manual_search_button)
 
         authentication_missing = (
             ImportProposalReason.METADATA_AUTHENTICATION in set(proposal.reasons)
@@ -214,15 +214,15 @@ class ImportReviewRow(QFrame):
         self.candidate_selector.setVisible(needs_candidate_choice)
         layout.addWidget(self.candidate_selector)
 
-        self._explanation = QLabel(_explanation(proposal, self._localizer))
+        self._explanation = QLabel(_explanation(proposal, self._localizer), self)
         self._explanation.setObjectName("importExplanationLabel")
         self._explanation.setProperty("role", "muted")
         self._explanation.setWordWrap(True)
+        layout.addWidget(self._explanation)
         self._explanation.setVisible(
             proposal.status is not ImportProposalStatus.MATCH_PROPOSED
             or len(proposal.candidates) > 1
         )
-        layout.addWidget(self._explanation)
 
     @property
     def selected_candidate(self) -> MovieCandidate | None:

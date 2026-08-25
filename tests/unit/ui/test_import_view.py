@@ -5,9 +5,11 @@ from pathlib import Path
 from typing import Callable
 from types import SimpleNamespace
 
-from PySide6.QtCore import Qt
+import pytest
+from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtGui import QWindow
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QMainWindow, QWidget
 
 from dropsort.application.dto.catalog import MovieFileIngestionResult
 from dropsort.application.dto.import_review import (
@@ -32,6 +34,44 @@ from dropsort.media.discovery.models import (
 )
 from dropsort.media.parser import MediaType, ParsedMedia
 from dropsort.ui.scan.import_view import ImportView
+
+
+_TRANSIENT_CONTROL_NAMES = {
+    "confirmImportButton",
+    "editSearchButton",
+    "importExplanationLabel",
+}
+
+
+class _TransientImportControlProbe(QObject):
+    def __init__(self, main_window: QMainWindow) -> None:
+        super().__init__()
+        self._main_window = main_window
+        self.logical_top_level_shows: list[str] = []
+        self.native_window_shows: list[str] = []
+        self.main_activation_events: list[QEvent.Type] = []
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        event_type = event.type()
+        if event_type is QEvent.Type.Show:
+            name = watched.objectName()
+            if (
+                isinstance(watched, QWidget)
+                and name in _TRANSIENT_CONTROL_NAMES
+                and watched.isWindow()
+            ):
+                self.logical_top_level_shows.append(name)
+            if (
+                isinstance(watched, QWindow)
+                and name in {f"{value}Window" for value in _TRANSIENT_CONTROL_NAMES}
+            ):
+                self.native_window_shows.append(name)
+        if watched is self._main_window and event_type in {
+            QEvent.Type.WindowActivate,
+            QEvent.Type.WindowDeactivate,
+        }:
+            self.main_activation_events.append(event_type)
+        return False
 
 
 class ImmediateRunner:
@@ -549,3 +589,83 @@ def test_non_recursive_choice_is_passed_to_application(
     view.start_scan(root)
 
     assert actions.prepare_calls == [(root, False)]
+
+
+@pytest.mark.parametrize("item_count", (1, 3, 5))
+def test_no_match_rows_never_show_controls_as_top_level_windows(
+    qapp: QApplication,
+    tmp_path: Path,
+    proposal_factory,
+    discovery_factory,
+    item_count: int,
+) -> None:
+    root = tmp_path / "movies"
+    proposals = tuple(
+        proposal_factory(
+            status=ImportProposalStatus.NO_MATCH,
+            discovery=discovery_factory(path=root / f"movie-{index}.mkv"),
+        )
+        for index in range(item_count)
+    )
+    view = ImportView(
+        FakeImportActions(_session(root, *proposals)),
+        runner=ImmediateRunner(),
+    )
+    main_window = QMainWindow()
+    main_window.setCentralWidget(view)
+    main_window.show()
+    qapp.processEvents()
+
+    probe = _TransientImportControlProbe(main_window)
+    qapp.installEventFilter(probe)
+    try:
+        view.start_scan(root)
+        qapp.processEvents()
+    finally:
+        qapp.removeEventFilter(probe)
+
+    try:
+        assert view.row_count == item_count
+        assert probe.logical_top_level_shows == []
+        assert probe.native_window_shows == []
+        assert probe.main_activation_events == []
+        for row in view.rows:
+            controls = (
+                row.import_button,
+                row.manual_search_button,
+                row.findChild(QLabel, "importExplanationLabel"),
+            )
+            assert all(control is not None for control in controls)
+            assert all(control.parentWidget() is not None for control in controls)
+            assert all(not control.isWindow() for control in controls)
+            assert all(control.isVisible() for control in controls)
+    finally:
+        main_window.close()
+        qapp.processEvents()
+
+
+def test_default_folder_picker_opens_once_and_starts_scan(
+    qapp: QApplication,
+    tmp_path: Path,
+    proposal_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "movies"
+    calls: list[tuple[QWidget, str]] = []
+
+    def get_existing_directory(parent: QWidget, title: str) -> str:
+        calls.append((parent, title))
+        return str(root)
+
+    monkeypatch.setattr(
+        QFileDialog,
+        "getExistingDirectory",
+        get_existing_directory,
+    )
+    actions = FakeImportActions(_session(root, proposal_factory()))
+    view = ImportView(actions, runner=ImmediateRunner())
+
+    view.choose_folder()
+
+    assert calls == [(view, "Choose a movie folder")]
+    assert actions.prepare_calls == [(root, True)]
