@@ -2,15 +2,26 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from PySide6.QtCore import Qt
+import pytest
+
+from PySide6.QtCore import QBuffer, QIODevice, Qt, QTimer
+from PySide6.QtGui import QColor, QImage
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLabel
 
 from dropsort.ui.library.movie_card import MovieCard
 from dropsort.ui.library.movie_grid import MovieGrid
-from dropsort.posters import PosterAsset
+from dropsort.posters import (
+    PosterAsset,
+    PosterAssetCache,
+    PosterAssetService,
+    PosterRequest,
+)
 from dropsort.application.dto.library import MovieMetadataStatus
 from dropsort.ui.common.theme import CARD_HEIGHT
+from dropsort.library.personal import PersonalLibrarySection
+from dropsort.ui.personal_library.personal_library_view import PersonalLibraryView
+from dropsort.ui.posters.loader import PosterLoader
 
 
 class DeferredPosterLoader:
@@ -228,3 +239,182 @@ def test_registration_then_enrichment_updates_same_movie_card(
     assert grid.cards[0].item.movie_id == 42
     assert _label(card, "movieTitleLabel").toolTip() == "Enriched title"
     assert len(loader.requests) == 1
+
+
+class CountingMovieGrid(MovieGrid):
+    def __init__(self, **kwargs) -> None:
+        self.set_items_calls = 0
+        super().__init__(**kwargs)
+
+    def set_items(self, *args, **kwargs) -> None:
+        self.set_items_calls += 1
+        super().set_items(*args, **kwargs)
+
+
+def _solid_poster(color: str) -> PosterAsset:
+    image = QImage(8, 12, QImage.Format.Format_RGB32)
+    image.fill(QColor(color))
+    buffer = QBuffer()
+    assert buffer.open(QIODevice.OpenModeFlag.WriteOnly)
+    assert image.save(buffer, "PNG")
+    return PosterAsset("png", bytes(buffer.data()))
+
+
+def _assert_poster_color(card: MovieCard, color: str) -> None:
+    pixmap = _label(card, "posterPlaceholder").pixmap()
+    assert pixmap is not None and not pixmap.isNull()
+    actual = pixmap.toImage().pixelColor(pixmap.width() // 2, pixmap.height() // 2)
+    assert actual.name() == QColor(color).name()
+
+
+@pytest.mark.parametrize("card_count", (1, 3, 5))
+def test_visible_poster_results_are_presented_in_one_bounded_batch(
+    qapp,
+    movie_item_factory,
+    card_count: int,
+) -> None:
+    colors = ("red", "green", "blue", "yellow", "magenta")
+    items = tuple(
+        movie_item_factory(
+            movie_id=index + 1,
+            title=f"Movie {index + 1}",
+            poster_reference=f"/poster-{index + 1}.png",
+        )
+        for index in range(card_count)
+    )
+    loader = DeferredPosterLoader()
+    grid = CountingMovieGrid(poster_loader=loader)
+    grid.set_items(items)
+    original_cards = grid.cards
+
+    deliveries = [
+        (receiver, token, _solid_poster(colors[index]))
+        for index, (receiver, _request, token) in enumerate(loader.requests)
+    ]
+    receiver, token, asset = deliveries[0]
+    receiver.apply_poster(token, asset)
+    for index, (receiver, token, asset) in enumerate(deliveries[1:], start=1):
+        QTimer.singleShot(
+            index * 10,
+            lambda receiver=receiver, token=token, asset=asset: receiver.apply_poster(
+                token, asset
+            ),
+        )
+    QTest.qWait(80)
+    qapp.processEvents()
+
+    assert grid.cards == original_cards
+    assert grid.set_items_calls == 1
+    assert grid.poster_presentation_count == 1
+    assert all(card.poster_loaded for card in grid.cards)
+    for card, color in zip(grid.cards, colors[:card_count], strict=True):
+        _assert_poster_color(card, color)
+
+
+def test_cached_posters_use_the_same_coalesced_presentation_path(
+    qapp,
+    movie_item_factory,
+    tmp_path,
+) -> None:
+    colors = ("red", "green", "blue")
+    items = tuple(
+        movie_item_factory(
+            movie_id=index + 1,
+            title=f"Cached {index + 1}",
+            poster_reference=f"/cached-{index + 1}.png",
+        )
+        for index in range(3)
+    )
+    cache = PosterAssetCache(tmp_path / "poster-cache")
+    for item, color in zip(items, colors, strict=True):
+        cache.put(
+            PosterRequest(item.provider or "", item.poster_reference or ""),
+            _solid_poster(color),
+        )
+    service = PosterAssetService(cache, {})
+    loader = PosterLoader(service)
+    grid = MovieGrid(poster_loader=loader)
+    grid.set_items(items)
+    original_cards = grid.cards
+
+    for _ in range(200):
+        qapp.processEvents()
+        if loader.active_request_count == 0:
+            break
+        QTest.qWait(10)
+
+    assert loader.active_request_count == 0
+    assert grid.cards == original_cards
+    assert 1 <= grid.poster_presentation_count < len(grid.cards)
+    # Native cache workers may straddle the 100 ms bound, but never regress
+    # to one presentation cycle per visible card.
+    assert all(card.poster_loaded for card in grid.cards)
+    for card, color in zip(grid.cards, colors, strict=True):
+        _assert_poster_color(card, color)
+    loader.shutdown()
+
+
+class _ImmediatePersonalRunner:
+    def submit(self, token, task, on_success, on_failure) -> None:
+        try:
+            on_success(token, task())
+        except BaseException as error:
+            on_failure(token, error)
+
+    def wait_for_done(self) -> None:
+        return None
+
+
+class _PersonalPosterActions:
+    def __init__(self, items) -> None:
+        self._items = items
+
+    def list_personal_movies(self, section: PersonalLibrarySection):
+        return self._items
+
+
+def test_personal_library_coalesces_multiple_poster_results_without_rebuild(
+    qapp,
+    movie_item_factory,
+    monkeypatch,
+) -> None:
+    colors = ("red", "green", "blue")
+    items = tuple(
+        movie_item_factory(
+            movie_id=index + 1,
+            title=f"Personal {index + 1}",
+            poster_reference=f"/personal-{index + 1}.png",
+            media_file_count=0,
+        )
+        for index in range(3)
+    )
+    loader = DeferredPosterLoader()
+    view = PersonalLibraryView(
+        _PersonalPosterActions(items),
+        poster_loader=loader,
+        runner=_ImmediatePersonalRunner(),
+    )
+    view.activate()
+    original_cards = view._grid.cards
+    set_items_calls = 0
+    original_set_items = view._grid.set_items
+
+    def counted_set_items(*args, **kwargs):
+        nonlocal set_items_calls
+        set_items_calls += 1
+        return original_set_items(*args, **kwargs)
+
+    monkeypatch.setattr(view._grid, "set_items", counted_set_items)
+    deliveries = [
+        (receiver, token, _solid_poster(colors[index]))
+        for index, (receiver, _request, token) in enumerate(loader.requests)
+    ]
+    for receiver, token, asset in reversed(deliveries):
+        receiver.apply_poster(token, asset)
+
+    assert view._grid.cards == original_cards
+    assert set_items_calls == 0
+    assert view._grid.poster_presentation_count == 1
+    assert all(card.poster_loaded for card in view._grid.cards)
+    for card, color in zip(view._grid.cards, colors, strict=True):
+        _assert_poster_color(card, color)

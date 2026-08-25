@@ -24,6 +24,16 @@ The Library snapshot was built before `window.show()`; no post-show full Library
 
 The Personal trace reproduced both confirmed defects before implementation: a late LIKED result painted WATCHLIST, and a BLACKLISTED failure left the late LIKED card visible. The implemented ownership tests now reject both sequences.
 
+## Per-card poster presentation follow-up
+
+Starting SHA: `7f4dac7449dd4f518d9b4b24a8f928583ce389b5`.
+
+The remaining visible refresh was traced to the exact UI-thread chain `poster completion -> MovieCard.apply_poster() -> QLabel.setPixmap() -> Window UpdateRequest -> card/poster paint`. The number of poster-correlated visible cycles scaled with the visible card count: approximately `1 / 3 / 5` for `1 / 3 / 5` cards.
+
+`MovieCard` still validates and decodes each asynchronous result immediately. A grid-owned presentation coordinator now stages only the final pixmaps of visible cards, preserves request tokens and stable MovieId/MovieCard identity, and applies the ready pixmaps together when the visible request wave completes. A single-shot 100 ms maximum-wait timer bounds a partial wave when another request is slow or fails; it does not block the UI. Results completed before initial visibility classification are staged, which closes the cached-poster startup race. Hidden-card results may be applied immediately because they cannot repaint the visible page.
+
+A native Qt diagnostic used production `LibraryView`, `PersonalLibraryView`, `MovieGrid`, and `MovieCard`, deterministic local PNG assets, no network, and no user database/cache. Measured poster presentation batches and top-level Window `UpdateRequest` counts were both `1 -> 1`, `3 -> 1`, `5 -> 1` in Library, and `5 -> 1` in Personal Library. Every final poster loaded and every card object retained identity. The temporary diagnostic process and files were removed. Computer Use screenshot capture could not attach because its Windows helper failed with the host ACL error `apply deny-read ACLs`; the native-window event measurement completed independently.
+
 ## Remediation by finding
 
 | Finding | Result |
@@ -33,7 +43,7 @@ The Personal trace reproduced both confirmed defects before implementation: a la
 | P0.3 Clear reuses stale snapshots | Fixed. Clear success explicitly discards Library cards/source, all Personal caches, details state, and search suggestions before one authoritative Library load. |
 | P0.4 incomplete active clear | Fixed. One SQLite transaction deletes metadata cache, Watch Events, personal state, MediaFiles, and Movies; unresolved operations still block the clear. |
 | P1.1 Personal two-stage presentation | Fixed. Fresh same-section cache is immediate; uncached targets use target-specific loading; failed targets cannot show another section. |
-| P1.2 poster delivery | Deliberately not redesigned. Runtime evidence proves it is per-card and not the sole cause. |
+| P1.2 poster delivery | Fixed at the presentation boundary. Visible ready pixmaps are coalesced by the grid into one bounded presentation batch; loader/cache/network behavior is unchanged. |
 | P1.3 MovieCard recreation | Fixed. Same MovieId calls `update_item()`; title/year/rating/availability/file counts update in place. Poster work restarts only when provider/reference changes. |
 | P1.4 registration plus enrichment | Fixed at presentation boundary. The second same-MovieId DTO updates the locally created card rather than replacing it. Transactions remain separate. |
 | P1.5 History rebuild | Fixed. Rows are diffed by operation id; survivors update in place, new rows are created, removed rows are deleted. |
@@ -57,22 +67,23 @@ Restart/query verification proves all Personal sections empty, Watch Events abse
 - First Personal load: target-specific loading, then one accepted target result.
 - Cached Personal switch: same-section cache appears immediately with no cross-section placeholder.
 - Uncached Personal switch: no old-tab cards; localized loading/error or same-section stale cache only.
-- Poster delivery: individual card repaint remains; whole-grid/card recreation is not triggered.
+- Poster delivery: asynchronous results remain per-card, but visible `setPixmap()` swaps are staged and presented in a bounded grid batch without recreating cards or the grid.
 - Metadata enrichment: same MovieCard object updates in place; only a changed poster identity starts a new request.
 - Media rows: stable MediaFileId panels survive one-file updates.
 - History rows: stable operation-id rows survive inserts and state/path updates.
 
-Remaining visual risk: Qt can still produce platform-specific geometry/paint timing during the first native show, and asynchronous posters still replace placeholders per card. The trace does not justify claiming all perceptual flicker is eliminated.
+Remaining visual risk: Qt compositor timing can still vary by Windows/DPI/driver. Poster completions separated beyond the 100 ms bound can form more than one batch, but the measured 1/3/5 wave no longer scales one visible cycle per card. Computer Use screenshot capture was unavailable on this host because its helper hit the repository ACL error; native Qt Window UpdateRequest measurement supplied the runtime gate.
 
 ## Verification
 
 - Compileall: passed.
-- New acceptance tests: `13 passed`.
+- New acceptance tests from the original pass: `13 passed`.
+- Per-card poster focused tests: `5 passed` (1/3/5 delayed delivery, real temporary cache, and Personal Library).
 - Focused Personal file: `29 passed, 1 existing baseline failure`.
 - Clear Library gate: `7 passed`.
 - MovieCard file: `10 passed, 1 existing baseline failure`; the three new stable-identity/import-lifecycle cases passed.
 - Startup/refresh/check gate: `65 passed` (`9` static flicker-lifecycle plus `56` Pass 1/Check Library tests).
-- Full suite: `1,230 collected; 1,215 passed; 10 failed; 5 skipped` in 331.82 seconds.
+- Full suite after the poster follow-up: `1,235 collected; 1,220 passed; 10 failed; 5 skipped` in 224.59 seconds.
 - Accepted starting suite: `1,217 collected; 1,202 passed; 10 failed; 5 skipped`.
 - New failures: `0`.
 - `git diff --check`: passed after removing one trailing blank line.

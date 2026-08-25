@@ -1,13 +1,105 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QGridLayout, QScrollArea, QWidget
 
 from dropsort.application.dto.library import MovieListItem
 from dropsort.ui.common.theme import CARD_WIDTH, SPACE_LARGE, SPACE_MEDIUM
-from dropsort.ui.library.movie_card import MovieCard
+from dropsort.ui.library.movie_card import MovieCard, PosterPresentationDispatcher
 from dropsort.ui.localization import UiLocalizer
 from dropsort.ui.posters import PosterRequestDispatcher
+
+
+POSTER_PRESENTATION_MAX_WAIT_MS = 100
+
+
+class _PosterPresentationCoordinator(PosterPresentationDispatcher):
+    """Present visible poster swaps in bounded UI batches."""
+
+    def __init__(self, parent: QWidget) -> None:
+        self._visible_ids: set[int] = set()
+        self._classified_ids: set[int] = set()
+        self._outstanding: dict[int, tuple[MovieCard, int]] = {}
+        self._ready: dict[int, tuple[MovieCard, int, QPixmap]] = {}
+        self._presentation_count = 0
+        self._timer = QTimer(parent)
+        self._timer.setSingleShot(True)
+        self._timer.setInterval(POSTER_PRESENTATION_MAX_WAIT_MS)
+        self._timer.timeout.connect(self._flush)
+
+    @property
+    def presentation_count(self) -> int:
+        return self._presentation_count
+
+    def poster_request_started(self, card: MovieCard, token: int) -> None:
+        movie_id = card.item.movie_id
+        self._outstanding[movie_id] = (card, token)
+        self._ready.pop(movie_id, None)
+
+    def poster_request_invalidated(self, card: MovieCard) -> None:
+        movie_id = card.item.movie_id
+        self._outstanding.pop(movie_id, None)
+        self._ready.pop(movie_id, None)
+        self._finish_or_schedule()
+
+    def poster_result_ready(
+        self, card: MovieCard, token: int, pixmap: QPixmap | None
+    ) -> None:
+        movie_id = card.item.movie_id
+        if self._outstanding.get(movie_id) != (card, token):
+            return
+        self._outstanding.pop(movie_id, None)
+
+        if pixmap is not None:
+            if movie_id in self._visible_ids or movie_id not in self._classified_ids:
+                self._ready[movie_id] = (card, token, pixmap)
+            else:
+                card._present_poster(token, pixmap)
+        self._finish_or_schedule()
+
+    def set_visible_cards(
+        self,
+        cards: list[MovieCard],
+        all_cards: tuple[MovieCard, ...],
+    ) -> None:
+        self._visible_ids = {card.item.movie_id for card in cards}
+        self._classified_ids |= {card.item.movie_id for card in all_cards}
+        for movie_id in tuple(self._ready):
+            if movie_id not in self._visible_ids:
+                card, token, pixmap = self._ready.pop(movie_id)
+                card._present_poster(token, pixmap)
+        self._finish_or_schedule()
+
+    def forget_card(self, card: MovieCard) -> None:
+        movie_id = card.item.movie_id
+        self._outstanding.pop(movie_id, None)
+        self._ready.pop(movie_id, None)
+        self._classified_ids.discard(movie_id)
+        self._finish_or_schedule()
+
+    def _finish_or_schedule(self) -> None:
+        visible_ready = self._visible_ids.intersection(self._ready)
+        visible_outstanding = self._visible_ids.intersection(self._outstanding)
+        if not visible_ready:
+            if not visible_outstanding:
+                self._timer.stop()
+            return
+        if not visible_outstanding:
+            self._flush()
+        elif not self._timer.isActive():
+            self._timer.start()
+
+    def _flush(self) -> None:
+        ready = tuple(
+            self._ready.pop(movie_id)
+            for movie_id in tuple(self._ready)
+            if movie_id in self._visible_ids
+        )
+        for card, token, pixmap in ready:
+            card._present_poster(token, pixmap)
+        if ready:
+            self._presentation_count += 1
 
 
 class MovieGrid(QScrollArea):
@@ -40,6 +132,7 @@ class MovieGrid(QScrollArea):
         self._layout.setVerticalSpacing(SPACE_MEDIUM)
         self._layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.setWidget(self._container)
+        self._poster_presenter = _PosterPresentationCoordinator(self._container)
 
         self._cards: list[MovieCard] = []
         self._cards_by_id: dict[int, MovieCard] = {}
@@ -54,6 +147,10 @@ class MovieGrid(QScrollArea):
     @property
     def cards(self) -> tuple[MovieCard, ...]:
         return tuple(self._cards)
+
+    @property
+    def poster_presentation_count(self) -> int:
+        return self._poster_presenter.presentation_count
 
     def set_items(
         self,
@@ -128,6 +225,9 @@ class MovieGrid(QScrollArea):
 
         self._cards = cards
         self._visible_ids = visible_ids
+        self._poster_presenter.set_visible_cards(
+            cards, tuple(self._cards_by_id.values())
+        )
         self._relayout(force=True)
 
     def event(self, event: QEvent) -> bool:
@@ -158,6 +258,7 @@ class MovieGrid(QScrollArea):
             poster_loader=self._poster_loader,
             localizer=self._localizer,
             show_local_state=self._show_local_state,
+            poster_presenter=self._poster_presenter,
             parent=self._container,
         )
         card.selected.connect(self.movie_selected.emit)
@@ -167,6 +268,7 @@ class MovieGrid(QScrollArea):
         card = self._cards_by_id.pop(movie_id, None)
         if card is None:
             return
+        self._poster_presenter.forget_card(card)
         self._layout.removeWidget(card)
         card.hide()
         card.setParent(None)

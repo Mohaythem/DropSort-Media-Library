@@ -584,12 +584,24 @@ manual Check Library coalesces repeated identical change identities within one r
 
 The isolated runtime A/B trace proved startup performs one Library source load before show and no
 post-show full reload. Poster suppression did not remove the four observed geometry passes; cached
-and uncached posters both use per-card delivery, while only uncached assets fetch. Poster networking
-was therefore not redesigned.
+and uncached posters both use per-card delivery, while only uncached assets fetch. A later focused
+trace from SHA `7f4dac7449dd4f518d9b4b24a8f928583ce389b5` proved the remaining proportional visible
+refresh chain was `apply_poster -> setPixmap -> Window UpdateRequest`.
 
-Verification: 13/13 new acceptance tests; Clear gate 7/7; startup/refresh/check gate 65/65; full
-suite 1,230 collected, 1,215 passed, 10 failed, 5 skipped in 331.82 seconds. The same ten accepted
-baseline failures remain and no new failure was introduced. Full evidence is in
+The production fix keeps poster loading and decoding asynchronous, but routes visible final pixmaps
+through a grid-owned coordinator. It stages results until the visible request wave completes or a
+single 100 ms maximum-wait bound expires, then applies all ready pixmaps in one UI callback. Stable
+MovieId/MovieCard identity, cached/offline behavior, placeholders, incremental DTO updates, and
+loader/network behavior remain unchanged. A pre-visibility staging state prevents fast cached
+results from escaping the batch.
+
+Native production-view measurement changed Library poster batches and Window UpdateRequests from
+approximately `1/3/5` to `1/1/1` for 1/3/5 visible cards. Personal Library with five visible cards
+measured one batch/update. All final posters loaded and object identity remained stable.
+
+Verification: original pass 13/13 acceptance tests plus 5/5 poster-focused tests; full suite 1,235
+collected, 1,220 passed, 10 failed, 5 skipped in 224.59 seconds. The same ten accepted baseline
+failures remain and no new failure was introduced. Full evidence is in
 `docs/reports/python-stabilization/03-refresh-state-flicker-remediation.md`.
 
 Deferred deliberately: Poster Phase 3, V7 UI port, packaging/release, and unsafe derivation of a

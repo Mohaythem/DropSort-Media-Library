@@ -21,14 +21,18 @@ Personal invalidation is projection-specific, layered grid presentation is reduc
 presentation call, and repeated identical Check Library change identities are coalesced per run.
 
 Runtime tracing across empty, one-card, multi-card uncached, multi-card cached, and poster-suppressed
-startup proved one pre-show Library load and no post-show full reload. Multiple geometry passes
-remain even with posters suppressed; asynchronous poster replacement remains per-card and is not
-claimed fully flicker-free.
+startup proved one pre-show Library load and no post-show full reload. The confirmed remaining chain
+was per-card poster completion through `QLabel.setPixmap()` and a Window UpdateRequest. A grid-owned
+coordinator now stages visible pixmaps and presents each ready wave together, with a 100 ms maximum
+wait and no card/grid rebuild. Cached results that finish before visibility classification are staged
+safely. Poster loader, cache, TMDB/network, placeholders, and offline behavior are unchanged.
 
-Verification: compileall passed; 13/13 new acceptance tests; Clear 7/7; startup/refresh/check 65/65;
-full suite 1,230 collected, 1,215 passed, 10 failed, 5 skipped in 331.82 seconds. The ten failures are
-the accepted baseline set; new failures are zero. V7 was not ported, Poster Phase 3 was not started,
-and no release was packaged. See
+Native production-view measurement changed Library poster-correlated presentation/Window-update
+counts from approximately `1/3/5` to `1/1/1` for 1/3/5 cards; Personal Library with five cards
+measured `1`. All posters loaded and card identity was preserved. Verification: compileall passed;
+the five new poster tests passed; full suite 1,235 collected, 1,220 passed, 10 failed, 5 skipped in
+224.59 seconds. The ten failures are the accepted baseline set; new failures are zero. V7 was not
+ported, Poster Phase 3 was not started, and no release was packaged. See
 `docs/reports/python-stabilization/03-refresh-state-flicker-remediation.md`.
 ## Python Stabilization Pass 1 status
 

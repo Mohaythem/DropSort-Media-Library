@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Protocol
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontMetrics, QImage, QMouseEvent, QPixmap
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
@@ -17,6 +19,16 @@ from dropsort.ui.common.theme import (
 )
 from dropsort.ui.localization import TextId, UiLocalizer
 from dropsort.ui.posters import PosterRequestDispatcher
+
+
+class PosterPresentationDispatcher(Protocol):
+    def poster_request_started(self, card: "MovieCard", token: int) -> None: ...
+
+    def poster_request_invalidated(self, card: "MovieCard") -> None: ...
+
+    def poster_result_ready(
+        self, card: "MovieCard", token: int, pixmap: QPixmap | None
+    ) -> None: ...
 
 
 class MovieCard(QFrame):
@@ -37,6 +49,7 @@ class MovieCard(QFrame):
         poster_loader: PosterRequestDispatcher | None = None,
         localizer: UiLocalizer | None = None,
         show_local_state: bool = False,
+        poster_presenter: PosterPresentationDispatcher | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -44,6 +57,7 @@ class MovieCard(QFrame):
         self._localizer = localizer or UiLocalizer()
         self._show_local_state = show_local_state
         self._poster_loader = poster_loader
+        self._poster_presenter = poster_presenter
         self.setObjectName("movieCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(CARD_WIDTH, CARD_HEIGHT)
@@ -66,6 +80,10 @@ class MovieCard(QFrame):
             and item.provider is not None
             and item.poster_reference is not None
         ):
+            if self._poster_presenter is not None:
+                self._poster_presenter.poster_request_started(
+                    self, self._poster_token
+                )
             poster_loader.request(
                 self,
                 PosterRequest(item.provider, item.poster_reference),
@@ -180,6 +198,8 @@ class MovieCard(QFrame):
             if not self._poster_loaded:
                 self._poster.setText(title_initials(item.title))
             return
+        if self._poster_presenter is not None:
+            self._poster_presenter.poster_request_invalidated(self)
         self._poster_token += 1
         self._poster_loaded = False
         self._poster.clear()
@@ -189,6 +209,10 @@ class MovieCard(QFrame):
             and item.provider is not None
             and item.poster_reference is not None
         ):
+            if self._poster_presenter is not None:
+                self._poster_presenter.poster_request_started(
+                    self, self._poster_token
+                )
             self._poster_loader.request(
                 self,
                 PosterRequest(item.provider, item.poster_reference),
@@ -235,12 +259,26 @@ class MovieCard(QFrame):
         return self._poster_loaded
 
     def apply_poster(self, token: int, asset: PosterAsset | None) -> None:
-        if token != self._poster_token or asset is None:
+        if token != self._poster_token:
             return
-        image = QImage.fromData(asset.content)
-        if image.isNull():
+
+        pixmap: QPixmap | None = None
+        if asset is not None:
+            image = QImage.fromData(asset.content)
+            if not image.isNull():
+                pixmap = _cover_pixmap(
+                    image, self._poster.width(), self._poster.height()
+                )
+
+        if self._poster_presenter is not None:
+            self._poster_presenter.poster_result_ready(self, token, pixmap)
+        elif pixmap is not None:
+            self._present_poster(token, pixmap)
+
+    def _present_poster(self, token: int, pixmap: QPixmap) -> None:
+        if token != self._poster_token:
             return
-        self._poster.setPixmap(_cover_pixmap(image, self._poster.width(), self._poster.height()))
+        self._poster.setPixmap(pixmap)
         self._poster.setText("")
         self._poster_loaded = True
 
