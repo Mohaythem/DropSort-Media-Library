@@ -4,20 +4,17 @@ from typing import Protocol
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontMetrics, QImage, QMouseEvent, QPixmap
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout
 
 from dropsort.application.dto.library import MovieListItem
 from dropsort.posters import PosterAsset, PosterRequest
-from dropsort.ui.common.formatting import format_rating, format_year, title_initials
-from dropsort.ui.common.rating import provider_rating_stars
+from dropsort.ui.common.formatting import title_initials
 from dropsort.ui.common.theme import (
     CARD_HEIGHT,
     CARD_WIDTH,
     POSTER_HEIGHT,
-    SPACE_4,
     SPACE_SMALL,
 )
-from dropsort.ui.localization import TextId, UiLocalizer
 from dropsort.ui.posters import PosterRequestDispatcher
 
 
@@ -32,13 +29,7 @@ class PosterPresentationDispatcher(Protocol):
 
 
 class MovieCard(QFrame):
-    """Dense poster-first movie tile matching the approved Make composition.
-
-    The legacy summary labels remain in the object tree (hidden) so existing UI
-    contracts and accessibility/tests can continue to query their values.  The
-    visible card intentionally shows only poster, title, year and compact TMDB
-    rating; local-file state appears only when it needs attention.
-    """
+    """Poster-first movie tile containing only the poster and movie title."""
 
     selected = Signal(int)
 
@@ -47,15 +38,11 @@ class MovieCard(QFrame):
         item: MovieListItem,
         *,
         poster_loader: PosterRequestDispatcher | None = None,
-        localizer: UiLocalizer | None = None,
-        show_local_state: bool = False,
         poster_presenter: PosterPresentationDispatcher | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.item = item
-        self._localizer = localizer or UiLocalizer()
-        self._show_local_state = show_local_state
         self._poster_loader = poster_loader
         self._poster_presenter = poster_presenter
         self.setObjectName("movieCard")
@@ -90,14 +77,6 @@ class MovieCard(QFrame):
                 self._poster_token,
             )
 
-        metadata_host = QWidget()
-        metadata_host.setObjectName("movieCardMetadata")
-        metadata_host.setFixedWidth(CARD_WIDTH)
-        metadata_layout = QVBoxLayout(metadata_host)
-        metadata_layout.setContentsMargins(0, 0, 0, 0)
-        metadata_layout.setSpacing(SPACE_4)
-        layout.addWidget(metadata_host)
-
         self._title = QLabel()
         self._title.setObjectName("movieTitleLabel")
         self._title.setFixedHeight(36)
@@ -105,70 +84,8 @@ class MovieCard(QFrame):
         self._title.setAccessibleName(item.title)
         self._title.setAccessibleDescription("Full movie title")
         self._title.setMaximumWidth(CARD_WIDTH)
-        metadata_layout.addWidget(self._title)
+        layout.addWidget(self._title)
         self._update_title_text()
-
-        compact_meta = QHBoxLayout()
-        compact_meta.setContentsMargins(0, 0, 0, 0)
-        compact_meta.setSpacing(SPACE_4)
-
-        self._year = QLabel(format_year(item.year))
-        self._year.setObjectName("movieYearLabel")
-        self._year.setProperty("role", "muted")
-        compact_meta.addWidget(self._year)
-
-        self._compact_separator = QLabel("·")
-        self._compact_separator.setProperty("role", "muted")
-        self._compact_separator.setVisible(item.rating is not None)
-        compact_meta.addWidget(self._compact_separator)
-
-        self._compact_star = QLabel("★")
-        self._compact_star.setObjectName("movieCompactRatingStar")
-        self._compact_star.setVisible(item.rating is not None)
-        self._compact_star.setAccessibleName(
-            self._localizer.text(TextId.ACCESSIBILITY_TMDB_RATING_VISUAL)
-        )
-        compact_meta.addWidget(self._compact_star)
-
-        self._compact_rating = QLabel(_compact_rating(item.rating))
-        self._compact_rating.setObjectName("movieCompactRatingValue")
-        self._compact_rating.setVisible(item.rating is not None)
-        self._compact_rating.setAccessibleName("TMDB rating")
-        self._localizer.mark_ltr(self._compact_rating)
-        compact_meta.addWidget(self._compact_rating)
-        compact_meta.addStretch(1)
-        metadata_layout.addLayout(compact_meta)
-
-        # Compatibility/accessibility values retained but intentionally hidden
-        # from the poster-first card composition.
-        self._rating_stars = QLabel(provider_rating_stars(item.rating))
-        self._rating_stars.setObjectName("movieRatingStars")
-        self._rating_stars.setAccessibleName(
-            self._localizer.text(TextId.ACCESSIBILITY_TMDB_RATING_VISUAL)
-        )
-        self._localizer.mark_ltr(self._rating_stars)
-        self._rating_stars.hide()
-        metadata_layout.addWidget(self._rating_stars)
-
-        self._rating = QLabel(format_rating(item.rating))
-        self._rating.setObjectName("movieRatingLabel")
-        self._rating.setProperty("role", "muted")
-        self._rating.setAccessibleName("TMDB rating")
-        self._localizer.mark_ltr(self._rating)
-        self._rating.hide()
-        metadata_layout.addWidget(self._rating)
-
-        self._file_count = QLabel()
-        self._file_count.setObjectName("movieFileCountLabel")
-        self._file_count.setProperty("role", "muted")
-        self._file_count.hide()
-        metadata_layout.addWidget(self._file_count)
-
-        self._availability = QLabel()
-        self._availability.setObjectName("movieAvailabilityLabel")
-        metadata_layout.addWidget(self._availability)
-        self.retranslate()
-        layout.addStretch(1)
 
     def update_item(self, item: MovieListItem) -> None:
         """Update a stable MovieId card in place from a newer DTO."""
@@ -184,15 +101,6 @@ class MovieCard(QFrame):
         self._title.setToolTip(item.title)
         self._title.setAccessibleName(item.title)
         self._update_title_text()
-        self._year.setText(format_year(item.year))
-        has_rating = item.rating is not None
-        self._compact_separator.setVisible(has_rating)
-        self._compact_star.setVisible(has_rating)
-        self._compact_rating.setText(_compact_rating(item.rating))
-        self._compact_rating.setVisible(has_rating)
-        self._rating_stars.setText(provider_rating_stars(item.rating))
-        self._rating.setText(format_rating(item.rating))
-        self.retranslate()
 
         if next_poster == previous_poster:
             if not self._poster_loaded:
@@ -219,33 +127,6 @@ class MovieCard(QFrame):
                 self._poster_token,
             )
 
-    def retranslate(self) -> None:
-        """Refresh only locale-dependent card text without recreating the widget."""
-
-        item = self.item
-        noun = self._localizer.text(
-            TextId.FILE_SINGULAR if item.media_file_count == 1 else TextId.FILE_PLURAL
-        )
-        self._file_count.setText(f"{item.media_file_count} {noun}")
-
-        availability: str | None = None
-        availability_role: str | None = None
-        if item.all_files_missing:
-            availability = self._localizer.text(TextId.MISSING_FILE)
-            availability_role = "MISSING"
-        elif item.missing_file_count:
-            availability = self._localizer.text(
-                TextId.MISSING_FILES, count=item.missing_file_count
-            )
-            availability_role = "PARTIAL"
-        elif self._show_local_state and item.media_file_count == 0:
-            availability = self._localizer.text(TextId.PERSONAL_NO_LOCAL_COPY)
-            availability_role = "PERSONAL"
-
-        self._availability.setText(availability or "")
-        next_role = availability_role or ""
-        self._availability.setProperty("availability", next_role)
-        self._availability.setVisible(availability is not None)
     def _update_title_text(self) -> None:
         # Movie cards have a fixed CARD_WIDTH, so title wrapping must not depend
         # on a construction-time QLabel width and then mutate again on the first
@@ -289,12 +170,6 @@ class MovieCard(QFrame):
         ):
             self.selected.emit(self.item.movie_id)
         super().mouseReleaseEvent(event)
-
-
-def _compact_rating(value: float | None) -> str:
-    if value is None:
-        return ""
-    return f"{float(value):.1f}"
 
 
 def _cover_pixmap(image: QImage, width: int, height: int) -> QPixmap:

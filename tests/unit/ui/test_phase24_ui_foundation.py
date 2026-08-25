@@ -70,14 +70,14 @@ def test_provider_rating_visual_rounds_to_half_stars_without_personal_state(qapp
     assert provider_rating_stars(None) == ""
 
 
-def test_movie_card_and_details_keep_provider_numeric_rating_read_only(
+def test_movie_card_omits_rating_while_details_keep_provider_rating_read_only(
     qapp,
     movie_item_factory,
     movie_details_factory,
 ) -> None:
     card = MovieCard(movie_item_factory(rating=7.1))
-    assert card.findChild(QLabel, "movieRatingStars").text() == "★★★½☆"
-    assert card.findChild(QLabel, "movieRatingLabel").text() == "7.1 / 10"
+    assert card.findChild(QLabel, "movieRatingStars") is None
+    assert card.findChild(QLabel, "movieRatingLabel") is None
 
     details = MovieDetailsView()
     details.set_movie(movie_details_factory(rating=7.1))

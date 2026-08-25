@@ -128,7 +128,7 @@ _FONT_REGISTRATION_RESULTS: dict[tuple[Path, ...], bool] = {}
 
 CARD_WIDTH = 168
 POSTER_HEIGHT = 252
-CARD_HEIGHT = 326
+CARD_HEIGHT = 296
 
 # Shared WinUI-inspired geometry primitives. Existing aliases remain stable
 # for the current views while new UI can use the explicit scale.
@@ -659,15 +659,11 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.MAIN) -> str:
             font-size: {BODY_SIZE:g}px;
             font-weight: {HEADING_WEIGHT};
         }}
-        QLabel#movieYearLabel, QLabel#movieFileCountLabel,
-        QLabel#movieAvailabilityLabel {{
-            font-size: {SMALL_SIZE:g}px;
-        }}
-        QLabel#movieRatingStars, QLabel#detailsRatingStars, QLabel#movieCompactRatingStar, QLabel#detailsHeroRatingStar {{
+        QLabel#detailsRatingStars, QLabel#detailsHeroRatingStar {{
             color: {colors.warning};
             font-weight: {HEADING_WEIGHT};
         }}
-        QLabel#movieRatingLabel, QLabel#movieCompactRatingValue, QLabel#detailsRatingValue, QLabel#detailsHeroMetaLabel, QLabel#detailsHeroRatingValue {{
+        QLabel#detailsRatingValue, QLabel#detailsHeroMetaLabel, QLabel#detailsHeroRatingValue {{
             color: {colors.text_muted};
             font-size: {SMALL_SIZE:g}px;
         }}

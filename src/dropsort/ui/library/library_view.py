@@ -132,7 +132,7 @@ class LibraryView(QWidget):
         self._reconciliation.hide()
         layout.addWidget(self._reconciliation)
 
-        self._grid = MovieGrid(poster_loader=poster_loader, localizer=self._localizer)
+        self._grid = MovieGrid(poster_loader=poster_loader)
         self._grid.movie_selected.connect(self.movie_selected.emit)
         layout.addWidget(self._grid, 1)
         self._localizer.language_changed.connect(lambda _language: self._apply_search())

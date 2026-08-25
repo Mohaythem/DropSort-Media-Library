@@ -122,11 +122,7 @@ class PersonalLibraryView(QWidget):
         self._empty_host.hide()
         layout.addWidget(self._empty_host, 1)
 
-        self._grid = MovieGrid(
-            poster_loader=poster_loader,
-            localizer=self._localizer,
-            show_local_state=True,
-        )
+        self._grid = MovieGrid(poster_loader=poster_loader)
         self._grid.movie_selected.connect(self.movie_selected.emit)
         layout.addWidget(self._grid, 1)
 

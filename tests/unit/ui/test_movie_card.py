@@ -38,38 +38,40 @@ def _label(card: MovieCard, name: str) -> QLabel:
     return label
 
 
-def test_movie_card_renders_summary_and_uses_local_placeholder(
+def test_movie_card_contains_only_poster_and_title_widgets(
     qapp: QApplication,
     movie_item_factory,
 ) -> None:
     card = MovieCard(movie_item_factory())
 
-    assert _label(card, "movieTitleLabel").text() == "The Dark Knight"
-    assert _label(card, "movieYearLabel").text() == "2008"
-    assert _label(card, "movieRatingLabel").text() == "8.5 / 10"
-    assert _label(card, "movieFileCountLabel").text() == "2 files"
+    assert _label(card, "movieTitleLabel").toolTip() == "The Dark Knight"
     assert _label(card, "posterPlaceholder").text() == "TDK"
+    assert {label.objectName() for label in card.findChildren(QLabel)} == {
+        "posterPlaceholder",
+        "movieTitleLabel",
+    }
 
 
-def test_card_shows_subtle_all_missing_indicator(qapp, movie_item_factory) -> None:
-    card = MovieCard(movie_item_factory(media_file_count=2, missing_file_count=2))
-
-    label = _label(card, "movieAvailabilityLabel")
-    assert label.text() == "Missing file"
-    assert label.property("availability") == "MISSING"
-
-
-def test_movie_card_handles_missing_optional_values(
+@pytest.mark.parametrize(
+    "forbidden_name",
+    (
+        "movieYearLabel",
+        "movieCompactRatingStar",
+        "movieCompactRatingValue",
+        "movieRatingStars",
+        "movieRatingLabel",
+        "movieFileCountLabel",
+        "movieAvailabilityLabel",
+    ),
+)
+def test_movie_card_does_not_create_metadata_widgets(
     qapp: QApplication,
     movie_item_factory,
+    forbidden_name: str,
 ) -> None:
-    card = MovieCard(
-        movie_item_factory(year=None, rating=None, poster_reference=None, media_file_count=1)
-    )
+    card = MovieCard(movie_item_factory())
 
-    assert _label(card, "movieYearLabel").text() == "Year unavailable"
-    assert _label(card, "movieRatingLabel").text() == "Not rated"
-    assert _label(card, "movieFileCountLabel").text() == "1 file"
+    assert card.findChild(QLabel, forbidden_name) is None
 
 
 def test_movie_card_emits_selected_movie_id(
@@ -179,9 +181,8 @@ def test_stable_movie_id_updates_card_in_place_without_repeating_same_poster(
     assert grid.cards[0] is card
     assert card.item.movie_id == 7
     assert _label(card, "movieTitleLabel").toolTip() == "Updated title"
-    assert _label(card, "movieYearLabel").text() == "2025"
-    assert _label(card, "movieCompactRatingValue").text() == "7.2"
-    assert _label(card, "movieAvailabilityLabel").property("availability") == "PARTIAL"
+    assert card.findChild(QLabel, "movieYearLabel") is None
+    assert card.findChild(QLabel, "movieCompactRatingValue") is None
     assert len(loader.requests) == 1
 
     poster_changed = replace(updated, poster_reference="/new-poster.jpg")
@@ -418,3 +419,26 @@ def test_personal_library_coalesces_multiple_poster_results_without_rebuild(
     assert all(card.poster_loaded for card in view._grid.cards)
     for card, color in zip(view._grid.cards, colors, strict=True):
         _assert_poster_color(card, color)
+
+
+def test_personal_library_uses_title_only_movie_cards(
+    qapp,
+    movie_item_factory,
+) -> None:
+    items = (
+        movie_item_factory(movie_id=1, title="Watch one", media_file_count=0),
+        movie_item_factory(movie_id=2, title="Watch two", media_file_count=0),
+    )
+    view = PersonalLibraryView(
+        _PersonalPosterActions(items),
+        runner=_ImmediatePersonalRunner(),
+    )
+
+    view.activate()
+
+    assert len(view._grid.cards) == 2
+    for card in view._grid.cards:
+        assert {label.objectName() for label in card.findChildren(QLabel)} == {
+            "posterPlaceholder",
+            "movieTitleLabel",
+        }

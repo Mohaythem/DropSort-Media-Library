@@ -7,7 +7,6 @@ from PySide6.QtWidgets import QGridLayout, QScrollArea, QWidget
 from dropsort.application.dto.library import MovieListItem
 from dropsort.ui.common.theme import CARD_WIDTH, SPACE_LARGE, SPACE_MEDIUM
 from dropsort.ui.library.movie_card import MovieCard, PosterPresentationDispatcher
-from dropsort.ui.localization import UiLocalizer
 from dropsort.ui.posters import PosterRequestDispatcher
 
 
@@ -117,8 +116,6 @@ class MovieGrid(QScrollArea):
         self,
         *,
         poster_loader: PosterRequestDispatcher | None = None,
-        localizer: UiLocalizer | None = None,
-        show_local_state: bool = False,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -140,9 +137,6 @@ class MovieGrid(QScrollArea):
         self._visible_ids: tuple[int, ...] = ()
         self._columns = 0
         self._poster_loader = poster_loader
-        self._localizer = localizer or UiLocalizer()
-        self._show_local_state = show_local_state
-        self._localizer.language_changed.connect(self._retranslate_cards)
 
     @property
     def cards(self) -> tuple[MovieCard, ...]:
@@ -248,16 +242,10 @@ class MovieGrid(QScrollArea):
 
         self._relayout(available_width=max(1, available_width))
 
-    def _retranslate_cards(self, _language) -> None:
-        for card in self._cards_by_id.values():
-            card.retranslate()
-
     def _create_card(self, item: MovieListItem) -> MovieCard:
         card = MovieCard(
             item,
             poster_loader=self._poster_loader,
-            localizer=self._localizer,
-            show_local_state=self._show_local_state,
             poster_presenter=self._poster_presenter,
             parent=self._container,
         )
