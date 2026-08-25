@@ -30,14 +30,15 @@ from dropsort.ui.common.theme import (
     ThemeId,
     THEMES,
 )
+from dropsort.application.configuration.theme import SELECTABLE_THEMES
 
 
 def test_official_drop_sort_palette_is_the_single_theme_source() -> None:
-    assert COLORS.text == "#FFF1A6"
-    assert COLORS.background == "#0B1E1B"
-    assert COLORS.primary == "#013C35"
-    assert COLORS.secondary == "#6B352A"
-    assert COLORS.accent == "#E87454"
+    assert COLORS.text == "#E3E2E3"
+    assert COLORS.background == "#18212B"
+    assert COLORS.primary == "#B3C9DD"
+    assert COLORS.secondary == "#2B3C4D"
+    assert COLORS.accent == "#D97757"
 
     stylesheet = application_stylesheet()
     for color in COLORS:
@@ -55,21 +56,23 @@ def test_apply_theme_configures_application(qapp: QApplication) -> None:
     assert qapp.property("dropsortArabicFontFamily") in {"Noto Sans Arabic", "Segoe UI"}
 
 
-def test_invalid_theme_identifier_falls_back_to_main(qapp: QApplication) -> None:
-    assert application_stylesheet("not-a-theme") == application_stylesheet(ThemeId.MAIN)
+def test_invalid_theme_identifier_falls_back_to_slate(qapp: QApplication) -> None:
+    assert application_stylesheet("not-a-theme") == application_stylesheet(ThemeId.SLATE)
     apply_theme(qapp, "not-a-theme")
-    assert qapp.property("dropsortTheme") == ThemeId.MAIN.value
+    assert qapp.property("dropsortTheme") == ThemeId.SLATE.value
 
 
-def test_exactly_four_user_facing_themes_are_available() -> None:
+def test_retired_main_palette_remains_internal_but_only_three_themes_are_selectable() -> None:
     assert tuple(THEMES) == (
         ThemeId.MAIN,
         ThemeId.DARK,
         ThemeId.SLATE,
         ThemeId.LIGHT,
     )
-    assert THEMES[ThemeId.DARK].background == "#1C1D1F"
-    assert THEMES[ThemeId.DARK].surface == "#232528"
+    assert SELECTABLE_THEMES == (ThemeId.SLATE, ThemeId.DARK, ThemeId.LIGHT)
+    assert ThemeId.MAIN not in SELECTABLE_THEMES
+    assert THEMES[ThemeId.DARK].background == "#090B10"
+    assert THEMES[ThemeId.DARK].surface == "#11151C"
     assert THEMES[ThemeId.DARK].primary == "#D9A441"
     assert THEMES[ThemeId.DARK].accent == "#C86A4A"
     assert THEMES[ThemeId.SLATE].background == "#18212B"

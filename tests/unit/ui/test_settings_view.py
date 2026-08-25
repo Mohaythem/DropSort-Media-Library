@@ -85,6 +85,27 @@ def test_language_selector_switches_arabic_rtl_and_restores_english_ltr(
     assert qapp.layoutDirection() is Qt.LayoutDirection.LeftToRight
 
 
+def test_visible_language_toggle_is_exclusive_across_repeated_switches(
+    qapp: QApplication,
+) -> None:
+    actions = FakeSettingsActions()
+    view = SettingsView(actions)
+    english = view.findChild(QPushButton, "languageEnglishButton")
+    arabic = view.findChild(QPushButton, "languageArabicButton")
+    assert english is not None and arabic is not None
+
+    for button, expected in (
+        (arabic, UiLanguage.ARABIC),
+        (english, UiLanguage.ENGLISH),
+        (arabic, UiLanguage.ARABIC),
+    ):
+        button.click()
+        assert actions.language is expected
+        assert english.isChecked() is (expected is UiLanguage.ENGLISH)
+        assert arabic.isChecked() is (expected is UiLanguage.ARABIC)
+        assert int(english.isChecked()) + int(arabic.isChecked()) == 1
+
+
 def test_token_field_is_masked_and_session_only_notice_is_visible(
     qapp: QApplication,
 ) -> None:

@@ -138,6 +138,8 @@ def test_page_supports_themes_and_arabic_western_progress_digits(qapp) -> None:
             # technical progress values LTR with Western digits.
             progress = page.findChild(QLabel, "libraryCheckPagePercentageLabel")
             assert progress.layoutDirection() == Qt.LayoutDirection.LeftToRight
+            assert page.layoutDirection() == Qt.LayoutDirection.RightToLeft
+            assert page.findChild(QLabel, "libraryCheckPageTitle").alignment() & Qt.AlignmentFlag.AlignRight
             assert page.findChild(QPushButton, "startLibraryCheckPageButton").text()
     finally:
         apply_theme(qapp, ThemeId.MAIN)

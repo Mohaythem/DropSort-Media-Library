@@ -309,6 +309,10 @@ def test_personal_empty_state_retranslates_and_follows_rtl_direction(qapp) -> No
 
     localizer.set_language(UiLanguage.ARABIC)
     assert qapp.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert view.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert view._tabs.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert view._tabs.tabText(0) == localizer.text(TextId.PERSONAL_TAB_WATCHLIST)
+    assert description.alignment() & Qt.AlignmentFlag.AlignRight
     assert description.text() == localizer.text(TextId.PERSONAL_EMPTY_WATCHLIST_DESCRIPTION)
     localizer.set_language(UiLanguage.ENGLISH)
 

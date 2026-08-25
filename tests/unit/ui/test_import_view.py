@@ -9,7 +9,15 @@ import pytest
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QWindow
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QMainWindow, QWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QComboBox,
+    QFileDialog,
+    QLabel,
+    QMainWindow,
+    QScrollArea,
+    QWidget,
+)
 
 from dropsort.application.dto.catalog import MovieFileIngestionResult
 from dropsort.application.dto.import_review import (
@@ -33,13 +41,21 @@ from dropsort.media.discovery.models import (
     DiscoveredMedia,
 )
 from dropsort.media.parser import MediaType, ParsedMedia
+from dropsort.media.matcher.models import (
+    CandidateScore,
+    MatchDecision,
+    MatchReason,
+    MatchStatus,
+)
 from dropsort.ui.scan.import_view import ImportView
 
 
 _TRANSIENT_CONTROL_NAMES = {
+    "candidateSelector",
     "confirmImportButton",
+    "dismissProposalButton",
     "editSearchButton",
-    "importExplanationLabel",
+    "openMetadataSettingsButton",
 }
 
 
@@ -63,9 +79,9 @@ class _TransientImportControlProbe(QObject):
                 self.logical_top_level_shows.append(name)
             if (
                 isinstance(watched, QWindow)
-                and name in {f"{value}Window" for value in _TRANSIENT_CONTROL_NAMES}
+                and watched.parent() is None
             ):
-                self.native_window_shows.append(name)
+                self.native_window_shows.append(name or type(watched).__name__)
         if watched is self._main_window and event_type in {
             QEvent.Type.WindowActivate,
             QEvent.Type.WindowDeactivate,
@@ -304,7 +320,8 @@ def test_metadata_authentication_failure_is_actionable(
     requests: list[bool] = []
     view.settings_requested.connect(lambda: requests.append(True))
 
-    assert "TMDB is not configured" in view.rows[0].explanation_text
+    assert view.rows[0].explanation_text == ""
+    assert view.rows[0].findChild(QLabel, "importExplanationLabel") is None
     view.rows[0].settings_button.click()
 
     assert requests == [True]
@@ -591,6 +608,310 @@ def test_non_recursive_choice_is_passed_to_application(
     assert actions.prepare_calls == [(root, False)]
 
 
+def test_import_row_uses_compact_placeholders_for_missing_year_and_resolution(
+    qapp: QApplication,
+    tmp_path: Path,
+    proposal_factory,
+    discovery_factory,
+) -> None:
+    root = tmp_path / "movies"
+    parsed = ParsedMedia(
+        "Unknown.Movie.mkv",
+        MediaType.MOVIE,
+        "Unknown Movie",
+        None,
+        None,
+        None,
+        None,
+        ".mkv",
+    )
+    proposal = proposal_factory(
+        discovery=discovery_factory(
+            path=root / "Unknown.Movie.mkv",
+            parsed_media=parsed,
+        )
+    )
+    view = ImportView(
+        FakeImportActions(_session(root, proposal)), runner=ImmediateRunner()
+    )
+
+    view.start_scan(root)
+
+    row = view.rows[0]
+    assert row.year_label.text() == "--"
+    assert row.resolution_label.text() == "--"
+
+
+def _review_proposal(proposal_factory, candidates) -> MovieImportProposal:
+    decision = MatchDecision(
+        status=MatchStatus.REVIEW_REQUIRED,
+        candidate=candidates[0],
+        confidence=0.86,
+        reasons=(MatchReason.TITLE_STRONG, MatchReason.YEAR_EXACT),
+        ranked_candidates=tuple(
+            CandidateScore(
+                candidate=candidate,
+                score=0.86 - index * 0.05,
+                reasons=(MatchReason.TITLE_STRONG,),
+                penalties=(),
+            )
+            for index, candidate in enumerate(candidates)
+        ),
+    )
+    return proposal_factory(
+        status=ImportProposalStatus.REVIEW_REQUIRED,
+        candidate=candidates[0],
+        candidates=tuple(candidates),
+        proposed_candidate=candidates[0],
+        match_decision=decision,
+    )
+
+
+def test_metadata_unavailable_actions_have_usable_unclipped_geometry(
+    qapp: QApplication,
+    tmp_path: Path,
+    proposal_factory,
+) -> None:
+    root = tmp_path / "movies"
+    proposal = proposal_factory(
+        status=ImportProposalStatus.METADATA_UNAVAILABLE,
+        reasons=(ImportProposalReason.METADATA_AUTHENTICATION,),
+    )
+    view = ImportView(
+        FakeImportActions(_session(root, proposal)), runner=ImmediateRunner()
+    )
+    view.resize(1400, 850)
+    view.show()
+    view.start_scan(root)
+    qapp.processEvents()
+
+    row = view.rows[0]
+    buttons = (
+        row.import_button,
+        row.manual_search_button,
+        row.settings_button,
+        row.dismiss_button,
+    )
+    assert all(button.isVisible() for button in buttons)
+    button_heights = [button.height() for button in buttons]
+    assert len(set(button_heights)) == 1, button_heights
+    assert button_heights[0] >= 38
+    assert all(
+        button.width() >= button.sizeHint().width()
+        for button in (row.import_button, row.manual_search_button)
+    )
+    assert row.import_button.text() == "Add"
+    assert row.manual_search_button.text() == "Search"
+    assert row.settings_button.text() == ""
+    assert row.settings_button.toolTip() == "Open Settings"
+    assert row.dismiss_button.text() == ""
+    assert row.settings_button.width() == row.settings_button.height() == 38
+    assert row.dismiss_button.width() == row.dismiss_button.height() == 38
+    assert not row.settings_button.icon().isNull()
+    assert not row.dismiss_button.icon().isNull()
+    assert (
+        row.settings_button.contentsRect().center()
+        == row.settings_button.rect().center()
+    )
+    assert (
+        row.dismiss_button.contentsRect().center()
+        == row.dismiss_button.rect().center()
+    )
+    action_host = row.findChild(QWidget, "importActionHost")
+    assert action_host.width() == 272
+    assert (
+        row.dismiss_button.geometry().right()
+        <= action_host.contentsRect().right()
+    )
+    assert row.findChild(QLabel, "importStatusLabel").width() == 156
+    assert row.findChild(QLabel, "importStatusLabel").wordWrap() is True
+
+
+def test_multiple_candidates_stay_inside_the_information_columns(
+    qapp: QApplication,
+    tmp_path: Path,
+    proposal_factory,
+    candidate_factory,
+) -> None:
+    root = tmp_path / "movies"
+    candidates = tuple(
+        candidate_factory(
+            external_id=str(index),
+            title=(
+                "A Very Long Candidate Movie Title That Must Remain Bounded "
+                f"Version {index}"
+            ),
+            year=None if index == 2 else 2000 + index,
+        )
+        for index in range(1, 4)
+    )
+    proposal = _review_proposal(proposal_factory, candidates)
+    view = ImportView(
+        FakeImportActions(_session(root, proposal)), runner=ImmediateRunner()
+    )
+    view.resize(1400, 850)
+    view.show()
+    view.start_scan(root)
+    qapp.processEvents()
+
+    row = view.rows[0]
+    selector = row.findChild(QComboBox, "candidateSelector")
+    action_host = row.findChild(QWidget, "importActionHost")
+    assert all(widget is not None for widget in (selector, action_host))
+    assert row.findChild(QWidget, "importCandidateHost") is None
+    assert row.findChild(QLabel, "candidateDetailsLabel") is None
+    assert selector.count() == 3
+    assert selector.isVisible()
+    assert "(--)" in selector.itemText(1)
+    assert selector.itemText(1).endswith("8.5/10")
+    assert selector.itemData(0, Qt.ItemDataRole.ToolTipRole) == selector.itemText(0)
+    visible_candidate_text = " ".join(
+        selector.itemText(index) for index in range(selector.count())
+    )
+    assert "TMDB" not in visible_candidate_text
+    assert "Confidence" not in visible_candidate_text
+    assert "Title Strong" not in visible_candidate_text
+    assert row.findChild(QLabel, "importExplanationLabel") is None
+    assert row.findChild(QLabel, "importPathLabel") is None
+    assert row.findChild(QLabel, "importFilenameLabel") is None
+    candidate_right = selector.mapTo(row, selector.rect().topLeft()).x() + selector.width()
+    action_left = action_host.mapTo(row, action_host.rect().topLeft()).x()
+    assert candidate_right <= action_left
+    assert selector.parentWidget() is row
+
+
+def test_add_movies_uses_one_page_scroll_without_nested_results_scroll(
+    qapp: QApplication,
+    tmp_path: Path,
+    proposal_factory,
+    discovery_factory,
+) -> None:
+    root = tmp_path / "movies"
+    proposals = tuple(
+        proposal_factory(
+            status=ImportProposalStatus.NO_MATCH,
+            discovery=discovery_factory(path=root / f"movie-{index}.mkv"),
+        )
+        for index in range(8)
+    )
+    view = ImportView(
+        FakeImportActions(_session(root, *proposals)), runner=ImmediateRunner()
+    )
+    view.resize(1200, 500)
+    view.show()
+    view.start_scan(root)
+    qapp.processEvents()
+
+    scroll_areas = view.findChildren(QScrollArea)
+    assert [scroll.objectName() for scroll in scroll_areas] == ["importPageScroll"]
+    assert view.findChild(QScrollArea, "importReviewScroll") is None
+    assert view.page_scroll.verticalScrollBar().maximum() > 0
+    assert all(
+        row.parentWidget().objectName() == "importReviewContainer"
+        for row in view.rows
+    )
+
+
+def test_mixed_review_rows_keep_minimum_height_without_visual_overlap(
+    qapp: QApplication,
+    tmp_path: Path,
+    proposal_factory,
+    candidate_factory,
+) -> None:
+    root = tmp_path / "movies"
+    candidates = tuple(
+        candidate_factory(external_id=str(index), title=f"Candidate {index}")
+        for index in range(3)
+    )
+    proposals = (
+        _review_proposal(proposal_factory, candidates),
+        proposal_factory(status=ImportProposalStatus.NO_MATCH),
+        proposal_factory(
+            status=ImportProposalStatus.METADATA_UNAVAILABLE,
+            reasons=(ImportProposalReason.METADATA_AUTHENTICATION,),
+        ),
+        _review_proposal(proposal_factory, candidates[:2]),
+    )
+    view = ImportView(
+        FakeImportActions(_session(root, *proposals)), runner=ImmediateRunner()
+    )
+    view.resize(1400, 850)
+    view.show()
+    view.start_scan(root)
+    qapp.processEvents()
+
+    for row in view.rows:
+        assert row.height() >= 54
+        action_host = row.findChild(QWidget, "importActionHost")
+        assert action_host.height() == 38
+        assert action_host.geometry().bottom() <= row.contentsRect().bottom()
+        if row.candidate_selector.isVisible():
+            assert row.candidate_selector.height() >= 38
+            assert (
+                row.candidate_selector.geometry().bottom()
+                <= row.contentsRect().bottom()
+            )
+    for current, following in zip(view.rows, view.rows[1:]):
+        assert current.geometry().bottom() < following.geometry().top()
+
+
+def test_no_match_and_tv_skipped_keep_the_same_primary_column_geometry(
+    qapp: QApplication,
+    tmp_path: Path,
+    proposal_factory,
+    discovery_factory,
+) -> None:
+    root = tmp_path / "movies"
+    no_match = proposal_factory(
+        status=ImportProposalStatus.NO_MATCH,
+        discovery=discovery_factory(path=root / "no-match.mkv"),
+    )
+    tv_discovery = DiscoveredMedia(
+        path=root / "Show.S01E02.mkv",
+        file_size=10,
+        parsed_media=ParsedMedia(
+            "Show.S01E02.mkv",
+            MediaType.TV_EPISODE,
+            "Show",
+            None,
+            None,
+            None,
+            None,
+            ".mkv",
+        ),
+        classification=DiscoveryClassification.TV_EPISODE_SKIPPED,
+        issue=None,
+    )
+    tv_skipped = MovieImportProposal(
+        ImportProposalStatus.NO_MATCH,
+        tv_discovery,
+        (),
+        None,
+        None,
+        (ImportProposalReason.TV_EPISODE_NOT_SUPPORTED,),
+        None,
+    )
+    view = ImportView(
+        FakeImportActions(_session(root, no_match, tv_skipped)),
+        runner=ImmediateRunner(),
+    )
+    view.resize(1400, 850)
+    view.show()
+    view.start_scan(root)
+    qapp.processEvents()
+
+    first, second = view.rows
+    for row in (first, second):
+        assert row.findChild(QLabel, "importYearLabel").width() == 72
+        assert row.findChild(QLabel, "importResolutionLabel").width() == 88
+        assert row.findChild(QLabel, "importStatusLabel").width() == 156
+        assert row.findChild(QWidget, "importActionHost").width() == 272
+    assert first.status_text == "No match"
+    assert second.status_text == "TV episode skipped"
+    assert second.import_button.isHidden()
+    assert second.manual_search_button.isHidden()
+
+
 @pytest.mark.parametrize("item_count", (1, 3, 5))
 def test_no_match_rows_never_show_controls_as_top_level_windows(
     qapp: QApplication,
@@ -633,12 +954,65 @@ def test_no_match_rows_never_show_controls_as_top_level_windows(
             controls = (
                 row.import_button,
                 row.manual_search_button,
-                row.findChild(QLabel, "importExplanationLabel"),
             )
             assert all(control is not None for control in controls)
             assert all(control.parentWidget() is not None for control in controls)
             assert all(not control.isWindow() for control in controls)
-            assert all(control.isVisible() for control in controls)
+            visibility = [
+                (control.objectName(), control.isVisible(), control.isHidden())
+                for control in controls
+            ]
+            assert all(control.isVisible() for control in controls), visibility
+            assert row.findChild(QLabel, "importExplanationLabel") is None
+    finally:
+        main_window.close()
+        qapp.processEvents()
+
+
+def test_candidate_and_metadata_actions_never_show_as_top_level_windows(
+    qapp: QApplication,
+    tmp_path: Path,
+    proposal_factory,
+    candidate_factory,
+) -> None:
+    root = tmp_path / "movies"
+    candidates = (
+        candidate_factory(external_id="1", title="First candidate"),
+        candidate_factory(external_id="2", title="Second candidate"),
+    )
+    proposals = (
+        _review_proposal(proposal_factory, candidates),
+        proposal_factory(
+            status=ImportProposalStatus.METADATA_UNAVAILABLE,
+            reasons=(ImportProposalReason.METADATA_AUTHENTICATION,),
+        ),
+    )
+    view = ImportView(
+        FakeImportActions(_session(root, *proposals)), runner=ImmediateRunner()
+    )
+    main_window = QMainWindow()
+    main_window.setCentralWidget(view)
+    main_window.show()
+    qapp.processEvents()
+
+    probe = _TransientImportControlProbe(main_window)
+    qapp.installEventFilter(probe)
+    try:
+        view.start_scan(root)
+        qapp.processEvents()
+    finally:
+        qapp.removeEventFilter(probe)
+
+    try:
+        assert probe.logical_top_level_shows == []
+        assert probe.native_window_shows == []
+        assert probe.main_activation_events == []
+        for row in view.rows:
+            for name in _TRANSIENT_CONTROL_NAMES:
+                control = row.findChild(QWidget, name)
+                assert control is not None
+                assert control.parentWidget() is not None
+                assert not control.isWindow()
     finally:
         main_window.close()
         qapp.processEvents()

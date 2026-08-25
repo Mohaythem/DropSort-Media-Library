@@ -25,14 +25,14 @@ class Repository:
 def test_theme_settings_persists_supported_value() -> None:
     repository = Repository()
     settings = UiThemeSettings(repository)
-    assert settings.current_theme() is UiTheme.MAIN
+    assert settings.current_theme() is UiTheme.SLATE
     assert settings.set_theme(UiTheme.DARK) is UiTheme.DARK
     assert repository.writes == ["dark"]
 
 
 def test_invalid_persisted_theme_falls_back_without_resetting_value() -> None:
     repository = Repository("invalid")
-    assert UiThemeSettings(repository).current_theme() is UiTheme.MAIN
+    assert UiThemeSettings(repository).current_theme() is UiTheme.SLATE
 
 
 def test_legacy_theme_id_migrates_without_resetting_user_choice() -> None:
@@ -81,7 +81,14 @@ def test_theme_settings_falls_back_when_legacy_write_fails() -> None:
         def set_theme(self, theme):
             raise RuntimeError("read-only settings store")
 
-    assert UiThemeSettings(FailingRepository("deep_ink")).current_theme() is UiTheme.MAIN
+    assert UiThemeSettings(FailingRepository("deep_ink")).current_theme() is UiTheme.SLATE
+
+
+def test_retired_main_theme_migrates_to_slate() -> None:
+    repository = Repository("main")
+
+    assert UiThemeSettings(repository).current_theme() is UiTheme.SLATE
+    assert repository.value == "slate"
 
 
 def test_theme_settings_rejects_non_theme_values() -> None:

@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QPushButton
+from PySide6.QtWidgets import QApplication, QComboBox, QDialog, QLineEdit, QPushButton
 
 from dropsort.application.dto.library import MovieDetails, MovieListItem
 from dropsort.application.errors import (
@@ -241,6 +241,10 @@ def test_runtime_language_switch_updates_navigation_and_closes_safely(
     selector.setCurrentIndex(1)
 
     assert _button(window, "libraryNavButton").text() == "المكتبة"
+    search = window.findChild(QLineEdit, "librarySearchInput")
+    assert search is not None
+    assert search.placeholderText() == "ابحث في مكتبتك..."
+    assert "Search" not in search.placeholderText()
     assert qapp.layoutDirection() is Qt.LayoutDirection.RightToLeft
 
     selector.setCurrentIndex(0)

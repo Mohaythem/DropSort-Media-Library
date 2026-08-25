@@ -60,12 +60,12 @@ DEEP_INK = ColorTokens(
 )
 
 CHATGPT_DARK = ColorTokens(
-    text="#F2F2F2", background="#1C1D1F", primary="#D9A441", secondary="#303338",
-    accent="#C86A4A", surface="#232528", surface_raised="#2A2D31", card="#26282C",
-    text_muted="#858A91", border="#3A3D42", danger="#D9786B", card_hover="#303338",
-    text_secondary="#B9BCC1", success="#79B88A", warning="#D9A441",
+    text="#F2F4F7", background="#090B10", primary="#D9A441", secondary="#1A202A",
+    accent="#C86A4A", surface="#11151C", surface_raised="#171C25", card="#131820",
+    text_muted="#858D99", border="#2A3442", danger="#D9786B", card_hover="#1B2330",
+    text_secondary="#BAC1CB", success="#79B88A", warning="#D9A441",
     primary_hover="#E8B652", accent_hover="#F0A06F",
-    sidebar="#232528", selected="#303338", focus="#E8B652", disabled="#3A3D42",
+    sidebar="#0D1118", selected="#222B37", focus="#E8B652", disabled="#2A3442",
 )
 
 SLATE = ColorTokens(
@@ -95,7 +95,7 @@ THEMES = {
     UiTheme.SLATE: SLATE,
     UiTheme.LIGHT: LIGHT,
 }
-COLORS = DEEP_INK
+COLORS = SLATE
 
 FONT_FAMILY = "Inter"
 ARABIC_FONT_FAMILY = "Noto Sans Arabic"
@@ -179,11 +179,11 @@ def register_application_fonts(
     return registered
 
 
-def application_stylesheet(theme_id: UiTheme | str = UiTheme.MAIN) -> str:
+def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
     try:
         selected = UiTheme(theme_id)
     except (TypeError, ValueError):
-        selected = UiTheme.MAIN
+        selected = UiTheme.SLATE
     colors = THEMES[selected]
     font_stack = (
         f'"{FONT_FAMILY}", "{ARABIC_FONT_FAMILY}", "{FALLBACK_FONT_FAMILY}"'
@@ -417,6 +417,7 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.MAIN) -> str:
         QPushButton:disabled {{
             color: {colors.text_muted};
             border-color: {colors.border};
+            background: {colors.disabled};
         }}
         QPushButton[role="primaryAction"]:disabled {{
             background: {colors.surface_raised};
@@ -663,6 +664,10 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.MAIN) -> str:
             color: {colors.warning};
             font-weight: {HEADING_WEIGHT};
         }}
+        QPushButton[role="primaryAction"]:pressed {{
+            background: {colors.primary_hover};
+            border-color: {colors.primary_hover};
+        }}
         QLabel#detailsRatingValue, QLabel#detailsHeroMetaLabel, QLabel#detailsHeroRatingValue {{
             color: {colors.text_muted};
             font-size: {SMALL_SIZE:g}px;
@@ -731,20 +736,45 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.MAIN) -> str:
         }}
         QFrame#importReviewHeader {{
             background: {colors.surface_raised};
-            border: 1px solid {colors.border};
-            border-bottom: none;
-            border-top-left-radius: {RADIUS_MEDIUM}px;
-            border-top-right-radius: {RADIUS_MEDIUM}px;
+            border: none;
+            border-bottom: 1px solid {colors.border};
         }}
         QFrame#importReviewRow {{
             background: {colors.card};
-            border-left: 1px solid {colors.border};
-            border-right: 1px solid {colors.border};
+            border: none;
             border-bottom: 1px solid {colors.border};
             border-radius: 0px;
         }}
         QFrame#importReviewRow:hover {{
             background: {colors.card_hover};
+        }}
+        QLabel[importColumn="true"] {{
+            border-left: 1px solid {colors.border};
+            padding-left: {SPACE_12}px;
+        }}
+        QWidget#importActionHost {{
+            border-left: 1px solid {colors.border};
+        }}
+        QComboBox#candidateSelector {{
+            min-height: {CONTROL_HEIGHT}px;
+        }}
+        QPushButton#confirmImportButton,
+        QPushButton#editSearchButton {{
+            min-height: {CONTROL_HEIGHT}px;
+            max-height: {CONTROL_HEIGHT}px;
+            padding: 0px 10px;
+        }}
+        QPushButton#openMetadataSettingsButton,
+        QPushButton#dismissProposalButton {{
+            background: {colors.surface_raised};
+            border: 1px solid {colors.border};
+            border-radius: {RADIUS_SMALL}px;
+            padding: 0px;
+        }}
+        QPushButton#openMetadataSettingsButton:hover,
+        QPushButton#dismissProposalButton:hover {{
+            background: {colors.selected};
+            border-color: {colors.accent};
         }}
         QLabel#importPathLabel {{
             color: {colors.text_muted};
@@ -771,7 +801,7 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.MAIN) -> str:
         QWidget#settingsScrollViewport, QWidget#settingsContent,
         QWidget#settingsCardsHost, QWidget#movieGridContainer,
         QWidget#movieGridViewport, QWidget#importReviewContainer,
-        QWidget#manualSearchResultsHost {{
+        QWidget#importPageContent, QWidget#manualSearchResultsHost {{
             border: none;
             background: {colors.background};
         }}
@@ -879,11 +909,11 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.MAIN) -> str:
     """
 
 
-def apply_theme(application: QApplication, theme_id: UiTheme | str = UiTheme.MAIN) -> None:
+def apply_theme(application: QApplication, theme_id: UiTheme | str = UiTheme.SLATE) -> None:
     try:
         selected = UiTheme(theme_id)
     except (TypeError, ValueError):
-        selected = UiTheme.MAIN
+        selected = UiTheme.SLATE
     application.setStyle("Fusion")
     application.setProperty("dropsortBaseStyle", "Fusion")
     application.setProperty("dropsortTheme", selected.value)

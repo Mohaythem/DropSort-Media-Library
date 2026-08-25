@@ -5,7 +5,7 @@ from typing import Protocol
 
 
 class UiTheme(StrEnum):
-    """Stable identifiers for the four user-facing V1 themes.
+    """Stable theme identifiers, including the retired Main compatibility id.
 
     The legacy names remain enum aliases so callers compiled against earlier
     releases continue to work.  Persisted legacy values are migrated by
@@ -24,10 +24,13 @@ class UiTheme(StrEnum):
 
 
 LEGACY_THEME_IDS = {
-    "deep_ink": UiTheme.MAIN,
+    "main": UiTheme.SLATE,
+    "deep_ink": UiTheme.SLATE,
     "charcoal": UiTheme.DARK,
     "light_blue": UiTheme.LIGHT,
 }
+
+SELECTABLE_THEMES = (UiTheme.SLATE, UiTheme.DARK, UiTheme.LIGHT)
 
 
 SIDEBAR_DEFAULT_WIDTH = 272
@@ -90,12 +93,15 @@ class UiThemeSettings:
                 pass
             return migrated
         try:
-            return UiTheme(value) if value is not None else UiTheme.MAIN
+            theme = UiTheme(value) if value is not None else UiTheme.SLATE
+            return UiTheme.SLATE if theme is UiTheme.MAIN else theme
         except ValueError:
-            return UiTheme.MAIN
+            return UiTheme.SLATE
 
     def set_theme(self, theme: UiTheme) -> UiTheme:
         if not isinstance(theme, UiTheme):
             raise ValueError("theme must be a supported UI theme")
+        if theme is UiTheme.MAIN:
+            theme = UiTheme.SLATE
         self._repository.set_theme(theme.value)
         return theme

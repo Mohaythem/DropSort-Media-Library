@@ -36,7 +36,7 @@ def test_settings_theme_selector_switches_without_resetting_language(qapp: QAppl
     assert view.theme_selector.currentData() == UiTheme.DARK.value
 
 
-def test_theme_selector_exposes_exactly_main_dark_slate_light_labels(qapp: QApplication) -> None:
+def test_theme_selector_exposes_only_slate_dark_and_light(qapp: QApplication) -> None:
     class SettingsActions:
         def metadata_credential_status(self):
             return MetadataCredentialStatus(False, MetadataCredentialOrigin.NOT_CONFIGURED)
@@ -49,10 +49,10 @@ def test_theme_selector_exposes_exactly_main_dark_slate_light_labels(qapp: QAppl
 
     view = SettingsView(SettingsActions())
 
-    assert view.theme_selector.count() == 4
-    assert [view.theme_selector.itemText(i) for i in range(4)] == [
-        "Main",
-        "Dark",
+    assert view.theme_selector.count() == 3
+    assert [view.theme_selector.itemText(i) for i in range(3)] == [
         "Slate",
+        "Dark",
         "Light",
     ]
+    assert view.theme_selector.currentData() == UiTheme.SLATE.value

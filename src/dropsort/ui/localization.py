@@ -150,6 +150,7 @@ class TextId(StrEnum):
     ADD_MOVIES_RESULTS_RESOLUTION = "scan.results_resolution"
     ADD_MOVIES_RESULTS_STATUS = "scan.results_status"
     ADD_MOVIES_RESULTS_ACTION = "scan.results_action"
+    ADD_MOVIES_ITEMS = "scan.items"
     CHOOSE_FOLDER_SCAN = "scan.choose_folder"
     CHOOSE_MOVIE_FOLDER = "scan.folder_dialog"
     CANCEL_SCAN = "scan.cancel"
@@ -162,8 +163,10 @@ class TextId(StrEnum):
     BUILDING_RESULTS = "scan.building_results"
     INVALID_SCAN_RESULT = "scan.invalid_result"
     ADD_TO_LIBRARY = "scan.add_to_library"
+    IMPORT_ADD_ACTION = "scan.action.add"
     OPEN_SETTINGS = "scan.open_settings"
     EDIT_SEARCH = "scan.edit_search"
+    IMPORT_SEARCH_ACTION = "scan.action.search"
     SEARCH_MANUALLY = "scan.search_manually"
     SEARCH_TMDB = "scan.search_tmdb"
     DETECTED_TITLE = "scan.detected_title"
@@ -554,7 +557,7 @@ _ENGLISH: dict[TextId, str] = {
     TextId.ORGANIZE_FILE: "Organize File",
     TextId.LOCATE_FILE: "Locate File",
     TextId.ADD_MOVIES_TITLE: "Add Movies",
-    TextId.ADD_MOVIES_GUIDANCE: "Select a local folder to scan. DropSort identifies movie candidates and keeps every import explicit.",
+    TextId.ADD_MOVIES_GUIDANCE: "Choose a local folder to scan. DropSort identifies movie candidates and keeps every import explicit.",
     TextId.ADD_MOVIES_FOLDER_LABEL: "Folder",
     TextId.ADD_MOVIES_DETECTED_HEADING: "Detected Movies",
     TextId.ADD_MOVIES_RESULTS_TITLE: "Title",
@@ -562,6 +565,7 @@ _ENGLISH: dict[TextId, str] = {
     TextId.ADD_MOVIES_RESULTS_RESOLUTION: "Resolution",
     TextId.ADD_MOVIES_RESULTS_STATUS: "Status",
     TextId.ADD_MOVIES_RESULTS_ACTION: "Action",
+    TextId.ADD_MOVIES_ITEMS: "{count} items",
     TextId.CHOOSE_FOLDER_SCAN: "Choose Folder and Scan",
     TextId.CHOOSE_MOVIE_FOLDER: "Choose a movie folder",
     TextId.CANCEL_SCAN: "Cancel Scan",
@@ -574,8 +578,10 @@ _ENGLISH: dict[TextId, str] = {
     TextId.BUILDING_RESULTS: "Building review results...",
     TextId.INVALID_SCAN_RESULT: "DropSort received an invalid scan result. Please try again.",
     TextId.ADD_TO_LIBRARY: "Add to Library",
+    TextId.IMPORT_ADD_ACTION: "Add",
     TextId.OPEN_SETTINGS: "Open Settings",
     TextId.EDIT_SEARCH: "Edit Search",
+    TextId.IMPORT_SEARCH_ACTION: "Search",
     TextId.SEARCH_MANUALLY: "Search Manually",
     TextId.SEARCH_TMDB: "Search TMDB",
     TextId.DETECTED_TITLE: "Detected title",
@@ -892,7 +898,7 @@ _ARABIC: dict[TextId, str] = {
     TextId.CLEAR_LIBRARY_RUNNING: "جارٍ مسح بيانات المكتبة المحلية...",
     TextId.CLEAR_LIBRARY_RESULT: "تم مسح المكتبة: أُزيل {movies} فيلمًا و{files} رابطًا لملفات الوسائط.",
     TextId.CLEAR_LIBRARY_CACHE_WARNING: "تعذر إكمال تنظيف ذاكرة الملصقات؛ لم تتأثر ملفات الوسائط.",
-    TextId.LIBRARY_HEADING: "المكتبة",
+    TextId.LIBRARY_HEADING: "مكتبتك",
     TextId.LIBRARY_COUNT: "{count} فيلم",
     TextId.LIBRARY_COUNT_FILTERED: '{count} فيلم يطابق "{query}"',
     TextId.CHECK_LIBRARY_FILES: "فحص المكتبة",
@@ -965,7 +971,7 @@ _ARABIC: dict[TextId, str] = {
     TextId.ORGANIZE_FILE: "تنظيم الملف",
     TextId.LOCATE_FILE: "تحديد موقع الملف",
     TextId.ADD_MOVIES_TITLE: "إضافة أفلام",
-    TextId.ADD_MOVIES_GUIDANCE: "اختر مجلدًا محليًا للفحص. سيحدد DropSort الأفلام المرشحة مع إبقاء كل عملية إضافة صريحة.",
+    TextId.ADD_MOVIES_GUIDANCE: "اختر مجلدًا. سيفحصه DropSort للقراءة فقط، ثم يجهز اقتراحات بيانات الأفلام لمراجعتها.",
     TextId.ADD_MOVIES_FOLDER_LABEL: "المجلد",
     TextId.ADD_MOVIES_DETECTED_HEADING: "الأفلام المكتشفة",
     TextId.ADD_MOVIES_RESULTS_TITLE: "العنوان",
@@ -973,6 +979,7 @@ _ARABIC: dict[TextId, str] = {
     TextId.ADD_MOVIES_RESULTS_RESOLUTION: "الدقة",
     TextId.ADD_MOVIES_RESULTS_STATUS: "الحالة",
     TextId.ADD_MOVIES_RESULTS_ACTION: "الإجراء",
+    TextId.ADD_MOVIES_ITEMS: "{count} عناصر",
     TextId.CHOOSE_FOLDER_SCAN: "اختيار مجلد وبدء الفحص",
     TextId.CHOOSE_MOVIE_FOLDER: "اختر مجلد الأفلام",
     TextId.CANCEL_SCAN: "إلغاء الفحص",
@@ -985,8 +992,10 @@ _ARABIC: dict[TextId, str] = {
     TextId.BUILDING_RESULTS: "جارٍ إعداد نتائج المراجعة...",
     TextId.INVALID_SCAN_RESULT: "استلم دروب سورت نتيجة فحص غير صالحة. حاول مرة أخرى.",
     TextId.ADD_TO_LIBRARY: "إضافة إلى المكتبة",
+    TextId.IMPORT_ADD_ACTION: "إضافة",
     TextId.OPEN_SETTINGS: "فتح الإعدادات",
     TextId.EDIT_SEARCH: "تعديل البحث",
+    TextId.IMPORT_SEARCH_ACTION: "بحث",
     TextId.SEARCH_MANUALLY: "بحث يدوي",
     TextId.SEARCH_TMDB: "البحث في TMDB",
     TextId.DETECTED_TITLE: "العنوان المكتشف",
@@ -1245,6 +1254,29 @@ _ARABIC: dict[TextId, str] = {
 }
 
 
+_ARABIC_GENRES: dict[str, str] = {
+    "action": "حركة",
+    "adventure": "مغامرة",
+    "animation": "رسوم متحركة",
+    "comedy": "كوميديا",
+    "crime": "جريمة",
+    "documentary": "وثائقي",
+    "drama": "دراما",
+    "family": "عائلي",
+    "fantasy": "خيال",
+    "history": "تاريخي",
+    "horror": "رعب",
+    "music": "موسيقى",
+    "mystery": "غموض",
+    "romance": "رومانسي",
+    "science fiction": "خيال علمي",
+    "tv movie": "فيلم تلفزيوني",
+    "thriller": "إثارة",
+    "war": "حرب",
+    "western": "غربي",
+}
+
+
 class UiLocalizer(QObject):
     language_changed = Signal(object)
 
@@ -1264,6 +1296,15 @@ class UiLocalizer(QObject):
         catalog = _ARABIC if self._language is UiLanguage.ARABIC else _ENGLISH
         template = catalog.get(key, _ENGLISH[key])
         return template.format(**values)
+
+    def genre(self, value: str) -> str:
+        """Return a localized display name without changing stored metadata."""
+        if self._language is not UiLanguage.ARABIC:
+            return value
+        return _ARABIC_GENRES.get(value.strip().casefold(), value)
+
+    def genres(self, values: tuple[str, ...] | list[str]) -> str:
+        return "  •  ".join(self.genre(value) for value in values)
 
     def bind_text(self, widget: QWidget, key: TextId, **values: object) -> None:
         self._bindings[widget] = (key, values)

@@ -2,6 +2,27 @@
 
 Last verified: 2026-08-25 on native Windows / Python 3.12 / NTFS.
 
+## Add Movies / RTL / theme follow-up status
+
+**IMPLEMENTED AND SOURCE-VERIFIED ON `codex`.** Add Movies uses one page-level vertical scroll,
+stable title/year/resolution/status/action columns, compact Add/Search/icon actions, bounded candidate
+selectors, and no normal-row filename/path or diagnostic prose. Selection remains proposal-only and
+every catalog import still requires an explicit Add action; the UI performs no direct filesystem,
+SQL, or HTTP work.
+
+Arabic presentation now retranslates centralized genre display names and explicitly applies RTL
+alignment to Personal Library and Check Library content while paths, years, resolutions, progress
+values, and other technical text remain LTR with Western numerals. Main is retained only as a
+persisted compatibility identifier and migrates to Slate; Settings exposes exactly Slate, Dark, and
+Light, with Slate as the default and a higher-contrast Dark palette.
+
+Verification: changed/affected UI gate `149 passed, 2 accepted baseline failures`; architecture,
+localization, RTL, and visual-contract gate `72 passed, 2 accepted baseline failures`; full suite
+`1,245 passed, 6 failed, 5 skipped` in 324.79 seconds. All six full-suite failures are established
+baseline contracts outside this diff. Compileall and diff whitespace checks passed. The synthetic
+Add Movies runtime probe rendered eight mixed-state rows with one scroll area, zero transient
+top-level controls, and zero activation churn. Ruff was unavailable in the active environment.
+
 
 
 ## Python Stabilization Pass 3 status

@@ -45,7 +45,13 @@ from dropsort.ui.common.tasks import QtTaskRunner, TaskRunner
 from dropsort.ui.common.icon import FluentIconName, set_fluent_icon
 from dropsort.ui.common.theme import SPACE_16, SPACE_24, SPACE_36, SPACE_MEDIUM
 from dropsort.ui.contracts import ImportUiActions
-from dropsort.ui.scan.import_review_row import ImportReviewRow
+from dropsort.ui.scan.import_review_row import (
+    IMPORT_ACTION_WIDTH,
+    IMPORT_RESOLUTION_WIDTH,
+    IMPORT_STATUS_WIDTH,
+    IMPORT_YEAR_WIDTH,
+    ImportReviewRow,
+)
 from dropsort.ui.scan.manual_search_dialog import ManualSearchDialog
 from dropsort.ui.localization import TextId, UiLocalizer
 
@@ -90,9 +96,24 @@ class ImportView(QWidget):
         self._manual_dialog = None
         self._scan_result_ready = False
 
-        layout = QVBoxLayout(self)
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        root_layout.setSpacing(0)
+
+        self.page_scroll = QScrollArea(self)
+        self.page_scroll.setObjectName("importPageScroll")
+        self.page_scroll.setWidgetResizable(True)
+        self.page_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.page_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self._page_content = QWidget(self.page_scroll)
+        self._page_content.setObjectName("importPageContent")
+        layout = QVBoxLayout(self._page_content)
         layout.setContentsMargins(SPACE_36, SPACE_36, SPACE_36, SPACE_36)
         layout.setSpacing(SPACE_24)
+        self.page_scroll.setWidget(self._page_content)
+        root_layout.addWidget(self.page_scroll)
         heading = QLabel()
         heading.setProperty("role", "screenHeading")
         self._localizer.bind_text(heading, TextId.ADD_MOVIES_TITLE)
@@ -184,7 +205,10 @@ class ImportView(QWidget):
 
         results_heading_row = QHBoxLayout()
         results_heading_row.setSpacing(SPACE_MEDIUM)
-        self._results_heading = QLabel(self._localizer.text(TextId.ADD_MOVIES_DETECTED_HEADING))
+        self._results_heading = QLabel()
+        self._localizer.bind_text(
+            self._results_heading, TextId.ADD_MOVIES_DETECTED_HEADING
+        )
         self._results_heading.setObjectName("importResultsHeading")
         self._results_heading.setProperty("role", "sectionHeading")
         self._results_heading.hide()
@@ -195,23 +219,23 @@ class ImportView(QWidget):
         self._results_count.setProperty("role", "muted")
         self._results_count.hide()
         results_heading_row.addWidget(self._results_count)
+        self._localizer.language_changed.connect(
+            lambda _language: self._sync_review_table_visibility()
+        )
         layout.addLayout(results_heading_row)
 
         self._review_header = self._build_review_header()
         self._review_header.hide()
         layout.addWidget(self._review_header)
 
-        scroll = QScrollArea()
-        scroll.setObjectName("importReviewScroll")
-        scroll.setWidgetResizable(True)
-        self._container = QWidget()
+        self._container = QWidget(self._page_content)
         self._container.setObjectName("importReviewContainer")
         self._rows_layout = QVBoxLayout(self._container)
         self._rows_layout.setContentsMargins(0, 0, 0, 0)
         self._rows_layout.setSpacing(0)
         self._rows_layout.addStretch(1)
-        scroll.setWidget(self._container)
-        layout.addWidget(scroll, 1)
+        layout.addWidget(self._container)
+        layout.addStretch(1)
 
 
     def _build_review_header(self) -> QFrame:
@@ -227,26 +251,36 @@ class ImportView(QWidget):
         row.addWidget(title, 1)
 
         year = QLabel()
-        year.setFixedWidth(72)
+        year.setObjectName("importHeaderYear")
+        year.setProperty("importColumn", True)
+        year.setFixedWidth(IMPORT_YEAR_WIDTH)
         year.setProperty("role", "muted")
         self._localizer.bind_text(year, TextId.ADD_MOVIES_RESULTS_YEAR)
         row.addWidget(year)
 
         resolution = QLabel()
-        resolution.setFixedWidth(82)
+        resolution.setObjectName("importHeaderResolution")
+        resolution.setProperty("importColumn", True)
+        resolution.setFixedWidth(IMPORT_RESOLUTION_WIDTH)
         resolution.setProperty("role", "muted")
         self._localizer.bind_text(resolution, TextId.ADD_MOVIES_RESULTS_RESOLUTION)
         row.addWidget(resolution)
 
         status = QLabel()
-        status.setFixedWidth(112)
+        status.setObjectName("importHeaderStatus")
+        status.setProperty("importColumn", True)
+        status.setFixedWidth(IMPORT_STATUS_WIDTH)
         status.setProperty("role", "muted")
         self._localizer.bind_text(status, TextId.ADD_MOVIES_RESULTS_STATUS)
         row.addWidget(status)
 
         action = QLabel()
-        action.setFixedWidth(176)
-        action.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        action.setObjectName("importHeaderAction")
+        action.setProperty("importColumn", True)
+        action.setFixedWidth(IMPORT_ACTION_WIDTH)
+        action.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
         action.setProperty("role", "muted")
         self._localizer.bind_text(action, TextId.ADD_MOVIES_RESULTS_ACTION)
         row.addWidget(action)
@@ -613,15 +647,15 @@ class ImportView(QWidget):
             row.deleteLater()
         self._rows.clear()
         self._sync_review_table_visibility()
-
-
     def _sync_review_table_visibility(self) -> None:
         has_rows = bool(self._rows)
         self._results_heading.setVisible(has_rows)
         self._results_count.setVisible(has_rows)
         self._review_header.setVisible(has_rows)
         if has_rows:
-            self._results_count.setText(f"{len(self._rows)} items")
+            self._results_count.setText(
+                self._localizer.text(TextId.ADD_MOVIES_ITEMS, count=len(self._rows))
+            )
         else:
             self._results_count.clear()
 

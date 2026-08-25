@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QFrame,
+    QButtonGroup,
     QComboBox,
     QGridLayout,
     QHBoxLayout,
@@ -28,7 +29,7 @@ from dropsort.ui.common.theme import SPACE_4, SPACE_36, SPACE_LARGE, SPACE_MEDIU
 from dropsort.ui.common.icon import FluentIconName, set_fluent_icon
 from dropsort.ui.contracts import SettingsUiActions
 from dropsort.application.configuration.localization import UiLanguage
-from dropsort.application.configuration.theme import UiTheme
+from dropsort.application.configuration.theme import SELECTABLE_THEMES, UiTheme
 from dropsort.ui.localization import TextId, UiLocalizer
 
 
@@ -51,14 +52,22 @@ class LanguageToggle(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(SPACE_4, SPACE_4, SPACE_4, SPACE_4)
         layout.setSpacing(SPACE_4)
-        self.english_button = QPushButton(localizer.text(TextId.LANGUAGE_ENGLISH))
+        self._button_group = QButtonGroup(self)
+        self._button_group.setExclusive(True)
+        self.english_button = QPushButton(
+            localizer.text(TextId.LANGUAGE_ENGLISH), self
+        )
         self.english_button.setObjectName("languageEnglishButton")
         self.english_button.setCheckable(True)
         self.english_button.setAccessibleName(localizer.text(TextId.LANGUAGE_ENGLISH))
-        self.arabic_button = QPushButton(localizer.text(TextId.LANGUAGE_ARABIC))
+        self.arabic_button = QPushButton(
+            localizer.text(TextId.LANGUAGE_ARABIC), self
+        )
         self.arabic_button.setObjectName("languageArabicButton")
         self.arabic_button.setCheckable(True)
         self.arabic_button.setAccessibleName(localizer.text(TextId.LANGUAGE_ARABIC))
+        self._button_group.addButton(self.english_button)
+        self._button_group.addButton(self.arabic_button)
         layout.addWidget(self.english_button)
         layout.addWidget(self.arabic_button)
         self.english_button.clicked.connect(
@@ -182,14 +191,16 @@ class SettingsView(QWidget):
         self.theme_selector = QComboBox()
         self.theme_selector.setObjectName("themeSelector")
         self.theme_selector.setAccessibleName(self._localizer.text(TextId.THEME))
-        for theme in UiTheme:
+        for theme in SELECTABLE_THEMES:
             self.theme_selector.addItem("", theme.value)
-        current_theme = getattr(actions, "current_ui_theme", lambda: UiTheme.MAIN)()
+        current_theme = getattr(actions, "current_ui_theme", lambda: UiTheme.SLATE)()
         try:
             current_theme = UiTheme(current_theme)
         except (TypeError, ValueError):
-            current_theme = UiTheme.MAIN
-        self.theme_selector.setCurrentIndex(list(UiTheme).index(current_theme))
+            current_theme = UiTheme.SLATE
+        if current_theme not in SELECTABLE_THEMES:
+            current_theme = UiTheme.SLATE
+        self.theme_selector.setCurrentIndex(SELECTABLE_THEMES.index(current_theme))
         self._refresh_theme_items()
         self.theme_selector.currentIndexChanged.connect(self._theme_selected)
         appearance_layout.addWidget(self.theme_selector)
@@ -475,9 +486,8 @@ class SettingsView(QWidget):
 
     def _refresh_theme_items(self) -> None:
         ids = (
-            TextId.THEME_MAIN,
-            TextId.THEME_DARK,
             TextId.THEME_SLATE,
+            TextId.THEME_DARK,
             TextId.THEME_LIGHT,
         )
         for index, text_id in enumerate(ids):

@@ -26,8 +26,8 @@
   user-supplied credential; this controlled process only rebuilt and audited the artifact.
 - [x] Hide full paths from normal Add Movies rows, show Edit Search only for failed/unusable automatic
   proposals, and preserve explicit Add to Library authorization after single-candidate preselection.
-- [x] Replace the legacy theme labels/palettes with exactly Main, Dark, Slate, and Light; verify
-  Light Settings surfaces and safe legacy-ID migration.
+- [x] Retire Main from the selectable themes, expose exactly Slate, Dark, and Light, and migrate the
+  persisted Main/deep-ink compatibility IDs safely to Slate.
 - [x] Add a branded multi-size DropSort application icon to Qt and the packaged executable.
 - [x] Make Check Library Files terminal-state driven: progress alone remains RUNNING, terminal
   success/failure/cancellation update controls and coalesced manual dialogs safely.

@@ -11,7 +11,8 @@ def test_movie_review_row_exposes_edit_search_for_no_match(qapp: QApplication, p
     from dropsort.application.dto.movie_import import ImportProposalStatus
     row = ImportReviewRow(proposal_factory(status=ImportProposalStatus.NO_MATCH))
     assert row.manual_search_button.isHidden() is False
-    assert row.manual_search_button.text() == "Edit Search"
+    assert row.manual_search_button.text() == "Search"
+    assert row.manual_search_button.toolTip() == "Edit Search"
 
 
 def test_manual_search_button_does_not_emit_import(qapp: QApplication, proposal_factory) -> None:
@@ -44,14 +45,15 @@ def test_single_automatic_candidate_is_preselected_but_not_imported(
     assert row.can_import is True
 
 
-def test_add_movies_row_shows_filename_without_full_path(qapp: QApplication, proposal_factory) -> None:
+def test_add_movies_row_shows_title_without_creating_path_widgets(qapp: QApplication, proposal_factory) -> None:
     from PySide6.QtWidgets import QLabel
 
     row = ImportReviewRow(proposal_factory())
-    filename_label = row.findChild(QLabel, "importFilenameLabel")
-    assert filename_label is not None
-    assert filename_label.text() == row.proposal.discovery.path.name
-    assert str(row.proposal.discovery.path.parent) not in filename_label.text()
+    title_label = row.findChild(QLabel, "importTitleLabel")
+    assert title_label is not None
+    assert title_label.text() == row.proposal.discovery.parsed_media.title
+    assert row.findChild(QLabel, "importFilenameLabel") is None
+    assert row.findChild(QLabel, "importPathLabel") is None
 
 
 def test_manual_selection_hides_edit_search_after_usable_candidate_is_selected(

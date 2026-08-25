@@ -87,38 +87,36 @@ class PersonalLibraryView(QWidget):
 
         self._empty_host = QWidget()
         self._empty_host.setObjectName("personalEmptyStateHost")
-        empty_host_layout = QVBoxLayout(self._empty_host)
-        empty_host_layout.setContentsMargins(0, SPACE_MEDIUM, 0, 0)
-        empty_host_layout.setSpacing(0)
+        self._empty_host_layout = QVBoxLayout(self._empty_host)
+        self._empty_host_layout.setContentsMargins(0, SPACE_MEDIUM, 0, 0)
+        self._empty_host_layout.setSpacing(0)
         self._empty_state = QFrame()
         self._empty_state.setObjectName("personalEmptyState")
         self._empty_state.setAccessibleName("Personal Library empty state")
-        empty_layout = QVBoxLayout(self._empty_state)
-        empty_layout.setContentsMargins(0, SPACE_MEDIUM, 0, 0)
-        empty_layout.setSpacing(SPACE_SMALL)
-        empty_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        icon = QLabel()
-        icon.setObjectName("personalEmptyStateIcon")
-        icon.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        icon.setAccessibleName("Personal Library")
-        set_fluent_icon(icon, FluentIconName.PERSONAL_LIBRARY, size=QSize(24, 24))
-        empty_layout.addWidget(icon)
+        self._empty_layout = QVBoxLayout(self._empty_state)
+        self._empty_layout.setContentsMargins(0, SPACE_MEDIUM, 0, 0)
+        self._empty_layout.setSpacing(SPACE_SMALL)
+        self._empty_icon = QLabel()
+        self._empty_icon.setObjectName("personalEmptyStateIcon")
+        self._empty_icon.setAccessibleName("Personal Library")
+        set_fluent_icon(
+            self._empty_icon, FluentIconName.PERSONAL_LIBRARY, size=QSize(24, 24)
+        )
+        self._empty_layout.addWidget(self._empty_icon)
         self._empty_title = QLabel()
         self._empty_title.setObjectName("personalEmptyStateTitle")
         self._empty_title.setProperty("role", "h4")
         self._empty_title.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        empty_layout.addWidget(self._empty_title)
+        self._empty_layout.addWidget(self._empty_title)
         self._empty_description = QLabel()
         self._empty_description.setObjectName("personalEmptyStateDescription")
         self._empty_description.setProperty("role", "muted")
         self._empty_description.setWordWrap(True)
         self._empty_description.setMaximumWidth(520)
         self._empty_description.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        empty_layout.addWidget(self._empty_description)
-        empty_host_layout.addWidget(
-            self._empty_state, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
-        )
-        empty_host_layout.addStretch(1)
+        self._empty_layout.addWidget(self._empty_description)
+        self._empty_host_layout.addWidget(self._empty_state)
+        self._empty_host_layout.addStretch(1)
         self._empty_host.hide()
         layout.addWidget(self._empty_host, 1)
 
@@ -127,6 +125,7 @@ class PersonalLibraryView(QWidget):
         layout.addWidget(self._grid, 1)
 
         self._localizer.language_changed.connect(self._retranslate)
+        self._apply_layout_direction()
 
     def prepare_for_width(self, page_width: int) -> None:
         """Prepare cached card geometry before revealing Personal Library."""
@@ -388,6 +387,7 @@ class PersonalLibraryView(QWidget):
         self._empty_description.setText(self._localizer.text(description_id))
 
     def _retranslate(self, _language) -> None:
+        self._apply_layout_direction()
         for index, text_id in enumerate(
             (
                 TextId.PERSONAL_TAB_WATCHLIST,
@@ -404,6 +404,27 @@ class PersonalLibraryView(QWidget):
                 if self._state_error
                 else self._empty_text(self._section)
             )
+
+    def _apply_layout_direction(self) -> None:
+        rtl = self._localizer.language.value == "ar"
+        direction = (
+            Qt.LayoutDirection.RightToLeft
+            if rtl
+            else Qt.LayoutDirection.LeftToRight
+        )
+        horizontal = (
+            Qt.AlignmentFlag.AlignRight if rtl else Qt.AlignmentFlag.AlignLeft
+        )
+        self.setLayoutDirection(direction)
+        self._tabs.setLayoutDirection(direction)
+        self._empty_host.setLayoutDirection(direction)
+        self._empty_layout.setAlignment(Qt.AlignmentFlag.AlignTop | horizontal)
+        self._empty_icon.setAlignment(horizontal)
+        self._empty_title.setAlignment(horizontal)
+        self._empty_description.setAlignment(horizontal)
+        self._empty_host_layout.setAlignment(
+            self._empty_state, Qt.AlignmentFlag.AlignTop | horizontal
+        )
 
 
 _SECTIONS = (

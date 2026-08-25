@@ -2,14 +2,16 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from dropsort.application.dto.movie_import import ImportProposalReason, ImportProposalStatus
+from dropsort.application.configuration.localization import UiLanguage
 from dropsort.media.matcher.models import MatchStatus
+from dropsort.ui.localization import TextId, UiLocalizer
 from dropsort.ui.scan.import_review_row import ImportReviewRow
 
 
-def test_matched_row_explains_confidence_but_does_not_auto_import(
+def test_matched_row_shows_clean_candidate_without_diagnostics_or_auto_import(
     qapp: QApplication,
     proposal_factory,
 ) -> None:
@@ -19,7 +21,15 @@ def test_matched_row_explains_confidence_but_does_not_auto_import(
 
     assert row.status_text == "Match proposed"
     assert row.can_import is True
-    assert "98%" in row.explanation_text
+    assert row.candidate_selector.isHidden() is False
+    assert row.candidate_selector.itemText(0).endswith("8.5/10")
+    assert "TMDB" not in row.candidate_selector.itemText(0)
+    assert "98%" not in row.explanation_text
+    assert "Title Exact" not in row.explanation_text
+    assert row.explanation_text == ""
+    assert row.findChild(QLabel, "importExplanationLabel") is None
+    assert row.findChild(QLabel, "importPathLabel") is None
+    assert row.findChild(QLabel, "importFilenameLabel") is None
     assert confirmations == []
 
 
@@ -125,14 +135,28 @@ def test_missing_tmdb_credential_offers_settings_and_local_import(
     requests: list[bool] = []
     row.settings_requested.connect(lambda: requests.append(True))
 
-    assert "TMDB is not configured" in row.explanation_text
-    assert "Settings" in row.explanation_text
+    assert row.explanation_text == ""
+    assert row.findChild(QLabel, "importExplanationLabel") is None
     assert row.settings_button.isHidden() is False
+    assert row.settings_button.text() == ""
+    assert row.settings_button.toolTip() == "Open Settings"
     assert row.import_button.isHidden() is False
 
     row.settings_button.click()
 
     assert requests == [True]
+
+
+def test_no_match_never_surfaces_a_low_confidence_candidate(
+    qapp: QApplication,
+    proposal_factory,
+) -> None:
+    row = ImportReviewRow(
+        proposal_factory(status=ImportProposalStatus.NO_MATCH)
+    )
+
+    assert row.candidate_selector.isHidden()
+    assert row.manual_search_button.isHidden() is False
 
 
 def test_non_authentication_metadata_error_does_not_offer_settings(
@@ -147,3 +171,19 @@ def test_non_authentication_metadata_error_does_not_offer_settings(
     )
 
     assert row.settings_button.isHidden() is True
+
+
+def test_row_retranslates_status_and_actions_but_keeps_technical_columns_ltr(
+    qapp: QApplication,
+    proposal_factory,
+) -> None:
+    localizer = UiLocalizer()
+    row = ImportReviewRow(proposal_factory(), localizer=localizer)
+
+    localizer.set_language(UiLanguage.ARABIC)
+
+    assert row.status_text == localizer.text(TextId.IMPORT_MATCH_PROPOSED)
+    assert row.import_button.text() == localizer.text(TextId.IMPORT_ADD_ACTION)
+    assert row.year_label.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    assert row.resolution_label.layoutDirection() is Qt.LayoutDirection.LeftToRight
+    localizer.set_language(UiLanguage.ENGLISH)

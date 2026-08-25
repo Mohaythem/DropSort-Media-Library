@@ -5,6 +5,8 @@ from pathlib import Path
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import QApplication, QDialog, QLabel, QPushButton
 
+from dropsort.application.configuration.localization import UiLanguage
+from dropsort.ui.localization import UiLocalizer
 from dropsort.ui.movie_details.details_view import MovieDetailsView
 from dropsort.posters import PosterAsset
 from dropsort.library.playback import LocalMediaLaunchError, MissingMediaFileError
@@ -74,6 +76,23 @@ def test_details_view_preserves_unknown_optional_metadata(
     assert _text(view, "detailsOverviewLabel") == "Overview unavailable."
     assert view.media_file_count == 0
     assert _text(view, "mediaEmptyLabel") == "No physical media files are linked."
+
+
+def test_details_genres_retranslate_from_one_central_display_mapping(
+    qapp: QApplication,
+    movie_details_factory,
+) -> None:
+    localizer = UiLocalizer()
+    view = MovieDetailsView(localizer=localizer)
+    view.set_movie(
+        movie_details_factory(genres=("Action", "Science Fiction", "Mystery"))
+    )
+
+    assert _text(view, "detailsGenresLabel") == "Action  •  Science Fiction  •  Mystery"
+    localizer.set_language(UiLanguage.ARABIC)
+    assert _text(view, "detailsGenresLabel") == "حركة  •  خيال علمي  •  غموض"
+    localizer.set_language(UiLanguage.ENGLISH)
+    assert _text(view, "detailsGenresLabel") == "Action  •  Science Fiction  •  Mystery"
 
 
 def test_details_view_can_show_controlled_error(qapp: QApplication) -> None:

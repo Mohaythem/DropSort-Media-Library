@@ -422,6 +422,7 @@ class MovieDetailsView(QWidget):
         self._genres.setWordWrap(True)
         self._genres.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse | Qt.TextInteractionFlag.TextSelectableByKeyboard)
         metadata.addWidget(self._genres)
+        self._current_genres: tuple[str, ...] = ()
         self._original_title = QLabel()
         self._original_title.setObjectName("detailsOriginalTitleLabel")
         self._original_title.setProperty("role", "muted")
@@ -468,6 +469,7 @@ class MovieDetailsView(QWidget):
         self._media_file_count = 0
         self._media_file_panels: dict[int, QFrame] = {}
         self._localizer.language_changed.connect(self._refresh_rating_text)
+        self._localizer.language_changed.connect(self._refresh_genres_text)
         self._localizer.language_changed.connect(self._refresh_watch_date_accessibility)
 
     @property
@@ -1132,11 +1134,8 @@ class MovieDetailsView(QWidget):
             )
         )
         self._refresh_rating_text()
-        self._genres.setText(
-            "  •  ".join(details.genres)
-            if details.genres
-            else self._localizer.text(TextId.DETAILS_GENRES_UNAVAILABLE)
-        )
+        self._current_genres = tuple(details.genres)
+        self._refresh_genres_text()
         if details.original_title and details.original_title != details.title:
             self._original_title.setText(
                 self._localizer.text(
@@ -1212,6 +1211,13 @@ class MovieDetailsView(QWidget):
             provider_rating_text(self._current_rating) if has_rating else ""
         )
 
+    def _refresh_genres_text(self, _language=None) -> None:
+        self._genres.setText(
+            self._localizer.genres(list(self._current_genres))
+            if self._current_genres
+            else self._localizer.text(TextId.DETAILS_GENRES_UNAVAILABLE)
+        )
+
     def apply_poster(self, token: int, asset: PosterAsset | None) -> None:
         if token != self._poster_token or asset is None:
             return
@@ -1241,6 +1247,8 @@ class MovieDetailsView(QWidget):
         self._movie_id = None
         self._current_rating = None
         self._refresh_rating_text()
+        self._current_genres = ()
+        self._refresh_genres_text()
         self._poster_token += 1
         self._personal_token += 1
         self._personal_busy = False

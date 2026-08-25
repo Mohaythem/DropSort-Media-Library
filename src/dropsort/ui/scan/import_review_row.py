@@ -4,11 +4,11 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -18,11 +18,18 @@ from dropsort.application.dto.movie_import import (
     MovieImportProposal,
 )
 from dropsort.metadata.contracts import MovieCandidate
-from dropsort.ui.common.formatting import format_rating, format_year
+from dropsort.ui.common.formatting import to_western_numerals
 from dropsort.ui.common.icon import FluentIconName, set_fluent_icon
-from dropsort.ui.common.theme import SPACE_4, SPACE_12, SPACE_SMALL
+from dropsort.ui.common.theme import SPACE_4, SPACE_8, SPACE_12, SPACE_SMALL
 from dropsort.ui.localization import TextId, UiLocalizer
 
+
+IMPORT_TITLE_MIN_WIDTH = 240
+IMPORT_YEAR_WIDTH = 72
+IMPORT_RESOLUTION_WIDTH = 88
+IMPORT_STATUS_WIDTH = 156
+IMPORT_ACTION_WIDTH = 272
+IMPORT_ACTION_HEIGHT = 38
 
 _STATUS_TEXT = {
     ImportProposalStatus.MATCH_PROPOSED: TextId.IMPORT_MATCH_PROPOSED,
@@ -35,7 +42,7 @@ _STATUS_TEXT = {
 
 
 class ImportReviewRow(QFrame):
-    """Compact review row with table-like density and explicit actions."""
+    """Stable five-region review row with bounded secondary information."""
 
     confirm_requested = Signal(object, object)
     dismiss_requested = Signal(object)
@@ -54,77 +61,78 @@ class ImportReviewRow(QFrame):
         self.proposal = proposal
         self.setObjectName("importReviewRow")
 
-        layout = QVBoxLayout(self)
+        layout = QGridLayout(self)
         layout.setContentsMargins(SPACE_12, SPACE_SMALL, SPACE_12, SPACE_SMALL)
-        layout.setSpacing(SPACE_SMALL)
-
-        primary = QHBoxLayout()
-        primary.setSpacing(SPACE_12)
-
-        title_host = QWidget()
-        title_host.setMinimumWidth(0)
-        title_host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        title_layout = QVBoxLayout(title_host)
-        title_layout.setContentsMargins(0, 0, 0, 0)
-        title_layout.setSpacing(SPACE_4)
+        layout.setHorizontalSpacing(SPACE_12)
+        layout.setVerticalSpacing(SPACE_SMALL)
+        layout.setColumnStretch(0, 1)
+        layout.setColumnMinimumWidth(0, IMPORT_TITLE_MIN_WIDTH)
+        layout.setColumnMinimumWidth(1, IMPORT_YEAR_WIDTH)
+        layout.setColumnMinimumWidth(2, IMPORT_RESOLUTION_WIDTH)
+        layout.setColumnMinimumWidth(3, IMPORT_STATUS_WIDTH)
+        layout.setColumnMinimumWidth(4, IMPORT_ACTION_WIDTH)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+        )
 
         title = proposal.discovery.path.name
         parsed = proposal.discovery.parsed_media
         if parsed and parsed.title:
             title = parsed.title
-        title_label = QLabel(title)
-        title_label.setObjectName("importTitleLabel")
-        title_label.setProperty("role", "rowTitle")
-        title_label.setMinimumWidth(0)
-        title_label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        title_label.setWordWrap(False)
-        title_label.setToolTip(title)
-        title_layout.addWidget(title_label)
-
-        filename = QLabel(proposal.discovery.path.name)
-        filename.setObjectName("importFilenameLabel")
-        filename.setProperty("role", "muted")
-        filename.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse
-            | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        self.title_label = QLabel(title, self)
+        self.title_label.setObjectName("importTitleLabel")
+        self.title_label.setProperty("role", "rowTitle")
+        self.title_label.setMinimumWidth(0)
+        self.title_label.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred
         )
-        self._localizer.mark_ltr(filename)
-        filename.hide()
-        title_layout.addWidget(filename)
+        self.title_label.setWordWrap(False)
+        self.title_label.setToolTip(title)
+        layout.addWidget(self.title_label, 0, 0, Qt.AlignmentFlag.AlignTop)
 
-        path = QLabel(str(proposal.discovery.path))
-        path.setObjectName("importPathLabel")
-        path.setMinimumWidth(0)
-        path.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        path.setToolTip(str(proposal.discovery.path))
-        path.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        self._localizer.mark_ltr(path)
-        title_layout.addWidget(path)
-        primary.addWidget(title_host, 1)
+        self.year_label = QLabel(_compact_year(parsed.year if parsed else None), self)
+        self.year_label.setObjectName("importYearLabel")
+        self.year_label.setProperty("role", "muted")
+        self.year_label.setProperty("importColumn", True)
+        self.year_label.setFixedWidth(IMPORT_YEAR_WIDTH)
+        self.year_label.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
+        self._localizer.mark_ltr(self.year_label)
+        layout.addWidget(self.year_label, 0, 1, Qt.AlignmentFlag.AlignTop)
 
-        year = QLabel(format_year(parsed.year if parsed else None))
-        year.setObjectName("importYearLabel")
-        year.setProperty("role", "muted")
-        year.setFixedWidth(72)
-        primary.addWidget(year)
+        self.resolution_label = QLabel(
+            (parsed.resolution if parsed else None) or "--", self
+        )
+        self.resolution_label.setObjectName("importResolutionLabel")
+        self.resolution_label.setProperty("role", "muted")
+        self.resolution_label.setProperty("importColumn", True)
+        self.resolution_label.setFixedWidth(IMPORT_RESOLUTION_WIDTH)
+        self.resolution_label.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
+        self._localizer.mark_ltr(self.resolution_label)
+        layout.addWidget(self.resolution_label, 0, 2, Qt.AlignmentFlag.AlignTop)
 
-        resolution = QLabel((parsed.resolution if parsed else None) or "—")
-        resolution.setObjectName("importResolutionLabel")
-        resolution.setProperty("role", "muted")
-        resolution.setFixedWidth(82)
-        self._localizer.mark_ltr(resolution)
-        primary.addWidget(resolution)
-
-        self._status = QLabel(_status_text(proposal, self._localizer))
+        self._status_text_id = _status_text_id(proposal)
+        self._status = QLabel(self._localizer.text(self._status_text_id), self)
         self._status.setObjectName("importStatusLabel")
         self._status.setProperty("proposalStatus", proposal.status.value)
-        self._status.setFixedWidth(112)
-        primary.addWidget(self._status)
+        self._status.setProperty("importColumn", True)
+        self._status.setFixedWidth(IMPORT_STATUS_WIDTH)
+        self._status.setWordWrap(True)
+        self._status.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
+        )
+        layout.addWidget(self._status, 0, 3, Qt.AlignmentFlag.AlignTop)
 
-        action_host = QWidget()
-        action_host.setFixedWidth(176)
+        action_host = QWidget(self)
+        action_host.setObjectName("importActionHost")
+        action_host.setProperty("importColumn", True)
+        action_host.setFixedWidth(IMPORT_ACTION_WIDTH)
+        action_host.setFixedHeight(IMPORT_ACTION_HEIGHT)
         action_layout = QHBoxLayout(action_host)
-        action_layout.setContentsMargins(0, 0, 0, 0)
+        action_layout.setContentsMargins(SPACE_8, 0, 0, 0)
         action_layout.setSpacing(SPACE_4)
 
         confirmable = (
@@ -135,21 +143,32 @@ class ImportReviewRow(QFrame):
         self.import_button = QPushButton(action_host)
         self.import_button.setObjectName("confirmImportButton")
         self.import_button.setProperty("role", "primaryAction")
-        self.import_button.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        self.import_button.setSizePolicy(
+            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed
+        )
+        self.import_button.setFixedHeight(IMPORT_ACTION_HEIGHT)
         set_fluent_icon(self.import_button, FluentIconName.ADD_MOVIES)
         action_layout.addWidget(self.import_button)
-        self.import_button.setVisible(confirmable)
         self.import_button.clicked.connect(self._request_confirmation)
-        self._localizer.bind_text(self.import_button, TextId.ADD_TO_LIBRARY)
+        self._localizer.bind_text(self.import_button, TextId.IMPORT_ADD_ACTION)
+        self.import_button.setToolTip(self._localizer.text(TextId.ADD_TO_LIBRARY))
+        self.import_button.setVisible(confirmable)
 
         self.manual_search_button = QPushButton(action_host)
         self.manual_search_button.setObjectName("editSearchButton")
         self.manual_search_button.setProperty("role", "secondaryAction")
         self.manual_search_button.setSizePolicy(
-            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed
         )
+        self.manual_search_button.setFixedHeight(IMPORT_ACTION_HEIGHT)
         set_fluent_icon(self.manual_search_button, FluentIconName.SEARCH)
         action_layout.addWidget(self.manual_search_button)
+        self._localizer.bind_text(
+            self.manual_search_button, TextId.IMPORT_SEARCH_ACTION
+        )
+        self.manual_search_button.setToolTip(
+            self._localizer.text(TextId.EDIT_SEARCH)
+        )
         self.manual_search_button.setVisible(
             proposal.discovery.classification.value == "MOVIE_CANDIDATE"
             and proposal.status
@@ -161,27 +180,33 @@ class ImportReviewRow(QFrame):
         self.manual_search_button.clicked.connect(
             lambda: self.manual_search_requested.emit(self.proposal, self)
         )
-        self._localizer.bind_text(self.manual_search_button, TextId.EDIT_SEARCH)
 
         authentication_missing = (
             ImportProposalReason.METADATA_AUTHENTICATION in set(proposal.reasons)
         )
-        self.settings_button = QPushButton()
+        self.settings_button = QPushButton(action_host)
         self.settings_button.setObjectName("openMetadataSettingsButton")
         self.settings_button.setProperty("role", "secondaryAction")
         self.settings_button.setSizePolicy(
-            QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+        )
+        self.settings_button.setFixedSize(
+            IMPORT_ACTION_HEIGHT, IMPORT_ACTION_HEIGHT
         )
         set_fluent_icon(self.settings_button, FluentIconName.SETTINGS)
-        self.settings_button.setVisible(authentication_missing)
+        self.settings_button.setText("")
         self.settings_button.clicked.connect(self.settings_requested.emit)
-        self._localizer.bind_text(self.settings_button, TextId.OPEN_SETTINGS)
+        self.settings_button.setToolTip(self._localizer.text(TextId.OPEN_SETTINGS))
+        action_layout.addStretch(1)
         action_layout.addWidget(self.settings_button)
+        self.settings_button.setVisible(authentication_missing)
 
-        self.dismiss_button = QPushButton()
+        self.dismiss_button = QPushButton(action_host)
         self.dismiss_button.setObjectName("dismissProposalButton")
         self.dismiss_button.setProperty("role", "compactAction")
-        self.dismiss_button.setFixedSize(32, 32)
+        self.dismiss_button.setFixedSize(
+            IMPORT_ACTION_HEIGHT, IMPORT_ACTION_HEIGHT
+        )
         set_fluent_icon(self.dismiss_button, FluentIconName.DELETE)
         self.dismiss_button.setText("")
         self.dismiss_button.setToolTip(self._localizer.text(TextId.DISMISS_PROPOSAL))
@@ -192,37 +217,54 @@ class ImportReviewRow(QFrame):
             )
         )
         action_layout.addWidget(self.dismiss_button)
-        primary.addWidget(action_host)
-        layout.addLayout(primary)
+        layout.addWidget(action_host, 0, 4, Qt.AlignmentFlag.AlignTop)
 
-        self.candidate_selector = QComboBox()
+        self._action_buttons = (
+            (self.import_button, 72),
+            (self.manual_search_button, 88),
+        )
+        self._refresh_action_button_sizes()
+        self._localizer.language_changed.connect(self._refresh_action_button_sizes)
+        self._localizer.language_changed.connect(self._refresh_action_tooltips)
+        self._localizer.language_changed.connect(self._retranslate_status)
+
+        self.candidate_selector = QComboBox(self)
         self.candidate_selector.setObjectName("candidateSelector")
+        self.candidate_selector.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
+        self.candidate_selector.setMinimumWidth(0)
+        self.candidate_selector.setMinimumHeight(IMPORT_ACTION_HEIGHT)
+        self.candidate_selector.setMinimumContentsLength(20)
+        self.candidate_selector.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
         for candidate in proposal.candidates:
-            self.candidate_selector.addItem(_candidate_label(candidate), candidate)
+            label = _candidate_label(candidate)
+            self.candidate_selector.addItem(label, candidate)
+            self.candidate_selector.setItemData(
+                self.candidate_selector.count() - 1,
+                label,
+                Qt.ItemDataRole.ToolTipRole,
+            )
         if proposal.proposed_candidate is not None:
             for index in range(self.candidate_selector.count()):
                 if self.candidate_selector.itemData(index) == proposal.proposed_candidate:
                     self.candidate_selector.setCurrentIndex(index)
                     break
-        needs_candidate_choice = confirmable and (
-            proposal.status in {
+        show_candidate = (
+            confirmable
+            and proposal.status
+            in {
+                ImportProposalStatus.MATCH_PROPOSED,
                 ImportProposalStatus.REVIEW_REQUIRED,
                 ImportProposalStatus.MANUAL_SELECTION,
             }
-            or len(proposal.candidates) > 1
+            and bool(proposal.candidates)
         )
-        self.candidate_selector.setVisible(needs_candidate_choice)
-        layout.addWidget(self.candidate_selector)
-
-        self._explanation = QLabel(_explanation(proposal, self._localizer), self)
-        self._explanation.setObjectName("importExplanationLabel")
-        self._explanation.setProperty("role", "muted")
-        self._explanation.setWordWrap(True)
-        layout.addWidget(self._explanation)
-        self._explanation.setVisible(
-            proposal.status is not ImportProposalStatus.MATCH_PROPOSED
-            or len(proposal.candidates) > 1
-        )
+        self.candidate_selector.setVisible(show_candidate)
+        layout.addWidget(self.candidate_selector, 1, 0, 1, 4)
+        self.setMinimumHeight(self.sizeHint().height())
 
     @property
     def selected_candidate(self) -> MovieCandidate | None:
@@ -235,18 +277,20 @@ class ImportReviewRow(QFrame):
 
     @property
     def explanation_text(self) -> str:
-        return self._explanation.text()
+        return ""
 
     @property
     def can_import(self) -> bool:
         return not self.import_button.isHidden() and self.import_button.isEnabled()
 
     def mark_imported(self) -> None:
+        self._status_text_id = TextId.ADDED_TO_LIBRARY
         self._status.setText(self._localizer.text(TextId.ADDED_TO_LIBRARY))
         self.import_button.setEnabled(False)
         self.candidate_selector.setEnabled(False)
 
     def mark_import_failed(self, message: str) -> None:
+        self._status_text_id = None
         self._status.setText(message)
         self.import_button.setEnabled(True)
         self.candidate_selector.setEnabled(True)
@@ -256,76 +300,68 @@ class ImportReviewRow(QFrame):
         self.proposal = proposal
         self.candidate_selector.clear()
         for candidate in proposal.candidates:
-            self.candidate_selector.addItem(_candidate_label(candidate), candidate)
+            label = _candidate_label(candidate)
+            self.candidate_selector.addItem(label, candidate)
+            self.candidate_selector.setItemData(
+                self.candidate_selector.count() - 1,
+                label,
+                Qt.ItemDataRole.ToolTipRole,
+            )
         self.candidate_selector.setVisible(True)
-        self._explanation.setVisible(True)
         self.import_button.setVisible(True)
         self.import_button.setEnabled(True)
         self.manual_search_button.setVisible(False)
         self._status.setProperty("proposalStatus", proposal.status.value)
+        self._status_text_id = TextId.IMPORT_MANUAL_SELECTED
         self._status.setText(self._localizer.text(TextId.IMPORT_MANUAL_SELECTED))
-        self._explanation.setText(self._localizer.text(TextId.IMPORT_MANUAL_EXPLANATION))
         self.style().unpolish(self._status)
         self.style().polish(self._status)
+
+    def _refresh_action_button_sizes(self, _language=None) -> None:
+        for button, baseline in self._action_buttons:
+            button.setMinimumWidth(max(baseline, button.sizeHint().width()))
+
+    def _refresh_action_tooltips(self, _language=None) -> None:
+        self.import_button.setToolTip(self._localizer.text(TextId.ADD_TO_LIBRARY))
+        self.manual_search_button.setToolTip(
+            self._localizer.text(TextId.EDIT_SEARCH)
+        )
+        self.settings_button.setToolTip(self._localizer.text(TextId.OPEN_SETTINGS))
+
+    def _retranslate_status(self, _language=None) -> None:
+        if self._status_text_id is not None:
+            self._status.setText(self._localizer.text(self._status_text_id))
 
     def _request_confirmation(self) -> None:
         candidate = self.selected_candidate
         self.import_button.setEnabled(False)
         self.candidate_selector.setEnabled(False)
+        self._status_text_id = TextId.ADDING_TO_LIBRARY
         self._status.setText(self._localizer.text(TextId.ADDING_TO_LIBRARY))
         self.confirm_requested.emit(self.proposal, candidate)
 
 
 def _candidate_label(candidate: MovieCandidate) -> str:
-    return " — ".join(
-        (
-            f"{candidate.title} ({format_year(candidate.year)})",
-            candidate.provider.upper(),
-            format_rating(candidate.rating),
-        )
+    return (
+        f"{candidate.title} ({_compact_year(candidate.year)})"
+        f"    {_compact_rating(candidate.rating)}"
     )
 
 
-def _explanation(proposal: MovieImportProposal, localizer: UiLocalizer) -> str:
-    if proposal.match_decision is not None:
-        confidence = round(proposal.match_decision.confidence * 100)
-        reasons = ", ".join(
-            " ".join(reason.value.split("_")).title()
-            for reason in proposal.match_decision.reasons
-        )
-        return localizer.text(
-            TextId.IMPORT_CONFIDENCE, confidence=confidence, reasons=reasons
-        )
-    reasons = set(proposal.reasons)
-    if ImportProposalReason.TV_EPISODE_NOT_SUPPORTED in reasons:
-        return localizer.text(TextId.IMPORT_TV_EXPLANATION)
-    if ImportProposalReason.UNKNOWN_MEDIA in reasons:
-        return localizer.text(TextId.IMPORT_UNKNOWN_EXPLANATION)
-    if ImportProposalReason.DISCOVERY_ERROR in reasons:
-        return localizer.text(TextId.IMPORT_DISCOVERY_EXPLANATION)
-    if ImportProposalReason.METADATA_AUTHENTICATION in reasons:
-        return localizer.text(TextId.IMPORT_AUTH_EXPLANATION)
-    if ImportProposalReason.METADATA_RATE_LIMIT in reasons:
-        return localizer.text(TextId.IMPORT_RATE_EXPLANATION)
-    if ImportProposalReason.METADATA_RESPONSE_ERROR in reasons:
-        return localizer.text(TextId.IMPORT_RESPONSE_EXPLANATION)
-    messages = {
-        ImportProposalStatus.NO_MATCH: TextId.IMPORT_NO_MATCH_EXPLANATION,
-        ImportProposalStatus.METADATA_UNAVAILABLE: TextId.IMPORT_UNAVAILABLE_EXPLANATION,
-        ImportProposalStatus.ALREADY_IN_LIBRARY: TextId.IMPORT_ALREADY_EXPLANATION,
-        ImportProposalStatus.MANUAL_SELECTION: TextId.IMPORT_MANUAL_EXPLANATION,
-    }
-    return localizer.text(
-        messages.get(proposal.status, TextId.IMPORT_REVIEW_EXPLANATION)
-    )
+def _compact_year(value: int | None) -> str:
+    return str(value) if value is not None else "--"
 
 
-def _status_text(proposal: MovieImportProposal, localizer: UiLocalizer) -> str:
+def _compact_rating(value: float | None) -> str:
+    return to_western_numerals(f"{value:.1f}/10") if value is not None else "--"
+
+
+def _status_text_id(proposal: MovieImportProposal) -> TextId:
     reasons = set(proposal.reasons)
     if ImportProposalReason.TV_EPISODE_NOT_SUPPORTED in reasons:
-        return localizer.text(TextId.IMPORT_TV_SKIPPED)
+        return TextId.IMPORT_TV_SKIPPED
     if ImportProposalReason.UNKNOWN_MEDIA in reasons:
-        return localizer.text(TextId.IMPORT_UNKNOWN)
+        return TextId.IMPORT_UNKNOWN
     if ImportProposalReason.DISCOVERY_ERROR in reasons:
-        return localizer.text(TextId.IMPORT_SCAN_ERROR)
-    return localizer.text(_STATUS_TEXT[proposal.status])
+        return TextId.IMPORT_SCAN_ERROR
+    return _STATUS_TEXT[proposal.status]

@@ -77,7 +77,6 @@ class LibraryCheckPage(QWidget):
         self._last_value: LibraryReconciliationProgress | LibraryHealthProgress | None = None
 
         layout = QVBoxLayout(self)
-        self.setMaximumWidth(560)
         layout.setContentsMargins(SPACE_36, SPACE_36, SPACE_36, SPACE_36)
         layout.setSpacing(SPACE_12)
 
@@ -186,7 +185,8 @@ class LibraryCheckPage(QWidget):
         layout.addLayout(buttons)
         layout.addStretch(1)
 
-        self._localizer.language_changed.connect(lambda _language: self._refresh_dynamic_text())
+        self._localizer.language_changed.connect(self._language_changed)
+        self._apply_layout_direction()
         self._set_idle_state()
 
     @property
@@ -422,18 +422,62 @@ class LibraryCheckPage(QWidget):
         title_label = QLabel(title)
         title_label.setObjectName("checkLibraryIssueTitle")
         title_label.setWordWrap(True)
+        title_label.setAlignment(self._text_alignment())
         row_layout.addWidget(title_label, 0, 0, 1, 2)
         issue_label = QLabel(issue)
         issue_label.setObjectName("checkLibraryIssueDetail")
         issue_label.setWordWrap(True)
+        issue_label.setAlignment(self._text_alignment())
         row_layout.addWidget(issue_label, 1, 0, 1, 2)
         if outcome:
             outcome_label = QLabel(outcome)
             outcome_label.setObjectName("checkLibraryIssueOutcome")
             outcome_label.setProperty("role", "secondary")
             outcome_label.setWordWrap(True)
+            outcome_label.setAlignment(self._text_alignment())
             row_layout.addWidget(outcome_label, 2, 0, 1, 2)
         return row
+
+    def _language_changed(self, _language) -> None:
+        self._apply_layout_direction()
+        self._refresh_dynamic_text()
+
+    def _text_alignment(self) -> Qt.AlignmentFlag:
+        horizontal = (
+            Qt.AlignmentFlag.AlignRight
+            if self._localizer.language.value == "ar"
+            else Qt.AlignmentFlag.AlignLeft
+        )
+        return horizontal | Qt.AlignmentFlag.AlignVCenter
+
+    def _apply_layout_direction(self) -> None:
+        rtl = self._localizer.language.value == "ar"
+        direction = (
+            Qt.LayoutDirection.RightToLeft
+            if rtl
+            else Qt.LayoutDirection.LeftToRight
+        )
+        self.setLayoutDirection(direction)
+        self._summary_panel.setLayoutDirection(direction)
+        self._issues_host.setLayoutDirection(direction)
+        for label in (
+            self._title,
+            self._description,
+            self._status,
+            self._positive,
+            self._failure,
+            self._issues_heading,
+            self._passed,
+            self._needs_attention,
+        ):
+            label.setAlignment(self._text_alignment())
+        for name in (
+            "checkLibraryIssueTitle",
+            "checkLibraryIssueDetail",
+            "checkLibraryIssueOutcome",
+        ):
+            for label in self._issues_host.findChildren(QLabel, name):
+                label.setAlignment(self._text_alignment())
 
     def _issue_text(self, item: MetadataHealthItem) -> str:
         issue_ids = {
