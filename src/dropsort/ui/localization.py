@@ -3,6 +3,8 @@ from __future__ import annotations
 from enum import StrEnum
 import weakref
 
+import shiboken6
+
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -1286,9 +1288,13 @@ class UiLocalizer(QObject):
     def __init__(self, language: UiLanguage = UiLanguage.ENGLISH, parent=None) -> None:
         super().__init__(parent)
         self._language = language
-        self._bindings: weakref.WeakKeyDictionary[QWidget, tuple[TextId, dict[str, object]]] = (
-            weakref.WeakKeyDictionary()
-        )
+        # Qt can destroy a widget's C++ instance while its Python wrapper is
+        # still reachable (for example after deleteLater/setParent(None)).
+        # Key bindings by Python identity and unregister them from QObject's
+        # destroyed signal so language refreshes never retain dead wrappers.
+        self._bindings: dict[
+            int, tuple[weakref.ReferenceType[QWidget], TextId, dict[str, object]]
+        ] = {}
         self._apply_direction()
 
     @property
@@ -1310,13 +1316,32 @@ class UiLocalizer(QObject):
         return "  •  ".join(self.genre(value) for value in values)
 
     def bind_text(self, widget: QWidget, key: TextId, **values: object) -> None:
-        self._bindings[widget] = (key, values)
+        if not self._is_live_widget(widget):
+            return
+        widget_id = id(widget)
+        existing = self._bindings.get(widget_id)
+        if existing is not None and existing[0]() is widget:
+            self._bindings[widget_id] = (existing[0], key, values)
+            widget.setText(self.text(key, **values))  # type: ignore[attr-defined]
+            return
+        self._bindings[widget_id] = (weakref.ref(widget), key, values)
+        localizer_ref = weakref.ref(self)
+        widget.destroyed.connect(
+            lambda _object=None, binding_id=widget_id, owner=localizer_ref: (
+                owner() and owner()._remove_binding(binding_id)
+            )
+        )
         widget.setText(self.text(key, **values))  # type: ignore[attr-defined]
 
     def refresh_binding(self, widget: QWidget, **values: object) -> None:
-        key, previous = self._bindings[widget]
+        widget_id = id(widget)
+        binding = self._bindings.get(widget_id)
+        if binding is None or not self._is_live_widget(widget):
+            self._bindings.pop(widget_id, None)
+            return
+        _reference, key, previous = binding
         merged = {**previous, **values}
-        self._bindings[widget] = (key, merged)
+        self._bindings[widget_id] = (_reference, key, merged)
         widget.setText(self.text(key, **merged))  # type: ignore[attr-defined]
 
     def set_language(self, language: UiLanguage) -> None:
@@ -1324,9 +1349,28 @@ class UiLocalizer(QObject):
             raise ValueError("language must be supported")
         self._language = language
         self._apply_direction()
-        for widget, (key, values) in tuple(self._bindings.items()):
-            widget.setText(self.text(key, **values))  # type: ignore[attr-defined]
+        for binding_id, (reference, key, values) in tuple(self._bindings.items()):
+            widget = reference()
+            if widget is None or not self._is_live_widget(widget):
+                self._bindings.pop(binding_id, None)
+                continue
+            try:
+                widget.setText(self.text(key, **values))  # type: ignore[attr-defined]
+            except RuntimeError:
+                # A queued destroyed signal can race this refresh; remove the
+                # binding and let the next refresh proceed with live widgets.
+                self._bindings.pop(binding_id, None)
         self.language_changed.emit(language)
+
+    def _remove_binding(self, binding_id: int) -> None:
+        self._bindings.pop(binding_id, None)
+
+    @staticmethod
+    def _is_live_widget(widget: QWidget) -> bool:
+        try:
+            return bool(shiboken6.isValid(widget))
+        except (RuntimeError, TypeError):
+            return False
 
     def mark_ltr(self, widget: QWidget) -> None:
         widget.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
