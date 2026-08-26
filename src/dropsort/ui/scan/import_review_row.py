@@ -22,7 +22,7 @@ from dropsort.application.dto.movie_import import (
 from dropsort.metadata.contracts import MovieCandidate
 from dropsort.ui.common.formatting import to_western_numerals
 from dropsort.ui.common.icon import FluentIconName, set_fluent_icon
-from dropsort.ui.common.theme import SPACE_4, SPACE_12, SPACE_SMALL
+from dropsort.ui.common.theme import SPACE_4, SPACE_8, SPACE_12, SPACE_SMALL
 from dropsort.ui.localization import TextId, UiLocalizer
 
 
@@ -66,7 +66,7 @@ class ImportReviewRow(QFrame):
         layout = QGridLayout(self)
         layout.setContentsMargins(SPACE_12, SPACE_SMALL, SPACE_12, SPACE_SMALL)
         layout.setHorizontalSpacing(SPACE_12)
-        layout.setVerticalSpacing(SPACE_SMALL)
+        layout.setVerticalSpacing(SPACE_8)
         layout.setColumnStretch(0, 1)
         layout.setColumnMinimumWidth(0, IMPORT_TITLE_MIN_WIDTH)
         layout.setColumnMinimumWidth(1, IMPORT_YEAR_WIDTH)
@@ -136,7 +136,9 @@ class ImportReviewRow(QFrame):
         action_layout = QHBoxLayout(action_host)
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(SPACE_4)
-        action_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+        action_layout.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
 
         confirmable = (
             proposal.discovery.classification.value == "MOVIE_CANDIDATE"
@@ -224,7 +226,7 @@ class ImportReviewRow(QFrame):
             )
         )
         action_layout.addWidget(self.dismiss_button)
-        layout.addWidget(action_host, 0, 4, 2, 1, Qt.AlignmentFlag.AlignVCenter)
+        layout.addWidget(action_host, 0, 4, 3, 1, Qt.AlignmentFlag.AlignVCenter)
 
         self._action_buttons = (
             (self.import_button, 72),
@@ -234,6 +236,11 @@ class ImportReviewRow(QFrame):
         self._localizer.language_changed.connect(self._refresh_action_button_sizes)
         self._localizer.language_changed.connect(self._refresh_action_tooltips)
         self._localizer.language_changed.connect(self._retranslate_status)
+
+        self._candidate_divider = QFrame(self)
+        self._candidate_divider.setObjectName("importCandidateDivider")
+        self._candidate_divider.setProperty("role", "rowDivider")
+        self._candidate_divider.setFixedHeight(1)
 
         self.candidate_selector = QComboBox(self)
         self.candidate_selector.setObjectName("candidateSelector")
@@ -253,8 +260,18 @@ class ImportReviewRow(QFrame):
                     self.candidate_selector.setCurrentIndex(index)
                     break
         show_candidate = bool(proposal.candidates)
+        self._candidate_divider.setVisible(show_candidate)
         self.candidate_selector.setVisible(show_candidate)
-        layout.addWidget(self.candidate_selector, 1, 0, 1, 4)
+        self.candidate_selector.setProperty("role", "candidateReviewControl")
+        layout.addWidget(self._candidate_divider, 1, 0, 1, 4)
+        layout.addWidget(
+            self.candidate_selector,
+            2,
+            0,
+            1,
+            4,
+            Qt.AlignmentFlag.AlignVCenter,
+        )
         self.setMinimumHeight(self.sizeHint().height())
 
     @property
@@ -290,6 +307,7 @@ class ImportReviewRow(QFrame):
         """Replace the informational proposal after an explicit result selection."""
         self.proposal = proposal
         self._populate_candidates(proposal)
+        self._candidate_divider.setVisible(True)
         self.candidate_selector.setVisible(True)
         self.import_button.setVisible(True)
         self.import_button.setEnabled(True)

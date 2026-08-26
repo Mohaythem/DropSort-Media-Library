@@ -43,7 +43,7 @@ from dropsort.media.discovery.errors import DiscoveryRootError
 from dropsort.media.discovery.models import DiscoveryErrorCode
 from dropsort.ui.common.tasks import QtTaskRunner, TaskRunner
 from dropsort.ui.common.icon import FluentIconName, set_fluent_icon
-from dropsort.ui.common.theme import SPACE_16, SPACE_24, SPACE_36, SPACE_MEDIUM
+from dropsort.ui.common.theme import SPACE_8, SPACE_16, SPACE_24, SPACE_36, SPACE_MEDIUM
 from dropsort.ui.contracts import ImportUiActions
 from dropsort.ui.scan.import_review_row import (
     IMPORT_ACTION_WIDTH,
@@ -232,7 +232,7 @@ class ImportView(QWidget):
         self._container.setObjectName("importReviewContainer")
         self._rows_layout = QVBoxLayout(self._container)
         self._rows_layout.setContentsMargins(0, 0, 0, 0)
-        self._rows_layout.setSpacing(0)
+        self._rows_layout.setSpacing(SPACE_8)
         self._rows_layout.addStretch(1)
         layout.addWidget(self._container)
         layout.addStretch(1)
@@ -709,7 +709,12 @@ class ImportView(QWidget):
             TextId.SCAN_CANCELLED, files=progress.entries_seen
         ))
         self._progress.setText(
-            f"Folders: {progress.directories_seen} · Files inspected: {progress.entries_seen}"
+            self._localizer.text(
+                TextId.SCAN_PROGRESS_DISCOVERY,
+                folders=progress.directories_seen,
+                files=progress.entries_seen,
+                movies=progress.movie_candidates,
+            )
         )
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(0)

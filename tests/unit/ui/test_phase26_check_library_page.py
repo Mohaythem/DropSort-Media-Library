@@ -146,6 +146,31 @@ def test_check_library_rtl_button_placement_and_geometry_parity(qapp) -> None:
     assert arabic_left > english_left
 
 
+def test_check_library_shared_structure_has_equal_summary_cells(qapp) -> None:
+    localizer = UiLocalizer(UiLanguage.ENGLISH)
+    page = LibraryCheckPage(Actions(), DeferredRunner(), localizer=localizer)
+    page.resize(1000, 700)
+    page.show()
+    page._token = 1
+    page._on_success(1, _result())
+    qapp.processEvents()
+
+    passed = page.findChild(QLabel, "libraryCheckPassedLabel")
+    attention = page.findChild(QLabel, "libraryCheckNeedsAttentionLabel")
+    button = page.findChild(QPushButton, "startLibraryCheckPageButton")
+    english = (passed.size(), attention.size(), button.size())
+
+    assert abs(passed.width() - attention.width()) <= 1
+    assert page._summary_layout.columnStretch(0) == 1
+    assert page._summary_layout.columnStretch(1) == 1
+
+    localizer.set_language(UiLanguage.ARABIC)
+    qapp.processEvents()
+    assert (passed.size(), attention.size(), button.size()) == english
+    assert passed.alignment() & Qt.AlignmentFlag.AlignRight
+    assert attention.alignment() & Qt.AlignmentFlag.AlignRight
+
+
 def test_running_check_finishes_safely_then_resets_when_left_hidden(qapp) -> None:
     runner = DeferredRunner()
     page = LibraryCheckPage(Actions(), runner)

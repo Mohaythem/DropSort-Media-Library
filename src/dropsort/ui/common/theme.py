@@ -754,12 +754,13 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         }}
         QFrame#importReviewRow {{
             background: {colors.card};
-            border: none;
-            border-bottom: 1px solid {colors.border};
-            border-radius: 0px;
+            border: 1px solid {colors.border};
+            border-radius: {RADIUS_MEDIUM}px;
+            padding: 0px;
         }}
         QFrame#importReviewRow:hover {{
             background: {colors.card_hover};
+            border-color: {colors.secondary};
         }}
         QLabel[importColumn="true"] {{
             border-left: 1px solid {colors.border};
@@ -767,9 +768,16 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         }}
         QWidget#importActionHost {{
             border-left: 1px solid {colors.border};
+            padding: 0px;
         }}
         QComboBox#candidateSelector {{
             min-height: {CONTROL_HEIGHT}px;
+        }}
+        QFrame#importCandidateDivider {{
+            background: {colors.border};
+            border: none;
+            min-height: 1px;
+            max-height: 1px;
         }}
         QPushButton#confirmImportButton,
         QPushButton#editSearchButton {{
@@ -783,6 +791,7 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
             border: 1px solid {colors.border};
             border-radius: {RADIUS_SMALL}px;
             padding: 0px;
+            text-align: center;
         }}
         QPushButton#openMetadataSettingsButton:hover,
         QPushButton#dismissProposalButton:hover {{

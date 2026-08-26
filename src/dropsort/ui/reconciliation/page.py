@@ -33,6 +33,7 @@ from dropsort.ui.localization import TextId, UiLocalizer
 
 
 CHECK_LIBRARY_ACTION_WIDTH = 176
+CHECK_LIBRARY_SUMMARY_MIN_HEIGHT = 64
 
 
 def _percentage(checked: int, total: int) -> int:
@@ -125,9 +126,13 @@ class LibraryCheckPage(QWidget):
         self._summary_panel = QFrame()
         self._summary_panel.setObjectName("checkLibrarySummaryPanel")
         self._summary_panel.setProperty("role", "panel")
+        self._summary_panel.setMinimumHeight(CHECK_LIBRARY_SUMMARY_MIN_HEIGHT)
         summary_layout = QGridLayout(self._summary_panel)
+        self._summary_layout = summary_layout
         summary_layout.setContentsMargins(SPACE_16, SPACE_12, SPACE_16, SPACE_12)
         summary_layout.setHorizontalSpacing(SPACE_24)
+        summary_layout.setColumnStretch(0, 1)
+        summary_layout.setColumnStretch(1, 1)
         self._passed = QLabel()
         self._passed.setObjectName("libraryCheckPassedLabel")
         self._passed.setProperty("role", "success")
@@ -171,6 +176,8 @@ class LibraryCheckPage(QWidget):
 
         buttons = QHBoxLayout()
         self._buttons_layout = buttons
+        buttons.setContentsMargins(0, 0, 0, 0)
+        buttons.setSpacing(SPACE_8)
         self._start = QPushButton()
         self._start.setObjectName("startLibraryCheckPageButton")
         self._start.setProperty("role", "primaryAction")
@@ -187,7 +194,7 @@ class LibraryCheckPage(QWidget):
         self._localizer.bind_text(self._cancel, TextId.CHECK_FILES_CANCEL)
         self._cancel.clicked.connect(self.cancel_check)
         buttons.addWidget(self._cancel)
-        buttons.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        buttons.setAlignment(Qt.AlignmentFlag.AlignLeading)
         layout.addLayout(buttons)
         layout.addStretch(1)
 

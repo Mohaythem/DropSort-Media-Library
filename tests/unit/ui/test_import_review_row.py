@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton
 
 from dropsort.application.dto.movie_import import ImportProposalReason, ImportProposalStatus
 from dropsort.application.configuration.localization import UiLanguage
@@ -228,6 +228,20 @@ def test_candidate_selector_sorts_by_rating_and_preserves_proposed_candidate(
     assert [row.candidate_selector.itemData(i).external_id for i in range(row.candidate_selector.count())] == ["h", "t", "l", "u"]
     assert row.selected_candidate is low
     assert proposal.candidates == original
+
+
+def test_candidate_review_stays_inside_the_bounded_movie_row(
+    qapp, proposal_factory
+) -> None:
+    row = ImportReviewRow(proposal_factory())
+    divider = row.findChild(QFrame, "importCandidateDivider")
+
+    assert row.objectName() == "importReviewRow"
+    assert divider is not None
+    assert divider.parentWidget() is row
+    assert row.candidate_selector.parentWidget() is row
+    assert divider.isHidden() is False
+    assert row.candidate_selector.isHidden() is False
 
 
 def test_add_movies_icon_actions_use_equal_tool_button_geometry(

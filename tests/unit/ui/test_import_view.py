@@ -854,6 +854,7 @@ def test_mixed_review_rows_keep_minimum_height_without_visual_overlap(
             )
     for current, following in zip(view.rows, view.rows[1:]):
         assert current.geometry().bottom() < following.geometry().top()
+        assert following.geometry().top() - current.geometry().bottom() >= 8
 
 
 def test_no_match_and_tv_skipped_keep_the_same_primary_column_geometry(
