@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import ctypes
 import logging
+import sys
 
 from PySide6.QtCore import (
     QEvent,
     QSignalBlocker,
+    QPoint,
     QSize,
     Qt,
     QStringListModel,
 )
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QFrame,
     QButtonGroup,
@@ -22,9 +25,12 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStackedWidget,
     QSplitter,
+    QStyle,
+    QToolButton,
     QVBoxLayout,
     QWidget,
     QApplication,
+    QSizePolicy,
 )
 
 from dropsort.application.dto.reconciliation import LibraryReconciliationProgress
@@ -77,6 +83,20 @@ from dropsort.ui.localization import TextId, UiLocalizer
 
 
 LOGGER = logging.getLogger(__name__)
+
+_RESIZE_BORDER = 8
+_WM_NCHITTEST = 0x0084
+_WM_GETMINMAXINFO = 0x0024
+_HTCLIENT = 1
+_HTCAPTION = 2
+_HTLEFT = 10
+_HTRIGHT = 11
+_HTTOP = 12
+_HTTOPLEFT = 13
+_HTTOPRIGHT = 14
+_HTBOTTOM = 15
+_HTBOTTOMLEFT = 16
+_HTBOTTOMRIGHT = 17
 
 
 class LibrarySearchEdit(QLineEdit):
@@ -143,6 +163,90 @@ class NavigationButton(QPushButton):
             self._position_accent()
 
 
+class _TitleDragRegion(QWidget):
+    def __init__(self, chrome: "WindowChrome", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._chrome = chrome
+
+    def mousePressEvent(self, event) -> None:
+        self._chrome._drag_press(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        self._chrome._drag_move(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._chrome._drag_position = None
+        event.accept()
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        self._chrome._drag_double_click(event)
+
+
+class WindowChrome(QWidget):
+    """Small client title region that delegates movement to the OS when possible."""
+
+    def __init__(self, window: QMainWindow, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._window = window
+        self.setObjectName("customTitleBar")
+        self.setFixedHeight(36)
+        self._drag_position = None
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 2, 0, 2)
+        layout.setSpacing(0)
+        self._drag_region = _TitleDragRegion(self, self)
+        self._drag_region.setObjectName("titleDragRegion")
+        self._drag_region.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        layout.addWidget(self._drag_region, 1)
+        self.minimize_button = self._button("minimizeWindowButton", QStyle.StandardPixmap.SP_TitleBarMinButton, self._window.showMinimized)
+        self.maximize_button = self._button("maximizeWindowButton", QStyle.StandardPixmap.SP_TitleBarMaxButton, self._toggle_maximized)
+        self.close_button = self._button("closeWindowButton", QStyle.StandardPixmap.SP_TitleBarCloseButton, self._window.close, close=True)
+        layout.addWidget(self.minimize_button)
+        layout.addWidget(self.maximize_button)
+        layout.addWidget(self.close_button)
+    def _button(self, name: str, standard_icon: QStyle.StandardPixmap, callback, *, close: bool = False) -> QToolButton:
+        button = QToolButton(self)
+        button.setObjectName(name)
+        button.setProperty("role", "windowCloseControl" if close else "windowControl")
+        button.setFixedSize(42, 32)
+        button.setIcon(self.style().standardIcon(standard_icon))
+        button.setIconSize(QSize(16, 16))
+        label = name.removesuffix("WindowButton").removesuffix("Button")
+        button.setToolTip(label)
+        button.setAccessibleName(label)
+        button.clicked.connect(callback)
+        return button
+
+    def _toggle_maximized(self) -> None:
+        self._window.showNormal() if self._window.isMaximized() else self._window.showMaximized()
+        self._sync_maximize_icon()
+
+    def _sync_maximize_icon(self) -> None:
+        icon = QStyle.StandardPixmap.SP_TitleBarNormalButton if self._window.isMaximized() else QStyle.StandardPixmap.SP_TitleBarMaxButton
+        self.maximize_button.setIcon(self.style().standardIcon(icon))
+
+    def _drag_press(self, event: QMouseEvent) -> None:
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        handle = self._window.windowHandle()
+        start_move = getattr(handle, "startSystemMove", None) if handle is not None else None
+        if callable(start_move) and start_move():
+            event.accept()
+            return
+        self._drag_position = event.globalPosition().toPoint() - self._window.frameGeometry().topLeft()
+        event.accept()
+
+    def _drag_move(self, event: QMouseEvent) -> None:
+        if self._drag_position is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            self._window.move(event.globalPosition().toPoint() - self._drag_position)
+            event.accept()
+
+    def _drag_double_click(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._toggle_maximized()
+            event.accept()
+
+
 class MainWindow(QMainWindow):
     NAVIGATION_ITEMS = (
         NavigationItem(
@@ -206,6 +310,18 @@ class MainWindow(QMainWindow):
         parent=None,
     ) -> None:
         super().__init__(parent)
+        flags = (
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowSystemMenuHint
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
+        # The offscreen Qt backend used by deterministic tests cannot create a
+        # native client frame and may crash when FramelessWindowHint is set.
+        if QApplication.platformName() != "offscreen":
+            flags |= Qt.WindowType.FramelessWindowHint
+        self.setWindowFlags(flags)
         self.setWindowIcon(application_icon())
         self._actions = actions
         self._settings_actions = settings_actions
@@ -244,6 +360,10 @@ class MainWindow(QMainWindow):
         root_layout.setSpacing(0)
         self.setCentralWidget(root)
 
+        self._window_chrome = WindowChrome(self, root)
+        self._window_chrome.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+        root_layout.addWidget(self._window_chrome)
+
         sidebar = QFrame()
         self.sidebar = sidebar
         sidebar.setObjectName("sidebar")
@@ -261,7 +381,10 @@ class MainWindow(QMainWindow):
 
         brand = QLabel("DropSort")
         brand.setObjectName("brandLabel")
-        brand_row.addWidget(brand)
+        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        brand_row.addStretch(1)
+        brand_row.addWidget(brand, 0, Qt.AlignmentFlag.AlignCenter)
+        brand_row.addStretch(1)
         sidebar_layout.addWidget(self._sidebar_top_row)
         sidebar_layout.addSpacing(16)
 
@@ -542,6 +665,85 @@ class MainWindow(QMainWindow):
             event.accept()
             return
         super().keyPressEvent(event)
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.WindowStateChange and hasattr(self, "_window_chrome"):
+            self._window_chrome._sync_maximize_icon()
+
+    def nativeEvent(self, event_type, message):
+        if sys.platform == "win32" and QApplication.platformName() != "offscreen":
+            from ctypes import wintypes
+
+            native_message = wintypes.MSG.from_address(int(message))
+            if native_message.message == _WM_NCHITTEST:
+                x = ctypes.c_short(native_message.lParam & 0xFFFF).value
+                y = ctypes.c_short((native_message.lParam >> 16) & 0xFFFF).value
+                return True, self._windows_hit_test(QPoint(x, y))
+            if native_message.message == _WM_GETMINMAXINFO:
+                self._apply_windows_maximized_geometry(native_message.lParam)
+                return True, 0
+        return super().nativeEvent(event_type, message)
+
+    def _windows_hit_test(self, global_position: QPoint) -> int:
+        if not self.isMaximized():
+            point = self.mapFromGlobal(global_position)
+            left = point.x() < _RESIZE_BORDER
+            right = point.x() >= self.width() - _RESIZE_BORDER
+            top = point.y() < _RESIZE_BORDER
+            bottom = point.y() >= self.height() - _RESIZE_BORDER
+            if top and left:
+                return _HTTOPLEFT
+            if top and right:
+                return _HTTOPRIGHT
+            if bottom and left:
+                return _HTBOTTOMLEFT
+            if bottom and right:
+                return _HTBOTTOMRIGHT
+            if left:
+                return _HTLEFT
+            if right:
+                return _HTRIGHT
+            if top:
+                return _HTTOP
+            if bottom:
+                return _HTBOTTOM
+        drag_region = self._window_chrome._drag_region
+        if drag_region.rect().contains(drag_region.mapFromGlobal(global_position)):
+            return _HTCAPTION
+        return _HTCLIENT
+
+    def _apply_windows_maximized_geometry(self, lparam: int) -> None:
+        from ctypes import wintypes
+
+        class MinMaxInfo(ctypes.Structure):
+            _fields_ = [
+                ("reserved", wintypes.POINT),
+                ("maximum_size", wintypes.POINT),
+                ("maximum_position", wintypes.POINT),
+                ("minimum_track_size", wintypes.POINT),
+                ("maximum_track_size", wintypes.POINT),
+            ]
+
+        class MonitorInfo(ctypes.Structure):
+            _fields_ = [
+                ("size", wintypes.DWORD),
+                ("monitor", wintypes.RECT),
+                ("work", wintypes.RECT),
+                ("flags", wintypes.DWORD),
+            ]
+
+        monitor = ctypes.windll.user32.MonitorFromWindow(int(self.winId()), 2)
+        info = MonitorInfo(ctypes.sizeof(MonitorInfo))
+        if not monitor or not ctypes.windll.user32.GetMonitorInfoW(
+            monitor, ctypes.byref(info)
+        ):
+            return
+        geometry = ctypes.cast(lparam, ctypes.POINTER(MinMaxInfo)).contents
+        geometry.maximum_position.x = info.work.left - info.monitor.left
+        geometry.maximum_position.y = info.work.top - info.monitor.top
+        geometry.maximum_size.x = info.work.right - info.work.left
+        geometry.maximum_size.y = info.work.bottom - info.work.top
 
     def show_library(self) -> None:
         if self._current_section == "library":

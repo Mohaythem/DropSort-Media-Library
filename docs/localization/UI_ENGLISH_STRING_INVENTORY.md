@@ -2,6 +2,18 @@
 
 Pass 3.2 translator handoff generated from the complete current `TextId` catalog plus an AST-assisted audit of direct UI string assignments. This inventory does not invent missing Arabic wording.
 
+## Pass 4 additions
+
+The custom window chrome introduces three accessibility/tool-tip labels. They
+are intentionally short platform-control names and are pending the normal
+human-reviewed Arabic wording pass:
+
+| Localization key or proposed key | English source text | Page / feature | UI context | Control/state type | Source file | Source symbol or nearby source context | Dynamic placeholders/values | Plural/count behavior | Currently localized? | Currently hard-coded? | Direction notes | Technical tokens that should remain LTR | Translation ambiguity / translator notes |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `window.chrome.minimize` | Minimize | Main shell | Custom title region | window control tooltip | `src/dropsort/ui/main_window/window.py` | `WindowChrome._button` | none | none | no | yes | Keep control order LTR for Windows chrome in RTL UI. | none | Use the conventional platform term. |
+| `window.chrome.maximize_restore` | Maximize or restore | Main shell | Custom title region | window control tooltip | `src/dropsort/ui/main_window/window.py` | `WindowChrome._button` | none | none | no | yes | Keep control order LTR for Windows chrome in RTL UI. | none | One label covers both state changes. |
+| `window.chrome.close` | Close | Main shell | Custom title region | window control tooltip | `src/dropsort/ui/main_window/window.py` | `WindowChrome._button` | none | none | no | yes | Keep control order LTR for Windows chrome in RTL UI. | none | Existing `common.close` wording can be reused by a later localization pass. |
+
 ## Summary
 
 | Feature | Total user-facing strings | Fully localized | Partially localized | Not localized / hard-coded |
@@ -18,9 +30,10 @@ Pass 3.2 translator handoff generated from the complete current `TextId` catalog
 | Relink | 13 | 13 | 0 | 0 |
 | Settings | 48 | 48 | 0 | 0 |
 | Sidebar/navigation | 6 | 6 | 0 | 0 |
-| **Total inventory entries** | **425** | **413** | **0** | **12** |
+| Window chrome | 3 | 0 | 0 | 3 |
+| **Total inventory entries** | **428** | **413** | **0** | **15** |
 
-Catalog coverage: 411 English entries, 411 Arabic entries, and 0 missing Arabic catalog keys. The 12 missing direct-source entries below are accessibility/error strings awaiting human-reviewed wording; the remaining two direct entries are intentional product/provider identities.
+Catalog coverage: 411 English entries, 411 Arabic entries, and 0 missing Arabic catalog keys. The 15 missing direct-source entries are accessibility/error/window-control strings awaiting human-reviewed wording; the remaining two direct entries are intentional product/provider identities.
 
 ## Catalog Entries
 

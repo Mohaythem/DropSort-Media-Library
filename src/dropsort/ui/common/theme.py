@@ -33,6 +33,17 @@ class ColorTokens(NamedTuple):
     selected: str
     focus: str
     disabled: str
+    # Explicit semantic aliases keep new surfaces from inventing local color
+    # literals while preserving the established token names used by V1 views.
+    app_background: str
+    dialog: str
+    input: str
+    subtle_border: str
+    primary_text: str
+    disabled_text: str
+    accent_pressed: str
+    info: str
+    separator: str
 
 
 DEEP_INK = ColorTokens(
@@ -57,6 +68,9 @@ DEEP_INK = ColorTokens(
     selected="#6B352A",
     focus="#F08A6B",
     disabled="#285047",
+    app_background="#0B1E1B", dialog="#17332E", input="#102925",
+    subtle_border="#285047", primary_text="#FFF1A6", disabled_text="#C9BE88",
+    accent_pressed="#D85D43", info="#79B8C4", separator="#285047",
 )
 
 CHATGPT_DARK = ColorTokens(
@@ -66,6 +80,9 @@ CHATGPT_DARK = ColorTokens(
     text_secondary="#BAC1CB", success="#79B88A", warning="#D9A441",
     primary_hover="#E8B652", accent_hover="#F0A06F",
     sidebar="#0D1118", selected="#222B37", focus="#E8B652", disabled="#2A3442",
+    app_background="#090B10", dialog="#171C25", input="#11151C",
+    subtle_border="#2A3442", primary_text="#F2F4F7", disabled_text="#858D99",
+    accent_pressed="#A9543B", info="#7EAFC4", separator="#2A3442",
 )
 
 SLATE = ColorTokens(
@@ -75,6 +92,9 @@ SLATE = ColorTokens(
     text_secondary="#C3C7CC", success="#5CB85C", warning="#E6BF9E",
     primary_hover="#C3D6E7", accent_hover="#E58B6E",
     sidebar="#202C38", selected="#314656", focus="#B3C9DD", disabled="#3C5164",
+    app_background="#18212B", dialog="#273746", input="#202C38",
+    subtle_border="#3C5164", primary_text="#E3E2E3", disabled_text="#8D9196",
+    accent_pressed="#C26145", info="#7FAFC2", separator="#3C5164",
 )
 
 LIGHT = ColorTokens(
@@ -87,6 +107,9 @@ LIGHT = ColorTokens(
     text_secondary="#525960", success="#3E7D5D", warning="#9B6B32",
     primary_hover="#40586A", accent_hover="#C9684B",
     sidebar="#EEEAE3", selected="#E3E8EC", focus="#526A7C", disabled="#DADDE0",
+    app_background="#F4F1EA", dialog="#FFFFFF", input="#FBF9F4",
+    subtle_border="#D5D9DD", primary_text="#26292D", disabled_text="#6F747A",
+    accent_pressed="#B5523A", info="#3B718A", separator="#D5D9DD",
 )
 
 THEMES = {
@@ -200,6 +223,35 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         QMainWindow, QWidget#appRoot, QWidget#settingsView, QWidget#libraryCheckPage {{
             background: {colors.background};
         }}
+        QDialog {{
+            background: {colors.dialog};
+            color: {colors.primary_text};
+        }}
+        /* Emit every semantic role through shared application surfaces. */
+        QWidget#appRoot {{
+            background: {colors.app_background};
+            color: {colors.primary_text};
+            border-color: {colors.subtle_border};
+        }}
+        QLabel[role="info"] {{ color: {colors.info}; }}
+        QLabel[role="disabled"] {{ color: {colors.disabled_text}; }}
+        QFrame[role="separator"], QFrame[role="settingDivider"] {{
+            background: {colors.separator};
+        }}
+        QWidget#customTitleBar {{
+            background: {colors.surface};
+            border-bottom: 1px solid {colors.separator};
+        }}
+        QToolButton[role="windowControl"], QToolButton[role="windowCloseControl"] {{
+            min-width: 42px; max-width: 42px;
+            min-height: 32px; max-height: 32px;
+            padding: 0px; margin: 0px;
+            border: none; border-radius: 0px;
+            background: transparent;
+        }}
+        QToolButton[role="windowControl"]:hover, QToolButton[role="windowCloseControl"]:hover {{ background: {colors.card_hover}; }}
+        QToolButton[role="windowControl"]:pressed, QToolButton[role="windowCloseControl"]:pressed {{ background: {colors.accent_pressed}; }}
+        QToolButton[role="windowCloseControl"]:hover {{ background: {colors.danger}; }}
         QFrame#sidebar {{
             background: {colors.sidebar};
             border-right: 1px solid {colors.border};
@@ -676,6 +728,15 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         QLabel#detailsRatingStars, QLabel#detailsHeroRatingStar {{
             color: {colors.warning};
             font-weight: {HEADING_WEIGHT};
+        }}
+        QDialog QLineEdit, QDialog QComboBox {{
+            background: {colors.input};
+            color: {colors.primary_text};
+            border-color: {colors.subtle_border};
+        }}
+        QDialog QFrame[role="panel"], QDialog QFrame#manualSearchResultCard {{
+            background: {colors.dialog};
+            border-color: {colors.subtle_border};
         }}
         QPushButton[role="primaryAction"]:pressed {{
             background: {colors.primary_hover};
