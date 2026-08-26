@@ -47,6 +47,8 @@ from dropsort.ui.common.formatting import (
 from dropsort.ui.common.rating import provider_rating_stars, provider_rating_text
 from dropsort.ui.common.icon import FluentIconName, set_fluent_icon
 from dropsort.ui.common.theme import (
+    PREFERENCE_ACTION_WIDTH,
+    PREFERENCE_CLEAR_WIDTH,
     SPACE_36,
     SPACE_LARGE,
     SPACE_MEDIUM,
@@ -541,6 +543,7 @@ class MovieDetailsView(QWidget):
         self._like_button.setProperty("role", "preferenceAction")
         set_fluent_icon(self._like_button, FluentIconName.LIKE)
         self._like_button.setCheckable(True)
+        self._like_button.setFixedWidth(PREFERENCE_ACTION_WIDTH)
         self._localizer.bind_text(self._like_button, TextId.DETAILS_LIKE)
         self._like_button.clicked.connect(
             lambda: self._run_personal_action("like")
@@ -551,6 +554,7 @@ class MovieDetailsView(QWidget):
         self._blacklist_button.setProperty("role", "preferenceAction")
         set_fluent_icon(self._blacklist_button, FluentIconName.BLACKLIST)
         self._blacklist_button.setCheckable(True)
+        self._blacklist_button.setFixedWidth(PREFERENCE_ACTION_WIDTH)
         self._localizer.bind_text(self._blacklist_button, TextId.DETAILS_BLACKLIST)
         self._blacklist_button.clicked.connect(
             lambda: self._run_personal_action("blacklist")
@@ -559,6 +563,7 @@ class MovieDetailsView(QWidget):
         self._clear_preference_button = QPushButton()
         self._clear_preference_button.setObjectName("personalClearPreferenceButton")
         self._clear_preference_button.setProperty("role", "ghostAction")
+        self._clear_preference_button.setFixedWidth(PREFERENCE_CLEAR_WIDTH)
         self._localizer.bind_text(
             self._clear_preference_button, TextId.DETAILS_CLEAR_PREFERENCE
         )
@@ -805,6 +810,13 @@ class MovieDetailsView(QWidget):
             # stable/interactive.
             self._render_personal(action=action)
             self._set_personal_controls_enabled(True)
+            action_button = self._button_for_personal_action(action or "")
+            if action_button is not None and action in {
+                "like",
+                "blacklist",
+                "clear_preference",
+            }:
+                action_button.setFocus(Qt.FocusReason.OtherFocusReason)
         else:
             self._set_personal_controls_enabled(False)
         if event_id is not None:
@@ -845,6 +857,8 @@ class MovieDetailsView(QWidget):
         if button is None:
             return
         button.setProperty("busy", busy)
+        if busy and action in {"like", "blacklist", "clear_preference"}:
+            self.take_stable_focus()
         button.setEnabled(not busy)
         # setEnabled() already schedules the correct native/QSS state repaint.
         # Do not force an unpolish/polish cycle for one transient operation;
@@ -865,6 +879,13 @@ class MovieDetailsView(QWidget):
         self._personal_busy_action = action
         self._personal_busy_event_id = None
         self._personal_error.clear()
+        action_button = self._button_for_personal_action(action)
+        if action_button is not None and action in {
+            "like",
+            "blacklist",
+            "clear_preference",
+        }:
+            action_button.setFocus(Qt.FocusReason.MouseFocusReason)
         # Revert a checkable button's immediate Qt toggle to the authoritative
         # snapshot, then show busy state on that control only.
         self._render_personal(action=action)
@@ -927,6 +948,15 @@ class MovieDetailsView(QWidget):
         self._personal_snapshot = value
         self._render_personal(action=action)
         self._set_personal_controls_enabled(True)
+        if action == "remove_watchlist":
+            self._mark_watched_date_button.setEnabled(False)
+        action_button = self._button_for_personal_action(action or "")
+        if action_button is not None and action in {
+            "like",
+            "blacklist",
+            "clear_preference",
+        }:
+            action_button.setFocus(Qt.FocusReason.OtherFocusReason)
         self.personal_changed.emit(
             value.state.movie_id,
             _personal_sections_for_action(action),
@@ -946,7 +976,6 @@ class MovieDetailsView(QWidget):
         )
         self._clear_preference_button.setEnabled(
             state.preference is not PersonalPreference.NO_OPINION
-            and self._personal_busy_action != "clear_preference"
         )
 
     def _render_watchlist_state(self) -> None:

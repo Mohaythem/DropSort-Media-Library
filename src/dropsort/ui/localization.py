@@ -118,6 +118,7 @@ class TextId(StrEnum):
     DETAILS_WATCH_DATE_FUTURE = "details.watch_date_future"
     DETAILS_WATCH_SAVED = "details.watch_saved"
     PERSONAL_LIBRARY_HEADING = "personal.heading"
+    PERSONAL_SEARCH_PLACEHOLDER = "personal.search.placeholder"
     PERSONAL_TAB_WATCHLIST = "personal.tab_watchlist"
     PERSONAL_TAB_READY = "personal.tab_ready"
     PERSONAL_TAB_LIKED = "personal.tab_liked"
@@ -533,6 +534,7 @@ _ENGLISH: dict[TextId, str] = {
     TextId.DETAILS_WATCH_DATE_FUTURE: "Choose today or an earlier date.",
     TextId.DETAILS_WATCH_SAVED: "Watched entry saved.",
     TextId.PERSONAL_LIBRARY_HEADING: "Personal Library",
+    TextId.PERSONAL_SEARCH_PLACEHOLDER: "Search this section...",
     TextId.PERSONAL_TAB_WATCHLIST: "Watchlist",
     TextId.PERSONAL_TAB_READY: "Ready to Watch",
     TextId.PERSONAL_TAB_LIKED: "Liked",
@@ -947,6 +949,7 @@ _ARABIC: dict[TextId, str] = {
     TextId.DETAILS_WATCH_DATE_FUTURE: "اختر تاريخ اليوم أو تاريخًا سابقًا.",
     TextId.DETAILS_WATCH_SAVED: "تم حفظ المشاهدة.",
     TextId.PERSONAL_LIBRARY_HEADING: "مكتبتي",
+    TextId.PERSONAL_SEARCH_PLACEHOLDER: "ابحث في هذا القسم...",
     TextId.PERSONAL_TAB_WATCHLIST: "قائمة المشاهدة",
     TextId.PERSONAL_TAB_READY: "جاهزة للمشاهدة",
     TextId.PERSONAL_TAB_LIKED: "أعجبتني",

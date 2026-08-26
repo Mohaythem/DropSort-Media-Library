@@ -312,9 +312,101 @@ def test_personal_empty_state_retranslates_and_follows_rtl_direction(qapp) -> No
     assert view.layoutDirection() is Qt.LayoutDirection.RightToLeft
     assert view._tabs.layoutDirection() is Qt.LayoutDirection.RightToLeft
     assert view._tabs.tabText(0) == localizer.text(TextId.PERSONAL_TAB_WATCHLIST)
-    assert description.alignment() & Qt.AlignmentFlag.AlignRight
+    assert description.alignment() & Qt.AlignmentFlag.AlignCenter
     assert description.text() == localizer.text(TextId.PERSONAL_EMPTY_WATCHLIST_DESCRIPTION)
+    assert view._search.placeholderText() == localizer.text(
+        TextId.PERSONAL_SEARCH_PLACEHOLDER
+    )
     localizer.set_language(UiLanguage.ENGLISH)
+
+
+def test_personal_library_search_is_scoped_to_active_tab_and_resets_on_switch(
+    qapp, movie_item_factory
+) -> None:
+    watch = movie_item_factory(movie_id=1, title="Watch Arrival")
+    liked = movie_item_factory(movie_id=2, title="Liked Dune")
+
+    class SectionActions(FakePersonalActions):
+        def list_personal_movies(self, section):
+            self.calls.append(f"list:{section.value}")
+            return {
+                PersonalLibrarySection.WATCHLIST: (watch,),
+                PersonalLibrarySection.LIKED: (liked,),
+            }.get(section, ())
+
+    view = PersonalLibraryView(SectionActions(), runner=ImmediateRunner())
+    view.refresh(PersonalLibrarySection.WATCHLIST)
+    watch_card = view._grid.cards[0]
+
+    view._search.setText("Arrival")
+    assert [card.item.movie_id for card in view._grid.cards] == [watch.movie_id]
+    view._tabs.setCurrentIndex(2)
+
+    assert view._search.text() == ""
+    assert view._search_query == ""
+    assert [card.item.movie_id for card in view._grid.cards] == [liked.movie_id]
+    view._tabs.setCurrentIndex(0)
+    assert view._grid.cards[0] is watch_card
+
+
+def test_personal_library_controls_share_full_page_content_width(qapp) -> None:
+    view = PersonalLibraryView(FakePersonalActions(), runner=ImmediateRunner())
+    view.resize(1200, 760)
+    view.show()
+    view.refresh()
+    qapp.processEvents()
+
+    margins = view.layout().contentsMargins()
+    usable_width = view.width() - margins.left() - margins.right()
+    assert margins.left() == margins.right() == 36
+    assert view._search.width() == usable_width
+    assert view._tabs.width() == usable_width
+    assert view._empty_host.width() == usable_width
+
+
+def test_preference_actions_keep_authoritative_focus_and_fixed_geometry(
+    qapp, movie_details_factory
+) -> None:
+    actions = FakePersonalActions()
+    view = MovieDetailsView(personal_actions=actions, personal_runner=ImmediateRunner())
+    view.set_movie(movie_details_factory(media_files=()))
+    view.show()
+    qapp.processEvents()
+    widths = (
+        view._like_button.width(),
+        view._blacklist_button.width(),
+        view._clear_preference_button.width(),
+    )
+
+    view._like_button.click()
+    qapp.processEvents()
+    assert view._like_button.isChecked()
+    assert not view._blacklist_button.isChecked()
+    assert view._like_button.hasFocus()
+    assert widths == (
+        view._like_button.width(),
+        view._blacklist_button.width(),
+        view._clear_preference_button.width(),
+    )
+
+    view._blacklist_button.click()
+    qapp.processEvents()
+    assert view._blacklist_button.isChecked()
+    assert not view._like_button.isChecked()
+    assert view._blacklist_button.hasFocus()
+    assert widths == (
+        view._like_button.width(),
+        view._blacklist_button.width(),
+        view._clear_preference_button.width(),
+    )
+
+    view._clear_preference_button.click()
+    qapp.processEvents()
+    assert actions.preference is PersonalPreference.NO_OPINION
+    assert not view._like_button.isChecked()
+    assert not view._blacklist_button.isChecked()
+    assert not view._like_button.hasFocus()
+    assert not view._blacklist_button.hasFocus()
 
 
 def test_personal_library_view_ignores_stale_results_and_renders_failures(

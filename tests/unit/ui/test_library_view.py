@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
 
 from dropsort.application.dto.library import MovieDetails, MovieListItem
 from dropsort.application.errors import LibraryQueryError
 from dropsort.ui.library.library_view import LibraryView
 from dropsort.ui.common.theme import CARD_HEIGHT, CARD_WIDTH
+from dropsort.application.configuration.localization import UiLanguage
+from dropsort.ui.localization import TextId, UiLocalizer
 
 
 @dataclass
@@ -46,7 +49,35 @@ def test_library_view_has_clear_empty_state(qapp: QApplication) -> None:
     assert actions.calls == ["library"]
     assert view.card_count == 0
     assert _text(view, "libraryHeadingLabel") == "Library"
+    assert _text(view, "libraryCountLabel") == "0 movies"
     assert _text(view, "libraryStateLabel") == "Your movie library is empty."
+    host = view.findChild(QWidget, "libraryStateHost")
+    cta = view.findChild(QPushButton, "libraryEmptyAddMoviesButton")
+    assert host is not None and host.maximumWidth() == 16777215
+    assert cta is not None and not cta.isHidden()
+
+
+def test_library_empty_state_cta_and_copy_retranslate(qapp: QApplication) -> None:
+    localizer = UiLocalizer()
+    view = LibraryView(FakeLibraryActions(), localizer=localizer)
+    requested: list[bool] = []
+    view.add_movies_requested.connect(lambda: requested.append(True))
+    view.show_library()
+
+    cta = view.findChild(QPushButton, "libraryEmptyAddMoviesButton")
+    helper = view.findChild(QLabel, "libraryStateHelperLabel")
+    assert cta is not None and helper is not None
+    cta.click()
+    assert requested == [True]
+
+    localizer.set_language(UiLanguage.ARABIC)
+    assert view.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert cta.text() == localizer.text(TextId.NAV_ADD_MOVIES)
+    assert helper.text() == localizer.text(TextId.LIBRARY_EMPTY_HELPER)
+    assert _text(view, "libraryCountLabel") == localizer.text(
+        TextId.LIBRARY_COUNT, count=0
+    )
+    localizer.set_language(UiLanguage.ENGLISH)
 
 
 def test_library_view_renders_multiple_cards(
@@ -158,11 +189,11 @@ def test_library_search_no_results_is_compact_actionable_and_hides_background_st
 
     view.set_search_query("does-not-exist")
 
-    state_host = view.findChild(QFrame, "libraryStateHost")
+    state_host = view.findChild(QWidget, "libraryStateHost")
     helper = view.findChild(QLabel, "libraryStateHelperLabel")
     clear = view.findChild(QPushButton, "libraryEmptyClearSearchButton")
     assert state_host is not None and not state_host.isHidden()
-    assert state_host.maximumWidth() == 520
+    assert state_host.maximumWidth() == 16777215
     assert _text(view, "libraryStateLabel") == "No movies found"
     assert helper is not None and "clear" in helper.text().casefold()
     assert clear is not None and not clear.isHidden()

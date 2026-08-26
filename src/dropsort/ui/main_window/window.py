@@ -317,6 +317,7 @@ class MainWindow(QMainWindow):
             poster_loader=self.poster_loader,
             localizer=self._localizer,
         )
+        self.library_view.set_add_movies_available(import_actions is not None)
         self.check_library_page = LibraryCheckPage(
             reconciliation_actions,
             self._task_runner,
@@ -413,6 +414,8 @@ class MainWindow(QMainWindow):
         self.library_view.movie_selected.connect(self.show_movie_details)
         self.library_view.check_files_requested.connect(self.show_check_library_from_library)
         self.library_view.clear_search_requested.connect(self._clear_search_state)
+        if self.import_view is not None:
+            self.library_view.add_movies_requested.connect(self.show_import)
         self.check_library_page.start_requested.connect(self._start_check_library_page)
         self.check_library_page.progress_changed.connect(self._library_check_progress)
         self.check_library_page.back_requested.connect(self._return_from_check_library)

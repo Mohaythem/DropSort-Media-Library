@@ -127,7 +127,9 @@ class MovieGrid(QScrollArea):
         self._layout.setContentsMargins(0, 0, 0, SPACE_LARGE)
         self._layout.setHorizontalSpacing(SPACE_MEDIUM)
         self._layout.setVerticalSpacing(SPACE_MEDIUM)
-        self._layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self._layout.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeading
+        )
         self.setWidget(self._container)
         self._poster_presenter = _PosterPresentationCoordinator(self._container)
 

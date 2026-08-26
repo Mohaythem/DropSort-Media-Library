@@ -4,12 +4,10 @@ import logging
 
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
-    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -34,6 +32,7 @@ class LibraryView(QWidget):
     movie_selected = Signal(int)
     check_files_requested = Signal()
     clear_search_requested = Signal()
+    add_movies_requested = Signal()
     search_candidates_changed = Signal(object)
 
     def __init__(
@@ -50,6 +49,7 @@ class LibraryView(QWidget):
         self._all_items: tuple[MovieListItem, ...] = ()
         self._search_query = ""
         self._has_snapshot = False
+        self._add_movies_available = True
         layout = QVBoxLayout(self)
         layout.setContentsMargins(SPACE_36, SPACE_36, SPACE_36, SPACE_36)
         layout.setSpacing(SPACE_LARGE)
@@ -80,44 +80,40 @@ class LibraryView(QWidget):
         self._check_files.hide()
         layout.addLayout(heading_row)
 
-        self._state_host = QFrame()
+        self._state_host = QWidget()
         self._state_host.setObjectName("libraryStateHost")
-        self._state_host.setMaximumWidth(520)
-        state_layout = QHBoxLayout(self._state_host)
-        state_layout.setContentsMargins(16, 16, 16, 16)
-        state_layout.setSpacing(12)
-        state_layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-
-        state_icon = QToolButton()
-        state_icon.setObjectName("libraryStateIcon")
-        state_icon.setAutoRaise(True)
-        state_icon.setEnabled(False)
-        state_icon.setFixedSize(36, 36)
-        set_fluent_icon(state_icon, FluentIconName.SEARCH)
-        state_layout.addWidget(state_icon, 0, Qt.AlignmentFlag.AlignTop)
-
-        state_copy = QVBoxLayout()
-        state_copy.setContentsMargins(0, 0, 0, 0)
-        state_copy.setSpacing(SPACE_4)
+        state_layout = QVBoxLayout(self._state_host)
+        state_layout.setContentsMargins(0, 0, 0, 0)
+        state_layout.setSpacing(SPACE_4)
+        state_layout.addStretch(1)
         self._state = QLabel()
         self._state.setObjectName("libraryStateLabel")
-        self._state.setProperty("role", "h4")
+        self._state.setProperty("role", "h3")
         self._state.setWordWrap(True)
-        state_copy.addWidget(self._state)
+        self._state.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        state_layout.addWidget(self._state)
         self._state_helper = QLabel()
         self._state_helper.setObjectName("libraryStateHelperLabel")
         self._state_helper.setProperty("role", "muted")
         self._state_helper.setWordWrap(True)
-        state_copy.addWidget(self._state_helper)
+        self._state_helper.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        state_layout.addWidget(self._state_helper)
+        self._add_movies = QPushButton()
+        self._add_movies.setObjectName("libraryEmptyAddMoviesButton")
+        self._add_movies.setProperty("role", "primaryAction")
+        set_fluent_icon(self._add_movies, FluentIconName.ADD_MOVIES)
+        self._localizer.bind_text(self._add_movies, TextId.NAV_ADD_MOVIES)
+        self._add_movies.clicked.connect(self.add_movies_requested)
+        state_layout.addWidget(self._add_movies, 0, Qt.AlignmentFlag.AlignHCenter)
         self._clear_search = QPushButton()
         self._clear_search.setObjectName("libraryEmptyClearSearchButton")
         self._clear_search.setProperty("role", "ghostAction")
         self._clear_search.clicked.connect(self.clear_search_requested)
         self._localizer.bind_text(self._clear_search, TextId.LIBRARY_SEARCH_CLEAR)
-        state_copy.addWidget(self._clear_search, 0, Qt.AlignmentFlag.AlignLeft)
-        state_layout.addLayout(state_copy, 1)
+        state_layout.addWidget(self._clear_search, 0, Qt.AlignmentFlag.AlignHCenter)
+        state_layout.addStretch(1)
         self._state_host.hide()
-        layout.addWidget(self._state_host, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(self._state_host, 1)
 
         self._reconciliation = QLabel()
         self._reconciliation.setObjectName("libraryReconciliationStatusLabel")
@@ -188,6 +184,15 @@ class LibraryView(QWidget):
         self._grid.set_items(())
         self.search_candidates_changed.emit(())
         self._apply_search(render_grid=False)
+
+    def set_add_movies_available(self, available: bool) -> None:
+        self._add_movies_available = available
+        if self._state_host.isVisible():
+            self._add_movies.setVisible(
+                available
+                and not self._search_query
+                and self._state.text() == self._localizer.text(TextId.LIBRARY_EMPTY)
+            )
 
     def invalidate_snapshot(self) -> None:
         """Mark cached library data stale without repainting the current UI."""
@@ -315,5 +320,10 @@ class LibraryView(QWidget):
         self._state_helper.setText(helper)
         self._state_helper.setVisible(bool(helper))
         self._clear_search.setVisible(can_clear_search)
+        self._add_movies.setVisible(
+            self._add_movies_available
+            and not can_clear_search
+            and message == self._localizer.text(TextId.LIBRARY_EMPTY)
+        )
         self._state_host.show()
         self._grid.hide()

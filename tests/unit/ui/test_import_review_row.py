@@ -2,11 +2,16 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QLabel
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from dropsort.application.dto.movie_import import ImportProposalReason, ImportProposalStatus
 from dropsort.application.configuration.localization import UiLanguage
-from dropsort.media.matcher.models import MatchStatus
+from dropsort.media.matcher.models import (
+    CandidateScore,
+    MatchDecision,
+    MatchReason,
+    MatchStatus,
+)
 from dropsort.ui.localization import TextId, UiLocalizer
 from dropsort.ui.scan.import_review_row import ImportReviewRow
 
@@ -157,6 +162,61 @@ def test_no_match_never_surfaces_a_low_confidence_candidate(
 
     assert row.candidate_selector.isHidden()
     assert row.manual_search_button.isHidden() is False
+
+
+def test_low_confidence_row_with_real_candidates_keeps_compact_selector(
+    qapp: QApplication,
+    proposal_factory,
+    candidate_factory,
+) -> None:
+    candidate = candidate_factory(title="Candidate Movie", year=2018, rating=7.4)
+    decision = MatchDecision(
+        status=MatchStatus.NO_MATCH,
+        candidate=None,
+        confidence=0.42,
+        reasons=(MatchReason.BELOW_AUTO_MATCH_THRESHOLD,),
+        ranked_candidates=(
+            CandidateScore(
+                candidate=candidate,
+                score=0.42,
+                reasons=(MatchReason.TITLE_STRONG,),
+                penalties=(MatchReason.BELOW_AUTO_MATCH_THRESHOLD,),
+            ),
+        ),
+    )
+    row = ImportReviewRow(
+        proposal_factory(
+            status=ImportProposalStatus.NO_MATCH,
+            candidates=(candidate,),
+            match_decision=decision,
+            proposed_candidate=None,
+        )
+    )
+
+    assert row.candidate_selector.isHidden() is False
+    assert row.candidate_selector.count() == 1
+    assert row.candidate_selector.itemText(0) == "Candidate Movie (2018)    7.4/10"
+    assert row.explanation_text == ""
+
+
+def test_add_movies_icon_actions_use_equal_tool_button_geometry(
+    qapp: QApplication,
+    proposal_factory,
+) -> None:
+    row = ImportReviewRow(
+        proposal_factory(
+            status=ImportProposalStatus.METADATA_UNAVAILABLE,
+            reasons=(ImportProposalReason.METADATA_AUTHENTICATION,),
+        )
+    )
+
+    assert isinstance(row.settings_button, QPushButton)
+    assert isinstance(row.dismiss_button, QPushButton)
+    assert row.settings_button.size() == row.dismiss_button.size()
+    assert row.settings_button.iconSize() == row.dismiss_button.iconSize()
+    assert row.settings_button.text() == row.dismiss_button.text() == ""
+    assert row.settings_button.contentsRect().center() == row.settings_button.rect().center()
+    assert row.dismiss_button.contentsRect().center() == row.dismiss_button.rect().center()
 
 
 def test_non_authentication_metadata_error_does_not_offer_settings(

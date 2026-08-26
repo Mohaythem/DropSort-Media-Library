@@ -2,14 +2,20 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import QSize, Qt, Signal
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QTabBar, QVBoxLayout, QWidget
+from PySide6.QtCore import QSignalBlocker, Qt, Signal
+from PySide6.QtWidgets import (
+    QLineEdit,
+    QLabel,
+    QSizePolicy,
+    QTabBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from dropsort.application.dto.library import MovieListItem
 from dropsort.library.personal import PersonalLibrarySection
 from dropsort.ui.common.tasks import QtTaskRunner, TaskRunner
-from dropsort.ui.common.icon import FluentIconName, set_fluent_icon
-from dropsort.ui.common.theme import SPACE_36, SPACE_MEDIUM, SPACE_SMALL
+from dropsort.ui.common.theme import CONTROL_HEIGHT, SPACE_36, SPACE_MEDIUM, SPACE_SMALL
 from dropsort.ui.contracts import PersonalLibraryUiActions
 from dropsort.ui.library.movie_card import MovieCard
 from dropsort.ui.library.movie_grid import MovieGrid
@@ -63,10 +69,23 @@ class PersonalLibraryView(QWidget):
         self._localizer.bind_text(heading, TextId.PERSONAL_LIBRARY_HEADING)
         layout.addWidget(heading)
 
-        tab_row = QHBoxLayout()
+        self._search = QLineEdit()
+        self._search.setObjectName("personalLibrarySearchInput")
+        self._search.setClearButtonEnabled(True)
+        self._search.setFixedHeight(CONTROL_HEIGHT)
+        self._search.setPlaceholderText(
+            self._localizer.text(TextId.PERSONAL_SEARCH_PLACEHOLDER)
+        )
+        self._search.setAccessibleName("Personal Library search")
+        self._search.textChanged.connect(self.set_search_query)
+        layout.addWidget(self._search)
+
         self._tabs = QTabBar()
         self._tabs.setObjectName("personalLibraryTabs")
         self._tabs.setExpanding(False)
+        self._tabs.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
         for text_id in (
             TextId.PERSONAL_TAB_WATCHLIST,
             TextId.PERSONAL_TAB_READY,
@@ -75,12 +94,11 @@ class PersonalLibraryView(QWidget):
         ):
             self._tabs.addTab(self._localizer.text(text_id))
         self._tabs.currentChanged.connect(self._tab_changed)
-        tab_row.addWidget(self._tabs)
-        tab_row.addStretch(1)
-        layout.addLayout(tab_row)
+        layout.addWidget(self._tabs)
 
         self._state = QLabel()
         self._state.setObjectName("personalLibraryStateLabel")
+        self._state.setProperty("role", "h3")
         self._state.setWordWrap(True)
         self._state.hide()
         layout.addWidget(self._state)
@@ -88,35 +106,28 @@ class PersonalLibraryView(QWidget):
         self._empty_host = QWidget()
         self._empty_host.setObjectName("personalEmptyStateHost")
         self._empty_host_layout = QVBoxLayout(self._empty_host)
-        self._empty_host_layout.setContentsMargins(0, SPACE_MEDIUM, 0, 0)
+        self._empty_host_layout.setContentsMargins(0, 0, 0, 0)
         self._empty_host_layout.setSpacing(0)
-        self._empty_state = QFrame()
+        self._empty_state = QWidget()
         self._empty_state.setObjectName("personalEmptyState")
         self._empty_state.setAccessibleName("Personal Library empty state")
         self._empty_layout = QVBoxLayout(self._empty_state)
-        self._empty_layout.setContentsMargins(0, SPACE_MEDIUM, 0, 0)
+        self._empty_layout.setContentsMargins(0, 0, 0, 0)
         self._empty_layout.setSpacing(SPACE_SMALL)
-        self._empty_icon = QLabel()
-        self._empty_icon.setObjectName("personalEmptyStateIcon")
-        self._empty_icon.setAccessibleName("Personal Library")
-        set_fluent_icon(
-            self._empty_icon, FluentIconName.PERSONAL_LIBRARY, size=QSize(24, 24)
-        )
-        self._empty_layout.addWidget(self._empty_icon)
+        self._empty_layout.addStretch(1)
         self._empty_title = QLabel()
         self._empty_title.setObjectName("personalEmptyStateTitle")
         self._empty_title.setProperty("role", "h4")
-        self._empty_title.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self._empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_layout.addWidget(self._empty_title)
         self._empty_description = QLabel()
         self._empty_description.setObjectName("personalEmptyStateDescription")
         self._empty_description.setProperty("role", "muted")
         self._empty_description.setWordWrap(True)
-        self._empty_description.setMaximumWidth(520)
-        self._empty_description.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self._empty_description.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_layout.addWidget(self._empty_description)
+        self._empty_layout.addStretch(1)
         self._empty_host_layout.addWidget(self._empty_state)
-        self._empty_host_layout.addStretch(1)
         self._empty_host.hide()
         layout.addWidget(self._empty_host, 1)
 
@@ -202,6 +213,7 @@ class PersonalLibraryView(QWidget):
     def refresh(self, section: PersonalLibrarySection | None = None) -> None:
         target = section or self._section
         if target is not self._section:
+            self._clear_search()
             self._section = target
             self._tabs.blockSignals(True)
             self._tabs.setCurrentIndex(_section_index(target))
@@ -245,8 +257,19 @@ class PersonalLibraryView(QWidget):
         )
 
     def set_search_query(self, query: str) -> None:
-        self._search_query = query.strip()
+        normalized = query.strip()
+        if normalized == self._search_query:
+            return
+        self._search_query = normalized
         self._apply_search()
+
+    def _clear_search(self) -> None:
+        if not self._search_query and not self._search.text():
+            return
+        blocker = QSignalBlocker(self._search)
+        self._search.clear()
+        del blocker
+        self._search_query = ""
 
     def search_suggestions(self) -> tuple[str, ...]:
         return movie_search_suggestions(self._all_items)
@@ -268,6 +291,7 @@ class PersonalLibraryView(QWidget):
         target = _SECTIONS[index]
         if target is self._section:
             return
+        self._clear_search()
         self._section = target
         # Changing tabs transfers visible ownership immediately. A late result
         # may warm its own section cache but cannot paint this target tab.
@@ -388,6 +412,9 @@ class PersonalLibraryView(QWidget):
 
     def _retranslate(self, _language) -> None:
         self._apply_layout_direction()
+        self._search.setPlaceholderText(
+            self._localizer.text(TextId.PERSONAL_SEARCH_PLACEHOLDER)
+        )
         for index, text_id in enumerate(
             (
                 TextId.PERSONAL_TAB_WATCHLIST,
@@ -399,11 +426,15 @@ class PersonalLibraryView(QWidget):
             self._tabs.setTabText(index, self._localizer.text(text_id))
         self._render_empty_state()
         if self._state.isVisible() and not self._grid.isVisible():
-            self._state.setText(
-                self._localizer.text(TextId.PERSONAL_LOAD_ERROR)
-                if self._state_error
-                else self._empty_text(self._section)
-            )
+            if self._state_error:
+                text_id = TextId.PERSONAL_LOAD_ERROR
+            elif self._all_items and self._search_query:
+                text_id = TextId.LIBRARY_SEARCH_NO_RESULTS
+            elif self._active_request is not None and not self._has_snapshot:
+                text_id = TextId.PERSONAL_LOADING
+            else:
+                text_id = _EMPTY_TEXT[self._section][0]
+            self._state.setText(self._localizer.text(text_id))
 
     def _apply_layout_direction(self) -> None:
         rtl = self._localizer.language.value == "ar"
@@ -412,19 +443,12 @@ class PersonalLibraryView(QWidget):
             if rtl
             else Qt.LayoutDirection.LeftToRight
         )
-        horizontal = (
-            Qt.AlignmentFlag.AlignRight if rtl else Qt.AlignmentFlag.AlignLeft
-        )
         self.setLayoutDirection(direction)
+        self._search.setLayoutDirection(direction)
         self._tabs.setLayoutDirection(direction)
         self._empty_host.setLayoutDirection(direction)
-        self._empty_layout.setAlignment(Qt.AlignmentFlag.AlignTop | horizontal)
-        self._empty_icon.setAlignment(horizontal)
-        self._empty_title.setAlignment(horizontal)
-        self._empty_description.setAlignment(horizontal)
-        self._empty_host_layout.setAlignment(
-            self._empty_state, Qt.AlignmentFlag.AlignTop | horizontal
-        )
+        self._empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_description.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
 
 _SECTIONS = (

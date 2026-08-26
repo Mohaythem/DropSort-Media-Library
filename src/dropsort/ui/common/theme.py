@@ -147,6 +147,8 @@ RADIUS_OVERLAY = 8
 RADIUS_SMALL = RADIUS_CONTROL
 RADIUS_MEDIUM = RADIUS_OVERLAY
 CONTROL_HEIGHT = 36
+PREFERENCE_ACTION_WIDTH = 132
+PREFERENCE_CLEAR_WIDTH = 176
 NAVIGATION_ITEM_HEIGHT = 42
 # Compatibility value for integrations that still import the former compact
 # pane metric. The active shell no longer implements a compact mode.
@@ -419,6 +421,16 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
             border-color: {colors.border};
             background: {colors.disabled};
         }}
+        QPushButton[role="iconAction"] {{
+            background: {colors.surface_raised};
+            border: 1px solid {colors.border};
+            border-radius: {RADIUS_SMALL}px;
+            padding: 0px;
+        }}
+        QPushButton[role="iconAction"]:hover {{
+            background: {colors.selected};
+            border-color: {colors.accent};
+        }}
         QPushButton[role="primaryAction"]:disabled {{
             background: {colors.surface_raised};
             color: {colors.text_muted};
@@ -448,16 +460,17 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
             background: transparent;
             border: none;
         }}
-        QFrame#libraryStateHost {{
-            background: {colors.surface};
-            border: 1px solid {colors.border};
-            border-radius: {RADIUS_MEDIUM}px;
+        QWidget#libraryStateHost {{
+            background: {colors.background};
+            border: none;
         }}
-        QToolButton#libraryStateIcon,
-        QToolButton#libraryStateIcon:disabled {{
-            background: {colors.surface_raised};
-            border: 1px solid {colors.border};
-            border-radius: {RADIUS_MEDIUM}px;
+        QLabel#libraryStateLabel {{
+            color: {colors.text};
+            font-size: {H3_SIZE:g}px;
+            font-weight: {HEADING_WEIGHT};
+            padding: 0px;
+        }}
+        QLabel#libraryStateHelperLabel {{
             color: {colors.text_muted};
         }}
         QLineEdit#librarySearchInput {{
@@ -791,7 +804,7 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         QLabel#importStatusLabel[proposalStatus="NO_MATCH"] {{
             color: {colors.danger};
         }}
-        QLabel#libraryStateLabel, QLabel#detailsStateLabel {{
+        QLabel#detailsStateLabel {{
             color: {colors.text_muted};
             font-size: {BODY_SIZE:g}px;
             padding: {SPACE_MEDIUM}px;
@@ -869,14 +882,9 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
             font-size: {H5_SIZE:g}px;
             font-weight: {HEADING_WEIGHT};
         }}
-        QLabel#personalEmptyStateIcon {{
-            color: {colors.accent};
-            font-size: {H2_SIZE:g}px;
-            font-weight: {HEADING_WEIGHT};
-        }}
         QLabel#personalEmptyStateTitle {{
             color: {colors.text};
-            font-size: {H4_SIZE:g}px;
+            font-size: {H3_SIZE:g}px;
             font-weight: {HEADING_WEIGHT};
         }}
         QLabel#personalEmptyStateDescription {{

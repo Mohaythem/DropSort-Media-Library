@@ -20,7 +20,7 @@ from dropsort.application.dto.movie_import import (
 from dropsort.metadata.contracts import MovieCandidate
 from dropsort.ui.common.formatting import to_western_numerals
 from dropsort.ui.common.icon import FluentIconName, set_fluent_icon
-from dropsort.ui.common.theme import SPACE_4, SPACE_8, SPACE_12, SPACE_SMALL
+from dropsort.ui.common.theme import SPACE_4, SPACE_12, SPACE_SMALL
 from dropsort.ui.localization import TextId, UiLocalizer
 
 
@@ -132,7 +132,7 @@ class ImportReviewRow(QFrame):
         action_host.setFixedWidth(IMPORT_ACTION_WIDTH)
         action_host.setFixedHeight(IMPORT_ACTION_HEIGHT)
         action_layout = QHBoxLayout(action_host)
-        action_layout.setContentsMargins(SPACE_8, 0, 0, 0)
+        action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(SPACE_4)
 
         confirmable = (
@@ -186,7 +186,7 @@ class ImportReviewRow(QFrame):
         )
         self.settings_button = QPushButton(action_host)
         self.settings_button.setObjectName("openMetadataSettingsButton")
-        self.settings_button.setProperty("role", "secondaryAction")
+        self.settings_button.setProperty("role", "iconAction")
         self.settings_button.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
@@ -203,7 +203,7 @@ class ImportReviewRow(QFrame):
 
         self.dismiss_button = QPushButton(action_host)
         self.dismiss_button.setObjectName("dismissProposalButton")
-        self.dismiss_button.setProperty("role", "compactAction")
+        self.dismiss_button.setProperty("role", "iconAction")
         self.dismiss_button.setFixedSize(
             IMPORT_ACTION_HEIGHT, IMPORT_ACTION_HEIGHT
         )
@@ -252,16 +252,7 @@ class ImportReviewRow(QFrame):
                 if self.candidate_selector.itemData(index) == proposal.proposed_candidate:
                     self.candidate_selector.setCurrentIndex(index)
                     break
-        show_candidate = (
-            confirmable
-            and proposal.status
-            in {
-                ImportProposalStatus.MATCH_PROPOSED,
-                ImportProposalStatus.REVIEW_REQUIRED,
-                ImportProposalStatus.MANUAL_SELECTION,
-            }
-            and bool(proposal.candidates)
-        )
+        show_candidate = bool(proposal.candidates)
         self.candidate_selector.setVisible(show_candidate)
         layout.addWidget(self.candidate_selector, 1, 0, 1, 4)
         self.setMinimumHeight(self.sizeHint().height())
