@@ -64,6 +64,7 @@ class PersonalLibraryView(QWidget):
         layout.setSpacing(SPACE_MEDIUM)
 
         heading = QLabel()
+        self._heading = heading
         heading.setObjectName("personalLibraryHeadingLabel")
         heading.setProperty("role", "screenHeading")
         self._localizer.bind_text(heading, TextId.PERSONAL_LIBRARY_HEADING)
@@ -447,6 +448,13 @@ class PersonalLibraryView(QWidget):
         self._search.setLayoutDirection(direction)
         self._tabs.setLayoutDirection(direction)
         self._empty_host.setLayoutDirection(direction)
+        self._heading.setAlignment(
+            (Qt.AlignmentFlag.AlignRight if rtl else Qt.AlignmentFlag.AlignLeft)
+            | Qt.AlignmentFlag.AlignVCenter
+        )
+        self._search.setAlignment(
+            Qt.AlignmentFlag.AlignRight if rtl else Qt.AlignmentFlag.AlignLeft
+        )
         self._empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_description.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

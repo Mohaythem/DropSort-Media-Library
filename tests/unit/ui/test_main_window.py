@@ -123,6 +123,37 @@ def test_primary_navigation_switches_stack_once_per_destination(
     assert actions.calls == ["library"]
 
 
+def test_sidebar_navigation_has_exactly_one_selected_destination(
+    qapp, movie_details_factory
+) -> None:
+    window = MainWindow(
+        FakeActions((), movie_details_factory()),
+        personal_actions=type("PersonalActions", (), {
+            "list_personal_movies": lambda self, _section: (),
+            "get_personal_snapshot": lambda self, _movie_id: None,
+        })(),
+        import_actions=object(),
+        settings_actions=type("SettingsActions", (), {
+            "metadata_credential_status": lambda self: MetadataCredentialStatus(
+                False, MetadataCredentialOrigin.NOT_CONFIGURED
+            ),
+            "current_ui_language": lambda self: UiLanguage.ENGLISH,
+        })(),
+        load_on_show=False,
+    )
+    destinations = (
+        window.show_library,
+        window.show_personal_library,
+        window.show_import,
+        window.show_check_library,
+        window.show_settings,
+        window.show_library,
+    )
+    for show in destinations:
+        show()
+        assert sum(button.isChecked() for button in window._navigation_buttons.values()) == 1
+
+
 def test_single_instance_activation_restores_minimized_and_hidden_window(
     qapp: QApplication,
     movie_details_factory,
@@ -515,6 +546,28 @@ class ImmediateRunner:
 
     def wait_for_done(self) -> None:
         return None
+
+
+def test_check_library_completed_state_resets_after_navigation_without_rerun(
+    qapp, movie_details_factory
+) -> None:
+    reconciliation = ReconciliationActions()
+    window = MainWindow(
+        FakeActions((), movie_details_factory()),
+        reconciliation_actions=reconciliation,
+        task_runner=ImmediateRunner(),
+        load_on_show=False,
+    )
+    window.show_library()
+    window.show_check_library()
+    window._start_check_library_page()
+    assert window.check_library_page.state is window.check_library_page.State.COMPLETED_WITH_ISSUES
+
+    window.show_library()
+    window.show_check_library()
+
+    assert window.check_library_page.state is window.check_library_page.State.IDLE
+    assert reconciliation.check_calls == 1
 
 
 def test_real_clear_button_reaches_application_action(

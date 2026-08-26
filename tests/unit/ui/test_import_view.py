@@ -845,6 +845,7 @@ def test_mixed_review_rows_keep_minimum_height_without_visual_overlap(
         action_host = row.findChild(QWidget, "importActionHost")
         assert action_host.height() == 38
         assert action_host.geometry().bottom() <= row.contentsRect().bottom()
+        assert abs(action_host.geometry().center().y() - row.contentsRect().center().y()) <= 1
         if row.candidate_selector.isVisible():
             assert row.candidate_selector.height() >= 38
             assert (

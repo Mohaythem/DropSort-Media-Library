@@ -320,6 +320,34 @@ def test_personal_empty_state_retranslates_and_follows_rtl_direction(qapp) -> No
     localizer.set_language(UiLanguage.ENGLISH)
 
 
+def test_personal_controls_live_retranslate_with_rtl_geometry_parity(qapp) -> None:
+    localizer = UiLocalizer(UiLanguage.ENGLISH)
+    view = PersonalLibraryView(
+        FakePersonalActions(), runner=ImmediateRunner(), localizer=localizer
+    )
+    view.resize(1200, 760)
+    view.show()
+    qapp.processEvents()
+    english_sizes = (view._search.size(), view._tabs.size())
+
+    localizer.set_language(UiLanguage.ARABIC)
+    qapp.processEvents()
+    assert view._search.placeholderText() == localizer.text(TextId.PERSONAL_SEARCH_PLACEHOLDER)
+    assert [view._tabs.tabText(index) for index in range(4)] == [
+        localizer.text(TextId.PERSONAL_TAB_WATCHLIST),
+        localizer.text(TextId.PERSONAL_TAB_READY),
+        localizer.text(TextId.PERSONAL_TAB_LIKED),
+        localizer.text(TextId.PERSONAL_TAB_BLACKLISTED),
+    ]
+    assert view.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert view._search.alignment() & Qt.AlignmentFlag.AlignRight
+    assert english_sizes == (view._search.size(), view._tabs.size())
+
+    localizer.set_language(UiLanguage.ENGLISH)
+    assert view._search.placeholderText() == "Search this section..."
+    assert view._tabs.tabText(0) == "Watchlist"
+
+
 def test_personal_library_search_is_scoped_to_active_tab_and_resets_on_switch(
     qapp, movie_item_factory
 ) -> None:

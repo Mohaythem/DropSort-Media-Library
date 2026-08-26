@@ -13,6 +13,7 @@ from PySide6.QtCore import (
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QFrame,
+    QButtonGroup,
     QCompleter,
     QHBoxLayout,
     QLabel,
@@ -122,9 +123,8 @@ class NavigationButton(QPushButton):
         self.toggled.connect(self._selection_changed)
 
     def _selection_changed(self, selected: bool) -> None:
-        # Qt already repaints :checked pseudo-state automatically.  A manual
-        # unpolish/polish here forced two extra style/layout passes on every
-        # navigation transition (old item off, new item on).
+        # Qt already repaints :checked pseudo-state automatically. A manual
+        # style reset here would force extra layout passes on every transition.
         self._accent.setVisible(selected)
         self._position_accent()
 
@@ -227,6 +227,8 @@ class MainWindow(QMainWindow):
         self._maintenance_active = False
         self._single_instance_closing = False
         self._search_query = ""
+        self._navigation_group = QButtonGroup(self)
+        self._navigation_group.setExclusive(True)
         self.setWindowTitle(self._localizer.text(TextId.WINDOW_TITLE))
         self._localizer.language_changed.connect(
             lambda _language: self.setWindowTitle(
@@ -544,6 +546,7 @@ class MainWindow(QMainWindow):
     def show_library(self) -> None:
         if self._current_section == "library":
             return
+        self._reset_check_library_if_leaving()
         self._previous_library_section = "library"
         # Prepare the destination while it is still hidden.  This avoids a
         # one-frame empty/old-state flash when returning to a stale Library.
@@ -558,6 +561,7 @@ class MainWindow(QMainWindow):
     def show_personal_library(self) -> None:
         if self.personal_view is None or self._current_section == "personal":
             return
+        self._reset_check_library_if_leaving()
         self._clear_search_state(render_library=False)
         # Keep any cached Personal Library snapshot painted while a stale
         # refresh happens in the background, then reveal the page. Resolve the
@@ -583,6 +587,7 @@ class MainWindow(QMainWindow):
                 else None
             )
         self._current_section = "check_library"
+        self.check_library_page.keep_visible_state()
         self._set_navigation_checked("check_library")
         self._set_header_section(TextId.CHECK_FILES_TITLE, search_visible=False)
         self._set_current_page(self.check_library_page)
@@ -622,6 +627,7 @@ class MainWindow(QMainWindow):
             return
         if self._current_section == "import":
             return
+        self._reset_check_library_if_leaving()
         self._clear_search_state(render_library=False)
         self._current_section = "import"
         self._set_navigation_checked("import")
@@ -631,6 +637,7 @@ class MainWindow(QMainWindow):
     def show_settings(self) -> None:
         if self.settings_view is None or self._current_section == "settings":
             return
+        self._reset_check_library_if_leaving()
         self._clear_search_state(render_library=False)
         self.settings_view.refresh_status()
         self._current_section = "settings"
@@ -641,6 +648,7 @@ class MainWindow(QMainWindow):
     def show_history(self) -> None:
         if self.history_view is None or self._current_section == "history":
             return
+        self._reset_check_library_if_leaving()
         self._clear_search_state(render_library=False)
         # Reuse an already-rendered snapshot on ordinary navigation.
         # Explicit Refresh and operation mutations still request fresh data.
@@ -655,6 +663,7 @@ class MainWindow(QMainWindow):
         refresh_fluent_icons(self)
 
     def show_movie_details(self, movie_id: int) -> None:
+        self._reset_check_library_if_leaving()
         if self._current_section in {"library", "personal"}:
             self._previous_library_section = self._current_section
         # A search is only a navigation aid.  Clear it without emitting
@@ -723,6 +732,14 @@ class MainWindow(QMainWindow):
             if button.isChecked() != selected:
                 button.setChecked(selected)
 
+    def _reset_check_library_if_leaving(self) -> None:
+        if self._current_section != "check_library":
+            return
+        if self.check_library_page.is_running:
+            self.check_library_page.reset_after_terminal()
+        else:
+            self.check_library_page.reset_to_idle()
+
     def _build_navigation(
         self,
         layout: QVBoxLayout,
@@ -744,6 +761,7 @@ class MainWindow(QMainWindow):
             if item.placement != placement or not availability[item.item_id]:
                 continue
             button = self._nav_button("", item.object_name)
+            self._navigation_group.addButton(button)
             set_fluent_icon(button, item.icon)
             self._localizer.bind_text(button, item.text_id)
             button.clicked.connect(getattr(self, f"show_{item.destination}"))

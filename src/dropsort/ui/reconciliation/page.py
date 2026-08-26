@@ -32,6 +32,9 @@ from dropsort.ui.contracts import ReconciliationUiActions
 from dropsort.ui.localization import TextId, UiLocalizer
 
 
+CHECK_LIBRARY_ACTION_WIDTH = 176
+
+
 def _percentage(checked: int, total: int) -> int:
     if total <= 0:
         return 100 if checked else 0
@@ -74,6 +77,7 @@ class LibraryCheckPage(QWidget):
         self._state = self.State.IDLE
         self._external_job = False
         self._queued_behind_reconciliation = False
+        self._reset_after_terminal = False
         self._last_value: LibraryReconciliationProgress | LibraryHealthProgress | None = None
 
         layout = QVBoxLayout(self)
@@ -166,9 +170,11 @@ class LibraryCheckPage(QWidget):
         layout.addWidget(self._issues_scroll)
 
         buttons = QHBoxLayout()
+        self._buttons_layout = buttons
         self._start = QPushButton()
         self._start.setObjectName("startLibraryCheckPageButton")
         self._start.setProperty("role", "primaryAction")
+        self._start.setFixedWidth(CHECK_LIBRARY_ACTION_WIDTH)
         self._start.setAccessibleName("Check Library")
         set_fluent_icon(self._start, FluentIconName.CHECK_LIBRARY)
         self._localizer.bind_text(self._start, TextId.CHECK_LIBRARY_FILES)
@@ -181,7 +187,7 @@ class LibraryCheckPage(QWidget):
         self._localizer.bind_text(self._cancel, TextId.CHECK_FILES_CANCEL)
         self._cancel.clicked.connect(self.cancel_check)
         buttons.addWidget(self._cancel)
-        buttons.addStretch(1)
+        buttons.setAlignment(Qt.AlignmentFlag.AlignLeft)
         layout.addLayout(buttons)
         layout.addStretch(1)
 
@@ -204,6 +210,30 @@ class LibraryCheckPage(QWidget):
     def request_start(self) -> None:
         if not self.is_running:
             self.start_requested.emit()
+
+    def reset_to_idle(self) -> None:
+        """Clear visible terminal state before leaving the page."""
+
+        if self.is_running:
+            return
+        self._token += 1
+        self._last_value = None
+        self._cancellation = None
+        self._external_job = False
+        self._queued_behind_reconciliation = False
+        self._reset_after_terminal = False
+        self._state = self.State.IDLE
+        self._clear_issue_rows()
+        self._set_idle_state()
+
+    def reset_after_terminal(self) -> None:
+        """Keep an active filesystem check running, then clear its result."""
+
+        if self.is_running:
+            self._reset_after_terminal = True
+
+    def keep_visible_state(self) -> None:
+        self._reset_after_terminal = False
 
     def start_check(self) -> None:
         if self.is_running:
@@ -300,6 +330,8 @@ class LibraryCheckPage(QWidget):
         self._cancellation = None
         self._external_job = False
         self.completed.emit(value)
+        if self._reset_after_terminal:
+            self.reset_to_idle()
 
     def _on_failure(self, token: int, error: BaseException) -> None:
         if token != self._token:
@@ -309,27 +341,11 @@ class LibraryCheckPage(QWidget):
         self._last_value = None
         if isinstance(error, LibraryReconciliationCancelled):
             self._state = self.State.CANCELLED
-            self._description.hide()
-            self._failure.setProperty("role", "secondary")
-            self._failure.setText(
-                self._localizer.text(TextId.CHECK_LIBRARY_CANCELLED_DESCRIPTION)
-            )
-            self._failure.show()
-            self._status.setText(self._localizer.text(TextId.CHECK_FILES_CANCELLED))
         else:
             self._state = self.State.FAILED
-            self._description.hide()
-            self._failure.setProperty("role", "error")
-            self._failure.setText(
-                self._localizer.text(TextId.CHECK_LIBRARY_FAILURE_DESCRIPTION)
-            )
-            self._failure.show()
-            self._status.setText(self._localizer.text(TextId.CHECK_LIBRARY_FAILURE_TITLE))
-        self._set_terminal_controls(
-            TextId.CHECK_LIBRARY_AGAIN
-            if self._state is self.State.CANCELLED
-            else TextId.CHECK_LIBRARY_TRY_AGAIN
-        )
+        self._render_failure_state()
+        if self._reset_after_terminal:
+            self.reset_to_idle()
 
     def _render_progress(
         self, value: LibraryReconciliationProgress | LibraryHealthProgress
@@ -440,7 +456,35 @@ class LibraryCheckPage(QWidget):
 
     def _language_changed(self, _language) -> None:
         self._apply_layout_direction()
-        self._refresh_dynamic_text()
+        if self._state in {self.State.FAILED, self.State.CANCELLED}:
+            self._render_failure_state()
+        else:
+            self._refresh_dynamic_text()
+
+    def _render_failure_state(self) -> None:
+        cancelled = self._state is self.State.CANCELLED
+        self._description.hide()
+        self._failure.setProperty("role", "secondary" if cancelled else "error")
+        self._failure.setText(
+            self._localizer.text(
+                TextId.CHECK_LIBRARY_CANCELLED_DESCRIPTION
+                if cancelled
+                else TextId.CHECK_LIBRARY_FAILURE_DESCRIPTION
+            )
+        )
+        self._failure.show()
+        self._status.setText(
+            self._localizer.text(
+                TextId.CHECK_FILES_CANCELLED
+                if cancelled
+                else TextId.CHECK_LIBRARY_FAILURE_TITLE
+            )
+        )
+        self._set_terminal_controls(
+            TextId.CHECK_LIBRARY_AGAIN
+            if cancelled
+            else TextId.CHECK_LIBRARY_TRY_AGAIN
+        )
 
     def _text_alignment(self) -> Qt.AlignmentFlag:
         horizontal = (
@@ -460,6 +504,12 @@ class LibraryCheckPage(QWidget):
         self.setLayoutDirection(direction)
         self._summary_panel.setLayoutDirection(direction)
         self._issues_host.setLayoutDirection(direction)
+        self._buttons_layout.setDirection(
+            QHBoxLayout.Direction.RightToLeft
+            if rtl
+            else QHBoxLayout.Direction.LeftToRight
+        )
+        self._buttons_layout.setAlignment(Qt.AlignmentFlag.AlignLeading)
         for label in (
             self._title,
             self._description,
@@ -526,7 +576,12 @@ class LibraryCheckPage(QWidget):
 
     def _set_idle_state(self) -> None:
         self._status.setText(self._localizer.text(TextId.CHECK_FILES_READY))
+        self._description.setText(
+            self._localizer.text(TextId.CHECK_LIBRARY_IDLE_DESCRIPTION)
+        )
         self._description.show()
+        self._progress.setValue(0)
+        self._progress_percent.setText("0%")
         self._progress.hide()
         self._progress_percent.hide()
         self._summary_panel.hide()

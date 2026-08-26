@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+import math
+
+from PySide6.QtCore import Qt, QSize, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -134,6 +136,7 @@ class ImportReviewRow(QFrame):
         action_layout = QHBoxLayout(action_host)
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(SPACE_4)
+        action_layout.setAlignment(Qt.AlignmentFlag.AlignVCenter)
 
         confirmable = (
             proposal.discovery.classification.value == "MOVIE_CANDIDATE"
@@ -193,6 +196,8 @@ class ImportReviewRow(QFrame):
         self.settings_button.setFixedSize(
             IMPORT_ACTION_HEIGHT, IMPORT_ACTION_HEIGHT
         )
+        self.settings_button.setContentsMargins(0, 0, 0, 0)
+        self.settings_button.setIconSize(QSize(16, 16))
         set_fluent_icon(self.settings_button, FluentIconName.SETTINGS)
         self.settings_button.setText("")
         self.settings_button.clicked.connect(self.settings_requested.emit)
@@ -207,6 +212,8 @@ class ImportReviewRow(QFrame):
         self.dismiss_button.setFixedSize(
             IMPORT_ACTION_HEIGHT, IMPORT_ACTION_HEIGHT
         )
+        self.dismiss_button.setContentsMargins(0, 0, 0, 0)
+        self.dismiss_button.setIconSize(QSize(16, 16))
         set_fluent_icon(self.dismiss_button, FluentIconName.DELETE)
         self.dismiss_button.setText("")
         self.dismiss_button.setToolTip(self._localizer.text(TextId.DISMISS_PROPOSAL))
@@ -217,7 +224,7 @@ class ImportReviewRow(QFrame):
             )
         )
         action_layout.addWidget(self.dismiss_button)
-        layout.addWidget(action_host, 0, 4, Qt.AlignmentFlag.AlignTop)
+        layout.addWidget(action_host, 0, 4, 2, 1, Qt.AlignmentFlag.AlignVCenter)
 
         self._action_buttons = (
             (self.import_button, 72),
@@ -239,14 +246,7 @@ class ImportReviewRow(QFrame):
         self.candidate_selector.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
         )
-        for candidate in proposal.candidates:
-            label = _candidate_label(candidate)
-            self.candidate_selector.addItem(label, candidate)
-            self.candidate_selector.setItemData(
-                self.candidate_selector.count() - 1,
-                label,
-                Qt.ItemDataRole.ToolTipRole,
-            )
+        self._populate_candidates(proposal)
         if proposal.proposed_candidate is not None:
             for index in range(self.candidate_selector.count()):
                 if self.candidate_selector.itemData(index) == proposal.proposed_candidate:
@@ -289,15 +289,7 @@ class ImportReviewRow(QFrame):
     def set_manual_proposal(self, proposal: MovieImportProposal) -> None:
         """Replace the informational proposal after an explicit result selection."""
         self.proposal = proposal
-        self.candidate_selector.clear()
-        for candidate in proposal.candidates:
-            label = _candidate_label(candidate)
-            self.candidate_selector.addItem(label, candidate)
-            self.candidate_selector.setItemData(
-                self.candidate_selector.count() - 1,
-                label,
-                Qt.ItemDataRole.ToolTipRole,
-            )
+        self._populate_candidates(proposal)
         self.candidate_selector.setVisible(True)
         self.import_button.setVisible(True)
         self.import_button.setEnabled(True)
@@ -307,6 +299,24 @@ class ImportReviewRow(QFrame):
         self._status.setText(self._localizer.text(TextId.IMPORT_MANUAL_SELECTED))
         self.style().unpolish(self._status)
         self.style().polish(self._status)
+
+    def _populate_candidates(self, proposal: MovieImportProposal) -> None:
+        """Render candidates by rating without mutating matching decisions."""
+
+        self.candidate_selector.clear()
+        for candidate in _display_candidates(proposal.candidates):
+            label = _candidate_label(candidate)
+            self.candidate_selector.addItem(label, candidate)
+            self.candidate_selector.setItemData(
+                self.candidate_selector.count() - 1,
+                label,
+                Qt.ItemDataRole.ToolTipRole,
+            )
+        if proposal.proposed_candidate is not None:
+            for index in range(self.candidate_selector.count()):
+                if self.candidate_selector.itemData(index) == proposal.proposed_candidate:
+                    self.candidate_selector.setCurrentIndex(index)
+                    break
 
     def _refresh_action_button_sizes(self, _language=None) -> None:
         for button, baseline in self._action_buttons:
@@ -337,6 +347,25 @@ def _candidate_label(candidate: MovieCandidate) -> str:
         f"{candidate.title} ({_compact_year(candidate.year)})"
         f"    {_compact_rating(candidate.rating)}"
     )
+
+
+def _display_candidates(candidates: tuple[MovieCandidate, ...]) -> tuple[MovieCandidate, ...]:
+    """Stable presentation order: usable ratings descending, then unrated."""
+
+    rated: list[tuple[MovieCandidate, float]] = []
+    unrated: list[MovieCandidate] = []
+    for candidate in candidates:
+        rating = candidate.rating
+        if (
+            not isinstance(rating, bool)
+            and isinstance(rating, (int, float))
+            and math.isfinite(float(rating))
+        ):
+            rated.append((candidate, float(rating)))
+        else:
+            unrated.append(candidate)
+    rated.sort(key=lambda item: item[1], reverse=True)
+    return tuple(candidate for candidate, _rating in rated) + tuple(unrated)
 
 
 def _compact_year(value: int | None) -> str:

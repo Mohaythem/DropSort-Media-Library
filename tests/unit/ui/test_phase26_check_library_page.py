@@ -16,7 +16,7 @@ from dropsort.application.dto.reconciliation import LibraryReconciliationProgres
 from dropsort.application.errors import LibraryReconciliationCancelled
 from dropsort.application.use_cases import ReconciliationCancellation
 from dropsort.ui.common.theme import ThemeId, apply_theme
-from dropsort.ui.localization import UiLocalizer
+from dropsort.ui.localization import TextId, UiLocalizer
 from dropsort.ui.reconciliation import LibraryCheckPage
 from dropsort.ui.reconciliation.page import _percentage
 
@@ -102,6 +102,61 @@ def test_page_renders_passed_and_attention_only_after_completion(qapp) -> None:
     assert len(issue_rows) == 2  # one aggregate file issue and one metadata issue
     assert all("Healthy Movie" not in row.accessibleName() for row in issue_rows)
     assert page.findChild(QPushButton, "startLibraryCheckPageButton").text() == "Check Again"
+
+
+def test_completed_result_retranslates_and_reset_returns_to_idle_without_rescan(qapp) -> None:
+    localizer = UiLocalizer(UiLanguage.ENGLISH)
+    runner = DeferredRunner()
+    actions = Actions()
+    page = LibraryCheckPage(actions, runner, localizer=localizer)
+    page.start_check()
+    token, _task, _progress, on_success, _failure = runner.submissions[0]
+    on_success(token, _result())
+    assert page.state is LibraryCheckPage.State.COMPLETED_WITH_ISSUES
+    english = page.findChild(QLabel, "libraryCheckPageStatusLabel").text()
+    localizer.set_language(UiLanguage.ARABIC)
+    arabic = page.findChild(QLabel, "libraryCheckPageStatusLabel").text()
+    assert english != arabic
+    assert page.findChild(QPushButton, "startLibraryCheckPageButton").text() == localizer.text(TextId.CHECK_LIBRARY_AGAIN)
+    localizer.set_language(UiLanguage.ENGLISH)
+    assert page.findChild(QLabel, "libraryCheckPageStatusLabel").text() == english
+    page.reset_to_idle()
+    assert page.state is LibraryCheckPage.State.IDLE
+    assert page.findChild(QPushButton, "startLibraryCheckPageButton").text() == localizer.text(TextId.CHECK_LIBRARY_FILES)
+    assert page.findChild(QLabel, "libraryCheckPageDescription").text() == localizer.text(TextId.CHECK_LIBRARY_IDLE_DESCRIPTION)
+    assert actions.check_calls == 0
+
+
+def test_check_library_rtl_button_placement_and_geometry_parity(qapp) -> None:
+    localizer = UiLocalizer(UiLanguage.ENGLISH)
+    page = LibraryCheckPage(Actions(), DeferredRunner(), localizer=localizer)
+    page.resize(1000, 700)
+    page.show()
+    page._token = 1
+    page._on_success(1, _result())
+    qapp.processEvents()
+    button = page.findChild(QPushButton, "startLibraryCheckPageButton")
+    english_size = button.size()
+    english_left = button.mapTo(page, button.rect().topLeft()).x()
+
+    localizer.set_language(UiLanguage.ARABIC)
+    qapp.processEvents()
+    arabic_left = button.mapTo(page, button.rect().topLeft()).x()
+    assert button.size() == english_size
+    assert arabic_left > english_left
+
+
+def test_running_check_finishes_safely_then_resets_when_left_hidden(qapp) -> None:
+    runner = DeferredRunner()
+    page = LibraryCheckPage(Actions(), runner)
+    page.start_check()
+    token, _task, _progress, on_success, _failure = runner.submissions[0]
+
+    page.reset_after_terminal()
+    assert page.state is LibraryCheckPage.State.RUNNING
+    on_success(token, _result())
+
+    assert page.state is LibraryCheckPage.State.IDLE
 
 
 def test_page_cancel_and_failure_are_distinct_terminal_states(qapp) -> None:

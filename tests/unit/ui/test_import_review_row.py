@@ -199,6 +199,37 @@ def test_low_confidence_row_with_real_candidates_keeps_compact_selector(
     assert row.explanation_text == ""
 
 
+def test_candidate_selector_sorts_by_rating_and_preserves_proposed_candidate(
+    qapp, proposal_factory, candidate_factory
+) -> None:
+    unrated = candidate_factory(external_id="u", title="Unrated", rating=None)
+    low = candidate_factory(external_id="l", title="Low", rating=6.9)
+    high = candidate_factory(external_id="h", title="High", rating=8.6)
+    tie = candidate_factory(external_id="t", title="Tie", rating=8.6)
+    original = (low, unrated, high, tie)
+    decision = MatchDecision(
+        status=MatchStatus.MATCHED,
+        candidate=low,
+        confidence=0.98,
+        reasons=(MatchReason.TITLE_EXACT,),
+        ranked_candidates=tuple(
+            CandidateScore(candidate, 0.98 - index * 0.01, (MatchReason.TITLE_EXACT,), ())
+            for index, candidate in enumerate(original)
+        ),
+    )
+    proposal = proposal_factory(
+        candidate=low,
+        candidates=original,
+        proposed_candidate=low,
+        match_decision=decision,
+    )
+    row = ImportReviewRow(proposal)
+
+    assert [row.candidate_selector.itemData(i).external_id for i in range(row.candidate_selector.count())] == ["h", "t", "l", "u"]
+    assert row.selected_candidate is low
+    assert proposal.candidates == original
+
+
 def test_add_movies_icon_actions_use_equal_tool_button_geometry(
     qapp: QApplication,
     proposal_factory,
