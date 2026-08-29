@@ -22,8 +22,9 @@ def test_expanded_sidebar_matches_prototype_structure_and_spacing(
     window = _window(movie_item_factory, movie_details_factory)
     window._set_navigation_checked("library")
 
-    assert window.sidebar.layout().getContentsMargins() == (8, 12, 8, 12)
-    assert window._sidebar_top_row.height() == 42
+    # Pass 4 locked the fixed shell to symmetric 8 px outer margins.
+    assert window.sidebar.layout().getContentsMargins() == (8, 8, 8, 8)
+    assert window._sidebar_top_row.height() == 68
     assert window._sidebar_top_row.layout().getContentsMargins() == (12, 0, 12, 0)
     assert window.findChild(QFrame, "sidebarPaneToggleRow") is None
     assert window._sidebar_search_wrap.layout().getContentsMargins() == (12, 0, 12, 0)

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QPushButton, QWidget
 
 from dropsort.application.dto.movie_import import ImportProposalReason, ImportProposalStatus
 from dropsort.application.configuration.localization import UiLanguage
@@ -292,3 +292,36 @@ def test_row_retranslates_status_and_actions_but_keeps_technical_columns_ltr(
     assert row.year_label.layoutDirection() is Qt.LayoutDirection.LeftToRight
     assert row.resolution_label.layoutDirection() is Qt.LayoutDirection.LeftToRight
     localizer.set_language(UiLanguage.ENGLISH)
+
+
+def test_destroyed_review_rows_do_not_leave_localization_callbacks(
+    qapp: QApplication,
+    proposal_factory,
+    capsys,
+) -> None:
+    localizer = UiLocalizer()
+    baseline_bindings = len(localizer._bindings)
+    baseline_retranslators = len(localizer._retranslators)
+
+    for _cycle in range(5):
+        host = QWidget()
+        rows = [
+            ImportReviewRow(proposal_factory(), host, localizer=localizer)
+            for _index in range(4)
+        ]
+        assert len(localizer._retranslators) == baseline_retranslators + len(rows)
+        localizer.set_language(UiLanguage.ARABIC)
+        localizer.set_language(UiLanguage.ENGLISH)
+
+        host.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        qapp.processEvents()
+        localizer.set_language(UiLanguage.ARABIC)
+        localizer.set_language(UiLanguage.ENGLISH)
+
+        assert len(localizer._bindings) == baseline_bindings
+        assert len(localizer._retranslators) == baseline_retranslators
+
+    captured = capsys.readouterr()
+    assert "Internal C++ object" not in captured.err
+    assert "RuntimeError" not in captured.err

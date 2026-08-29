@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QFrame, QLabel, QProgressBar, QPushButton
+from PySide6.QtWidgets import QFrame, QLabel, QProgressBar, QPushButton, QStyle
 
 from dropsort.application.configuration.localization import UiLanguage
 from dropsort.application.dto.library_health import (
@@ -138,12 +138,44 @@ def test_check_library_rtl_button_placement_and_geometry_parity(qapp) -> None:
     button = page.findChild(QPushButton, "startLibraryCheckPageButton")
     english_size = button.size()
     english_left = button.mapTo(page, button.rect().topLeft()).x()
+    block = page.findChild(QFrame, "checkLibraryContentBlock")
+    assert block is not None
+    english_block_left = block.mapTo(page, block.rect().topLeft()).x()
 
     localizer.set_language(UiLanguage.ARABIC)
     qapp.processEvents()
     arabic_left = button.mapTo(page, button.rect().topLeft()).x()
+    arabic_block_left = block.mapTo(page, block.rect().topLeft()).x()
     assert button.size() == english_size
     assert arabic_left > english_left
+    assert arabic_block_left > english_block_left
+    assert block.width() <= 760
+
+
+def test_check_library_idle_content_and_action_remain_one_compact_rtl_block(
+    qapp,
+) -> None:
+    localizer = UiLocalizer(UiLanguage.ARABIC)
+    page = LibraryCheckPage(Actions(), DeferredRunner(), localizer=localizer)
+    page.resize(1200, 700)
+    page.show()
+    qapp.processEvents()
+
+    block = page.findChild(QFrame, "checkLibraryContentBlock")
+    title = page.findChild(QLabel, "libraryCheckPageTitle")
+    description = page.findChild(QLabel, "libraryCheckPageDescription")
+    status = page.findChild(QLabel, "libraryCheckPageStatusLabel")
+    button = page.findChild(QPushButton, "startLibraryCheckPageButton")
+
+    assert block is not None
+    assert all(widget.parentWidget() is block for widget in (title, description, status))
+    assert button.mapTo(block, button.rect().topRight()).x() == block.contentsRect().right()
+    assert button.mapTo(block, button.rect().topLeft()).y() - status.geometry().bottom() <= 16
+    assert all(
+        QStyle.visualAlignment(label.layoutDirection(), label.alignment())
+        & Qt.AlignmentFlag.AlignRight
+        for label in (title, description, status)
+    )
 
 
 def test_check_library_shared_structure_has_equal_summary_cells(qapp) -> None:
@@ -167,8 +199,12 @@ def test_check_library_shared_structure_has_equal_summary_cells(qapp) -> None:
     localizer.set_language(UiLanguage.ARABIC)
     qapp.processEvents()
     assert (passed.size(), attention.size(), button.size()) == english
-    assert passed.alignment() & Qt.AlignmentFlag.AlignRight
-    assert attention.alignment() & Qt.AlignmentFlag.AlignRight
+    assert QStyle.visualAlignment(
+        passed.layoutDirection(), passed.alignment()
+    ) & Qt.AlignmentFlag.AlignRight
+    assert QStyle.visualAlignment(
+        attention.layoutDirection(), attention.alignment()
+    ) & Qt.AlignmentFlag.AlignRight
 
 
 def test_running_check_finishes_safely_then_resets_when_left_hidden(qapp) -> None:
@@ -219,7 +255,10 @@ def test_page_supports_themes_and_arabic_western_progress_digits(qapp) -> None:
             progress = page.findChild(QLabel, "libraryCheckPagePercentageLabel")
             assert progress.layoutDirection() == Qt.LayoutDirection.LeftToRight
             assert page.layoutDirection() == Qt.LayoutDirection.RightToLeft
-            assert page.findChild(QLabel, "libraryCheckPageTitle").alignment() & Qt.AlignmentFlag.AlignRight
+            title = page.findChild(QLabel, "libraryCheckPageTitle")
+            assert QStyle.visualAlignment(
+                title.layoutDirection(), title.alignment()
+            ) & Qt.AlignmentFlag.AlignRight
             assert page.findChild(QPushButton, "startLibraryCheckPageButton").text()
     finally:
         apply_theme(qapp, ThemeId.MAIN)

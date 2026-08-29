@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from enum import StrEnum
 import weakref
+from collections.abc import Callable
 
 import shiboken6
 
@@ -1295,6 +1296,13 @@ class UiLocalizer(QObject):
         self._bindings: dict[
             int, tuple[weakref.ReferenceType[QWidget], TextId, dict[str, object]]
         ] = {}
+        self._retranslators: dict[
+            int,
+            tuple[
+                weakref.ReferenceType[QWidget],
+                weakref.WeakMethod[Callable[[object], object]],
+            ],
+        ] = {}
         self._apply_direction()
 
     @property
@@ -1344,6 +1352,31 @@ class UiLocalizer(QObject):
         self._bindings[widget_id] = (_reference, key, merged)
         widget.setText(self.text(key, **merged))  # type: ignore[attr-defined]
 
+    def bind_retranslator(
+        self,
+        owner: QWidget,
+        callback: Callable[[object], object],
+    ) -> None:
+        """Refresh owner UI through a weak callback that cannot outlive Qt."""
+
+        if not self._is_live_widget(owner):
+            return
+        try:
+            callback_ref = weakref.WeakMethod(callback)
+        except TypeError as error:
+            raise TypeError("retranslator must be a bound method") from error
+        owner_id = id(owner)
+        existing = self._retranslators.get(owner_id)
+        self._retranslators[owner_id] = (weakref.ref(owner), callback_ref)
+        if existing is not None and existing[0]() is owner:
+            return
+        localizer_ref = weakref.ref(self)
+        owner.destroyed.connect(
+            lambda _object=None, binding_id=owner_id, localizer=localizer_ref: (
+                localizer() and localizer()._remove_retranslator(binding_id)
+            )
+        )
+
     def set_language(self, language: UiLanguage) -> None:
         if not isinstance(language, UiLanguage):
             raise ValueError("language must be supported")
@@ -1360,10 +1393,26 @@ class UiLocalizer(QObject):
                 # A queued destroyed signal can race this refresh; remove the
                 # binding and let the next refresh proceed with live widgets.
                 self._bindings.pop(binding_id, None)
+        for owner_id, (owner_ref, callback_ref) in tuple(
+            self._retranslators.items()
+        ):
+            owner = owner_ref()
+            callback = callback_ref()
+            if (
+                owner is None
+                or callback is None
+                or not self._is_live_widget(owner)
+            ):
+                self._retranslators.pop(owner_id, None)
+                continue
+            callback(language)
         self.language_changed.emit(language)
 
     def _remove_binding(self, binding_id: int) -> None:
         self._bindings.pop(binding_id, None)
+
+    def _remove_retranslator(self, binding_id: int) -> None:
+        self._retranslators.pop(binding_id, None)
 
     @staticmethod
     def _is_live_widget(widget: QWidget) -> bool:

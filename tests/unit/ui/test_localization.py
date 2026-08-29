@@ -65,6 +65,27 @@ def test_rebinding_live_widget_reuses_one_destroyed_lifecycle_hook(qapp: QApplic
     assert label.text() == localizer.text(TextId.NAV_SETTINGS)
 
 
+def test_destroyed_retranslator_owner_is_unregistered_before_refresh(
+    qapp: QApplication,
+) -> None:
+    localizer = UiLocalizer()
+
+    class RetranslatableLabel(QLabel):
+        def refresh(self, _language) -> None:
+            self.setToolTip(localizer.text(TextId.NAV_LIBRARY))
+
+    label = RetranslatableLabel()
+    localizer.bind_retranslator(label, label.refresh)
+    assert len(localizer._retranslators) == 1
+
+    label.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()
+    localizer.set_language(UiLanguage.ARABIC)
+
+    assert localizer._retranslators == {}
+
+
 def test_repeated_navigation_language_switches_do_not_accumulate_dead_bindings(
     qapp, movie_details_factory
 ) -> None:

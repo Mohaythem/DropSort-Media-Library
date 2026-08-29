@@ -34,6 +34,8 @@ from dropsort.ui.localization import TextId, UiLocalizer
 
 CHECK_LIBRARY_ACTION_WIDTH = 176
 CHECK_LIBRARY_SUMMARY_MIN_HEIGHT = 64
+CHECK_LIBRARY_CONTENT_MIN_WIDTH = 560
+CHECK_LIBRARY_CONTENT_MAX_WIDTH = 760
 
 
 def _percentage(checked: int, total: int) -> int:
@@ -83,13 +85,20 @@ class LibraryCheckPage(QWidget):
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(SPACE_36, SPACE_36, SPACE_36, SPACE_36)
-        layout.setSpacing(SPACE_12)
+        layout.setSpacing(0)
+        self._content_block = QFrame()
+        self._content_block.setObjectName("checkLibraryContentBlock")
+        self._content_block.setMinimumWidth(CHECK_LIBRARY_CONTENT_MIN_WIDTH)
+        self._content_block.setMaximumWidth(CHECK_LIBRARY_CONTENT_MAX_WIDTH)
+        content_layout = QVBoxLayout(self._content_block)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(SPACE_12)
 
         self._title = QLabel()
         self._title.setObjectName("libraryCheckPageTitle")
         self._title.setProperty("role", "heading")
         self._localizer.bind_text(self._title, TextId.CHECK_FILES_TITLE)
-        layout.addWidget(self._title)
+        content_layout.addWidget(self._title)
 
         self._description = QLabel()
         self._description.setObjectName("libraryCheckPageDescription")
@@ -98,13 +107,13 @@ class LibraryCheckPage(QWidget):
         self._localizer.bind_text(
             self._description, TextId.CHECK_LIBRARY_IDLE_DESCRIPTION
         )
-        layout.addWidget(self._description)
+        content_layout.addWidget(self._description)
 
         self._status = QLabel()
         self._status.setObjectName("libraryCheckPageStatusLabel")
         self._status.setProperty("role", "secondary")
         self._status.setWordWrap(True)
-        layout.addWidget(self._status)
+        content_layout.addWidget(self._status)
 
         progress_row = QHBoxLayout()
         self._progress = QProgressBar()
@@ -121,7 +130,7 @@ class LibraryCheckPage(QWidget):
         self._localizer.mark_ltr(self._progress_percent)
         self._progress_percent.setAccessibleName("Check Library progress percentage")
         progress_row.addWidget(self._progress_percent)
-        layout.addLayout(progress_row)
+        content_layout.addLayout(progress_row)
 
         self._summary_panel = QFrame()
         self._summary_panel.setObjectName("checkLibrarySummaryPanel")
@@ -143,24 +152,24 @@ class LibraryCheckPage(QWidget):
         self._needs_attention.setAccessibleName("Needs attention")
         summary_layout.addWidget(self._passed, 0, 0)
         summary_layout.addWidget(self._needs_attention, 0, 1)
-        layout.addWidget(self._summary_panel)
+        content_layout.addWidget(self._summary_panel)
 
         self._positive = QLabel()
         self._positive.setObjectName("libraryCheckPositiveLabel")
         self._positive.setProperty("role", "success")
         self._positive.setWordWrap(True)
-        layout.addWidget(self._positive)
+        content_layout.addWidget(self._positive)
 
         self._failure = QLabel()
         self._failure.setObjectName("libraryCheckPageFailureLabel")
         self._failure.setProperty("role", "error")
         self._failure.setWordWrap(True)
-        layout.addWidget(self._failure)
+        content_layout.addWidget(self._failure)
 
         self._issues_heading = QLabel()
         self._issues_heading.setObjectName("libraryCheckIssuesHeading")
         self._issues_heading.setProperty("role", "sectionHeading")
-        layout.addWidget(self._issues_heading)
+        content_layout.addWidget(self._issues_heading)
 
         self._issues_scroll = QScrollArea()
         self._issues_scroll.setObjectName("libraryCheckPageIssuesScroll")
@@ -172,7 +181,7 @@ class LibraryCheckPage(QWidget):
         self._issues_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._issues_scroll.setWidget(self._issues_host)
         self._issues_scroll.setMaximumHeight(220)
-        layout.addWidget(self._issues_scroll)
+        content_layout.addWidget(self._issues_scroll)
 
         buttons = QHBoxLayout()
         self._buttons_layout = buttons
@@ -195,7 +204,12 @@ class LibraryCheckPage(QWidget):
         self._cancel.clicked.connect(self.cancel_check)
         buttons.addWidget(self._cancel)
         buttons.setAlignment(Qt.AlignmentFlag.AlignLeading)
-        layout.addLayout(buttons)
+        content_layout.addLayout(buttons)
+        layout.addWidget(
+            self._content_block,
+            0,
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeading,
+        )
         layout.addStretch(1)
 
         self._localizer.language_changed.connect(self._language_changed)
@@ -494,12 +508,9 @@ class LibraryCheckPage(QWidget):
         )
 
     def _text_alignment(self) -> Qt.AlignmentFlag:
-        horizontal = (
-            Qt.AlignmentFlag.AlignRight
-            if self._localizer.language.value == "ar"
-            else Qt.AlignmentFlag.AlignLeft
-        )
-        return horizontal | Qt.AlignmentFlag.AlignVCenter
+        # Qt mirrors left/right flags for RTL widgets. Logical-leading alignment
+        # therefore paints Arabic text on the physical right edge of the block.
+        return Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
 
     def _apply_layout_direction(self) -> None:
         rtl = self._localizer.language.value == "ar"
@@ -509,6 +520,7 @@ class LibraryCheckPage(QWidget):
             else Qt.LayoutDirection.LeftToRight
         )
         self.setLayoutDirection(direction)
+        self._content_block.setLayoutDirection(direction)
         self._summary_panel.setLayoutDirection(direction)
         self._issues_host.setLayoutDirection(direction)
         self._buttons_layout.setDirection(

@@ -238,20 +238,6 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         QFrame[role="separator"], QFrame[role="settingDivider"] {{
             background: {colors.separator};
         }}
-        QWidget#customTitleBar {{
-            background: {colors.surface};
-            border-bottom: 1px solid {colors.separator};
-        }}
-        QToolButton[role="windowControl"], QToolButton[role="windowCloseControl"] {{
-            min-width: 42px; max-width: 42px;
-            min-height: 32px; max-height: 32px;
-            padding: 0px; margin: 0px;
-            border: none; border-radius: 0px;
-            background: transparent;
-        }}
-        QToolButton[role="windowControl"]:hover, QToolButton[role="windowCloseControl"]:hover {{ background: {colors.card_hover}; }}
-        QToolButton[role="windowControl"]:pressed, QToolButton[role="windowCloseControl"]:pressed {{ background: {colors.accent_pressed}; }}
-        QToolButton[role="windowCloseControl"]:hover {{ background: {colors.danger}; }}
         QFrame#sidebar {{
             background: {colors.sidebar};
             border-right: 1px solid {colors.border};
@@ -262,8 +248,9 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         }}
         QLabel#brandLabel {{
             color: {colors.text};
-            font-size: {H2_SIZE:g}px;
-            font-weight: {HEADING_WEIGHT};
+            font-size: 30px;
+            font-weight: 700;
+            letter-spacing: 1px;
         }}
         QLabel#brandSubtitle, QLabel[role="muted"] {{
             color: {colors.text_muted};
@@ -377,6 +364,11 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         QPushButton[role="primaryAction"]:hover {{
             border-color: {colors.focus};
             background: {colors.card_hover};
+            color: {colors.text};
+        }}
+        QPushButton[role="primaryAction"]:pressed {{
+            border-color: {colors.focus};
+            background: {colors.accent_pressed};
             color: {colors.text};
         }}
         QPushButton[role="preferenceAction"] {{

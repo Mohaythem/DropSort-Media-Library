@@ -449,12 +449,11 @@ class PersonalLibraryView(QWidget):
         self._tabs.setLayoutDirection(direction)
         self._empty_host.setLayoutDirection(direction)
         self._heading.setAlignment(
-            (Qt.AlignmentFlag.AlignRight if rtl else Qt.AlignmentFlag.AlignLeft)
-            | Qt.AlignmentFlag.AlignVCenter
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
-        self._search.setAlignment(
-            Qt.AlignmentFlag.AlignRight if rtl else Qt.AlignmentFlag.AlignLeft
-        )
+        # Qt mirrors left/right alignment for RTL widgets. Keep logical-leading
+        # alignment so Arabic placeholder and entered text paint on the right.
+        self._search.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self._empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_description.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

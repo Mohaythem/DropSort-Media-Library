@@ -861,7 +861,7 @@ class MovieDetailsView(QWidget):
             self.take_stable_focus()
         button.setEnabled(not busy)
         # setEnabled() already schedules the correct native/QSS state repaint.
-        # Do not force an unpolish/polish cycle for one transient operation;
+        # Do not force a synchronous style reset for one transient operation;
         # that can synchronously invalidate geometry while Details is visible.
 
     def _run_personal_action(self, action: str) -> None:

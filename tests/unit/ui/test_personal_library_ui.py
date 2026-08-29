@@ -4,7 +4,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from PySide6.QtCore import QDate, Qt
-from PySide6.QtWidgets import QDateEdit, QFrame, QLabel, QPushButton
+from PySide6.QtWidgets import QDateEdit, QFrame, QLabel, QPushButton, QStyle
 
 from dropsort.application.dto.personal_library import PersonalMovieSnapshot
 from dropsort.application.dto.library import MediaFileAvailability, MovieDetails
@@ -340,12 +340,28 @@ def test_personal_controls_live_retranslate_with_rtl_geometry_parity(qapp) -> No
         localizer.text(TextId.PERSONAL_TAB_BLACKLISTED),
     ]
     assert view.layoutDirection() is Qt.LayoutDirection.RightToLeft
-    assert view._search.alignment() & Qt.AlignmentFlag.AlignRight
+    assert QStyle.visualAlignment(
+        view._heading.layoutDirection(), view._heading.alignment()
+    ) & Qt.AlignmentFlag.AlignRight
+    assert QStyle.visualAlignment(
+        view._search.layoutDirection(), view._search.alignment()
+    ) & Qt.AlignmentFlag.AlignRight
+    view._search.setText("فيلم عربي")
+    assert view._search.text() == "فيلم عربي"
+    assert QStyle.visualAlignment(
+        view._search.layoutDirection(), view._search.alignment()
+    ) & Qt.AlignmentFlag.AlignRight
     assert english_sizes == (view._search.size(), view._tabs.size())
 
     localizer.set_language(UiLanguage.ENGLISH)
     assert view._search.placeholderText() == "Search this section..."
     assert view._tabs.tabText(0) == "Watchlist"
+    assert QStyle.visualAlignment(
+        view._heading.layoutDirection(), view._heading.alignment()
+    ) & Qt.AlignmentFlag.AlignLeft
+    assert QStyle.visualAlignment(
+        view._search.layoutDirection(), view._search.alignment()
+    ) & Qt.AlignmentFlag.AlignLeft
 
 
 def test_personal_library_search_is_scoped_to_active_tab_and_resets_on_switch(

@@ -220,11 +220,6 @@ class ImportReviewRow(QFrame):
         self.dismiss_button.setText("")
         self.dismiss_button.setToolTip(self._localizer.text(TextId.DISMISS_PROPOSAL))
         self.dismiss_button.clicked.connect(lambda: self.dismiss_requested.emit(self))
-        self._localizer.language_changed.connect(
-            lambda _language: self.dismiss_button.setToolTip(
-                self._localizer.text(TextId.DISMISS_PROPOSAL)
-            )
-        )
         action_layout.addWidget(self.dismiss_button)
         layout.addWidget(action_host, 0, 4, 3, 1, Qt.AlignmentFlag.AlignVCenter)
 
@@ -233,9 +228,7 @@ class ImportReviewRow(QFrame):
             (self.manual_search_button, 88),
         )
         self._refresh_action_button_sizes()
-        self._localizer.language_changed.connect(self._refresh_action_button_sizes)
-        self._localizer.language_changed.connect(self._refresh_action_tooltips)
-        self._localizer.language_changed.connect(self._retranslate_status)
+        self._localizer.bind_retranslator(self, self._retranslate)
 
         self._candidate_divider = QFrame(self)
         self._candidate_divider.setObjectName("importCandidateDivider")
@@ -346,10 +339,18 @@ class ImportReviewRow(QFrame):
             self._localizer.text(TextId.EDIT_SEARCH)
         )
         self.settings_button.setToolTip(self._localizer.text(TextId.OPEN_SETTINGS))
+        self.dismiss_button.setToolTip(
+            self._localizer.text(TextId.DISMISS_PROPOSAL)
+        )
 
     def _retranslate_status(self, _language=None) -> None:
         if self._status_text_id is not None:
             self._status.setText(self._localizer.text(self._status_text_id))
+
+    def _retranslate(self, language) -> None:
+        self._refresh_action_button_sizes(language)
+        self._refresh_action_tooltips(language)
+        self._retranslate_status(language)
 
     def _request_confirmation(self) -> None:
         candidate = self.selected_candidate
