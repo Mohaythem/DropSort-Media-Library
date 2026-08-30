@@ -38,6 +38,7 @@ class ColorTokens(NamedTuple):
     app_background: str
     dialog: str
     input: str
+    popup: str
     subtle_border: str
     primary_text: str
     disabled_text: str
@@ -68,7 +69,7 @@ DEEP_INK = ColorTokens(
     selected="#6B352A",
     focus="#F08A6B",
     disabled="#285047",
-    app_background="#0B1E1B", dialog="#17332E", input="#102925",
+    app_background="#0B1E1B", dialog="#17332E", input="#102925", popup="#17332E",
     subtle_border="#285047", primary_text="#FFF1A6", disabled_text="#C9BE88",
     accent_pressed="#D85D43", info="#79B8C4", separator="#285047",
 )
@@ -80,7 +81,7 @@ CHATGPT_DARK = ColorTokens(
     text_secondary="#BAC1CB", success="#79B88A", warning="#D9A441",
     primary_hover="#E8B652", accent_hover="#F0A06F",
     sidebar="#0D1118", selected="#222B37", focus="#E8B652", disabled="#2A3442",
-    app_background="#090B10", dialog="#171C25", input="#11151C",
+    app_background="#090B10", dialog="#171C25", input="#11151C", popup="#171C25",
     subtle_border="#2A3442", primary_text="#F2F4F7", disabled_text="#858D99",
     accent_pressed="#A9543B", info="#7EAFC4", separator="#2A3442",
 )
@@ -92,24 +93,23 @@ SLATE = ColorTokens(
     text_secondary="#C3C7CC", success="#5CB85C", warning="#E6BF9E",
     primary_hover="#C3D6E7", accent_hover="#E58B6E",
     sidebar="#202C38", selected="#314656", focus="#B3C9DD", disabled="#3C5164",
-    app_background="#18212B", dialog="#273746", input="#202C38",
+    app_background="#18212B", dialog="#273746", input="#202C38", popup="#273746",
     subtle_border="#3C5164", primary_text="#E3E2E3", disabled_text="#8D9196",
     accent_pressed="#C26145", info="#7FAFC2", separator="#3C5164",
 )
 
 LIGHT = ColorTokens(
-    # Same geometry as the dark/Slate product, with Light-only semantic roles.
-    # The previous green sidebar/primary was a dark-theme holdover that made
-    # global text and muted roles inconsistent in Light mode.
-    text="#26292D", background="#F4F1EA", primary="#526A7C", secondary="#E8EDF1",
-    accent="#D97757", surface="#FBF9F4", surface_raised="#FFFFFF", card="#F8F6F1",
-    text_muted="#6F747A", border="#D5D9DD", danger="#B84C48", card_hover="#EEF1F3",
+    # Warm Light surfaces retain the established accent while making the
+    # application, panels, cards, inputs, and raised popups visibly distinct.
+    text="#26292D", background="#EEEAE2", primary="#526A7C", secondary="#E2E8EC",
+    accent="#D97757", surface="#F6F2EB", surface_raised="#FFFFFF", card="#FAF8F3",
+    text_muted="#6F747A", border="#C2C9CF", danger="#B84C48", card_hover="#E7ECEF",
     text_secondary="#525960", success="#3E7D5D", warning="#9B6B32",
     primary_hover="#40586A", accent_hover="#C9684B",
-    sidebar="#EEEAE3", selected="#E3E8EC", focus="#526A7C", disabled="#DADDE0",
-    app_background="#F4F1EA", dialog="#FFFFFF", input="#FBF9F4",
-    subtle_border="#D5D9DD", primary_text="#26292D", disabled_text="#6F747A",
-    accent_pressed="#B5523A", info="#3B718A", separator="#D5D9DD",
+    sidebar="#E4DED4", selected="#DCE4E9", focus="#526A7C", disabled="#D3D8DC",
+    app_background="#EEEAE2", dialog="#F6F2EB", input="#FFFEFB", popup="#FFFFFF",
+    subtle_border="#CBD1D6", primary_text="#26292D", disabled_text="#6F747A",
+    accent_pressed="#B5523A", info="#3B718A", separator="#C2C9CF",
 )
 
 THEMES = {
@@ -536,10 +536,33 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         QLineEdit[role="pageSearch"] QToolButton {{
             min-width: 24px;
             max-width: 24px;
+            min-height: 18px;
+            max-height: 18px;
             padding: 0px;
             margin: 0px;
             border: none;
             background: transparent;
+        }}
+        QAbstractItemView[role="pageSearchSuggestions"] {{
+            background: {colors.popup};
+            color: {colors.primary_text};
+            border: 1px solid {colors.subtle_border};
+            border-radius: {RADIUS_CONTROL}px;
+            padding: 2px 0px;
+            outline: none;
+            selection-background-color: {colors.selected};
+            selection-color: {colors.primary_text};
+        }}
+        QAbstractItemView[role="pageSearchSuggestions"]::item {{
+            min-height: 20px;
+            padding: 5px 10px;
+            border: none;
+            color: {colors.primary_text};
+        }}
+        QAbstractItemView[role="pageSearchSuggestions"]::item:hover,
+        QAbstractItemView[role="pageSearchSuggestions"]::item:selected {{
+            background: {colors.selected};
+            color: {colors.primary_text};
         }}
         QFrame#tmdbSettingsCard {{
             background: {colors.surface};

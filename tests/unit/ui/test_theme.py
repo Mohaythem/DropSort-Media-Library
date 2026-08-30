@@ -82,14 +82,24 @@ def test_retired_main_palette_remains_internal_but_only_three_themes_are_selecta
     assert THEMES[ThemeId.SLATE].text == "#E3E2E3"
     assert THEMES[ThemeId.SLATE].background != THEMES[ThemeId.DARK].background
     assert THEMES[ThemeId.SLATE].primary != THEMES[ThemeId.DARK].primary
-    assert THEMES[ThemeId.LIGHT].background == "#F4F1EA"
-    assert THEMES[ThemeId.LIGHT].surface == "#FBF9F4"
+    assert THEMES[ThemeId.LIGHT].background == "#EEEAE2"
+    assert THEMES[ThemeId.LIGHT].surface == "#F6F2EB"
     assert THEMES[ThemeId.LIGHT].background != "#FFFFFF"
     assert THEMES[ThemeId.LIGHT].accent == "#D97757"
     assert THEMES[ThemeId.LIGHT].sidebar != THEMES[ThemeId.LIGHT].primary
-    assert THEMES[ThemeId.LIGHT].sidebar == "#EEEAE3"
+    assert THEMES[ThemeId.LIGHT].sidebar == "#E4DED4"
+    assert len(
+        {
+            THEMES[ThemeId.LIGHT].app_background,
+            THEMES[ThemeId.LIGHT].surface,
+            THEMES[ThemeId.LIGHT].card,
+            THEMES[ThemeId.LIGHT].input,
+            THEMES[ThemeId.LIGHT].popup,
+        }
+    ) == 5
+    assert THEMES[ThemeId.LIGHT].border != THEMES[ThemeId.LIGHT].subtle_border
     stylesheet = application_stylesheet(ThemeId.LIGHT)
-    assert "#F4F1EA" in stylesheet
+    assert "#EEEAE2" in stylesheet
     assert "QCalendarWidget QWidget#qt_calendar_navigationbar" in stylesheet
     assert "background: transparent;" in stylesheet.split("QCalendarWidget QToolButton", 1)[1].split("}", 1)[0]
 
