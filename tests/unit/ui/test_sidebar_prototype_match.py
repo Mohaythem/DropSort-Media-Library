@@ -27,12 +27,11 @@ def test_expanded_sidebar_matches_prototype_structure_and_spacing(
     assert window._sidebar_top_row.height() == 68
     assert window._sidebar_top_row.layout().getContentsMargins() == (12, 0, 12, 0)
     assert window.findChild(QFrame, "sidebarPaneToggleRow") is None
-    assert window._sidebar_search_wrap.layout().getContentsMargins() == (12, 0, 12, 0)
+    assert window.findChild(QFrame, "sidebarSearchWrap") is None
     assert window._sidebar_primary_navigation.layout().getContentsMargins() == (0, 0, 0, 0)
     assert window._sidebar_primary_navigation.layout().spacing() == 4
     assert window._sidebar_footer.layout().getContentsMargins() == (0, 0, 0, 0)
     assert window._settings_button.parentWidget() is window._sidebar_footer
-    assert window._sidebar_search_wrap.isHidden() is False
 
     library = window.findChild(QPushButton, "libraryNavButton")
     assert library is not None

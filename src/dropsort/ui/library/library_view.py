@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import QSignalBlocker, QStringListModel, Signal, Qt
 from PySide6.QtWidgets import (
+    QCompleter,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -17,6 +18,7 @@ from dropsort.application.dto.reconciliation import LibraryReconciliationProgres
 from dropsort.application.errors import LibraryQueryError
 from dropsort.ui.common.theme import SPACE_4, SPACE_36, SPACE_LARGE
 from dropsort.ui.common.icon import FluentIconName, set_fluent_icon
+from dropsort.ui.common.search_field import PageSearchEdit
 from dropsort.ui.contracts import LibraryUiActions
 from dropsort.ui.library.movie_card import MovieCard
 from dropsort.ui.library.movie_grid import MovieGrid
@@ -31,9 +33,7 @@ LOGGER = logging.getLogger(__name__)
 class LibraryView(QWidget):
     movie_selected = Signal(int)
     check_files_requested = Signal()
-    clear_search_requested = Signal()
     add_movies_requested = Signal()
-    search_candidates_changed = Signal(object)
 
     def __init__(
         self,
@@ -68,8 +68,11 @@ class LibraryView(QWidget):
         self._count.setObjectName("libraryCountLabel")
         self._count.setProperty("role", "muted")
         heading_block_layout.addWidget(self._count)
-        heading_row.addWidget(heading_block)
-        heading_row.addStretch(1)
+        heading_block.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Preferred,
+        )
+        heading_row.addWidget(heading_block, 1)
         self._check_files = QPushButton()
         self._check_files.setObjectName("checkLibraryFilesButton")
         self._check_files.setProperty("role", "secondaryAction")
@@ -79,6 +82,26 @@ class LibraryView(QWidget):
         self._localizer.bind_text(self._check_files, TextId.CHECK_LIBRARY_FILES)
         self._check_files.hide()
         layout.addLayout(heading_row)
+
+        self._search = PageSearchEdit()
+        self._search.setObjectName("libraryPageSearchInput")
+        self._search.setPlaceholderText(
+            self._localizer.text(TextId.LIBRARY_SEARCH_PLACEHOLDER)
+        )
+        self._search.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_LIBRARY_SEARCH)
+        )
+        self._search.textChanged.connect(self._search_changed)
+        self._search_model = QStringListModel([], self)
+        self._search_completer = QCompleter(self._search_model, self)
+        self._search_completer.setCaseSensitivity(
+            Qt.CaseSensitivity.CaseInsensitive
+        )
+        self._search_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._search_completer.setMaxVisibleItems(7)
+        self._search_completer.activated.connect(self._search_suggestion_activated)
+        self._search.setCompleter(self._search_completer)
+        layout.addWidget(self._search)
 
         self._state_host = QWidget()
         self._state_host.setObjectName("libraryStateHost")
@@ -108,7 +131,7 @@ class LibraryView(QWidget):
         self._clear_search = QPushButton()
         self._clear_search.setObjectName("libraryEmptyClearSearchButton")
         self._clear_search.setProperty("role", "ghostAction")
-        self._clear_search.clicked.connect(self.clear_search_requested)
+        self._clear_search.clicked.connect(self.clear_search_query)
         self._localizer.bind_text(self._clear_search, TextId.LIBRARY_SEARCH_CLEAR)
         state_layout.addWidget(self._clear_search, 0, Qt.AlignmentFlag.AlignHCenter)
         state_layout.addStretch(1)
@@ -128,10 +151,14 @@ class LibraryView(QWidget):
         self._reconciliation.hide()
         layout.addWidget(self._reconciliation)
 
-        self._grid = MovieGrid(poster_loader=poster_loader)
+        self._grid = MovieGrid(
+            poster_loader=poster_loader,
+            localizer=self._localizer,
+        )
         self._grid.movie_selected.connect(self.movie_selected.emit)
         layout.addWidget(self._grid, 1)
-        self._localizer.language_changed.connect(lambda _language: self._apply_search())
+        self._localizer.bind_retranslator(self, self._retranslate)
+        self._apply_layout_direction()
 
     def prepare_for_width(self, page_width: int) -> None:
         """Prepare grid columns before this page becomes the stack current page."""
@@ -155,8 +182,14 @@ class LibraryView(QWidget):
         value: LibraryReconciliationProgress,
     ) -> None:
         self.show_reconciliation_message(
-            f"Checking library files: {value.checked} / {value.total} | "
-            f"Present: {value.present} | Missing: {value.missing} | Errors: {value.errors}"
+            self._localizer.text(
+                TextId.LIBRARY_RECONCILIATION_PROGRESS,
+                checked=value.checked,
+                total=value.total,
+                present=value.present,
+                missing=value.missing,
+                errors=value.errors,
+            )
         )
 
     def show_reconciliation_message(self, message: str) -> None:
@@ -182,7 +215,7 @@ class LibraryView(QWidget):
         self._all_items = ()
         self._has_snapshot = False
         self._grid.set_items(())
-        self.search_candidates_changed.emit(())
+        self._search_model.setStringList([])
         self._apply_search(render_grid=False)
 
     def set_add_movies_available(self, available: bool) -> None:
@@ -213,7 +246,7 @@ class LibraryView(QWidget):
         self._has_snapshot = True
         filtered = filter_movie_items(self._all_items, self._search_query)
         self._grid.set_items(self._all_items, visible_items=filtered)
-        self.search_candidates_changed.emit(movie_search_suggestions(self._all_items))
+        self._refresh_search_suggestions()
         self._apply_search(render_grid=False)
 
     def refresh_movies(self, movie_ids: tuple[int, ...]) -> None:
@@ -251,24 +284,27 @@ class LibraryView(QWidget):
         self._all_items = tuple(items)
         filtered = filter_movie_items(self._all_items, self._search_query)
         self._grid.set_items(self._all_items, visible_items=filtered)
-        self.search_candidates_changed.emit(movie_search_suggestions(self._all_items))
+        self._refresh_search_suggestions()
         self._apply_search(render_grid=False)
 
     def set_search_query(self, query: str) -> None:
         normalized = query.strip()
+        if self._search.text() != query:
+            blocker = QSignalBlocker(self._search)
+            self._search.setText(query)
+            del blocker
         if normalized == self._search_query:
             return
         self._search_query = normalized
         self._apply_search()
 
     def clear_search_query(self, *, render: bool = True) -> None:
-        """Reset the transient filter, optionally deferring the repaint.
+        """Clear this page's local presentation filter."""
 
-        Navigation away from Library clears the search text, but repainting the
-        full poster grid immediately before hiding the page is wasted work and
-        was one source of the visible navigation hitch.
-        """
-
+        if self._search.text():
+            blocker = QSignalBlocker(self._search)
+            self._search.clear()
+            del blocker
         if not self._search_query:
             return
         self._search_query = ""
@@ -277,6 +313,31 @@ class LibraryView(QWidget):
 
     def search_suggestions(self) -> tuple[str, ...]:
         return movie_search_suggestions(self._all_items)
+
+    def _search_changed(self, query: str) -> None:
+        self.set_search_query(query)
+
+    def _search_suggestion_activated(self, value: str) -> None:
+        self._search.setText(value)
+        self._search.setFocus()
+        self._search.end(False)
+
+    def _refresh_search_suggestions(self) -> None:
+        self._search_model.setStringList(list(self.search_suggestions()))
+
+    def _retranslate(self, _language) -> None:
+        self._search.setPlaceholderText(
+            self._localizer.text(TextId.LIBRARY_SEARCH_PLACEHOLDER)
+        )
+        self._search.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_LIBRARY_SEARCH)
+        )
+        self._apply_layout_direction()
+        self._apply_search()
+
+    def _apply_layout_direction(self) -> None:
+        rtl = self._localizer.language.value == "ar"
+        self._search.apply_language_direction(rtl=rtl)
 
     def _apply_search(self, *, render_grid: bool = True) -> None:
         items = filter_movie_items(self._all_items, self._search_query)

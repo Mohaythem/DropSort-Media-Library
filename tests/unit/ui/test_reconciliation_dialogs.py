@@ -163,7 +163,7 @@ def test_explicit_library_check_renders_file_and_metadata_summary_and_issues(qap
     summary = dialog.findChild(QLabel, "libraryCheckSummaryLabel").text()
     assert "3 files checked" in summary
     assert "1 metadata issues found" in summary
-    assert "1 repaired" in summary
+    assert "Metadata fields repaired: 1" in summary
     assert dialog.findChild(QLabel, "libraryCheckIssuesLabel").text() == "Issues to review"
     assert any(
         "Repaired: Missing overview" in label.text()
@@ -352,7 +352,7 @@ def test_library_check_idle_state_is_compact_and_explicit(qapp) -> None:
     dialog = LibraryFileCheckDialog(Actions(), DeferredRunner())
 
     assert dialog.state is LibraryFileCheckDialog.State.IDLE
-    assert dialog.status_text == "Ready to check cataloged media paths."
+    assert dialog.status_text == "Ready to check library files and movie metadata."
     assert dialog.findChild(QLabel, "libraryCheckIdleDescription").isHidden() is False
     assert dialog.findChild(QLabel, "libraryCheckFailureLabel").isHidden() is True
     assert dialog.findChild(QProgressBar, "libraryCheckProgressBar").isHidden() is True

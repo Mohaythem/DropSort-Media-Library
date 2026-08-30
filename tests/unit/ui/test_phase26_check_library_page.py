@@ -363,7 +363,7 @@ def test_page_covers_zero_progress_and_small_terminal_branches(qapp) -> None:
     assert _percentage(0, 0) == 0
     assert _percentage(1, 0) == 100
     page = LibraryCheckPage(Actions(), DeferredRunner())
-    assert page.status_text == "Ready to check cataloged media paths."
+    assert page.status_text == "Ready to check library files and movie metadata."
     page.cancel_check()
     page._render_progress(LibraryReconciliationProgress(0, 0, 0, 0, 0, 0))
     page._render_result(LibraryReconciliationProgress(0, 0, 0, 0, 0, 0))

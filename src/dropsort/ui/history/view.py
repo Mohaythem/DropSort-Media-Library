@@ -485,7 +485,10 @@ class OperationDetailsDialog(QDialog):
         )
         layout.addLayout(form)
         if details.error_code or details.error_message:
-            error = QLabel(f"{details.error_code or 'Operation error'}: {details.error_message or ''}")
+            error = QLabel(
+                f"{details.error_code or self._localizer.text(TextId.HISTORY_OPERATION_ERROR)}: "
+                f"{details.error_message or ''}"
+            )
             error.setObjectName("operationDetailsError")
             error.setProperty("role", "error")
             error.setWordWrap(True)
@@ -635,7 +638,9 @@ class OperationDetailsDialog(QDialog):
         if token != self._token:
             return
         if not isinstance(value, RecoveryResult):
-            self._state.setText("DropSort received an invalid recovery result.")
+            self._state.setText(
+                self._localizer.text(TextId.RECOVERY_RESULT_INVALID)
+            )
             return
         self._state.setText(
             self._localizer.text(TextId.RECOVERY_COMPLETE, state=value.state.value)

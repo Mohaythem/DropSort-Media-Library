@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QPushButton, QToolButton, QWidget
 
 from dropsort.application.dto.library import MovieDetails, MovieListItem
 from dropsort.application.errors import LibraryQueryError
@@ -49,7 +49,7 @@ def test_library_view_has_clear_empty_state(qapp: QApplication) -> None:
     assert actions.calls == ["library"]
     assert view.card_count == 0
     assert _text(view, "libraryHeadingLabel") == "Library"
-    assert _text(view, "libraryCountLabel") == "0 movies"
+    assert _text(view, "libraryCountLabel") == "Movies: 0"
     assert _text(view, "libraryStateLabel") == "Your movie library is empty."
     host = view.findChild(QWidget, "libraryStateHost")
     cta = view.findChild(QPushButton, "libraryEmptyAddMoviesButton")
@@ -78,6 +78,30 @@ def test_library_empty_state_cta_and_copy_retranslate(qapp: QApplication) -> Non
         TextId.LIBRARY_COUNT, count=0
     )
     localizer.set_language(UiLanguage.ENGLISH)
+
+
+def test_library_search_clear_button_mirrors_between_ltr_and_rtl(
+    qapp: QApplication,
+) -> None:
+    localizer = UiLocalizer(UiLanguage.ENGLISH)
+    view = LibraryView(FakeLibraryActions(), localizer=localizer)
+    view.resize(900, 600)
+    view.show()
+    view._search.setText("Arrival")
+    qapp.processEvents()
+
+    clear_button = view._search.findChild(QToolButton)
+    assert clear_button is not None and clear_button.isVisible()
+    assert clear_button.geometry().center().x() > view._search.width() // 2
+
+    localizer.set_language(UiLanguage.ARABIC)
+    qapp.processEvents()
+    assert view._search.layoutDirection() is Qt.LayoutDirection.RightToLeft
+    assert clear_button.geometry().center().x() < view._search.width() // 2
+
+    localizer.set_language(UiLanguage.ENGLISH)
+    qapp.processEvents()
+    assert clear_button.geometry().center().x() > view._search.width() // 2
 
 
 def test_library_view_renders_multiple_cards(

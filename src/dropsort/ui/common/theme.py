@@ -517,15 +517,29 @@ def application_stylesheet(theme_id: UiTheme | str = UiTheme.SLATE) -> str:
         QLabel#libraryStateHelperLabel {{
             color: {colors.text_muted};
         }}
-        QLineEdit#librarySearchInput {{
-            min-height: {CONTROL_HEIGHT}px;
-            max-height: {CONTROL_HEIGHT}px;
+        QLineEdit[role="pageSearch"] {{
+            min-height: {CONTROL_HEIGHT - 14}px;
+            max-height: {CONTROL_HEIGHT - 14}px;
             padding: 6px 12px;
             border-radius: {RADIUS_CONTROL}px;
-            background: {colors.background};
+            background: {colors.input};
+            color: {colors.primary_text};
+            border: 1px solid {colors.subtle_border};
         }}
-        QLineEdit#librarySearchInput:focus {{
+        QLineEdit[role="pageSearch"]:focus {{
             border: 1px solid {colors.focus};
+        }}
+        QLineEdit[role="pageSearch"]:disabled {{
+            background: {colors.surface};
+            color: {colors.disabled_text};
+        }}
+        QLineEdit[role="pageSearch"] QToolButton {{
+            min-width: 24px;
+            max-width: 24px;
+            padding: 0px;
+            margin: 0px;
+            border: none;
+            background: transparent;
         }}
         QFrame#tmdbSettingsCard {{
             background: {colors.surface};

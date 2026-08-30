@@ -22,20 +22,21 @@ def _library(movie_item_factory, movie_details_factory):
     )()
 
 
-def test_make_shell_keeps_search_in_sidebar_and_details_owns_back(
+def test_make_shell_removes_sidebar_search_and_details_owns_back(
     qapp, movie_item_factory, movie_details_factory
 ) -> None:
     window = MainWindow(
         _library(movie_item_factory, movie_details_factory), load_on_show=False
     )
     header = window.findChild(QFrame, "appHeader")
-    search = window.findChild(QLineEdit, "librarySearchInput")
+    search = window.findChild(QLineEdit, "libraryPageSearchInput")
     back = window.findChild(QPushButton, "sidebarBackButton")
     pane = window.findChild(QPushButton, "sidebarPaneToggleButton")
 
     assert header is None
-    assert search is not None and search.parentWidget() is window._sidebar_search_wrap
-    assert window._sidebar_search_wrap.parentWidget() is window.sidebar
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
+    assert not hasattr(window, "_sidebar_search_wrap")
+    assert search is not None and search.parentWidget() is window.library_view
     assert back is None
     assert pane is None
 
@@ -124,7 +125,7 @@ def test_phase29_tmdb_settings_and_check_library_surfaces_are_single_panels(
     window.close()
 
 
-def test_make_shell_state_refreshes_persistent_search_and_back_navigation(
+def test_page_search_state_is_independent_and_back_navigation_is_preserved(
     qapp, movie_item_factory, movie_details_factory
 ) -> None:
     window = MainWindow(
@@ -133,25 +134,23 @@ def test_make_shell_state_refreshes_persistent_search_and_back_navigation(
         settings_actions=SettingsActions(),
         load_on_show=False,
     )
-    window._set_search_suggestions("not a tuple")
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
+    library_search = window.library_view._search
+    assert window.personal_view is not None
+    personal_search = window.personal_view._search
     window.show_personal_library()
-    window._set_search_suggestions(("Interstellar", 2026, "Prestige"))
-    assert window._search_field.text() == ""
-    assert not window._search_field.isEnabled()
-    window._search_field.setText("Inter")
-    assert window._search_query == ""
+    personal_search.setText("Inter")
+    assert personal_search.text() == "Inter"
+    assert library_search.text() == ""
     assert window.current_section == "personal"
 
     window.show_library()
-    window._set_search_suggestions(("Prestige",))
-    window._search_suggestion_activated("Prestige")
-    assert window._search_query == "Prestige"
-
-    window._refresh_shell_text()
-    window._set_header_section(window._localizer.language, search_visible=False)
-    assert not window._search_field.isHidden()
-    assert not window._search_field.isEnabled()
+    library_search.setText("Prestige")
+    assert window.library_view._search_query == "Prestige"
+    assert personal_search.text() == "Inter"
     window.show_check_library_from_library()
+    assert window._stack.currentWidget() is window.check_library_page
     window.navigate_back()
     assert window.current_section == "library"
+    assert library_search.text() == "Prestige"
     window.close()

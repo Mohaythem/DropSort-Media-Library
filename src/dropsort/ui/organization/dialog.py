@@ -107,7 +107,9 @@ class OrganizeFileDialog(QDialog):
         self._filename = QLineEdit(current_path.name)
         self._localizer.mark_ltr(self._filename)
         self._filename.setObjectName("organizationFilenameInput")
-        self._filename.setAccessibleName("Destination filename")
+        self._filename.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_DESTINATION_FILENAME)
+        )
         self._filename.textChanged.connect(self._invalidate_preview_for_edit)
         destination_controls.addWidget(self._filename, 1)
         self._refresh_button = QPushButton()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtWidgets import QApplication, QSplitter, QPushButton
+from PySide6.QtWidgets import QApplication, QLineEdit, QSplitter, QPushButton
 
 from dropsort.application.configuration.localization import UiLanguage
 from dropsort.application.configuration.metadata_credentials import (
@@ -68,7 +68,7 @@ def _library(movie_item_factory, movie_details_factory):
     )()
 
 
-def test_sidebar_is_fixed_width_and_keeps_labels_and_search_visible(
+def test_sidebar_is_fixed_width_and_keeps_labels_without_global_search(
     qapp: QApplication, movie_item_factory, movie_details_factory
 ) -> None:
     actions = SettingsActions()
@@ -91,7 +91,8 @@ def test_sidebar_is_fixed_width_and_keeps_labels_and_search_visible(
     button = window.findChild(QPushButton, "libraryNavButton")
     assert button is not None
     assert button.text() == "Library"
-    assert window._search_field.isHidden() is False
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
+    assert window.library_view._search.parentWidget() is window.library_view
     assert actions.sidebar_width is None
 
     window._localizer.set_language(UiLanguage.ARABIC)

@@ -113,7 +113,7 @@ def test_library_search_matches_title_original_title_and_year_without_provider_c
     assert actions.calls == 1
 
 
-def test_sidebar_search_keeps_shell_geometry_but_is_interactive_only_in_library(
+def test_search_is_page_owned_and_absent_from_the_sidebar(
     qapp,
     movie_item_factory,
 ) -> None:
@@ -124,8 +124,9 @@ def test_sidebar_search_keeps_shell_geometry_but_is_interactive_only_in_library(
         settings_actions=SettingsActions(),
         load_on_show=False,
     )
-    search = window.findChild(QLineEdit, "librarySearchInput")
-    assert search is not None
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
+    search = window.findChild(QLineEdit, "libraryPageSearchInput")
+    assert search is not None and search.parentWidget() is window.library_view
 
     window.show_library()
     assert search.isHidden() is False
@@ -135,13 +136,11 @@ def test_sidebar_search_keeps_shell_geometry_but_is_interactive_only_in_library(
     assert actions.calls == 1
 
     window.show_settings()
-    assert search.isHidden() is False
-    assert not search.isEnabled()
-    assert search.text() == ""
-    search.setText("inter")  # programmatic signal must still be side-effect free
-    assert search.text() == ""
+    assert window._stack.currentWidget() is window.settings_view
+    assert search.isEnabled()
+    assert search.text() == "inter"
     assert window.current_section == "settings"
-    assert window.library_view._search_query == ""
+    assert window.library_view._search_query == "inter"
     assert actions.calls == 1
     window.close()
 
@@ -152,7 +151,7 @@ def test_search_escape_closes_suggestions_before_clearing_text(qapp, movie_item_
         load_on_show=False,
     )
     window.show_library()
-    search = window.findChild(QLineEdit, "librarySearchInput")
+    search = window.findChild(QLineEdit, "libraryPageSearchInput")
     assert search is not None
     search.setText("inter")
     search.completer().complete()

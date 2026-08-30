@@ -16,6 +16,7 @@ from dropsort.ui.common.theme import (
     SPACE_SMALL,
 )
 from dropsort.ui.posters import PosterRequestDispatcher
+from dropsort.ui.localization import TextId, UiLocalizer
 
 
 class PosterPresentationDispatcher(Protocol):
@@ -39,16 +40,23 @@ class MovieCard(QFrame):
         *,
         poster_loader: PosterRequestDispatcher | None = None,
         poster_presenter: PosterPresentationDispatcher | None = None,
+        localizer: UiLocalizer | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
         self.item = item
+        self._localizer = localizer or UiLocalizer()
         self._poster_loader = poster_loader
         self._poster_presenter = poster_presenter
         self.setObjectName("movieCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(CARD_WIDTH, CARD_HEIGHT)
-        self.setAccessibleName(f"Open details for {item.title}")
+        self.setAccessibleName(
+            self._localizer.text(
+                TextId.ACCESSIBILITY_MOVIE_OPEN_DETAILS,
+                title=item.title,
+            )
+        )
         self.setAccessibleDescription(item.title)
 
         layout = QVBoxLayout(self)
@@ -82,10 +90,13 @@ class MovieCard(QFrame):
         self._title.setFixedHeight(36)
         self._title.setToolTip(item.title)
         self._title.setAccessibleName(item.title)
-        self._title.setAccessibleDescription("Full movie title")
+        self._title.setAccessibleDescription(
+            self._localizer.text(TextId.ACCESSIBILITY_MOVIE_FULL_TITLE)
+        )
         self._title.setMaximumWidth(CARD_WIDTH)
         layout.addWidget(self._title)
         self._update_title_text()
+        self._localizer.bind_retranslator(self, self._language_changed)
 
     def update_item(self, item: MovieListItem) -> None:
         """Update a stable MovieId card in place from a newer DTO."""
@@ -96,8 +107,7 @@ class MovieCard(QFrame):
         previous_poster = (self.item.provider, self.item.poster_reference)
         next_poster = (item.provider, item.poster_reference)
         self.item = item
-        self.setAccessibleName(f"Open details for {item.title}")
-        self.setAccessibleDescription(item.title)
+        self._retranslate()
         self._title.setToolTip(item.title)
         self._title.setAccessibleName(item.title)
         self._update_title_text()
@@ -133,6 +143,21 @@ class MovieCard(QFrame):
         # visible resize.  Render against the final fixed width from the start.
         self._title.setText(
             _two_line_elide(self.item.title, self._title.font(), CARD_WIDTH)
+        )
+
+    def _language_changed(self, _language) -> None:
+        self._retranslate()
+
+    def _retranslate(self) -> None:
+        self.setAccessibleName(
+            self._localizer.text(
+                TextId.ACCESSIBILITY_MOVIE_OPEN_DETAILS,
+                title=self.item.title,
+            )
+        )
+        self.setAccessibleDescription(self.item.title)
+        self._title.setAccessibleDescription(
+            self._localizer.text(TextId.ACCESSIBILITY_MOVIE_FULL_TITLE)
         )
 
     @property

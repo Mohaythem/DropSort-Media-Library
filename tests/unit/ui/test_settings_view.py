@@ -166,7 +166,7 @@ def test_environment_configuration_is_reported_without_revealing_token(
         FakeSettingsActions(origin=MetadataCredentialOrigin.ENVIRONMENT)
     )
 
-    assert view.status_text == "Configured from environment"
+    assert view.status_text == "Configured through an environment variable"
     assert view.token_input.text() == ""
 
 

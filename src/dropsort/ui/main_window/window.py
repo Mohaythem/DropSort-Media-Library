@@ -5,19 +5,15 @@ import logging
 
 from PySide6.QtCore import (
     QEvent,
-    QSignalBlocker,
     QSize,
     Qt,
-    QStringListModel,
 )
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QFrame,
     QButtonGroup,
-    QCompleter,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QMainWindow,
     QPushButton,
     QStackedWidget,
@@ -39,7 +35,6 @@ from dropsort.library.playback import LocalMediaActions
 from dropsort.posters import PosterActions
 from dropsort.application.configuration.theme import SIDEBAR_DEFAULT_WIDTH
 from dropsort.ui.common.theme import (
-    CONTROL_HEIGHT,
     ICON_SIZE,
     NAVIGATION_ITEM_HEIGHT,
     SPACE_4,
@@ -78,22 +73,6 @@ from dropsort.ui.localization import TextId, UiLocalizer
 
 
 LOGGER = logging.getLogger(__name__)
-
-class LibrarySearchEdit(QLineEdit):
-    """Search input whose Escape first belongs to its local interaction."""
-
-    def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Escape:
-            completer = self.completer()
-            if completer is not None and completer.popup() is not None and completer.popup().isVisible():
-                completer.popup().hide()
-                event.accept()
-                return
-            if self.text():
-                self.clear()
-                event.accept()
-                return
-        super().keyPressEvent(event)
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,7 +219,6 @@ class MainWindow(QMainWindow):
         self._maintenance_token = 0
         self._maintenance_active = False
         self._single_instance_closing = False
-        self._search_query = ""
         self._navigation_group = QButtonGroup(self)
         self._navigation_group.setExclusive(True)
         self.setWindowTitle(self._localizer.text(TextId.WINDOW_TITLE))
@@ -278,18 +256,6 @@ class MainWindow(QMainWindow):
         brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
         brand_row.addWidget(brand, 1)
         sidebar_layout.addWidget(self._sidebar_top_row)
-        sidebar_layout.addSpacing(16)
-
-        self._sidebar_search_wrap = QFrame()
-        self._sidebar_search_wrap.setObjectName("sidebarSearchWrap")
-        search_wrap_layout = QHBoxLayout(self._sidebar_search_wrap)
-        search_wrap_layout.setContentsMargins(SPACE_12, 0, SPACE_12, 0)
-        search_wrap_layout.setSpacing(0)
-        self._search_field = LibrarySearchEdit()
-        self._search_field.setObjectName("librarySearchInput")
-        self._configure_search_field(self._search_field)
-        search_wrap_layout.addWidget(self._search_field)
-        sidebar_layout.addWidget(self._sidebar_search_wrap)
         sidebar_layout.addSpacing(16)
 
         self._sidebar_primary_navigation = QFrame()
@@ -424,19 +390,13 @@ class MainWindow(QMainWindow):
         self._splitter.setSizes(
             [SIDEBAR_DEFAULT_WIDTH, max(1, self.width() - SIDEBAR_DEFAULT_WIDTH)]
         )
-        self._localizer.language_changed.connect(
-            lambda _language: self._refresh_shell_text()
-        )
-
         self.library_view.movie_selected.connect(self.show_movie_details)
         self.library_view.check_files_requested.connect(self.show_check_library_from_library)
-        self.library_view.clear_search_requested.connect(self._clear_search_state)
         if self.import_view is not None:
             self.library_view.add_movies_requested.connect(self.show_import)
         self.check_library_page.start_requested.connect(self._start_check_library_page)
         self.check_library_page.progress_changed.connect(self._library_check_progress)
         self.check_library_page.back_requested.connect(self._return_from_check_library)
-        self.library_view.search_candidates_changed.connect(self._set_search_suggestions)
         self.details_view.back_requested.connect(self.navigate_back)
         self.details_view.organization_completed.connect(self._organization_completed)
         self.details_view.relink_completed.connect(self._organization_completed)
@@ -445,7 +405,6 @@ class MainWindow(QMainWindow):
         # Finish shell geometry/icons, then synchronously prepare the initial
         # Library page before the window can receive its first visible paint.
         refresh_fluent_icons(self)
-        self._apply_shell_metrics()
         if load_on_show:
             self.show_library()
         else:
@@ -454,101 +413,10 @@ class MainWindow(QMainWindow):
             self._current_section = "library"
             self._initial_library_activation_pending = True
             self._set_navigation_checked("library")
-            self._set_header_section(TextId.LIBRARY_HEADING, search_visible=True)
             self._set_current_page(self.library_view)
         # Create the native HWND once construction is stable, then theme only
         # its non-client frame. No show-time layout or paint correction is used.
         self._apply_native_title_bar_theme()
-
-    def _configure_search_field(self, field: LibrarySearchEdit) -> None:
-        field.setClearButtonEnabled(True)
-        field.setFixedHeight(CONTROL_HEIGHT)
-        field.setMaximumWidth(430)
-        field.setMinimumWidth(0)
-        field.setAccessibleName("Library search")
-        field.setPlaceholderText(
-            self._localizer.text(TextId.LIBRARY_SEARCH_PLACEHOLDER)
-        )
-        field.textChanged.connect(self._search_changed)
-        if field is self._search_field:
-            self._search_completer = QCompleter(self)
-            self._search_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
-            self._search_completer.setFilterMode(Qt.MatchFlag.MatchContains)
-            self._search_completer.setMaxVisibleItems(7)
-            self._search_completer.setModel(QStringListModel([], self._search_completer))
-            self._search_completer.activated.connect(self._search_suggestion_activated)
-            field.setCompleter(self._search_completer)
-
-    def _apply_shell_metrics(self) -> None:
-        self._search_field.setMinimumHeight(CONTROL_HEIGHT)
-        self._search_field.setMaximumHeight(CONTROL_HEIGHT)
-
-    def _refresh_shell_text(self) -> None:
-        self._search_field.setPlaceholderText(
-            self._localizer.text(TextId.LIBRARY_SEARCH_PLACEHOLDER)
-        )
-        self._search_field.setAccessibleName("Library search")
-
-    def _set_header_section(self, text_id: TextId, *, search_visible: bool = True) -> None:
-        # Keep the fixed sidebar geometry stable on every destination, but make
-        # its search control interactive only while Library owns the query.
-        # Hiding/removing the wrapper would shift the navigation rows and look
-        # like the shell itself had refreshed.
-        del text_id
-        # The search row is a permanent part of the fixed sidebar geometry.
-        # Never hide/show it as a navigation side effect; only change whether
-        # Library owns the interaction.
-        if self._search_field.isEnabled() != search_visible:
-            self._search_field.setEnabled(search_visible)
-
-    def _set_search_suggestions(self, values: object) -> None:
-        if not isinstance(values, tuple):
-            return
-        model = self._search_completer.model()
-        if isinstance(model, QStringListModel):
-            strings = [value for value in values if isinstance(value, str)]
-            model.setStringList(strings)
-
-    def _search_changed(self, query: str) -> None:
-        # Sidebar search is strictly Library-local. A textChanged signal that
-        # happens while another destination owns focus must never navigate back
-        # to Library or cause an unrelated page refresh.
-        if self._current_section != "library":
-            if query:
-                blocker = QSignalBlocker(self._search_field)
-                self._search_field.clear()
-                del blocker
-            self._search_query = ""
-            return
-        self._search_query = query
-        self.library_view.set_search_query(query)
-
-    def _clear_search_state(self, *, render_library: bool = True) -> None:
-        """Clear the shell search without triggering navigation side effects.
-
-        Search is a transient Library interaction, not persistent application
-        state.  Clearing it under a signal blocker prevents the old behavior
-        where leaving a filtered Library briefly routed through another search
-        update (or where focus returned to a stale query after a detail action).
-        """
-
-        completer = self._search_field.completer()
-        if completer is not None and completer.popup() is not None:
-            completer.popup().hide()
-        if self._search_field.text():
-            blocker = QSignalBlocker(self._search_field)
-            self._search_field.clear()
-            del blocker
-        self._search_query = ""
-        self.library_view.clear_search_query(render=render_library)
-
-    def _search_suggestion_activated(
-        self, value: str, field: LibrarySearchEdit | None = None
-    ) -> None:
-        target = field or self._search_field
-        target.setText(value)
-        target.setFocus()
-        target.end(False)
 
     @property
     def current_section(self) -> str:
@@ -592,20 +460,17 @@ class MainWindow(QMainWindow):
         self._previous_library_section = "library"
         # Prepare the destination while it is still hidden.  This avoids a
         # one-frame empty/old-state flash when returning to a stale Library.
-        self.library_view.set_search_query(self._search_field.text())
         self.library_view.activate()
         self.library_view.prepare_for_width(self._content_page_width())
         self._current_section = "library"
         self._set_navigation_checked("library")
-        self._set_header_section(TextId.LIBRARY_HEADING, search_visible=True)
         self._set_current_page(self.library_view)
 
     def show_personal_library(self) -> None:
         if self.personal_view is None or self._current_section == "personal":
             return
         self._reset_check_library_if_leaving()
-        self._clear_search_state(render_library=False)
-        # Keep any cached Personal Library snapshot painted while a stale
+        # Keep any cached My Lists snapshot painted while a stale
         # refresh happens in the background, then reveal the page. Resolve the
         # card columns first so the hidden page cannot reflow on its first paint.
         self.personal_view.activate()
@@ -613,7 +478,6 @@ class MainWindow(QMainWindow):
         self._previous_library_section = "personal"
         self._current_section = "personal"
         self._set_navigation_checked("personal")
-        self._set_header_section(TextId.PERSONAL_LIBRARY_HEADING, search_visible=False)
         self._set_current_page(self.personal_view)
 
     def show_check_library(self) -> None:
@@ -621,7 +485,6 @@ class MainWindow(QMainWindow):
 
         if self._current_section == "check_library":
             return
-        self._clear_search_state(render_library=False)
         if self._current_section != "check_library":
             self._previous_check_library_section = (
                 self._current_section
@@ -631,7 +494,6 @@ class MainWindow(QMainWindow):
         self._current_section = "check_library"
         self.check_library_page.keep_visible_state()
         self._set_navigation_checked("check_library")
-        self._set_header_section(TextId.CHECK_FILES_TITLE, search_visible=False)
         self._set_current_page(self.check_library_page)
         self.check_library_page.setFocus(Qt.FocusReason.OtherFocusReason)
 
@@ -670,34 +532,28 @@ class MainWindow(QMainWindow):
         if self._current_section == "import":
             return
         self._reset_check_library_if_leaving()
-        self._clear_search_state(render_library=False)
         self._current_section = "import"
         self._set_navigation_checked("import")
-        self._set_header_section(TextId.ADD_MOVIES_TITLE, search_visible=False)
         self._set_current_page(self.import_view)
 
     def show_settings(self) -> None:
         if self.settings_view is None or self._current_section == "settings":
             return
         self._reset_check_library_if_leaving()
-        self._clear_search_state(render_library=False)
         self.settings_view.refresh_status()
         self._current_section = "settings"
         self._set_navigation_checked("settings")
-        self._set_header_section(TextId.SETTINGS_TITLE, search_visible=False)
         self._set_current_page(self.settings_view)
 
     def show_history(self) -> None:
         if self.history_view is None or self._current_section == "history":
             return
         self._reset_check_library_if_leaving()
-        self._clear_search_state(render_library=False)
         # Reuse an already-rendered snapshot on ordinary navigation.
         # Explicit Refresh and operation mutations still request fresh data.
         self.history_view.activate()
         self._current_section = "history"
         self._set_navigation_checked("settings")
-        self._set_header_section(TextId.HISTORY_TITLE, search_visible=False)
         self._set_current_page(self.history_view)
 
     def _theme_changed(self, theme) -> None:
@@ -710,11 +566,6 @@ class MainWindow(QMainWindow):
         self._reset_check_library_if_leaving()
         if self._current_section in {"library", "personal"}:
             self._previous_library_section = self._current_section
-        # A search is only a navigation aid.  Clear it without emitting
-        # textChanged before any detail work starts, and move keyboard focus
-        # away from the sidebar so a deleted/destroyed detail control cannot
-        # unexpectedly return focus to Search.
-        self._clear_search_state(render_library=False)
         try:
             details = self._actions.get_movie_details(movie_id)
         except LibraryQueryError:
@@ -732,7 +583,6 @@ class MainWindow(QMainWindow):
         self.details_view.prepare_for_width(self._content_page_width())
         self._current_section = "details"
         self._set_navigation_checked(None)
-        self._set_header_section(TextId.DETAILS, search_visible=False)
         self._set_current_page(self.details_view)
         self.details_view.take_stable_focus()
 

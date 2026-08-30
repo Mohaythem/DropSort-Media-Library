@@ -272,9 +272,10 @@ def test_runtime_language_switch_updates_navigation_and_closes_safely(
     selector.setCurrentIndex(1)
 
     assert _button(window, "libraryNavButton").text() == "المكتبة"
-    search = window.findChild(QLineEdit, "librarySearchInput")
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
+    search = window.findChild(QLineEdit, "libraryPageSearchInput")
     assert search is not None
-    assert search.placeholderText() == "ابحث في مكتبتك..."
+    assert search.placeholderText() == "ابحث في المكتبة..."
     assert "Search" not in search.placeholderText()
     assert qapp.layoutDirection() is Qt.LayoutDirection.RightToLeft
 
@@ -316,7 +317,7 @@ def test_back_from_details_returns_to_library(
     assert window.current_section == "library"
 
 
-def test_opening_movie_details_clears_global_search_without_extra_navigation(
+def test_library_page_search_is_preserved_while_visiting_movie_details(
     qapp: QApplication,
     movie_item_factory,
     movie_details_factory,
@@ -324,15 +325,15 @@ def test_opening_movie_details_clears_global_search_without_extra_navigation(
     item = movie_item_factory(title="The Wind Rises")
     window = MainWindow(FakeActions((item,), movie_details_factory()), load_on_show=False)
     window.show_library()
-    window._search_field.setText("Wind")
+    window.library_view._search.setText("Wind")
 
     window.show_movie_details(item.movie_id)
 
     assert window.current_section == "details"
-    assert window._search_field.text() == ""
+    assert window.library_view._search.text() == "Wind"
     window.navigate_back()
     assert window.current_section == "library"
-    assert window.library_view._search_query == ""
+    assert window.library_view._search_query == "Wind"
 
 
 def test_escape_back_navigation_matches_visible_back_and_is_noop_at_library_root(
@@ -769,7 +770,7 @@ def test_clear_success_discards_library_personal_cards_and_search_suggestions(
     )
     window.show_library()
     assert window.library_view.card_count == 1
-    assert window._search_completer.model().stringList()
+    assert window.library_view._search_model.stringList()
     assert window.personal_view is not None
     window.personal_view._loaded(0, (item,))
     assert window.personal_view.card_count == 1
@@ -781,6 +782,6 @@ def test_clear_success_discards_library_personal_cards_and_search_suggestions(
     assert window.library_view.card_count == 0
     assert window.personal_view.card_count == 0
     assert window.personal_view._snapshots == {}
-    assert window._search_completer.model().stringList() == []
+    assert window.library_view._search_model.stringList() == []
     window.show_personal_library()
     assert window.personal_view.card_count == 0

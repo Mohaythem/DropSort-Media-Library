@@ -65,7 +65,7 @@ def test_phase28_stylesheet_exposes_shared_roles_and_metrics() -> None:
     assert "border-radius: 8px" in stylesheet
 
 
-def test_phase28_sidebar_and_search_keep_shared_hit_targets(
+def test_phase28_sidebar_and_page_search_keep_shared_hit_targets(
     qapp, movie_item_factory, movie_details_factory
 ) -> None:
     apply_theme(qapp, ThemeId.MAIN)
@@ -74,7 +74,8 @@ def test_phase28_sidebar_and_search_keep_shared_hit_targets(
         load_on_show=False,
     )
     nav = window.findChild(QPushButton, "checkLibraryNavButton")
-    search = window.findChild(QLineEdit, "librarySearchInput")
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
+    search = window.findChild(QLineEdit, "libraryPageSearchInput")
 
     assert nav is not None
     assert nav.minimumHeight() == NAVIGATION_ITEM_HEIGHT

@@ -124,7 +124,7 @@ def test_main_window_exposes_import_workflow_only_when_composed(
     assert window.import_view is not None
 
 
-def test_leaving_filtered_library_for_add_movies_clears_transient_search(
+def test_leaving_filtered_library_for_add_movies_preserves_page_search(
     qapp: QApplication,
     movie_item_factory,
     movie_details_factory,
@@ -143,7 +143,8 @@ def test_leaving_filtered_library_for_add_movies_clears_transient_search(
         load_on_show=False,
     )
     window.show_library()
-    search = window.findChild(QLineEdit, "librarySearchInput")
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
+    search = window.findChild(QLineEdit, "libraryPageSearchInput")
     assert search is not None
     search.setText("Wind")
     assert window.library_view._search_query == "Wind"
@@ -151,8 +152,8 @@ def test_leaving_filtered_library_for_add_movies_clears_transient_search(
     window.show_import()
 
     assert window.current_section == "import"
-    assert search.text() == ""
-    assert window.library_view._search_query == ""
+    assert search.text() == "Wind"
+    assert window.library_view._search_query == "Wind"
 
 
 def test_successful_explicit_import_refreshes_local_library_snapshot(

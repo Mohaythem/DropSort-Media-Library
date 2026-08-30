@@ -184,7 +184,7 @@ def test_operations_log_copy_matches_save_export_for_complete_log(qapp, tmp_path
     assert clipboard.startswith("DropSort Operations Log\n")
     assert "D:\\Incoming\\Movie.mkv" in clipboard
     assert "D:\\Movies\\Movie.mkv" in clipboard
-    assert view._state.text() == "Operations log copied to clipboard."
+    assert view._state.text() == "Operations log copied to the clipboard."
 
 
 def test_operations_log_copy_and_save_empty_or_cancelled_states(
@@ -203,10 +203,10 @@ def test_operations_log_copy_and_save_empty_or_cancelled_states(
     view = OperationHistoryView(actions, runner=ImmediateRunner())
     view.refresh()
     view.copy_selected()
-    assert view._state.text() == "Operations log copied to clipboard."
+    assert view._state.text() == "Operations log copied to the clipboard."
     monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *_a, **_k: ("", ""))
     view.save_log()
-    assert view._state.text() == "Operations log copied to clipboard."
+    assert view._state.text() == "Operations log copied to the clipboard."
 
 
 def test_operations_log_save_reports_missing_or_failing_action(monkeypatch, qapp) -> None:

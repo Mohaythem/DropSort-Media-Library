@@ -99,39 +99,39 @@ def test_library_search_cannot_route_from_settings_or_details(
         settings_actions=SettingsActions(),
         load_on_show=False,
     )
-    search = window.findChild(QLineEdit, "librarySearchInput")
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
+    search = window.findChild(QLineEdit, "libraryPageSearchInput")
     window.show_settings()
-    assert search is not None and not search.isHidden()
-    assert not search.isEnabled()
+    assert search is not None and window._stack.currentWidget() is window.settings_view
     search.setText("Wind")
-    assert search.text() == ""
+    assert search.text() == "Wind"
     assert window.current_section == "settings"
-    assert window.library_view._search_query == ""
+    assert window.library_view._search_query == "Wind"
 
     search.clear()
     window.show_movie_details(1)
-    assert not search.isHidden()
-    assert not search.isEnabled()
+    assert window._stack.currentWidget() is window.details_view
     search.setText("Wind")
-    assert search.text() == ""
+    assert search.text() == "Wind"
     assert window.current_section == "details"
-    assert window.library_view._search_query == ""
+    assert window.library_view._search_query == "Wind"
     window.close()
 
 
-def test_sidebar_search_escape_clears_query_without_leaving_library(
+def test_library_page_search_escape_clears_query_without_leaving_library(
     qapp, movie_item_factory, movie_details_factory
 ) -> None:
     window = MainWindow(
         _library(movie_item_factory, movie_details_factory), load_on_show=False
     )
     window.show()
-    window._search_field.setText("Wind")
+    search = window.library_view._search
+    search.setText("Wind")
     qapp.processEvents()
-    assert window._search_field.text() == "Wind"
-    QTest.keyClick(window._search_field, Qt.Key.Key_Escape)
+    assert search.text() == "Wind"
+    QTest.keyClick(search, Qt.Key.Key_Escape)
     qapp.processEvents()
-    assert window._search_field.text() == ""
+    assert search.text() == ""
     assert window.current_section == "library"
     window.close()
 
@@ -259,7 +259,8 @@ def test_fixed_sidebar_metrics_hold_at_reference_desktop_sizes(
     window.show()
     qapp.processEvents()
     assert window.sidebar.width() == SIDEBAR_DEFAULT_WIDTH
-    assert window._search_field.height() == 36
+    assert window.library_view._search.height() == 36
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
     assert all(button.height() == 42 for button in window._navigation_buttons.values())
     assert window._splitter.widget(1).width() == width - SIDEBAR_DEFAULT_WIDTH
     window.close()
@@ -315,7 +316,8 @@ def test_spacing_themes_and_arabic_shell_construct(
     )
     window._localizer.set_language(UiLanguage.ARABIC)
     assert qapp.layoutDirection() is Qt.LayoutDirection.RightToLeft
-    assert not window._search_field.isHidden()
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
+    assert window.library_view._search.layoutDirection() is Qt.LayoutDirection.RightToLeft
     assert window.sidebar.minimumWidth() == SIDEBAR_DEFAULT_WIDTH
     window._localizer.set_language(UiLanguage.ENGLISH)
     window.close()
@@ -339,9 +341,10 @@ def test_navigation_and_details_do_not_mutate_layout_on_show() -> None:
     assert "singleShot" not in saved_source
     assert "singleShot" not in failed_source
 
-    header_source = inspect.getsource(MainWindow._set_header_section)
-    assert "_sidebar_search_wrap.show" not in header_source
-    assert "_search_field.show" not in header_source
+    assert not hasattr(MainWindow, "_set_header_section")
+    window_source = inspect.getsource(MainWindow)
+    assert "_sidebar_search_wrap" not in window_source
+    assert "_search_field" not in window_source
 
     grid_relayout_source = inspect.getsource(MovieGrid._relayout)
     assert "takeAt(" not in grid_relayout_source

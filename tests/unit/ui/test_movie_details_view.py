@@ -48,7 +48,12 @@ def test_details_view_renders_metadata_and_multiple_physical_files(
         label.text() for label in view.findChildren(QLabel) if label.objectName() == "mediaPathLabel"
     )
     assert r"D:\Movies\The Dark Knight.mkv" in file_text
-    assert r"E:\Archive\The Dark Knight 4K.mkv" in file_text
+    assert "Last known location:" in file_text
+    assert any(
+        label.toolTip() == r"E:\Archive\The Dark Knight 4K.mkv"
+        for label in view.findChildren(QLabel)
+        if label.objectName() == "mediaPathLabel"
+    )
     assert "Missing" in " ".join(
         label.text() for label in view.findChildren(QLabel) if label.objectName() == "mediaStatusLabel"
     )

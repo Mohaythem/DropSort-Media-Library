@@ -8,6 +8,7 @@ from dropsort.application.dto.library import MovieListItem
 from dropsort.ui.common.theme import CARD_WIDTH, SPACE_LARGE, SPACE_MEDIUM
 from dropsort.ui.library.movie_card import MovieCard, PosterPresentationDispatcher
 from dropsort.ui.posters import PosterRequestDispatcher
+from dropsort.ui.localization import UiLocalizer
 
 
 POSTER_PRESENTATION_MAX_WAIT_MS = 100
@@ -116,6 +117,7 @@ class MovieGrid(QScrollArea):
         self,
         *,
         poster_loader: PosterRequestDispatcher | None = None,
+        localizer: UiLocalizer | None = None,
         parent=None,
     ) -> None:
         super().__init__(parent)
@@ -139,6 +141,7 @@ class MovieGrid(QScrollArea):
         self._visible_ids: tuple[int, ...] = ()
         self._columns = 0
         self._poster_loader = poster_loader
+        self._localizer = localizer or UiLocalizer()
 
     @property
     def cards(self) -> tuple[MovieCard, ...]:
@@ -249,6 +252,7 @@ class MovieGrid(QScrollArea):
             item,
             poster_loader=self._poster_loader,
             poster_presenter=self._poster_presenter,
+            localizer=self._localizer,
             parent=self._container,
         )
         card.selected.connect(self.movie_selected.emit)

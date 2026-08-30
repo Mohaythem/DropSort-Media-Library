@@ -119,7 +119,9 @@ class LibraryCheckPage(QWidget):
         self._progress = QProgressBar()
         self._progress.setObjectName("libraryCheckPageProgressBar")
         self._progress.setTextVisible(False)
-        self._progress.setAccessibleName("Check Library progress")
+        self._progress.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_CHECK_PROGRESS)
+        )
         progress_row.addWidget(self._progress, 1)
         self._progress_percent = QLabel("0%")
         self._progress_percent.setObjectName("libraryCheckPagePercentageLabel")
@@ -128,7 +130,9 @@ class LibraryCheckPage(QWidget):
             Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         )
         self._localizer.mark_ltr(self._progress_percent)
-        self._progress_percent.setAccessibleName("Check Library progress percentage")
+        self._progress_percent.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_CHECK_PERCENTAGE)
+        )
         progress_row.addWidget(self._progress_percent)
         content_layout.addLayout(progress_row)
 
@@ -145,11 +149,15 @@ class LibraryCheckPage(QWidget):
         self._passed = QLabel()
         self._passed.setObjectName("libraryCheckPassedLabel")
         self._passed.setProperty("role", "success")
-        self._passed.setAccessibleName("Passed")
+        self._passed.setAccessibleName(
+            self._localizer.text(TextId.CHECK_LIBRARY_PASSED)
+        )
         self._needs_attention = QLabel()
         self._needs_attention.setObjectName("libraryCheckNeedsAttentionLabel")
         self._needs_attention.setProperty("role", "warning")
-        self._needs_attention.setAccessibleName("Needs attention")
+        self._needs_attention.setAccessibleName(
+            self._localizer.text(TextId.CHECK_LIBRARY_NEEDS_ATTENTION)
+        )
         summary_layout.addWidget(self._passed, 0, 0)
         summary_layout.addWidget(self._needs_attention, 0, 1)
         content_layout.addWidget(self._summary_panel)
@@ -191,7 +199,9 @@ class LibraryCheckPage(QWidget):
         self._start.setObjectName("startLibraryCheckPageButton")
         self._start.setProperty("role", "primaryAction")
         self._start.setFixedWidth(CHECK_LIBRARY_ACTION_WIDTH)
-        self._start.setAccessibleName("Check Library")
+        self._start.setAccessibleName(
+            self._localizer.text(TextId.CHECK_LIBRARY_FILES)
+        )
         set_fluent_icon(self._start, FluentIconName.CHECK_LIBRARY)
         self._localizer.bind_text(self._start, TextId.CHECK_LIBRARY_FILES)
         self._start.clicked.connect(self.request_start)
@@ -199,7 +209,9 @@ class LibraryCheckPage(QWidget):
         self._cancel = QPushButton()
         self._cancel.setObjectName("cancelLibraryCheckPageButton")
         self._cancel.setProperty("role", "secondaryAction")
-        self._cancel.setAccessibleName("Cancel Check Library")
+        self._cancel.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_CHECK_CANCEL)
+        )
         self._localizer.bind_text(self._cancel, TextId.CHECK_FILES_CANCEL)
         self._cancel.clicked.connect(self.cancel_check)
         buttons.addWidget(self._cancel)
@@ -476,6 +488,18 @@ class LibraryCheckPage(QWidget):
         return row
 
     def _language_changed(self, _language) -> None:
+        self._progress.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_CHECK_PROGRESS)
+        )
+        self._progress_percent.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_CHECK_PERCENTAGE)
+        )
+        self._start.setAccessibleName(
+            self._localizer.text(TextId.CHECK_LIBRARY_FILES)
+        )
+        self._cancel.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_CHECK_CANCEL)
+        )
         self._apply_layout_direction()
         if self._state in {self.State.FAILED, self.State.CANCELLED}:
             self._render_failure_state()

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import QSignalBlocker, Qt, Signal
+from PySide6.QtCore import QSignalBlocker, QStringListModel, Qt, Signal
 from PySide6.QtWidgets import (
-    QLineEdit,
+    QCompleter,
     QLabel,
     QSizePolicy,
     QTabBar,
@@ -15,7 +15,8 @@ from PySide6.QtWidgets import (
 from dropsort.application.dto.library import MovieListItem
 from dropsort.library.personal import PersonalLibrarySection
 from dropsort.ui.common.tasks import QtTaskRunner, TaskRunner
-from dropsort.ui.common.theme import CONTROL_HEIGHT, SPACE_36, SPACE_MEDIUM, SPACE_SMALL
+from dropsort.ui.common.search_field import PageSearchEdit
+from dropsort.ui.common.theme import SPACE_36, SPACE_MEDIUM, SPACE_SMALL
 from dropsort.ui.contracts import PersonalLibraryUiActions
 from dropsort.ui.library.movie_card import MovieCard
 from dropsort.ui.library.movie_grid import MovieGrid
@@ -29,7 +30,6 @@ LOGGER = logging.getLogger(__name__)
 
 class PersonalLibraryView(QWidget):
     movie_selected = Signal(int)
-    search_candidates_changed = Signal(object)
 
     def __init__(
         self,
@@ -70,15 +70,24 @@ class PersonalLibraryView(QWidget):
         self._localizer.bind_text(heading, TextId.PERSONAL_LIBRARY_HEADING)
         layout.addWidget(heading)
 
-        self._search = QLineEdit()
+        self._search = PageSearchEdit()
         self._search.setObjectName("personalLibrarySearchInput")
-        self._search.setClearButtonEnabled(True)
-        self._search.setFixedHeight(CONTROL_HEIGHT)
         self._search.setPlaceholderText(
             self._localizer.text(TextId.PERSONAL_SEARCH_PLACEHOLDER)
         )
-        self._search.setAccessibleName("Personal Library search")
+        self._search.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_MY_LISTS_SEARCH)
+        )
         self._search.textChanged.connect(self.set_search_query)
+        self._search_model = QStringListModel([], self)
+        self._search_completer = QCompleter(self._search_model, self)
+        self._search_completer.setCaseSensitivity(
+            Qt.CaseSensitivity.CaseInsensitive
+        )
+        self._search_completer.setFilterMode(Qt.MatchFlag.MatchContains)
+        self._search_completer.setMaxVisibleItems(7)
+        self._search_completer.activated.connect(self._search_suggestion_activated)
+        self._search.setCompleter(self._search_completer)
         layout.addWidget(self._search)
 
         self._tabs = QTabBar()
@@ -111,7 +120,9 @@ class PersonalLibraryView(QWidget):
         self._empty_host_layout.setSpacing(0)
         self._empty_state = QWidget()
         self._empty_state.setObjectName("personalEmptyState")
-        self._empty_state.setAccessibleName("Personal Library empty state")
+        self._empty_state.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_MY_LISTS_EMPTY)
+        )
         self._empty_layout = QVBoxLayout(self._empty_state)
         self._empty_layout.setContentsMargins(0, 0, 0, 0)
         self._empty_layout.setSpacing(SPACE_SMALL)
@@ -132,7 +143,10 @@ class PersonalLibraryView(QWidget):
         self._empty_host.hide()
         layout.addWidget(self._empty_host, 1)
 
-        self._grid = MovieGrid(poster_loader=poster_loader)
+        self._grid = MovieGrid(
+            poster_loader=poster_loader,
+            localizer=self._localizer,
+        )
         self._grid.movie_selected.connect(self.movie_selected.emit)
         layout.addWidget(self._grid, 1)
 
@@ -190,7 +204,7 @@ class PersonalLibraryView(QWidget):
         self._grid.hide()
         self._empty_host.hide()
         self._state.hide()
-        self.search_candidates_changed.emit(())
+        self._search_model.setStringList([])
 
     def _adopt_cached_section(self, section: PersonalLibrarySection) -> bool:
         cached = self._snapshots.get(section)
@@ -199,6 +213,7 @@ class PersonalLibraryView(QWidget):
             self._snapshot_stale = False
             return False
         self._all_items = cached
+        self._search_model.setStringList(list(movie_search_suggestions(cached)))
         self._has_snapshot = True
         self._visible_section = section
         self._snapshot_stale = section in self._stale_sections
@@ -226,6 +241,7 @@ class PersonalLibraryView(QWidget):
         elif self._visible_section is not target:
             # Never paint cards owned by one Personal tab underneath another.
             self._all_items = ()
+            self._search_model.setStringList([])
             self._has_snapshot = False
             self._snapshot_stale = False
             self._visible_section = None
@@ -274,6 +290,11 @@ class PersonalLibraryView(QWidget):
 
     def search_suggestions(self) -> tuple[str, ...]:
         return movie_search_suggestions(self._all_items)
+
+    def _search_suggestion_activated(self, value: str) -> None:
+        self._search.setText(value)
+        self._search.setFocus()
+        self._search.end(False)
 
     def invalidate_pending(self) -> None:
         self._token += 1
@@ -338,7 +359,7 @@ class PersonalLibraryView(QWidget):
             retain_unlisted=True,
             visible_items=filtered,
         )
-        self.search_candidates_changed.emit(movie_search_suggestions(items))
+        self._search_model.setStringList(list(movie_search_suggestions(items)))
         self._render_filtered_items(filtered)
 
     def _apply_search(self) -> None:
@@ -416,6 +437,12 @@ class PersonalLibraryView(QWidget):
         self._search.setPlaceholderText(
             self._localizer.text(TextId.PERSONAL_SEARCH_PLACEHOLDER)
         )
+        self._search.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_MY_LISTS_SEARCH)
+        )
+        self._empty_state.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_MY_LISTS_EMPTY)
+        )
         for index, text_id in enumerate(
             (
                 TextId.PERSONAL_TAB_WATCHLIST,
@@ -445,15 +472,12 @@ class PersonalLibraryView(QWidget):
             else Qt.LayoutDirection.LeftToRight
         )
         self.setLayoutDirection(direction)
-        self._search.setLayoutDirection(direction)
+        self._search.apply_language_direction(rtl=rtl)
         self._tabs.setLayoutDirection(direction)
         self._empty_host.setLayoutDirection(direction)
         self._heading.setAlignment(
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
         )
-        # Qt mirrors left/right alignment for RTL widgets. Keep logical-leading
-        # alignment so Arabic placeholder and entered text paint on the right.
-        self._search.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self._empty_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_description.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

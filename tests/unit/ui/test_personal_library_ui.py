@@ -4,7 +4,15 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from PySide6.QtCore import QDate, Qt
-from PySide6.QtWidgets import QDateEdit, QFrame, QLabel, QPushButton, QStyle
+from PySide6.QtWidgets import (
+    QDateEdit,
+    QFrame,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QStyle,
+    QToolButton,
+)
 
 from dropsort.application.dto.personal_library import PersonalMovieSnapshot
 from dropsort.application.dto.library import MediaFileAvailability, MovieDetails
@@ -305,7 +313,7 @@ def test_personal_empty_state_retranslates_and_follows_rtl_direction(qapp) -> No
     description = view.findChild(QLabel, "personalEmptyStateDescription")
     assert description is not None
     assert description.text() == localizer.text(TextId.PERSONAL_EMPTY_WATCHLIST_DESCRIPTION)
-    assert view._empty_state.accessibleName() == "Personal Library empty state"
+    assert view._empty_state.accessibleName() == "My Lists empty state"
 
     localizer.set_language(UiLanguage.ARABIC)
     assert qapp.layoutDirection() is Qt.LayoutDirection.RightToLeft
@@ -317,6 +325,8 @@ def test_personal_empty_state_retranslates_and_follows_rtl_direction(qapp) -> No
     assert view._search.placeholderText() == localizer.text(
         TextId.PERSONAL_SEARCH_PLACEHOLDER
     )
+    assert view._search.accessibleName() == "البحث في قوائمي"
+    assert view._empty_state.accessibleName() == "حالة فارغة في قوائمي"
     localizer.set_language(UiLanguage.ENGLISH)
 
 
@@ -329,6 +339,11 @@ def test_personal_controls_live_retranslate_with_rtl_geometry_parity(qapp) -> No
     view.show()
     qapp.processEvents()
     english_sizes = (view._search.size(), view._tabs.size())
+    view._search.setText("Arrival")
+    qapp.processEvents()
+    clear_button = view._search.findChild(QToolButton)
+    assert clear_button is not None and clear_button.isVisible()
+    assert clear_button.geometry().center().x() > view._search.width() // 2
 
     localizer.set_language(UiLanguage.ARABIC)
     qapp.processEvents()
@@ -352,9 +367,10 @@ def test_personal_controls_live_retranslate_with_rtl_geometry_parity(qapp) -> No
         view._search.layoutDirection(), view._search.alignment()
     ) & Qt.AlignmentFlag.AlignRight
     assert english_sizes == (view._search.size(), view._tabs.size())
+    assert clear_button.geometry().center().x() < view._search.width() // 2
 
     localizer.set_language(UiLanguage.ENGLISH)
-    assert view._search.placeholderText() == "Search this section..."
+    assert view._search.placeholderText() == "Search this list..."
     assert view._tabs.tabText(0) == "Watchlist"
     assert QStyle.visualAlignment(
         view._heading.layoutDirection(), view._heading.alignment()
@@ -362,6 +378,7 @@ def test_personal_controls_live_retranslate_with_rtl_geometry_parity(qapp) -> No
     assert QStyle.visualAlignment(
         view._search.layoutDirection(), view._search.alignment()
     ) & Qt.AlignmentFlag.AlignLeft
+    assert clear_button.geometry().center().x() > view._search.width() // 2
 
 
 def test_personal_library_search_is_scoped_to_active_tab_and_resets_on_switch(
@@ -666,7 +683,7 @@ def test_watch_date_resets_to_today_when_opening_another_movie(
     assert view._mark_watched_date_button.isEnabled()
 
 
-def test_leaving_library_for_personal_clears_search_without_navigation_loop(
+def test_leaving_library_for_personal_preserves_page_owned_library_search(
     qapp, movie_item_factory, movie_details_factory
 ) -> None:
     personal = FakePersonalActions()
@@ -678,19 +695,19 @@ def test_leaving_library_for_personal_clears_search_without_navigation_loop(
         load_on_show=False,
     )
     window.show_library()
-    window._search_field.setText("Wind")
+    window.library_view._search.setText("Wind")
     assert window.library_view._search_query == "Wind"
 
     window.show_personal_library()
 
     assert window.current_section == "personal"
-    assert window._search_field.text() == ""
-    assert window.library_view._search_query == ""
-    assert not window._search_field.isEnabled()
+    assert window.library_view._search.text() == "Wind"
+    assert window.library_view._search_query == "Wind"
+    assert window.findChild(QLineEdit, "librarySearchInput") is None
     window.close()
 
 
-def test_remove_watch_history_keeps_sidebar_search_inactive_and_details_focused(
+def test_remove_watch_history_keeps_page_search_out_of_focus_and_details_focused(
     qapp, movie_details_factory
 ) -> None:
     personal = FakePersonalActions()
@@ -706,15 +723,14 @@ def test_remove_watch_history_keeps_sidebar_search_inactive_and_details_focused(
     qapp.processEvents()
     remove = window.details_view.findChild(QPushButton, "removeWatchEventButton_4")
     assert remove is not None
-    assert window._search_field.text() == ""
-    assert not window._search_field.isEnabled()
+    assert window.library_view._search.text() == ""
 
     remove.click()
     qapp.processEvents()
 
     assert window.current_section == "details"
-    assert window._search_field.text() == ""
-    assert not window._search_field.hasFocus()
+    assert window.library_view._search.text() == ""
+    assert not window.library_view._search.hasFocus()
     assert window.details_view.hasFocus()
     window.close()
 

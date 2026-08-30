@@ -414,7 +414,9 @@ class MovieDetailsView(QWidget):
         metadata.addWidget(self._rating_stars)
         self._rating_value = QLabel()
         self._rating_value.setObjectName("detailsRatingValue")
-        self._rating_value.setAccessibleName("TMDB rating")
+        self._rating_value.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_TMDB_RATING)
+        )
         self._localizer.mark_ltr(self._rating_value)
         self._rating_value.hide()
         metadata.addWidget(self._rating_value)
@@ -717,6 +719,9 @@ class MovieDetailsView(QWidget):
         )
         self._rating_stars.setAccessibleName(
             self._localizer.text(TextId.ACCESSIBILITY_TMDB_RATING_VISUAL)
+        )
+        self._rating_value.setAccessibleName(
+            self._localizer.text(TextId.ACCESSIBILITY_TMDB_RATING)
         )
 
     def _show_watch_calendar(self) -> None:
