@@ -2,9 +2,24 @@
 
 from pathlib import Path
 
+import PySide6
+
 
 project_root = Path(SPECPATH)
 source_root = project_root / "src"
+pyside_root = Path(PySide6.__file__).parent
+
+qt_vc_runtime_names = (
+    "MSVCP140.dll",
+    "MSVCP140_1.dll",
+    "MSVCP140_2.dll",
+    "VCRUNTIME140.dll",
+    "VCRUNTIME140_1.dll",
+)
+qt_vc_runtime = [
+    (str(pyside_root / name), ".")
+    for name in qt_vc_runtime_names
+]
 
 runtime_data = [
     *[
@@ -64,7 +79,7 @@ runtime_data = [
 analysis = Analysis(
     [str(source_root / "dropsort" / "__main__.py")],
     pathex=[str(source_root)],
-    binaries=[],
+    binaries=qt_vc_runtime,
     datas=runtime_data,
     hiddenimports=[],
     hookspath=[],
@@ -74,6 +89,16 @@ analysis = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+# Qt uses the Windows ICU shim.  A developer PATH can expose an unrelated
+# unversioned ICU build (for example Poppler's), which PyInstaller would then
+# collect ahead of the OS shim and make Qt6Core fail with WinError 127.
+foreign_icu_names = {"icuuc.dll", "icudt78.dll"}
+analysis.binaries = [
+    entry
+    for entry in analysis.binaries
+    if Path(entry[0]).name.casefold() not in foreign_icu_names
+]
 pyz = PYZ(analysis.pure)
 
 executable = EXE(
