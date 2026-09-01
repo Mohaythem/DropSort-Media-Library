@@ -99,8 +99,15 @@
             SelectionChanged="ShellNavigation_SelectionChanged">
 
             <NavigationView.Resources>
-                <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent" />
-                <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
+                <!--
+                    The pane background is deliberately NOT set here. Its brush keys
+                    (NavigationViewDefaultPaneBackground / NavigationViewExpandedPaneBackground) are
+                    defined per theme in ThemeResources.xaml, so the sidebar carries one neutral
+                    overlay step above the window surface in Light, Dark and Slate alike. A local
+                    override in this plain dictionary would win over those and flatten the pane back
+                    to transparent - and a {ThemeResource} colour reference here takes the XAML load
+                    down at startup, which is why the theme-aware values live in a theme dictionary.
+                -->
                 <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
                 <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
                 <CornerRadius x:Key="NavigationViewContentGridCornerRadius">0</CornerRadius>
@@ -161,8 +168,17 @@
                 (scroll offset, selected tab, typed search text) survives navigation and no page is
                 ever torn down and rebuilt. Only one page is Visible at a time; the collapsed ones
                 cost no layout and are skipped by the tab order.
+
+                The hairline on the leading edge is the pane/content boundary. It lives on the content
+                side so it always sits exactly at the pane edge, whatever the pane's current width
+                (expanded, medium or compact), and BorderThickness mirrors with the flow direction, so
+                in Arabic it is drawn on the right without a second value.
             -->
-            <Grid x:Name="ContentHost" />
+            <Border
+                BorderBrush="{ThemeResource ShellPaneSeparatorBrush}"
+                BorderThickness="1,0,0,0">
+                <Grid x:Name="ContentHost" />
+            </Border>
         </NavigationView>
     </Grid>
 

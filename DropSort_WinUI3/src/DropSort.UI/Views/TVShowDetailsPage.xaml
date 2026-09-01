@@ -181,27 +181,48 @@
                                     IsExpanded="{x:Bind IsExpanded}"
                                     Tag="{x:Bind}">
                                     <Expander.Header>
-                                        <Grid MinHeight="48" ColumnSpacing="12">
+                                        <!--
+                                            One season component: badge, then the title block, then
+                                            the progress track. The row is 64 epx tall with 20 epx
+                                            between the three parts and 8 epx of air above and below,
+                                            so the badge no longer touches the title, the title and
+                                            its meta line each keep a full line box, and the track
+                                            keeps its distance from the Expander's own chevron. Every
+                                            value is a margin or a gap on this grid - nothing is
+                                            positioned per language, so the row mirrors as a whole
+                                            under RTL.
+                                        -->
+                                        <Grid
+                                            MinHeight="64"
+                                            Margin="0,8"
+                                            ColumnSpacing="20">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
+                                                <!--
+                                                    The progress track takes a share of the row rather
+                                                    than a fixed 160 epx, capped so it never grows past
+                                                    the designed width. A fixed track was squeezing the
+                                                    title block on a narrow window; this way the track
+                                                    gives room back instead.
+                                                -->
+                                                <ColumnDefinition Width="0.4*" MaxWidth="172" />
                                             </Grid.ColumnDefinitions>
                                             <Border
-                                                Width="48"
-                                                Height="48"
+                                                Width="52"
+                                                Height="52"
                                                 VerticalAlignment="Center"
                                                 Style="{StaticResource TileSurfaceStyle}">
                                                 <TextBlock
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center"
-                                                    Style="{StaticResource CaptionTextBlockStyle}"
+                                                    Style="{StaticResource BodyStrongTextBlockStyle}"
                                                     Text="{x:Bind ArtLabel}" />
                                             </Border>
                                             <StackPanel
                                                 Grid.Column="1"
                                                 VerticalAlignment="Center"
-                                                Spacing="4">
+                                                Spacing="6">
                                                 <TextBlock
                                                     Style="{StaticResource BodyStrongTextBlockStyle}"
                                                     Text="{x:Bind Title}"
@@ -213,19 +234,25 @@
                                             </StackPanel>
                                             <ProgressBar
                                                 Grid.Column="2"
-                                                Width="160"
                                                 Height="4"
+                                                MinWidth="72"
+                                                Margin="0,0,12,0"
+                                                HorizontalAlignment="Stretch"
                                                 VerticalAlignment="Center"
                                                 Maximum="100"
                                                 Value="{x:Bind ProgressValue}" />
                                         </Grid>
                                     </Expander.Header>
-                                    <!--  .episode-thread: inset with a hairline rail, mirrored under RTL.  -->
+                                    <!--
+                                        .episode-thread: inset with a hairline rail, mirrored under
+                                        RTL. The bottom padding matches the top so the last episode
+                                        card is not flush against the season card's edge.
+                                    -->
                                     <Border
-                                        Margin="24,0,0,0"
+                                        Margin="26,0,0,0"
                                         BorderBrush="{ThemeResource ControlStrokeColorSecondaryBrush}"
                                         BorderThickness="1,0,0,0"
-                                        Padding="24,12,0,0">
+                                        Padding="24,12,0,12">
                                         <ItemsRepeater ItemsSource="{x:Bind Episodes}">
                                             <ItemsRepeater.Layout>
                                                 <StackLayout Spacing="8" />

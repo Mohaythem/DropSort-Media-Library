@@ -48,24 +48,35 @@
     <Thickness x:Key="PageContentPaddingCompact">24,24,24,40</Thickness>
 
     <!--
-        NavigationView selected-state strength. These are NavigationView's own lightweight-styling
-        keys, overridden application-wide so the shell keeps the stock template, the stock accent
-        selection indicator (NavigationViewSelectionIndicatorForeground is deliberately NOT
-        overridden - the default already is AccentFillColorDefaultBrush) and every stock hover,
-        pressed and focus visual. Only the fill behind the active item is raised: the stock selected
-        fill is ~8% and read as "nothing is selected" against this app's transparent pane, so the
-        selected plate moves up one step on the same neutral ramp (15% dark / 8% light) and the
-        pointer-over and pressed steps are re-spaced around it. Values are the literal Fluent
+        NavigationView pane and selected-state strength. These are NavigationView's own
+        lightweight-styling keys, overridden application-wide so the shell keeps the stock template,
+        the stock accent selection indicator (NavigationViewSelectionIndicatorForeground is
+        deliberately NOT overridden - the default already is AccentFillColorDefaultBrush) and every
+        stock hover, pressed and focus visual.
+
+        The pane is no longer fully transparent: it carries one neutral overlay step above the window
+        surface, which is what gives the sidebar a readable edge and lets the selected plate read as
+        a plate. Because the value is an overlay rather than an opaque colour, it tints with whatever
+        is underneath - the Light surface, the Dark surface, or the Slate tint - so no theme needs its
+        own hard-coded panel colour.
+
+        The fill behind the active item then sits two steps above the pane (dark 25% / light 14%):
+        the stock selected fill is ~8%, which read as "nothing is selected" here, and the
+        pointer-over and pressed steps are re-spaced around the new value. Values are literal Fluent
         neutral overlays rather than {ThemeResource} colour lookups so each theme dictionary is
         self-contained, matching the placeholder brushes below.
     -->
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#26FFFFFF" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="#33FFFFFF" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed" Color="#1AFFFFFF" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#14FFFFFF" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed" Color="#0AFFFFFF" />
+            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#0FFFFFFF" />
+            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#0FFFFFFF" />
+            <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="#26FFFFFF" />
+
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#40FFFFFF" />
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="#4DFFFFFF" />
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed" Color="#33FFFFFF" />
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#1AFFFFFF" />
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed" Color="#0FFFFFFF" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundSelected" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundSelectedPointerOver" Color="#FFFFFFFF" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundSelectedPressed" Color="#FFFFFFFF" />
@@ -87,11 +98,15 @@
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#14000000" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="#1F000000" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed" Color="#0D000000" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#0A000000" />
-            <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed" Color="#06000000" />
+            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#0A000000" />
+            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#0A000000" />
+            <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="#1F000000" />
+
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#24000000" />
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="#2E000000" />
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed" Color="#1A000000" />
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver" Color="#0F000000" />
+            <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed" Color="#0A000000" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundSelected" Color="#E4000000" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundSelectedPointerOver" Color="#E4000000" />
             <SolidColorBrush x:Key="NavigationViewItemForegroundSelectedPressed" Color="#E4000000" />
@@ -113,6 +128,10 @@
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPressed" Color="{ThemeResource SystemColorHighlightColor}" />
