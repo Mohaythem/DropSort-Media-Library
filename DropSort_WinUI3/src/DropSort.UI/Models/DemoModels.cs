@@ -19,12 +19,39 @@ public sealed record MovieRecord(
     string? FileName = null,
     string? FilePath = null,
     string? FileFacts = null,
-    IReadOnlyList<WatchHistoryRecord>? WatchHistory = null)
+    IReadOnlyList<WatchHistoryRecord>? WatchHistory = null,
+    int? MediaFileId = null)
 {
-    // Digits() keeps the year and the rating Western when this line is read inside the
-    // right-to-left shell; see LocalizationService.Digits.
-    public string MetaLine => LocalizationService.Digits(
-        string.Create(CultureInfo.InvariantCulture, $"{Year} · {Runtime} · {Rating:0.0}"));
+    /// <summary>
+    /// Year · runtime · rating, with the parts the catalog does not know yet left out: a movie
+    /// registered from a file name has no runtime or rating until metadata enrichment exists, and a
+    /// line reading "2024 · · 0.0" would be a fake fact. Digits() keeps the numbers Western when the
+    /// line is read inside the right-to-left shell; see LocalizationService.Digits.
+    /// </summary>
+    public string MetaLine
+    {
+        get
+        {
+            var parts = new List<string>(3);
+
+            if (Year > 0)
+            {
+                parts.Add(Year.ToString(CultureInfo.InvariantCulture));
+            }
+
+            if (!string.IsNullOrWhiteSpace(Runtime))
+            {
+                parts.Add(Runtime);
+            }
+
+            if (Rating > 0)
+            {
+                parts.Add(string.Create(CultureInfo.InvariantCulture, $"{Rating:0.0}"));
+            }
+
+            return LocalizationService.Digits(string.Join(" · ", parts));
+        }
+    }
 
     public bool IsLiked => string.Equals(Preference, "liked", StringComparison.OrdinalIgnoreCase);
 
@@ -47,7 +74,11 @@ public sealed record MovieRecord(
     public override string ToString() => Title;
 }
 
-public sealed record WatchHistoryRecord(string Date, string Label);
+/// <summary>
+/// One stored watch event. <paramref name="EventId" /> is the catalog's id: the remove button needs
+/// it to call RemoveWatchEvent, so a row without one cannot be removed.
+/// </summary>
+public sealed record WatchHistoryRecord(string Date, string Label, int? EventId = null);
 
 /// <summary>One watch-history row: the entry plus the localized label of its remove button.</summary>
 public sealed record WatchHistoryDisplayRecord(WatchHistoryRecord Entry, string RemoveLabel)

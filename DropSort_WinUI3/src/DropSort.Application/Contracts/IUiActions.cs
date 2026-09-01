@@ -21,6 +21,13 @@ public interface IPersonalLibraryUiActions
     PersonalMovieSnapshot AddToWatchlist(int movieId);
     PersonalMovieSnapshot RemoveFromWatchlist(int movieId);
     PersonalMovieSnapshot RecordWatch(int movieId, DateTimeOffset? watchedAt = null);
+
+    /// <summary>
+    /// The stored watch events, newest first. RemoveWatchEvent takes an event id, so the history has
+    /// to be readable through the same contract for that call to be usable at all.
+    /// </summary>
+    IReadOnlyList<WatchEvent> ListWatchEvents(int movieId);
+
     PersonalMovieSnapshot RemoveWatchEvent(int eventId);
     IReadOnlyList<MovieListItem> ListPersonalMovies(PersonalLibrarySection section);
 }

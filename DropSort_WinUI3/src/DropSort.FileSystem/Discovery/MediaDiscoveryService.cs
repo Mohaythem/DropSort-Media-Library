@@ -93,16 +93,35 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         int? year = yearMatch.Success ? int.Parse(yearMatch.Value, System.Globalization.CultureInfo.InvariantCulture) : null;
         var titlePart = yearMatch.Success ? stem[..yearMatch.Index] : stem;
         var title = SeparatorPattern().Replace(titlePart, " ").Trim();
+
+        // "Dune Part Two (2024) 1080p" leaves the opening bracket behind once the year is cut off, so
+        // the bracket and punctuation characters that only ever wrap a year or a tag are trimmed too.
+        title = title.Trim(' ', '(', ')', '[', ']', '{', '}', '-', '_', '.', ',');
+
         if (title.Length == 0) title = stem;
+
+        // Resolution, source and codec are read from the release tags in the file name. They are what
+        // the review list shows as Quality and what the catalog stores as the file's verified facts;
+        // a tag that is not present stays null rather than being guessed.
+        var resolution = FirstMatch(ResolutionPattern(), stem);
+        var source = FirstMatch(SourcePattern(), stem);
+        var codec = FirstMatch(CodecPattern(), stem);
+
         return new ParsedMedia(
             original,
             isEpisode ? MediaType.TvEpisode : MediaType.Movie,
             isEpisode ? null : title,
             isEpisode ? null : year,
-            null,
-            null,
-            null,
+            resolution,
+            source,
+            codec,
             Path.GetExtension(path));
+    }
+
+    private static string? FirstMatch(Regex pattern, string value)
+    {
+        var match = pattern.Match(value);
+        return match.Success ? match.Value : null;
     }
 
     [GeneratedRegex(@"(?i)\bS\d{1,2}E\d{1,3}\b")]
@@ -113,4 +132,13 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
 
     [GeneratedRegex(@"[._\-]+")]
     private static partial Regex SeparatorPattern();
+
+    [GeneratedRegex(@"(?i)\b(?:2160p|1440p|1080p|720p|576p|480p|4K|UHD)\b")]
+    private static partial Regex ResolutionPattern();
+
+    [GeneratedRegex(@"(?i)\b(?:BluRay|Blu-Ray|BDRip|BRRip|WEB-DL|WEBRip|WEB|HDTV|DVDRip|DVD|HDRip|CAM|TS)\b")]
+    private static partial Regex SourcePattern();
+
+    [GeneratedRegex(@"(?i)\b(?:x265|x264|H\.?265|H\.?264|HEVC|AV1|XviD|DivX)\b")]
+    private static partial Regex CodecPattern();
 }

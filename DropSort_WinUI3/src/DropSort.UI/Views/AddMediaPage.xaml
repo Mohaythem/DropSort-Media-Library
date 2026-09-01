@@ -215,6 +215,7 @@
                                     Style="{StaticResource PageSearchBoxStyle}" />
                                 <Button
                                     x:Name="TmdbSearchButton"
+                                    Click="TmdbSearchButton_Click"
                                     Grid.Column="1"
                                     Style="{StaticResource SubtleControlButtonStyle}" />
                             </Grid>

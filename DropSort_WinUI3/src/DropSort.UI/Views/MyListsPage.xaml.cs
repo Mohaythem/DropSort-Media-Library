@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using DropSort.Domain.Library.Personal;
 using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
@@ -6,9 +7,20 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace DropSort.UI.Views;
 
+/// <summary>
+/// My Lists.
+/// <para>
+/// The three system lists are the real personal-library sections: Watchlist, Favorites is Liked, and
+/// Watch Later is Ready to Watch (watchlisted with a file on disk). The fourth tab is the user's own
+/// list - its name is created, renamed and deleted for real and persists in the settings table - but
+/// the catalog has no membership table for custom lists, so it stays empty and says so.
+/// </para>
+/// </summary>
 public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableView
 {
-    private string _selectedKey = DemoData.Lists[0].Key;
+    private const string CustomListKey = "thrillers";
+
+    private string _selectedKey = "watchlist";
     private string _query = string.Empty;
 
     /// <summary>
@@ -37,7 +49,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         RenameListButton.Content = LocalizationService.Text("Rename");
         DeleteListButton.Content = LocalizationService.Text("Delete");
         SearchBox.PlaceholderText = LocalizationService.Text("SearchLists");
-        ListsCountText.Text = LocalizationService.Format("ListsCountFormat", DemoData.Lists.Count);
+        ListsCountText.Text = LocalizationService.Format("ListsCountFormat", Definitions.Count);
         LocalizeTabs();
         Refresh();
     }
@@ -56,8 +68,39 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         (ThrillersItem, ThrillersLabel, ThrillersCount),
     ];
 
+    /// <summary>
+    /// The lists on the strip: the three system sections, plus the user's own list when one exists.
+    /// The custom list's name is the stored one, which is why the tabs are labelled from here rather
+    /// than from a fixed table.
+    /// </summary>
+    private IReadOnlyList<MediaListDefinition> Definitions
+    {
+        get
+        {
+            List<MediaListDefinition> definitions =
+            [
+                new("watchlist", "Watchlist", true),
+                new("favorites", "Favorites", true),
+                new("watch-later", "WatchLater", true),
+            ];
+
+            if (CustomListName is not null)
+            {
+                definitions.Add(new(CustomListKey, CustomListName, false));
+            }
+
+            return definitions;
+        }
+    }
+
+    /// <summary>The user's list name, or null when they have not created one (or deleted it).</summary>
+    private static string? CustomListName => AppSettingsStore.CustomLists.FirstOrDefault();
+
     private void LocalizeTabs()
     {
+        var custom = CustomListName;
+        ThrillersItem.Visibility = custom is null ? Visibility.Collapsed : Visibility.Visible;
+
         foreach (var (tab, label, _) in Tabs)
         {
             if (tab.Tag is not string key)
@@ -65,18 +108,23 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
                 continue;
             }
 
-            var definition = DemoData.Lists.FirstOrDefault(list => list.Key == key);
-            if (definition is not null)
-            {
-                label.Text = LocalizationService.Text(definition.LabelKey);
-            }
+            // A system list is labelled from the localization table; the user's list is labelled with
+            // the name they typed, which is not a translatable key.
+            label.Text = key == CustomListKey
+                ? custom ?? string.Empty
+                : LocalizationService.Text(Definitions.First(list => list.Key == key).LabelKey);
         }
     }
 
     private void Refresh()
     {
-        var definition = DemoData.Lists.FirstOrDefault(list => list.Key == _selectedKey) ?? DemoData.Lists[0];
-        ListNameText.Text = LocalizationService.Text(definition.LabelKey);
+        var definitions = Definitions;
+        var definition = definitions.FirstOrDefault(list => list.Key == _selectedKey) ?? definitions[0];
+        _selectedKey = definition.Key;
+
+        ListNameText.Text = definition.IsSystem
+            ? LocalizationService.Text(definition.LabelKey)
+            : definition.LabelKey;
         RenameListButton.Visibility = definition.IsSystem ? Visibility.Collapsed : Visibility.Visible;
         DeleteListButton.Visibility = definition.IsSystem ? Visibility.Collapsed : Visibility.Visible;
 
@@ -103,37 +151,54 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         }
 
         var searching = _query.Length > 0;
+        var isCustom = _selectedKey == CustomListKey;
         EmptyState.Title = LocalizationService.Text(searching ? "NoResults" : "ListEmpty");
-        EmptyState.Message = LocalizationService.Text(searching ? "NoResultsHelp" : "ListEmptyHelp");
+        EmptyState.Message = LocalizationService.Text(
+            searching ? "NoResultsHelp" : isCustom ? "CustomListEmptyHelp" : "ListEmptyHelp");
         EmptyState.ActionText = LocalizationService.Text("ClearSearch");
         EmptyState.IsActionVisible = searching;
     }
 
     /// <summary>
-    /// The four designed lists. Watch Later is the one that carries the Local / Online only badge on
-    /// its cards, so it is also the one that mixes local and remote entries.
+    /// The three system lists read the real personal-library sections. The user's own list has no
+    /// membership store yet, so it is genuinely empty rather than being filled with a guess.
     /// </summary>
     private IReadOnlyList<ListMediaItem> BuildItems(MediaListDefinition definition)
     {
         var showBadge = definition.Key == "watch-later";
-        return DemoData.Movies
-            .Where(movie => definition.Key switch
-            {
-                "watchlist" => movie.InWatchlist,
-                "favorites" => movie.IsLiked,
-                "watch-later" => movie.InWatchlist && !movie.IsBlacklisted,
-                "thrillers" => movie.Genres.Contains("Thriller"),
-                _ => false,
-            })
-            .Where(movie => _query.Length == 0
-                || movie.Title.Contains(_query, StringComparison.CurrentCultureIgnoreCase)
-                || movie.Year.ToString(CultureInfo.InvariantCulture).Contains(_query, StringComparison.Ordinal))
-            .Select(movie => new ListMediaItem(
-                movie,
-                showBadge,
-                movie.HasLocalFile,
-                LocalizationService.Text(movie.HasLocalFile ? "Local" : "OnlineOnly")))
-            .ToArray();
+
+        var movies = definition.Key switch
+        {
+            "watchlist" => LoadSection(PersonalLibrarySection.Watchlist),
+            "favorites" => LoadSection(PersonalLibrarySection.Liked),
+            "watch-later" => LoadSection(PersonalLibrarySection.ReadyToWatch),
+            _ => [],
+        };
+
+        return
+        [
+            .. movies
+                .Where(movie => _query.Length == 0
+                    || movie.Title.Contains(_query, StringComparison.CurrentCultureIgnoreCase)
+                    || movie.Year.ToString(CultureInfo.InvariantCulture).Contains(_query, StringComparison.Ordinal))
+                .Select(movie => new ListMediaItem(
+                    movie,
+                    showBadge,
+                    movie.HasLocalFile,
+                    LocalizationService.Text(movie.HasLocalFile ? "Local" : "OnlineOnly"))),
+        ];
+    }
+
+    private static IReadOnlyList<MovieRecord> LoadSection(PersonalLibrarySection section)
+    {
+        try
+        {
+            return [.. AppServices.Personal.ListPersonalMovies(section).Select(LibraryProjection.ToCard)];
+        }
+        catch (Exception)
+        {
+            return [];
+        }
     }
 
     private void ListTab_Checked(object sender, RoutedEventArgs e)
@@ -183,8 +248,8 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         _ = ShowDeleteListDialogAsync();
 
     /// <summary>
-    /// Creating and renaming lists needs a persistence layer that does not exist yet, so the
-    /// dialog is real, native and correctly styled but confirming it currently changes nothing.
+    /// Creates or renames the user's list. The name is written to the settings table, so it survives a
+    /// restart; an empty name is rejected rather than silently creating an unnamed list.
     /// </summary>
     private async Task ShowListNameDialogAsync(string title, string value)
     {
@@ -207,9 +272,28 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             DefaultButton = ContentDialogButton.Primary,
         };
 
-        await dialog.ShowAsync();
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        var name = input.Text?.Trim();
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        AppSettingsStore.CustomLists = [name];
+        _selectedKey = CustomListKey;
+        ThrillersItem.IsChecked = true;
+        ApplyLocalization();
     }
 
+    /// <summary>
+    /// Deletes the user's list. Only the list definition goes away - no movie, no file and no personal
+    /// state is touched by this.
+    /// </summary>
     private async Task ShowDeleteListDialogAsync()
     {
         var dialog = new ContentDialog
@@ -224,6 +308,14 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             DefaultButton = ContentDialogButton.Close,
         };
 
-        await dialog.ShowAsync();
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        AppSettingsStore.CustomLists = [];
+        _selectedKey = "watchlist";
+        WatchlistItem.IsChecked = true;
+        ApplyLocalization();
     }
 }

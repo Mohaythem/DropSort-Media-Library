@@ -92,6 +92,11 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
         return MapSnapshot(_personal.GetState(removed.MovieId));
     }
 
+    public IReadOnlyList<WatchEvent> ListWatchEvents(int movieId) =>
+        _personal.GetWatchEvents(movieId)
+            .OrderByDescending(watch => watch.WatchedAt)
+            .ToList();
+
     public IReadOnlyList<MovieListItem> ListPersonalMovies(PersonalLibrarySection section)
     {
         return _personal.ListMovies(section).Select(summary => MapToListItem(summary.Movie)).ToList();

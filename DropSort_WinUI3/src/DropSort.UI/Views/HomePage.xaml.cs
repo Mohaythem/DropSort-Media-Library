@@ -7,9 +7,16 @@ namespace DropSort.UI.Views;
 
 /// <summary>
 /// The landing page: library totals, what the user can continue watching, and the newest additions.
+/// <para>
+/// The movie totals and the recent grid come from the catalog. The TV numbers and Continue watching
+/// still come from the bundled sample shows: the catalog has no season or episode tables, so there is
+/// nothing real to count there yet.
+/// </para>
 /// </summary>
 public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
 {
+    private IReadOnlyList<MovieRecord> _movies = [];
+
     public HomePage()
     {
         this.InitializeComponent();
@@ -25,9 +32,10 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
 
     public void Activate()
     {
+        _movies = LoadMovies();
         StatsRepeater.ItemsSource = BuildStats();
         ContinueRepeater.ItemsSource = DemoData.ContinueWatching;
-        RecentGrid.ItemsSource = DemoData.Movies.Take(8).ToArray();
+        RecentGrid.ItemsSource = _movies.Take(8).ToArray();
     }
 
     public void ApplyLocalization()
@@ -41,13 +49,26 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
         StatsRepeater.ItemsSource = BuildStats();
     }
 
-    private static IReadOnlyList<StatCardRecord> BuildStats()
+    /// <summary>A catalog read failure leaves Home with zero movies rather than taking the page down.</summary>
+    private static IReadOnlyList<MovieRecord> LoadMovies()
+    {
+        try
+        {
+            return [.. AppServices.Library.ListMovies().Select(LibraryProjection.ToCard)];
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    private IReadOnlyList<StatCardRecord> BuildStats()
     {
         var episodes = DemoData.Shows.Sum(show => show.EpisodeCount);
         var watched = DemoData.Shows.Sum(show => show.WatchedEpisodeCount);
         return
         [
-            new(LocalizationService.Text("StatMovies"), Count(DemoData.Movies.Count)),
+            new(LocalizationService.Text("StatMovies"), Count(_movies.Count)),
             new(LocalizationService.Text("StatShows"), Count(DemoData.Shows.Count)),
             new(LocalizationService.Text("StatEpisodes"), Count(episodes)),
             new(LocalizationService.Text("StatWatched"), Count(watched)),

@@ -48,29 +48,31 @@
     <Thickness x:Key="PageContentPaddingCompact">24,24,24,40</Thickness>
 
     <!--
-        NavigationView pane and selected-state strength. These are NavigationView's own
-        lightweight-styling keys, overridden application-wide so the shell keeps the stock template,
-        the stock accent selection indicator (NavigationViewSelectionIndicatorForeground is
-        deliberately NOT overridden - the default already is AccentFillColorDefaultBrush) and every
-        stock hover, pressed and focus visual.
+        Shell surfaces and NavigationView selected-state strength.
 
-        The pane is no longer fully transparent: it carries one neutral overlay step above the window
-        surface, which is what gives the sidebar a readable edge and lets the selected plate read as
-        a plate. Because the value is an overlay rather than an opaque colour, it tints with whatever
-        is underneath - the Light surface, the Dark surface, or the Slate tint - so no theme needs its
-        own hard-coded panel colour.
+        The shell reads as two layers: the pane is the receding surface and the content area is the
+        elevated one, so ShellPaneBackgroundBrush darkens what is behind it and
+        ShellContentBackgroundBrush lifts it. Both are neutral overlays rather than opaque colours,
+        which is what keeps the pair theme-aware: the same two values sit on the Light surface, the
+        Dark surface and the Slate tint, so Slate stays slate-tinted instead of collapsing onto a
+        hard-coded panel colour. NavigationView's own pane brushes are Transparent here on purpose -
+        the pane surface comes from the control's Background (see MainWindow.xaml), so there is one
+        source of truth per theme.
 
-        The fill behind the active item then sits two steps above the pane (dark 25% / light 14%):
-        the stock selected fill is ~8%, which read as "nothing is selected" here, and the
-        pointer-over and pressed steps are re-spaced around the new value. Values are literal Fluent
-        neutral overlays rather than {ThemeResource} colour lookups so each theme dictionary is
-        self-contained, matching the placeholder brushes below.
+        The rest are NavigationView's own lightweight-styling keys, overridden application-wide so
+        the shell keeps the stock template, the stock accent selection indicator
+        (NavigationViewSelectionIndicatorForeground is deliberately NOT overridden - the default
+        already is AccentFillColorDefaultBrush) and every stock hover, pressed and focus visual. The
+        fill behind the active item is a light overlay in the dark themes and a dark one in Light, so
+        it keeps reading as a plate now that the pane underneath it is the darkest shell surface.
     -->
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
-            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#0FFFFFFF" />
-            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#0FFFFFFF" />
-            <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="#26FFFFFF" />
+            <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="#3D000000" />
+            <SolidColorBrush x:Key="ShellContentBackgroundBrush" Color="#12FFFFFF" />
+            <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="#1FFFFFFF" />
+            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
 
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#40FFFFFF" />
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="#4DFFFFFF" />
@@ -98,9 +100,11 @@
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
-            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#0A000000" />
-            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#0A000000" />
+            <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="#17000000" />
+            <SolidColorBrush x:Key="ShellContentBackgroundBrush" Color="#B3FFFFFF" />
             <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="#1F000000" />
+            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
 
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#24000000" />
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="#2E000000" />
@@ -128,9 +132,11 @@
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="HighContrast">
-            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
-            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="ShellContentBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
 
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="NavigationViewItemBackgroundSelectedPointerOver" Color="{ThemeResource SystemColorHighlightColor}" />

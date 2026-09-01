@@ -87,6 +87,11 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
             _ => LocalizationService.Text("SortAdded"),
         };
 
+        if (_state == LibraryViewState.Ready && !AppServices.IsAvailable)
+        {
+            _state = LibraryViewState.Error;
+        }
+
         LoadingPanel.Visibility = _state == LibraryViewState.Loading ? Visibility.Visible : Visibility.Collapsed;
         ErrorState.Visibility = _state == LibraryViewState.Error ? Visibility.Visible : Visibility.Collapsed;
 
@@ -100,6 +105,19 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         }
 
         var count = isShows ? PopulateShows() : PopulateMovies();
+
+        // The catalog read can fail after the visibility above was applied; show the error instead
+        // of an empty grid that would read as "your library is empty".
+        if (_state == LibraryViewState.Error)
+        {
+            ErrorState.Visibility = Visibility.Visible;
+            MoviesGrid.Visibility = Visibility.Collapsed;
+            ShowsGrid.Visibility = Visibility.Collapsed;
+            EmptyState.Visibility = Visibility.Collapsed;
+            CountText.Text = string.Empty;
+            return;
+        }
+
         var noun = isShows
             ? LocalizationService.Text(count == 1 ? "ShowSingular" : "Shows")
             : LocalizationService.Text(count == 1 ? "MovieSingular" : "Movies");
@@ -126,7 +144,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
 
     private int PopulateMovies()
     {
-        var items = DemoData.Movies
+        var items = LoadMovies()
             .Where(movie => _availability switch
             {
                 "local" => movie.HasLocalFile,
@@ -145,6 +163,23 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         var result = items.ToArray();
         MoviesGrid.ItemsSource = result;
         return result.Length;
+    }
+
+    /// <summary>
+    /// Reads the catalog. A failure here is the page's error state, not a crash: the grid keeps the
+    /// last good content and the retry button re-runs this.
+    /// </summary>
+    private IReadOnlyList<MovieRecord> LoadMovies()
+    {
+        try
+        {
+            return [.. AppServices.Library.ListMovies().Select(LibraryProjection.ToCard)];
+        }
+        catch (Exception)
+        {
+            _state = LibraryViewState.Error;
+            return [];
+        }
     }
 
     private int PopulateShows()

@@ -10,7 +10,24 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     private static readonly string DataFolderPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DropSort");
 
-    private bool _isSyncing;
+    /// <summary>
+    /// True until the page has pushed the stored theme and language into the two selectors.
+    /// <para>
+    /// A ComboBox raises SelectionChanged for its initial selection while the XAML is still being
+    /// parsed - before the constructor body runs - and the first item is Slate / English. Without this
+    /// starting true, that initial event would look like a user choice and overwrite the preference
+    /// the shell had just restored.
+    /// </para>
+    /// </summary>
+    private bool _isSyncing = true;
+
+    /// <summary>
+    /// False until the user has actually opened this page. A ComboBox whose items have not been
+    /// realized yet can raise SelectionChanged late - after the sync flag has been cleared - and report
+    /// its first item rather than the index that was assigned. Treating that as a user choice is what
+    /// silently reset the stored language to English on startup.
+    /// </summary>
+    private bool _hasBeenShown;
     private string _sessionToken = string.Empty;
 
     public SettingsPage()
@@ -21,7 +38,16 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
 
     public event EventHandler? OperationsLogRequested;
 
-    public void Activate() => SyncSelectors();
+    /// <summary>Raised after the catalog is cleared so the cached pages can re-read it.</summary>
+    public event EventHandler? LibraryDataChanged;
+
+    public void Activate()
+    {
+        _hasBeenShown = true;
+        SyncSelectors();
+        RefreshFolders();
+        RefreshTmdbStatus();
+    }
 
     public void ApplyLocalization()
     {
@@ -83,6 +109,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         ClearLibraryButton.Content = LocalizationService.Text("Clear");
 
         SyncSelectors();
+        RefreshFolders();
         RefreshTmdbStatus();
     }
 
@@ -111,7 +138,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
 
     private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isSyncing)
+        if (_isSyncing || !_hasBeenShown)
         {
             return;
         }
@@ -137,7 +164,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
 
     private void LanguageSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_isSyncing)
+        if (_isSyncing || !_hasBeenShown)
         {
             return;
         }
@@ -147,11 +174,50 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     }
 
     /// <summary>
-    /// Folder roots are stored by the V2 configuration layer, which does not exist yet. The rows and
-    /// their buttons stay visible and native; managing a root is inert for now.
+    /// Picks the movies or TV root and stores it. The movies root is also the approved destination that
+    /// Organize File moves into, which is why choosing it here enables that action on Movie Details.
     /// </summary>
-    private void ManageFolders_Click(object sender, RoutedEventArgs e)
+    private async void ManageFolders_Click(object sender, RoutedEventArgs e)
     {
+        var isMovies = ReferenceEquals(sender, ManageMovieFoldersButton);
+
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FolderPicker();
+            picker.FileTypeFilter.Add("*");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindow.WindowHandle);
+
+            if (await picker.PickSingleFolderAsync() is not Windows.Storage.StorageFolder folder)
+            {
+                return;
+            }
+
+            if (isMovies)
+            {
+                AppSettingsStore.MovieFolder = folder.Path;
+            }
+            else
+            {
+                AppSettingsStore.ShowFolder = folder.Path;
+            }
+
+            RefreshFolders();
+        }
+        catch (Exception error)
+        {
+            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+        }
+    }
+
+    /// <summary>Shows the configured roots, or the help text when none is set yet.</summary>
+    private void RefreshFolders()
+    {
+        MovieFoldersHelpText.Text = AppSettingsStore.MovieFolder is { Length: > 0 } movies
+            ? movies
+            : LocalizationService.Text("MovieFoldersHelp");
+        TvFoldersHelpText.Text = AppSettingsStore.ShowFolder is { Length: > 0 } shows
+            ? shows
+            : LocalizationService.Text("TvFoldersHelp");
     }
 
     /// <summary>Opening the data folder is fully implemented through the shell launcher.</summary>
@@ -169,48 +235,130 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     /// </summary>
     private void UseTokenButton_Click(object sender, RoutedEventArgs e)
     {
-        _sessionToken = TokenBox.Password.Trim();
+        var token = TokenBox.Password.Trim();
+
+        try
+        {
+            if (AppServices.Settings.ApplyTmdbSessionToken(token))
+            {
+                _sessionToken = token;
+            }
+        }
+        catch (Exception)
+        {
+            _sessionToken = string.Empty;
+        }
+
         RefreshTmdbStatus();
     }
 
     private void ClearTokenButton_Click(object sender, RoutedEventArgs e)
     {
+        try
+        {
+            AppServices.Settings.ClearTmdbSessionToken();
+        }
+        catch (Exception)
+        {
+        }
+
         _sessionToken = string.Empty;
         TokenBox.Password = string.Empty;
         RefreshTmdbStatus();
     }
 
-    /// <summary>Verifying the token needs the metadata client, so this action is inert for now.</summary>
-    private void TestConnectionButton_Click(object sender, RoutedEventArgs e)
-    {
-    }
+    /// <summary>
+    /// There is no TMDB client in this build - the metadata provider answers "unconfigured" - so a
+    /// connection cannot be verified. The button states that plainly instead of reporting a pass.
+    /// </summary>
+    private async void TestConnectionButton_Click(object sender, RoutedEventArgs e) => await ShowMessageAsync(
+        LocalizationService.Text("TestConnection"),
+        LocalizationService.Text("TmdbNoClientHelp"));
 
     private void SetupGuideButton_Click(object sender, RoutedEventArgs e) =>
         _ = Launcher.LaunchUriAsync(new Uri("https://developer.themoviedb.org/docs/authentication-application"));
 
-    /// <summary>Export and import need the snapshot writer, so both remain inert.</summary>
-    private void ExportButton_Click(object sender, RoutedEventArgs e)
-    {
-    }
+    /// <summary>
+    /// Exporting and importing a library snapshot has no application contract in this build, so both
+    /// say so rather than writing a file that would not be a real snapshot.
+    /// </summary>
+    private async void ExportButton_Click(object sender, RoutedEventArgs e) => await ShowMessageAsync(
+        LocalizationService.Text("ExportData"),
+        LocalizationService.Text("SnapshotUnsupportedHelp"));
 
-    private void ImportButton_Click(object sender, RoutedEventArgs e)
-    {
-    }
+    private async void ImportButton_Click(object sender, RoutedEventArgs e) => await ShowMessageAsync(
+        LocalizationService.Text("ImportData"),
+        LocalizationService.Text("SnapshotUnsupportedHelp"));
 
     private void ViewLogButton_Click(object sender, RoutedEventArgs e) =>
         OperationsLogRequested?.Invoke(this, EventArgs.Empty);
 
-    private void ClearHistoryButton_Click(object sender, RoutedEventArgs e) =>
-        _ = ConfirmAsync("ClearHistory", "ClearHistoryHelp");
+    /// <summary>
+    /// Clears every watch event, movie by movie, through the personal library. Preferences and the
+    /// watchlist are untouched, which is what the row promises.
+    /// </summary>
+    private async void ClearHistoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!await ConfirmAsync("ClearHistory", "ClearHistoryHelp"))
+        {
+            return;
+        }
 
-    private void ClearLibraryButton_Click(object sender, RoutedEventArgs e) =>
-        _ = ConfirmAsync("ClearLibraryData", "ClearLibraryDataHelp");
+        var removed = 0;
+
+        try
+        {
+            await Task.Run(() =>
+            {
+                foreach (var movie in AppServices.Library.ListMovies())
+                {
+                    foreach (var watch in AppServices.Personal.ListWatchEvents(movie.Id))
+                    {
+                        AppServices.Personal.RemoveWatchEvent(watch.Id);
+                        removed++;
+                    }
+                }
+            });
+        }
+        catch (Exception error)
+        {
+            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            return;
+        }
+
+        LibraryDataChanged?.Invoke(this, EventArgs.Empty);
+        await ShowMessageAsync(
+            LocalizationService.Text("ClearHistory"),
+            LocalizationService.Format("WatchEventsRemovedFormat", removed));
+    }
 
     /// <summary>
-    /// The destructive confirmations are real, native and correctly themed. Erasing data needs the
-    /// V2 store, so confirming currently changes nothing.
+    /// Clears the local index only. The catalog rows go away; not one media file on disk is touched -
+    /// that is the product contract and the service enforces it.
     /// </summary>
-    private async Task ConfirmAsync(string titleKey, string messageKey)
+    private async void ClearLibraryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!await ConfirmAsync("ClearLibraryData", "ClearLibraryDataHelp"))
+        {
+            return;
+        }
+
+        try
+        {
+            var result = AppServices.Settings.ClearLibraryData();
+            LibraryDataChanged?.Invoke(this, EventArgs.Empty);
+            await ShowMessageAsync(
+                LocalizationService.Text("ClearLibraryData"),
+                LocalizationService.Format("LibraryClearedFormat", result.MoviesRemoved, result.MediaFilesRemoved));
+        }
+        catch (Exception error)
+        {
+            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+        }
+    }
+
+    /// <summary>The destructive confirmations are real, native and correctly themed.</summary>
+    private async Task<bool> ConfirmAsync(string titleKey, string messageKey)
     {
         var dialog = new ContentDialog
         {
@@ -222,6 +370,21 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
             PrimaryButtonText = LocalizationService.Text("Confirm"),
             CloseButtonText = LocalizationService.Text("Cancel"),
             DefaultButton = ContentDialogButton.Close,
+        };
+
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    private async Task ShowMessageAsync(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            FlowDirection = LocalizationService.FlowDirection,
+            RequestedTheme = ThemeService.ElementTheme,
+            Title = title,
+            Content = message,
+            CloseButtonText = LocalizationService.Text("Close"),
         };
 
         await dialog.ShowAsync();

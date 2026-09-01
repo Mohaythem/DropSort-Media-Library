@@ -149,7 +149,10 @@
                                 Margin="0,4,0,0"
                                 Orientation="Horizontal"
                                 Spacing="8">
-                                <Button x:Name="PlayButton" Style="{StaticResource AccentControlButtonStyle}">
+                                <Button
+                                    x:Name="PlayButton"
+                                    Click="PlayButton_Click"
+                                    Style="{StaticResource AccentControlButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon
                                             VerticalAlignment="Center"
@@ -158,7 +161,10 @@
                                         <TextBlock x:Name="PlayText" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="OpenFolderButton" Style="{StaticResource SubtleControlButtonStyle}">
+                                <Button
+                                    x:Name="OpenFolderButton"
+                                    Click="OpenFolderButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon
                                             VerticalAlignment="Center"
@@ -167,7 +173,10 @@
                                         <TextBlock x:Name="OpenFolderText" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="OrganizeButton" Style="{StaticResource SubtleControlButtonStyle}">
+                                <Button
+                                    x:Name="OrganizeButton"
+                                    Click="OrganizeButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon
                                             VerticalAlignment="Center"

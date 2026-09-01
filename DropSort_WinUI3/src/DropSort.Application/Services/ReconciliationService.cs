@@ -119,7 +119,14 @@ public sealed class ReconciliationService : IReconciliationUiActions
         Action<LibraryHealthProgress>? progress = null,
         Func<bool>? isCancelled = null)
     {
-        var fileProgress = ReconcileLibraryFiles(null, isCancelled);
+        // The file stage is the slow one - it stats every registered path - so its progress is
+        // forwarded as it happens. Reporting only the final result would leave a caller's progress
+        // callback silent for the whole scan.
+        var fileProgress = ReconcileLibraryFiles(
+            progress is null
+                ? null
+                : files => progress(new LibraryHealthProgress(files, 0, 0, 0, 0, 0, 0, 0, [], [])),
+            isCancelled);
         var movies = _movies?.ListAll() ?? [];
         var issues = new List<MetadataHealthItem>();
         var complete = 0;

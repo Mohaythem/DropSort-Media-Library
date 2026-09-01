@@ -1,4 +1,6 @@
 using System.Text;
+using DropSort.Application.Dto;
+using DropSort.Domain.Core.Operations;
 using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
@@ -10,6 +12,7 @@ namespace DropSort.UI.Views;
 public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivatableView
 {
     private string _statusFilter = "all";
+    private IReadOnlyList<OperationHistoryItem> _items = [];
 
     /// <summary>
     /// The tab strip raises Checked while the XAML is still being parsed, before the log surface
@@ -80,15 +83,57 @@ public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivat
         return builder.ToString();
     }
 
-    private IReadOnlyList<OperationLogRecord> BuildEntries() =>
-        DemoData.Operations
-            .Where(entry => _statusFilter switch
-            {
-                "success" => entry.IsSuccess,
-                "attention" => entry.NeedsAttention,
-                _ => true,
-            })
-            .ToArray();
+    /// <summary>
+    /// The journal, newest first. Every row is a real recorded file operation: DropSort only writes
+    /// one when it moves or renames a file, so a library that has only ever registered files in place
+    /// has an empty log - and the page says so rather than inventing entries.
+    /// </summary>
+    private IReadOnlyList<OperationLogRecord> BuildEntries()
+    {
+        try
+        {
+            _items = AppServices.History.ListOperationHistory(new OperationHistoryQuery(Limit: 200));
+        }
+        catch (Exception)
+        {
+            _items = [];
+        }
+
+        return
+        [
+            .. _items
+                .Select(ToRecord)
+                .Where(entry => _statusFilter switch
+                {
+                    "success" => entry.IsSuccess,
+                    "attention" => entry.NeedsAttention,
+                    _ => true,
+                }),
+        ];
+    }
+
+    private static OperationLogRecord ToRecord(OperationHistoryItem item)
+    {
+        var local = item.Timestamp.ToLocalTime();
+        var status = item.State switch
+        {
+            OperationState.Committed or OperationState.FsVerified => "success",
+            OperationState.Failed or OperationState.RecoveryRequired => "failed",
+            _ => "warning",
+        };
+
+        var detail = item.DestinationPath is { Length: > 0 } destination
+            ? (item.SourcePath ?? string.Empty) + " -> " + destination
+            : item.SourcePath ?? string.Empty;
+
+        return new OperationLogRecord(
+            LocalizationService.Digits(local.ToString("yyyy-MM-dd HH:mm:ss", LocalizationService.Culture)),
+            LocalizationService.Digits(local.ToString("HH:mm", LocalizationService.Culture)),
+            LocalizationService.Text(item.Type == OperationType.Move ? "OperationMove" : "OperationRename"),
+            string.IsNullOrWhiteSpace(item.MovieTitle) ? Path.GetFileName(item.SourcePath ?? string.Empty) : item.MovieTitle,
+            status,
+            detail);
+    }
 
     private void StatusTab_Checked(object sender, RoutedEventArgs e)
     {
@@ -125,7 +170,7 @@ public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivat
 
         try
         {
-            File.WriteAllText(path, BuildLogText());
+            AppServices.History.SaveOperationHistory(_items, path);
             CopiedInfoBar.Message = LocalizationService.Text("LogSaved");
             CopiedInfoBar.IsOpen = true;
         }

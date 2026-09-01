@@ -301,6 +301,52 @@ public sealed class UiSourceContractTests
     }
 
     [Fact]
+    public void Movie_surfaces_read_the_catalog_instead_of_a_demo_table()
+    {
+        // Every movie-facing page goes through AppServices now. DemoData is the bundled TV sample and
+        // nothing else, so a page that reads a movie out of it would be sample data pretending to be
+        // the user's library.
+        string[] pages =
+        [
+            "LibraryPage",
+            "HomePage",
+            "MyListsPage",
+            "MovieDetailsPage",
+            "AddMediaPage",
+            "CheckLibraryPage",
+            "OperationsLogPage",
+        ];
+
+        foreach (var page in pages)
+        {
+            var source = Read("Views", page + ".xaml.cs");
+
+            Assert.DoesNotContain("DemoData.Movies", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("DemoData.Operations", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("DemoData.Issues", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("DemoData.Detected", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("DemoData.Check", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("DemoData.Lists", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Every_page_that_changes_stored_state_reports_a_failure_instead_of_swallowing_it()
+    {
+        // A catch that neither reports nor recovers is how a dead button looks from the outside: the
+        // click appears to work and nothing was written.
+        string[] pages = ["MovieDetailsPage", "AddMediaPage", "CheckLibraryPage", "SettingsPage"];
+
+        foreach (var page in pages)
+        {
+            var source = Read("Views", page + ".xaml.cs");
+
+            Assert.Contains("AppServices", source, StringComparison.Ordinal);
+            Assert.Contains("ShowMessageAsync", source, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void Backendless_controls_stay_native_instead_of_opening_prototype_popups()
     {
         var source = string.Join(Environment.NewLine, EnumerateUiSource().Select(File.ReadAllText));

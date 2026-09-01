@@ -95,6 +95,7 @@ public static class LocalizationService
         ["BestThrillers"] = "Best Thrillers",
         ["ListEmpty"] = "Nothing in this list yet",
         ["ListEmptyHelp"] = "Add a movie from its details page to see it here.",
+        ["CustomListEmptyHelp"] = "Your own lists cannot hold items yet: the catalog has no membership table for them.",
         ["RenameList"] = "Rename list",
         ["DeleteList"] = "Delete list",
         ["ListNamePlaceholder"] = "List name",
@@ -124,6 +125,9 @@ public static class LocalizationService
         ["SearchTmdbPlaceholder"] = "Title and year",
         ["NothingDetected"] = "Nothing detected yet",
         ["NothingDetectedHelp"] = "Pick a folder and run a scan to review detected media.",
+        ["ItemsAddedFormat"] = "{0} items added to your library.",
+        ["EpisodesUnsupportedHelp"] = "Episodes cannot be registered yet: the catalog stores movies only. The files you picked were not changed.",
+        ["TmdbNotConfiguredHelp"] = "Add a TMDB read access token in Settings to search for titles.",
         // Check Library
         ["CheckDescription"] = "Verify that every registered item still exists on disk.",
         ["LibraryCheck"] = "Library check",
@@ -133,6 +137,10 @@ public static class LocalizationService
         ["CheckedOfFormat"] = "{0} of {1} checked",
         ["CheckComplete"] = "Check complete",
         ["CheckCompleteHelp"] = "Most registered media is healthy.",
+        ["CheckHealthyHelp"] = "Every registered item was found on disk.",
+        ["CheckCancelledHelp"] = "The check was cancelled. Nothing was changed.",
+        ["CheckedCountFormat"] = "{0} checked",
+        ["StartCheck"] = "Start Check",
         ["Passed"] = "Passed",
         ["NeedsAttention"] = "Needs attention",
         ["RunAgain"] = "Run Again",
@@ -148,6 +156,8 @@ public static class LocalizationService
         ["EntryFormat"] = "{0} entry",
         ["EntriesFormat"] = "{0} entries",
         ["CopyLog"] = "Copy Log",
+        ["OperationMove"] = "File Moved",
+        ["OperationRename"] = "File Renamed",
         ["SaveLog"] = "Save Log",
         ["LogSaved"] = "Log saved to your documents folder.",
         ["NoEntries"] = "No operations recorded",
@@ -178,6 +188,7 @@ public static class LocalizationService
         ["Connected"] = "Connected",
         ["NotConfigured"] = "Not configured",
         ["TmdbStatusHelp"] = "A read access token enables title lookups and artwork.",
+        ["TmdbNoClientHelp"] = "This build has no TMDB client, so a token cannot be verified or used for lookups yet.",
         ["ReadAccessToken"] = "Read access token",
         ["ReadAccessTokenHelp"] = "Stored for this session only unless you save it.",
         ["TmdbTokenPlaceholder"] = "Paste your v4 read access token",
@@ -189,6 +200,9 @@ public static class LocalizationService
         ["ExportHelp"] = "Writes a portable snapshot of your library index.",
         ["ImportData"] = "Import library",
         ["ImportHelp"] = "Merges a previously exported snapshot.",
+        ["SnapshotUnsupportedHelp"] = "Library snapshots are not part of this build. Nothing was written or read.",
+        ["WatchEventsRemovedFormat"] = "{0} watch events removed. Preferences and the watchlist were kept.",
+        ["LibraryClearedFormat"] = "{0} movies and {1} media files were removed from the index. No media file on disk was deleted.",
         ["HistoryRecovery"] = "History and recovery",
         ["OperationsLogHelp"] = "Review every add, organize and check operation.",
         ["ViewOperationsLog"] = "View Operations Log",
@@ -209,6 +223,7 @@ public static class LocalizationService
         ["MediaFile"] = "Media file",
         ["NoLocalFile"] = "No local file",
         ["NoLocalFileHelp"] = "This title is registered without a local media file.",
+        ["NoMovieFolderHelp"] = "Set a movies folder in Settings first. DropSort only moves files into an approved root.",
         ["YourActivity"] = "Your Activity",
         ["ActivityHelp"] = "Preferences and watch history stay on this device.",
         ["Preference"] = "Preference",
@@ -341,6 +356,7 @@ public static class LocalizationService
         ["BestThrillers"] = "أفضل أفلام الإثارة",
         ["ListEmpty"] = "لا يوجد شيء في هذه القائمة",
         ["ListEmptyHelp"] = "أضف فيلمًا من صفحة تفاصيله ليظهر هنا.",
+        ["CustomListEmptyHelp"] = "لا تستوعب قوائمك الخاصة عناصر بعد، فلا يوجد جدول عضوية لها في الفهرس.",
         ["RenameList"] = "إعادة تسمية القائمة",
         ["DeleteList"] = "حذف القائمة",
         ["ListNamePlaceholder"] = "اسم القائمة",
@@ -371,6 +387,9 @@ public static class LocalizationService
         ["SearchTmdbPlaceholder"] = "العنوان والسنة",
         ["NothingDetected"] = "لم يُكتشف شيء بعد",
         ["NothingDetectedHelp"] = "اختر مجلدًا وشغّل الفحص لمراجعة الوسائط المكتشفة.",
+        ["ItemsAddedFormat"] = "تمت إضافة {0} عنصراً إلى مكتبتك.",
+        ["EpisodesUnsupportedHelp"] = "لا يمكن تسجيل الحلقات بعد، فالفهرس يحفظ الأفلام فقط. لم يتغير أي ملف مما اخترته.",
+        ["TmdbNotConfiguredHelp"] = "أضف رمز وصول TMDB من الإعدادات للبحر عن العناوين.",
         // Check Library
         ["CheckDescription"] = "تحقّق من أن كل عنصر مُسجَّل لا يزال موجودًا على القرص.",
         ["LibraryCheck"] = "فحص المكتبة",
@@ -380,6 +399,10 @@ public static class LocalizationService
         ["CheckedOfFormat"] = "تم فحص {0} من {1}",
         ["CheckComplete"] = "انتهى الفحص",
         ["CheckCompleteHelp"] = "معظم الوسائط المسجَّلة سليمة.",
+        ["CheckHealthyHelp"] = "تم العثور على كل عنصر مسجّل على القرص.",
+        ["CheckCancelledHelp"] = "تم إلغاء الفحص، ولم يتغير شيء.",
+        ["CheckedCountFormat"] = "تم فحص {0}",
+        ["StartCheck"] = "بدء الفحص",
         ["Passed"] = "ناجح",
         ["NeedsAttention"] = "يحتاج انتباهًا",
         ["RunAgain"] = "إعادة التشغيل",
@@ -395,6 +418,8 @@ public static class LocalizationService
         ["EntryFormat"] = "سجل واحد",
         ["EntriesFormat"] = "{0} سجلًا",
         ["CopyLog"] = "نسخ السجل",
+        ["OperationMove"] = "نُقل ملف",
+        ["OperationRename"] = "إعادة تسمية ملف",
         ["SaveLog"] = "حفظ السجل",
         ["LogSaved"] = "تم حفظ السجل في مجلد المستندات.",
         ["NoEntries"] = "لا توجد عمليات مسجَّلة",
@@ -426,6 +451,7 @@ public static class LocalizationService
         ["Connected"] = "متصل",
         ["NotConfigured"] = "غير مُهيّأ",
         ["TmdbStatusHelp"] = "يتيح رمز القراءة البحث عن العناوين وجلب الصور.",
+        ["TmdbNoClientHelp"] = "لا يوجد عميل TMDB في هذه النسخة، لذا لا يمكن التحقق من الرمز أو استخدامه بعد.",
         ["ReadAccessToken"] = "رمز وصول القراءة",
         ["ReadAccessTokenHelp"] = "يُحفظ لهذه الجلسة فقط إن لم تحفظه.",
         ["TmdbTokenPlaceholder"] = "الصق رمز وصول القراءة v4",
@@ -437,6 +463,9 @@ public static class LocalizationService
         ["ExportHelp"] = "يكتب نسخة محمولة من فهرس مكتبتك.",
         ["ImportData"] = "استيراد المكتبة",
         ["ImportHelp"] = "يدمج نسخة مُصدَّرة سابقًا.",
+        ["SnapshotUnsupportedHelp"] = "نسخ المكتبة غير مُنفّذة في هذه النسخة، ولم يُكتب أو يُقرأ شيء.",
+        ["WatchEventsRemovedFormat"] = "تم حذف {0} من أحداث المشاهدة، مع الحفاظ على التفضيلات وقائمة المشاهدة.",
+        ["LibraryClearedFormat"] = "تم حذف {0} فيلماً و{1} ملفاً من الفهرس، ولم يُحذف أي ملف من القرص.",
         ["HistoryRecovery"] = "السجل والاستعادة",
         ["OperationsLogHelp"] = "راجع كل عمليات الإضافة والتنظيم والفحص.",
         ["ViewOperationsLog"] = "عرض سجل العمليات",
@@ -457,6 +486,7 @@ public static class LocalizationService
         ["MediaFile"] = "ملف الوسائط",
         ["NoLocalFile"] = "لا يوجد ملف محلي",
         ["NoLocalFileHelp"] = "هذا العنوان مُسجَّل بدون ملف وسائط محلي.",
+        ["NoMovieFolderHelp"] = "اختر مجلد الأفلام من الإعدادات أولاً، فلا ينقل DropSort الملفات إلا إلى مجلد معتمد.",
         ["YourActivity"] = "نشاطك",
         ["ActivityHelp"] = "تبقى التفضيلات وسجل المشاهدة على هذا الجهاز.",
         ["Preference"] = "التفضيل",
@@ -516,6 +546,18 @@ public static class LocalizationService
 
     public static event EventHandler? LanguageChanged;
 
+    /// <summary>
+    /// The culture every date and number in the UI is formatted with.
+    /// <para>
+    /// This machine's regional format is Arabic, so CultureInfo.CurrentCulture would render an English
+    /// UI's dates as "\u0633\u064a\u062a\u0645\u0628\u0631 \u0661, \u0662\u0660\u0662\u0666". Formatting follows the language the user picked in
+    /// Settings, not the operating system's region.
+    /// </para>
+    /// </summary>
+    public static CultureInfo Culture => CurrentLanguage == UiLanguage.Arabic
+        ? CultureInfo.GetCultureInfo("ar")
+        : CultureInfo.GetCultureInfo("en-US");
+
     public static FlowDirection FlowDirection =>
         CurrentLanguage == UiLanguage.Arabic
             ? FlowDirection.RightToLeft
@@ -542,7 +584,7 @@ public static class LocalizationService
     }
 
     public static string Format(string key, params object[] arguments) =>
-        Digits(string.Format(CultureInfo.CurrentCulture, Text(key), arguments));
+        Digits(string.Format(Culture, Text(key), arguments));
 
     /// <summary>
     /// Every number in the UI is a Western digit in both languages.
@@ -568,8 +610,18 @@ public static class LocalizationService
         var builder = new StringBuilder(text.Length + 16);
         var inDigitRun = false;
 
-        foreach (var character in text)
+        foreach (var original in text)
         {
+            // A formatter that ran under an Arabic culture can emit Arabic-Indic digits directly;
+            // folding them back to ASCII here means one rule covers both that and the contextual
+            // substitution the text layout does.
+            var character = original switch
+            {
+                >= '٠' and <= '٩' => (char)('0' + (original - '٠')),
+                >= '۰' and <= '۹' => (char)('0' + (original - '۰')),
+                _ => original,
+            };
+
             var isDigit = character is >= '0' and <= '9';
 
             if (isDigit && !inDigitRun)
@@ -594,7 +646,13 @@ public static class LocalizationService
     }
 
     /// <summary>Formats a count for display with Western digits in every language.</summary>
-    public static string Number(int value) => Digits(value.ToString(CultureInfo.CurrentCulture));
+    public static string Number(int value) => Digits(value.ToString(CultureInfo.InvariantCulture));
+
+    /// <summary>Applies the stored language at startup without re-writing it to the store.</summary>
+    public static void Restore(UiLanguage language)
+    {
+        CurrentLanguage = language;
+    }
 
     public static void SetLanguage(UiLanguage language)
     {
@@ -604,6 +662,7 @@ public static class LocalizationService
         }
 
         CurrentLanguage = language;
+        AppServices.PersistLanguage(language);
         LanguageChanged?.Invoke(null, EventArgs.Empty);
     }
 }

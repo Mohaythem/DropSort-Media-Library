@@ -166,6 +166,7 @@
                                                 VerticalAlignment="Center"
                                                 Click="IssueAction_Click"
                                                 Content="{x:Bind ActionLabel}"
+                                                Tag="{x:Bind Item}"
                                                 Style="{StaticResource SubtleControlButtonStyle}" />
                                         </Grid>
                                     </Border>

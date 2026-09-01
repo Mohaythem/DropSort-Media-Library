@@ -29,6 +29,12 @@ public sealed partial class MainWindow : Window
 
     public MainWindow()
     {
+        // The stored theme and language are applied before the pages are localized or themed, so the
+        // shell opens the way the user left it instead of flashing the defaults first.
+        var (theme, language) = AppServices.RestorePreferences();
+        ThemeService.Restore(theme);
+        LocalizationService.Restore(language);
+
         InitializeComponent();
         ConfigureNativeWindow();
         HostPages();
@@ -37,6 +43,11 @@ public sealed partial class MainWindow : Window
         ThemeService.ThemeChanged += OnThemeChanged;
         ApplyTheme();
         ApplyLocalization();
+
+        // The pages are field initializers, so they were constructed - and localized - before the
+        // stored language was restored above. Re-localizing them here is what makes a shell that
+        // starts in Arabic actually open in Arabic instead of English text inside a mirrored shell.
+        LocalizeViews();
         Navigate("home");
     }
 
@@ -72,10 +83,17 @@ public sealed partial class MainWindow : Window
         SetTitleBar(TitleBarDragRegion);
 
         var windowHandle = WindowNative.GetWindowHandle(this);
+        WindowHandle = windowHandle;
         var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
         _appWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
     }
+
+    /// <summary>
+    /// The shell window's handle. A WinRT file or folder picker has no owner window in an unpackaged
+    /// app, so it has to be initialized with one before it can be shown.
+    /// </summary>
+    internal static nint WindowHandle { get; private set; }
 
     private void WireNavigation()
     {
@@ -88,14 +106,32 @@ public sealed partial class MainWindow : Window
         _movieDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
         _showDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
         _settingsPage.OperationsLogRequested += (_, _) => Navigate("operations");
+        _settingsPage.LibraryDataChanged += (_, _) =>
+        {
+            _libraryPage.Activate();
+            _homePage.Activate();
+            _myListsPage.Activate();
+        };
         _operationsLogPage.BackRequested += (_, _) => Navigate("settings");
+
+        // Registering media changes the catalog every other page reads, so the cached pages are
+        // refreshed straight away instead of waiting for the next navigation.
+        _addMediaPage.MediaRegistered += (_, _) =>
+        {
+            _libraryPage.Activate();
+            _homePage.Activate();
+        };
     }
 
+    /// <summary>
+    /// Details are always re-read from the catalog by id: the card that was clicked carries only what
+    /// a card shows, and the stored preference or watch history may have changed since it was built.
+    /// </summary>
     private void OpenMovie(object? sender, MovieRecord movie)
     {
         _detailsReturnDestination = ReturnDestinationFor(sender);
         _movieDetailsPage.SetReturnDestination(_detailsReturnDestination);
-        _movieDetailsPage.SetMovie(movie);
+        _movieDetailsPage.LoadMovie(movie.Id);
         Navigate("details");
     }
 
@@ -248,7 +284,11 @@ public sealed partial class MainWindow : Window
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         ApplyLocalization();
+        LocalizeViews();
+    }
 
+    private void LocalizeViews()
+    {
         ILocalizableView[] views =
         [
             _homePage,

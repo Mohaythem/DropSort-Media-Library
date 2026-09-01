@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using DropSort.Application.Dto;
 using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
@@ -6,17 +6,31 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace DropSort.UI.Views;
 
-/// <summary>The states the library check can be in. A future verifier backend drives these.</summary>
+/// <summary>The states the library check can be in.</summary>
 public enum LibraryCheckState
 {
     Idle,
     Checking,
     Complete,
+    Cancelled,
+    Failed,
 }
 
+/// <summary>
+/// Check Library.
+/// <para>
+/// The check is the real reconciliation pass: every registered media file is stat'd on disk, a file
+/// that has disappeared is marked missing (it stays registered - nothing is ever deleted), and each
+/// movie's metadata is graded. It runs on a worker thread, reports live progress, and Cancel stops it
+/// between files. Nothing starts it but this page: there is no scan at startup.
+/// </para>
+/// </summary>
 public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivatableView
 {
     private LibraryCheckState _state = LibraryCheckState.Idle;
+    private LibraryHealthProgress? _result;
+    private string? _failure;
+    private bool _cancelRequested;
 
     public CheckLibraryPage()
     {
@@ -24,20 +38,8 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         ApplyLocalization();
     }
 
+    /// <summary>Navigating here must not start a check; only the button does.</summary>
     public void Activate() => Refresh();
-
-    /// <summary>
-    /// Entry point for a future verifier to report progress. The designed progress track is a real
-    /// code path instead of a timed animation.
-    /// </summary>
-    public void SetCheckProgress(int completed, int total)
-    {
-        _state = LibraryCheckState.Checking;
-        CheckProgressBar.Maximum = total <= 0 ? 1 : total;
-        CheckProgressBar.Value = completed;
-        CheckProgressText.Text = LocalizationService.Format("CheckedOfFormat", completed, total);
-        Refresh();
-    }
 
     public void ApplyLocalization()
     {
@@ -45,8 +47,6 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         PageTitleText.Text = LocalizationService.Text("CheckLibrary");
         DescriptionText.Text = LocalizationService.Text("CheckDescription");
         CancelCheckButton.Content = LocalizationService.Text("Cancel");
-        SummaryHeadingText.Text = LocalizationService.Text("CheckComplete");
-        SummaryHelpText.Text = LocalizationService.Text("CheckCompleteHelp");
         PassedLabelText.Text = LocalizationService.Text("Passed");
         AttentionLabelText.Text = LocalizationService.Text("NeedsAttention");
         TotalLabelText.Text = LocalizationService.Text("Items");
@@ -59,73 +59,200 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     private void Refresh()
     {
         var isChecking = _state == LibraryCheckState.Checking;
+
         CheckHeadingText.Text = LocalizationService.Text(isChecking ? "CheckingLibrary" : "LibraryCheck");
-        CheckHelpText.Text = LocalizationService.Text(isChecking ? "CheckingHelp" : "LibraryCheckHelp");
-        RunCheckButton.IsEnabled = !isChecking;
+        CheckHelpText.Text = _state switch
+        {
+            LibraryCheckState.Checking => LocalizationService.Text("CheckingHelp"),
+            LibraryCheckState.Cancelled => LocalizationService.Text("CheckCancelledHelp"),
+            LibraryCheckState.Failed => _failure ?? LocalizationService.Text("Failed"),
+            _ => LocalizationService.Text("LibraryCheckHelp"),
+        };
+
         RunCheckButton.Content = LocalizationService.Text(
-            _state == LibraryCheckState.Complete ? "RunAgain" : "RunCheck");
-        CheckProgressPanel.Visibility = isChecking ? Visibility.Visible : Visibility.Collapsed;
+            _state is LibraryCheckState.Complete or LibraryCheckState.Cancelled or LibraryCheckState.Failed
+                ? "RunAgain"
+                : "StartCheck");
+        RunCheckButton.IsEnabled = !isChecking;
+        RunCheckButton.Visibility = isChecking ? Visibility.Collapsed : Visibility.Visible;
         CancelCheckButton.Visibility = isChecking ? Visibility.Visible : Visibility.Collapsed;
+        CancelCheckButton.IsEnabled = isChecking && !_cancelRequested;
+        CheckProgressPanel.Visibility = isChecking ? Visibility.Visible : Visibility.Collapsed;
 
-        var isComplete = _state == LibraryCheckState.Complete;
-        CheckSummaryPanel.Visibility = isComplete ? Visibility.Visible : Visibility.Collapsed;
+        var hasResult = _state == LibraryCheckState.Complete && _result is not null;
+        CheckSummaryPanel.Visibility = hasResult ? Visibility.Visible : Visibility.Collapsed;
 
-        if (!isComplete)
+        if (!hasResult)
         {
             IssuesSection.Visibility = Visibility.Collapsed;
             NoIssuesState.Visibility = Visibility.Collapsed;
             return;
         }
 
-        var issues = BuildIssues();
-        PassedValueText.Text = LocalizationService.Number(DemoData.CheckPassed);
+        var result = _result!;
+        var issues = BuildIssues(result);
+        var totalItems = result.FileProgress.CheckedFiles + result.TotalMovies;
+        var passed = Math.Max(0, totalItems - issues.Count);
+
+        SummaryHeadingText.Text = LocalizationService.Text("CheckComplete");
+        SummaryHelpText.Text = LocalizationService.Text(
+            issues.Count == 0 ? "CheckHealthyHelp" : "CheckCompleteHelp");
+        PassedValueText.Text = LocalizationService.Number(passed);
         AttentionValueText.Text = LocalizationService.Number(issues.Count);
-        TotalValueText.Text = LocalizationService.Number(DemoData.CheckTotal);
+        TotalValueText.Text = LocalizationService.Number(totalItems);
 
         IssuesRepeater.ItemsSource = issues;
         IssuesSection.Visibility = issues.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         NoIssuesState.Visibility = issues.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private static IReadOnlyList<LibraryIssueDisplayRecord> BuildIssues() =>
-        DemoData.Issues
-            .Select(issue => new LibraryIssueDisplayRecord(
-                issue.Item,
-                LocalizationService.Text(IssueKey(issue.Issue)),
-                LocalizationService.Text("Review")))
-            .ToArray();
-
-    /// <summary>Maps the stored issue reason onto its localization key.</summary>
-    private static string IssueKey(string issue) => issue switch
-    {
-        "Episode file is missing" => "IssueEpisodeMissing",
-        "Movie file is missing" => "IssueMovieMissing",
-        "Metadata needs review" => "IssueMetadataReview",
-        _ => issue,
-    };
-
     /// <summary>
-    /// Re-running the verifier needs the V2 file-system layer. The button is real, native and
-    /// enabled; it currently reprojects the last known result instead of touching disk.
+    /// The issue rows: first the files that are registered but no longer on disk, then the movies whose
+    /// metadata is incomplete. A missing file keeps its registration - that is the product contract -
+    /// so it is reported, never removed.
     /// </summary>
-    private void RunCheckButton_Click(object sender, RoutedEventArgs e)
+    private static IReadOnlyList<LibraryIssueDisplayRecord> BuildIssues(LibraryHealthProgress result)
     {
-        _state = LibraryCheckState.Complete;
-        Refresh();
+        var rows = new List<LibraryIssueDisplayRecord>();
+
+        foreach (var missing in MissingFiles())
+        {
+            rows.Add(new LibraryIssueDisplayRecord(
+                Path.GetFileName(missing.CurrentPath),
+                LocalizationService.Text("IssueMovieMissing"),
+                LocalizationService.Text("OpenFolder")));
+        }
+
+        foreach (var item in result.CurrentIssues)
+        {
+            rows.Add(new LibraryIssueDisplayRecord(
+                item.Title,
+                LocalizationService.Text("IssueMetadataReview"),
+                LocalizationService.Text("Review")));
+        }
+
+        return rows;
     }
 
     /// <summary>
-    /// Cancelling returns the card to its idle state. A real verifier would also stop its work here;
-    /// the designed control exists and behaves either way.
+    /// Reads the missing files straight from the catalog after the pass, which is where the pass just
+    /// recorded them.
     /// </summary>
+    private static IReadOnlyList<Domain.Library.Movies.MediaFile> MissingFiles()
+    {
+        try
+        {
+            return AppServices.MissingMediaFiles();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>Runs the pass on a worker thread; the UI thread only draws progress.</summary>
+    private async void RunCheckButton_Click(object sender, RoutedEventArgs e)
+    {
+        _state = LibraryCheckState.Checking;
+        _cancelRequested = false;
+        _failure = null;
+        _result = null;
+        CheckProgressBar.IsIndeterminate = true;
+        CheckProgressText.Text = LocalizationService.Format("CheckedCountFormat", 0);
+        Refresh();
+
+        try
+        {
+            var result = await Task.Run(() => AppServices.Reconciliation.CheckLibrary(
+                progress: update => DispatcherQueue.TryEnqueue(() => ReportProgress(update)),
+                isCancelled: () => _cancelRequested));
+
+            _result = result;
+            _state = LibraryCheckState.Complete;
+        }
+        catch (OperationCanceledException)
+        {
+            _state = LibraryCheckState.Cancelled;
+        }
+        catch (Exception error)
+        {
+            _failure = error.Message;
+            _state = LibraryCheckState.Failed;
+        }
+        finally
+        {
+            CheckProgressBar.IsIndeterminate = false;
+            Refresh();
+        }
+    }
+
+    private void ReportProgress(LibraryHealthProgress update) =>
+        CheckProgressText.Text = LocalizationService.Format(
+            "CheckedCountFormat",
+            update.FileProgress.CheckedFiles);
+
     private void CancelCheckButton_Click(object sender, RoutedEventArgs e)
     {
-        _state = LibraryCheckState.Idle;
-        Refresh();
+        _cancelRequested = true;
+        CancelCheckButton.IsEnabled = false;
     }
 
-    /// <summary>Reviewing an issue needs the recovery flow, so this action stays inert for now.</summary>
-    private void IssueAction_Click(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// The row action opens the folder a missing file used to live in, which is the one thing that can
+    /// be done about it without a relink candidate. Metadata rows have nothing to open, so they only
+    /// state the issue.
+    /// </summary>
+    private async void IssueAction_Click(object sender, RoutedEventArgs e)
     {
+        if (sender is not Button { Tag: string item })
+        {
+            return;
+        }
+
+        var missing = MissingFiles()
+            .FirstOrDefault(file => string.Equals(
+                Path.GetFileName(file.CurrentPath),
+                item,
+                StringComparison.OrdinalIgnoreCase));
+
+        if (missing is null)
+        {
+            return;
+        }
+
+        var folder = Path.GetDirectoryName(missing.CurrentPath);
+
+        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+        {
+            await ShowMessageAsync(LocalizationService.Text("IssuesHeading"), missing.CurrentPath);
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(folder)
+            {
+                UseShellExecute = true,
+            })?.Dispose();
+        }
+        catch (Exception error)
+        {
+            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+        }
+    }
+
+    private async Task ShowMessageAsync(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.ElementTheme,
+            FlowDirection = LocalizationService.FlowDirection,
+            Title = title,
+            Content = message,
+            CloseButtonText = LocalizationService.Text("Close"),
+        };
+
+        await dialog.ShowAsync();
     }
 }

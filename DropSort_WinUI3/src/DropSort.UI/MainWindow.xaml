@@ -85,7 +85,7 @@
         <NavigationView
             x:Name="ShellNavigation"
             Grid.Row="1"
-            Background="Transparent"
+            Background="{ThemeResource ShellPaneBackgroundBrush}"
             CompactModeThresholdWidth="0"
             CompactPaneLength="64"
             ExpandedModeThresholdWidth="820"
@@ -100,13 +100,14 @@
 
             <NavigationView.Resources>
                 <!--
-                    The pane background is deliberately NOT set here. Its brush keys
-                    (NavigationViewDefaultPaneBackground / NavigationViewExpandedPaneBackground) are
-                    defined per theme in ThemeResources.xaml, so the sidebar carries one neutral
-                    overlay step above the window surface in Light, Dark and Slate alike. A local
-                    override in this plain dictionary would win over those and flatten the pane back
-                    to transparent - and a {ThemeResource} colour reference here takes the XAML load
-                    down at startup, which is why the theme-aware values live in a theme dictionary.
+                    The pane's own brush keys are Transparent per theme in ThemeResources.xaml, so the
+                    receding pane surface is this control's Background - ShellPaneBackgroundBrush -
+                    and there is one source of truth per theme. NavigationViewContentBackground is
+                    Transparent for the same reason: the elevated content surface is painted by the
+                    Border around ContentHost with ShellContentBackgroundBrush, which is what makes
+                    the pane read as the darker of the two. A {ThemeResource} colour reference cannot
+                    live in this plain dictionary - it takes the XAML load down at startup - which is
+                    why every theme-aware value here is a brush reference, never a colour.
                 -->
                 <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
                 <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
@@ -172,9 +173,11 @@
                 The hairline on the leading edge is the pane/content boundary. It lives on the content
                 side so it always sits exactly at the pane edge, whatever the pane's current width
                 (expanded, medium or compact), and BorderThickness mirrors with the flow direction, so
-                in Arabic it is drawn on the right without a second value.
+                in Arabic it is drawn on the right without a second value. The background is the
+                elevated shell surface, one step lighter than the pane behind it.
             -->
             <Border
+                Background="{ThemeResource ShellContentBackgroundBrush}"
                 BorderBrush="{ThemeResource ShellPaneSeparatorBrush}"
                 BorderThickness="1,0,0,0">
                 <Grid x:Name="ContentHost" />

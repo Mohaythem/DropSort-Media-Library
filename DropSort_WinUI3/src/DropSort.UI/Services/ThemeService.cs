@@ -29,6 +29,12 @@ public static class ThemeService
 
     public static bool UsesSlateSurface => CurrentTheme == AppTheme.Slate;
 
+    /// <summary>Applies the stored theme at startup without re-writing it to the store.</summary>
+    public static void Restore(AppTheme theme)
+    {
+        CurrentTheme = theme;
+    }
+
     public static void SetTheme(AppTheme theme)
     {
         if (CurrentTheme == theme)
@@ -37,6 +43,7 @@ public static class ThemeService
         }
 
         CurrentTheme = theme;
+        AppServices.PersistTheme(theme);
         ThemeChanged?.Invoke(null, EventArgs.Empty);
     }
 }
