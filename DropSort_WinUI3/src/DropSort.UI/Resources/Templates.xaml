@@ -1,0 +1,129 @@
+<!--
+    Shared media card templates. Every media grid in the app renders through these, so a card looks
+    identical on Home, Library, My Lists and any search result. Movie cards stay poster + title only.
+
+    One poster viewport for all of them: MediaCardPosterWidth x MediaCardPosterHeight (180 x 270 epx,
+    the 2:3 poster ratio), fixed on both axes. A real poster is drawn into it with UniformToFill and
+    clipped by the surface's corner radius; when there is none the placeholder glyph shows through the
+    same rectangle, so a card never changes size depending on whether artwork exists.
+-->
+<ResourceDictionary
+    x:Class="DropSort.UI.Resources.MediaTemplates"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:DropSort.UI.Models">
+
+    <DataTemplate x:Key="MovieCardTemplate" x:DataType="models:MovieRecord">
+        <StackPanel Spacing="8">
+            <Border
+                Width="{StaticResource MediaCardPosterWidth}"
+                Height="{StaticResource MediaCardPosterHeight}"
+                HorizontalAlignment="Left"
+                Style="{StaticResource PosterSurfaceStyle}">
+                <Grid>
+                    <Image Source="{x:Bind PosterSource}" Stretch="UniformToFill" />
+                    <FontIcon
+                        FontFamily="{StaticResource SymbolThemeFontFamily}"
+                        FontSize="40"
+                        Foreground="{ThemeResource PosterGlyphForegroundBrush}"
+                        Glyph="&#xE714;"
+                        Visibility="{x:Bind IsPosterMissing}" />
+                </Grid>
+            </Border>
+            <TextBlock
+                Height="{StaticResource MediaCardTitleHeight}"
+                MaxLines="2"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="{x:Bind Title}"
+                TextTrimming="CharacterEllipsis"
+                TextWrapping="Wrap" />
+        </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ShowCardTemplate" x:DataType="models:ShowCardItem">
+        <StackPanel Spacing="8">
+            <Border
+                Width="{StaticResource MediaCardPosterWidth}"
+                Height="{StaticResource MediaCardPosterHeight}"
+                HorizontalAlignment="Left"
+                Style="{StaticResource ShowPosterSurfaceStyle}">
+                <Grid>
+                    <Image Source="{x:Bind PosterSource}" Stretch="UniformToFill" />
+                    <FontIcon
+                        FontFamily="{StaticResource SymbolThemeFontFamily}"
+                        FontSize="40"
+                        Foreground="{ThemeResource PosterGlyphForegroundBrush}"
+                        Glyph="&#xE7F4;"
+                        Visibility="{x:Bind IsPosterMissing}" />
+                </Grid>
+            </Border>
+            <StackPanel Spacing="2">
+                <TextBlock
+                    Height="{StaticResource MediaCardTitleHeight}"
+                    MaxLines="2"
+                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                    Text="{x:Bind Title}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    Style="{StaticResource SecondaryCaptionTextStyle}"
+                    Text="{x:Bind SecondaryLine}"
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="NoWrap" />
+            </StackPanel>
+        </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ListMovieCardTemplate" x:DataType="models:ListMediaItem">
+        <StackPanel Spacing="8">
+            <Border
+                Width="{StaticResource MediaCardPosterWidth}"
+                Height="{StaticResource MediaCardPosterHeight}"
+                HorizontalAlignment="Left"
+                Style="{StaticResource PosterSurfaceStyle}">
+                <Grid>
+                    <Image Source="{x:Bind PosterSource}" Stretch="UniformToFill" />
+                    <FontIcon
+                        FontFamily="{StaticResource SymbolThemeFontFamily}"
+                        FontSize="40"
+                        Foreground="{ThemeResource PosterGlyphForegroundBrush}"
+                        Glyph="&#xE714;"
+                        Visibility="{x:Bind IsPosterMissing}" />
+                    <Border
+                        MinHeight="20"
+                        Margin="8"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Background="{ThemeResource LayerFillColorAltBrush}"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{ThemeResource ControlCornerRadius}"
+                        Padding="8,0,8,0"
+                        Visibility="{x:Bind ShowLocalBadge}">
+                        <Grid>
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Text="{x:Bind LocalBadgeText}"
+                                Visibility="{x:Bind IsLocal}" />
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                Style="{StaticResource CaptionTextBlockStyle}"
+                                Text="{x:Bind LocalBadgeText}"
+                                Visibility="{x:Bind IsRemote}" />
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+            <TextBlock
+                Height="{StaticResource MediaCardTitleHeight}"
+                MaxLines="2"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="{x:Bind Title}"
+                TextTrimming="CharacterEllipsis"
+                TextWrapping="Wrap" />
+        </StackPanel>
+    </DataTemplate>
+</ResourceDictionary>

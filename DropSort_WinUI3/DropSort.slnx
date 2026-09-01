@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DropSort.Application/DropSort.Application.csproj" />
+    <Project Path="src/DropSort.Domain/DropSort.Domain.csproj" />
+    <Project Path="src/DropSort.FileSystem/DropSort.FileSystem.csproj" />
+    <Project Path="src/DropSort.Infrastructure/DropSort.Infrastructure.csproj" />
+    <Project Path="src/DropSort.UI/DropSort.UI.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DropSort.Tests/DropSort.Tests.csproj" />
+  </Folder>
+</Solution>

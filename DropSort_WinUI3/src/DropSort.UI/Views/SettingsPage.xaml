@@ -1,0 +1,341 @@
+<Page
+    x:Class="DropSort.UI.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Transparent">
+
+    <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MaxWidth="{StaticResource PageContentMaxWidth}" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="24">
+                <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" />
+
+                <!--  Appearance: the section heading sits above its card, like the design source.  -->
+                <StackPanel Spacing="12">
+                    <TextBlock x:Name="AppearanceHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="16">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="ThemeLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        x:Name="ThemeHelpText"
+                                        Style="{StaticResource SecondaryCaptionTextStyle}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ComboBox
+                                    x:Name="ThemeSelector"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    SelectionChanged="ThemeSelector_SelectionChanged"
+                                    Style="{StaticResource NarrowSelectStyle}">
+                                    <ComboBoxItem x:Name="ThemeSlateItem" Tag="slate" />
+                                    <ComboBoxItem x:Name="ThemeDarkItem" Tag="dark" />
+                                    <ComboBoxItem x:Name="ThemeLightItem" Tag="light" />
+                                </ComboBox>
+                            </Grid>
+
+                            <Border Style="{StaticResource HairlineDividerStyle}" />
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="LanguageLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        x:Name="LanguageHelpText"
+                                        Style="{StaticResource SecondaryCaptionTextStyle}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ComboBox
+                                    x:Name="LanguageSelector"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    SelectionChanged="LanguageSelector_SelectionChanged"
+                                    Style="{StaticResource NarrowSelectStyle}">
+                                    <ComboBoxItem x:Name="LanguageEnglishItem" Tag="en" />
+                                    <ComboBoxItem x:Name="LanguageArabicItem" Tag="ar" />
+                                </ComboBox>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!--  Library folders  -->
+                <StackPanel Spacing="12">
+                    <TextBlock x:Name="LibraryHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="16">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="MovieFoldersLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        x:Name="MovieFoldersHelpText"
+                                        Style="{StaticResource SecondaryCaptionTextStyle}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ManageMovieFoldersButton"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Click="ManageFolders_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                            </Grid>
+
+                            <Border Style="{StaticResource HairlineDividerStyle}" />
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="TvFoldersLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        x:Name="TvFoldersHelpText"
+                                        Style="{StaticResource SecondaryCaptionTextStyle}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ManageTvFoldersButton"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Click="ManageFolders_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                            </Grid>
+
+                            <Border Style="{StaticResource HairlineDividerStyle}" />
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="DataFolderLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        x:Name="DataFolderPathText"
+                                        Style="{StaticResource TertiaryCaptionTextStyle}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        x:Name="DataFolderHelpText"
+                                        Style="{StaticResource SecondaryCaptionTextStyle}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="OpenDataFolderButton"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Click="OpenDataFolderButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <!--  TMDB  -->
+                <StackPanel Spacing="12">
+                    <TextBlock x:Name="TmdbHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="16">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border
+                                    x:Name="TmdbStatusPill"
+                                    HorizontalAlignment="Left"
+                                    Style="{StaticResource StatusPillStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Grid Width="8" Height="8" VerticalAlignment="Center">
+                                            <Ellipse x:Name="TmdbConnectedDot" Fill="{ThemeResource SystemFillColorSuccessBrush}" />
+                                            <Ellipse x:Name="TmdbMissingDot" Fill="{ThemeResource SystemFillColorCautionBrush}" />
+                                        </Grid>
+                                        <TextBlock x:Name="TmdbStatusText" Style="{StaticResource SecondaryCaptionTextStyle}" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <TextBlock
+                                x:Name="TmdbStatusHelpText"
+                                Style="{StaticResource SecondaryBodyTextStyle}"
+                                TextWrapping="Wrap" />
+
+                            <Border Style="{StaticResource HairlineDividerStyle}" />
+
+                            <StackPanel Spacing="6">
+                                <TextBlock x:Name="TokenLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock
+                                    x:Name="TokenHelpText"
+                                    Style="{StaticResource SecondaryCaptionTextStyle}"
+                                    TextWrapping="Wrap" />
+                                <PasswordBox x:Name="TokenBox" Style="{StaticResource FormInputPasswordBoxStyle}" />
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button
+                                    x:Name="UseTokenButton"
+                                    Click="UseTokenButton_Click"
+                                    Style="{StaticResource AccentControlButtonStyle}" />
+                                <Button
+                                    x:Name="ClearTokenButton"
+                                    Click="ClearTokenButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                                <Button
+                                    x:Name="TestConnectionButton"
+                                    Click="TestConnectionButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                                <Button
+                                    x:Name="SetupGuideButton"
+                                    Click="SetupGuideButton_Click"
+                                    Style="{StaticResource TextActionButtonStyle}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!--  Library data  -->
+                <StackPanel Spacing="12">
+                    <TextBlock x:Name="LibraryDataHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="16">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="ExportLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        x:Name="ExportHelpText"
+                                        Style="{StaticResource SecondaryCaptionTextStyle}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ExportButton"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Click="ExportButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                            </Grid>
+
+                            <Border Style="{StaticResource HairlineDividerStyle}" />
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="ImportLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        x:Name="ImportHelpText"
+                                        Style="{StaticResource SecondaryCaptionTextStyle}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ImportButton"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Click="ImportButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!--  History and recovery  -->
+                <StackPanel Spacing="12">
+                    <TextBlock x:Name="HistoryHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock x:Name="ViewLogLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock
+                                    x:Name="HistoryHelpText"
+                                    Style="{StaticResource SecondaryCaptionTextStyle}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button
+                                x:Name="ViewLogButton"
+                                Grid.Column="1"
+                                VerticalAlignment="Center"
+                                Click="ViewLogButton_Click"
+                                Style="{StaticResource SubtleControlButtonStyle}" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!--  Danger zone  -->
+                <StackPanel Spacing="12">
+                    <TextBlock
+                        x:Name="DangerHeadingText"
+                        Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                        Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Border Style="{StaticResource DangerCardBorderStyle}">
+                        <StackPanel Spacing="16">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="ClearHistoryLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        x:Name="ClearHistoryHelpText"
+                                        Style="{StaticResource SecondaryCaptionTextStyle}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ClearHistoryButton"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Click="ClearHistoryButton_Click"
+                                    Style="{StaticResource DangerControlButtonStyle}" />
+                            </Grid>
+
+                            <Border Style="{StaticResource HairlineDividerStyle}" />
+
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                    <TextBlock x:Name="ClearLibraryLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock
+                                        x:Name="ClearLibraryHelpText"
+                                        Style="{StaticResource SecondaryCaptionTextStyle}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                                <Button
+                                    x:Name="ClearLibraryButton"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Click="ClearLibraryButton_Click"
+                                    Style="{StaticResource DangerControlButtonStyle}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Page>

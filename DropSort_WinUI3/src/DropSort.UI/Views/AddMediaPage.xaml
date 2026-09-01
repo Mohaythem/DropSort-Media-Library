@@ -1,0 +1,303 @@
+<Page
+    x:Class="DropSort.UI.Views.AddMediaPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:DropSort.UI.Controls"
+    xmlns:models="using:DropSort.UI.Models"
+    Background="Transparent">
+
+    <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MaxWidth="{StaticResource AddMediaContentMaxWidth}" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="24">
+                <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" />
+
+                <StackPanel x:Name="MediaTypeSelector" Style="{StaticResource TabStripStyle}">
+                    <RadioButton
+                        x:Name="MoviesTypeItem"
+                        Checked="MediaTypeItem_Checked"
+                        GroupName="AddMediaType"
+                        IsChecked="True"
+                        Style="{StaticResource TabStripItemStyle}"
+                        Tag="movies" />
+                    <RadioButton
+                        x:Name="EpisodesTypeItem"
+                        Checked="MediaTypeItem_Checked"
+                        GroupName="AddMediaType"
+                        Style="{StaticResource TabStripItemStyle}"
+                        Tag="episodes" />
+                </StackPanel>
+
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="16">
+                        <StackPanel Spacing="4">
+                            <TextBlock x:Name="SourceHeadingText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock
+                                x:Name="SourceHelpText"
+                                Style="{StaticResource SecondaryBodyTextStyle}"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!--  The field row carries the path and Browse only, exactly like the design.  -->
+                        <StackPanel Spacing="6">
+                            <TextBlock x:Name="FolderLabelText" Style="{StaticResource SecondaryCaptionTextStyle}" />
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox x:Name="FolderPathBox" Style="{StaticResource FormInputTextBoxStyle}" />
+                                <Button
+                                    x:Name="BrowseButton"
+                                    Grid.Column="1"
+                                    Click="BrowseButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                            </Grid>
+                        </StackPanel>
+
+                        <Border Style="{StaticResource HairlineDividerStyle}" />
+
+                        <!--
+                            Source actions. Add Files belongs to the episode flow - episodes are picked
+                            as individual files - so it is only shown there; the accent action always
+                            scans the chosen folder. HorizontalAlignment="Right" mirrors under RTL.
+                        -->
+                        <StackPanel
+                            HorizontalAlignment="Right"
+                            Orientation="Horizontal"
+                            Spacing="8">
+                            <Button
+                                x:Name="AddFilesButton"
+                                Click="AddFilesButton_Click"
+                                Style="{StaticResource SubtleControlButtonStyle}" />
+                            <Button
+                                x:Name="ScanButton"
+                                Click="ScanButton_Click"
+                                Style="{StaticResource AccentControlButtonStyle}" />
+                        </StackPanel>
+
+                        <StackPanel x:Name="ScanProgressPanel" Spacing="8" Visibility="Collapsed">
+                            <TextBlock x:Name="ScanProgressText" Style="{StaticResource SecondaryCaptionTextStyle}" />
+                            <ProgressBar x:Name="ScanProgressBar" Height="4" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <controls:EmptyStateCard
+                    x:Name="EmptyState"
+                    Glyph="&#xE8B7;"
+                    Visibility="Collapsed" />
+
+                <!--  Detected movies  -->
+                <StackPanel x:Name="MoviesResultSection" Spacing="12" Visibility="Collapsed">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                            <TextBlock x:Name="MoviesResultHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock x:Name="MoviesResultCountText" Style="{StaticResource SecondaryCaptionTextStyle}" />
+                        </StackPanel>
+                        <Button
+                            x:Name="AddSelectedButton"
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Click="AddSelectedButton_Click"
+                            Style="{StaticResource AccentControlButtonStyle}" />
+                    </Grid>
+
+                    <Border Style="{StaticResource ListSurfaceBorderStyle}">
+                        <StackPanel>
+                            <Grid
+                                Padding="12,0,12,0"
+                                ColumnSpacing="12"
+                                MinHeight="40">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="88" />
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="120" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    x:Name="ColumnTitleText"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock
+                                    x:Name="ColumnYearText"
+                                    Grid.Column="1"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock
+                                    x:Name="ColumnQualityText"
+                                    Grid.Column="2"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock
+                                    x:Name="ColumnActionText"
+                                    Grid.Column="3"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource TertiaryCaptionTextStyle}" />
+                            </Grid>
+                            <Border Style="{StaticResource HairlineDividerStyle}" />
+                            <ItemsRepeater x:Name="DetectedMoviesRepeater">
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="models:DetectedMovieDisplayRecord">
+                                        <Border Style="{StaticResource RowDividerStyle}">
+                                            <Grid ColumnSpacing="12" MinHeight="48">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="88" />
+                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="120" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                                    <TextBlock
+                                                        Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                        Text="{x:Bind Title}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock
+                                                        Style="{StaticResource TertiaryCaptionTextStyle}"
+                                                        Text="{x:Bind FileName}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource SecondaryBodyTextStyle}"
+                                                    Text="{x:Bind YearText}" />
+                                                <TextBlock
+                                                    Grid.Column="2"
+                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource SecondaryBodyTextStyle}"
+                                                    Text="{x:Bind Quality}" />
+                                                <Button
+                                                    Grid.Column="3"
+                                                    VerticalAlignment="Center"
+                                                    Click="RowAction_Click"
+                                                    Content="{x:Bind ActionLabel}"
+                                                    Style="{StaticResource SubtleControlButtonStyle}"
+                                                    Tag="{x:Bind Title}" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </StackPanel>
+                    </Border>
+
+                    <!--
+                        Manual TMDB lookup for anything the scanner could not match. The query field and
+                        button are real and styled; matching needs the V2 metadata backend, so the button
+                        is intentionally inert for now.
+                    -->
+                    <Border x:Name="SearchTmdbCard" Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="16">
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="SearchTmdbHeadingText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock
+                                    x:Name="SearchTmdbHelpText"
+                                    Style="{StaticResource SecondaryBodyTextStyle}"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Grid ColumnSpacing="8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <AutoSuggestBox
+                                    x:Name="TmdbSearchBox"
+                                    QueryIcon="Find"
+                                    Style="{StaticResource PageSearchBoxStyle}" />
+                                <Button
+                                    x:Name="TmdbSearchButton"
+                                    Grid.Column="1"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!--  Detected episodes: review pass before anything is added  -->
+                <StackPanel x:Name="EpisodesResultSection" Spacing="12" Visibility="Collapsed">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                            <TextBlock x:Name="EpisodesResultHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock x:Name="EpisodesResultCountText" Style="{StaticResource SecondaryCaptionTextStyle}" />
+                        </StackPanel>
+                        <Button
+                            x:Name="AddEpisodesButton"
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Click="AddEpisodesButton_Click"
+                            Style="{StaticResource AccentControlButtonStyle}" />
+                    </Grid>
+
+                    <Border Style="{StaticResource ListSurfaceBorderStyle}">
+                        <ItemsRepeater x:Name="DetectedEpisodesRepeater">
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:DetectedEpisodeDisplayRecord">
+                                    <Border Style="{StaticResource RowDividerStyle}">
+                                        <Grid ColumnSpacing="12" MinHeight="56">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="76" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                Text="{x:Bind Code}" />
+                                            <StackPanel
+                                                Grid.Column="1"
+                                                VerticalAlignment="Center"
+                                                Spacing="2">
+                                                <TextBlock
+                                                    Style="{StaticResource BodyTextBlockStyle}"
+                                                    Text="{x:Bind Title}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    Style="{StaticResource TertiaryCaptionTextStyle}"
+                                                    Text="{x:Bind FileName}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <Border
+                                                Grid.Column="2"
+                                                VerticalAlignment="Center"
+                                                Style="{StaticResource StatusPillStyle}">
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <FontIcon
+                                                        FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                                        FontSize="12"
+                                                        Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                                        Glyph="&#xE73E;"
+                                                        Visibility="{x:Bind IsReady}" />
+                                                    <FontIcon
+                                                        FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                                        FontSize="12"
+                                                        Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                        Glyph="&#xE7BA;"
+                                                        Visibility="{x:Bind NeedsReview}" />
+                                                    <TextBlock Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind StatusLabel}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </Border>
+                </StackPanel>
+
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Page>

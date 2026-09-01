@@ -1,0 +1,35 @@
+# .NET build output. The repository root .gitignore only covers the Python V1 tree,
+# so the WinUI 3 solution keeps its own rules next to the projects they apply to.
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# Visual Studio / Rider local state
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+
+# Publish and package output
+publish/
+AppPackages/
+BundleArtifacts/
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+*.nupkg
+
+# Generated MSIX / MRT assets
+*.pri
+*.g.cs
+*.g.i.cs
+
+# Test and coverage output
+TestResults/
+*.trx
+*.coverage
+*.coveragexml

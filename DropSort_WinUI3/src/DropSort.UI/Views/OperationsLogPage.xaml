@@ -1,0 +1,185 @@
+<Page
+    x:Class="DropSort.UI.Views.OperationsLogPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:DropSort.UI.Controls"
+    xmlns:models="using:DropSort.UI.Models"
+    Background="Transparent">
+
+    <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" MaxWidth="{StaticResource PageContentMaxWidth}" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="20">
+                <Button
+                    x:Name="BackButton"
+                    HorizontalAlignment="Left"
+                    Click="BackButton_Click"
+                    Style="{StaticResource BackNavigationButtonStyle}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon
+                            FontFamily="{StaticResource SymbolThemeFontFamily}"
+                            FontSize="14"
+                            Glyph="&#xE72B;"
+                            MirroredWhenRightToLeft="True" />
+                        <TextBlock x:Name="BackButtonText" />
+                    </StackPanel>
+                </Button>
+
+                <Grid ColumnSpacing="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel
+                        VerticalAlignment="Bottom"
+                        Orientation="Horizontal"
+                        Spacing="10">
+                        <TextBlock
+                            x:Name="PageTitleText"
+                            Style="{StaticResource TitleTextBlockStyle}"
+                            TextTrimming="CharacterEllipsis" />
+                        <TextBlock
+                            x:Name="EntriesCountText"
+                            Margin="0,0,0,5"
+                            VerticalAlignment="Bottom"
+                            Style="{StaticResource SecondaryBodyTextStyle}" />
+                    </StackPanel>
+
+                    <StackPanel
+                        Grid.Column="1"
+                        Orientation="Horizontal"
+                        Spacing="8"
+                        VerticalAlignment="Bottom">
+                        <Button
+                            x:Name="CopyLogButton"
+                            Click="CopyLogButton_Click"
+                            Style="{StaticResource SubtleControlButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon
+                                    FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                    FontSize="14"
+                                    Glyph="&#xE8C8;" />
+                                <TextBlock x:Name="CopyLogButtonText" />
+                            </StackPanel>
+                        </Button>
+                        <Button
+                            x:Name="SaveLogButton"
+                            Click="SaveLogButton_Click"
+                            Style="{StaticResource SubtleControlButtonStyle}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon
+                                    FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                    FontSize="14"
+                                    Glyph="&#xE74E;" />
+                                <TextBlock x:Name="SaveLogButtonText" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel x:Name="StatusSelector" Style="{StaticResource TabStripStyle}">
+                    <RadioButton
+                        x:Name="FilterAllItem"
+                        Checked="StatusTab_Checked"
+                        GroupName="OperationsStatus"
+                        IsChecked="True"
+                        Style="{StaticResource TabStripItemStyle}"
+                        Tag="all" />
+                    <RadioButton
+                        x:Name="FilterSuccessItem"
+                        Checked="StatusTab_Checked"
+                        GroupName="OperationsStatus"
+                        Style="{StaticResource TabStripItemStyle}"
+                        Tag="success" />
+                    <RadioButton
+                        x:Name="FilterAttentionItem"
+                        Checked="StatusTab_Checked"
+                        GroupName="OperationsStatus"
+                        Style="{StaticResource TabStripItemStyle}"
+                        Tag="attention" />
+                </StackPanel>
+
+                <InfoBar
+                    x:Name="CopiedInfoBar"
+                    IsOpen="False"
+                    Severity="Success" />
+
+                <controls:EmptyStateCard
+                    x:Name="EmptyState"
+                    Glyph="&#xE9D9;"
+                    Visibility="Collapsed" />
+
+                <Border x:Name="LogSurface" Style="{StaticResource ListSurfaceBorderStyle}">
+                    <ItemsRepeater x:Name="OperationsRepeater">
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:OperationLogRecord">
+                                <Border Style="{StaticResource RowDividerStyle}">
+                                    <Grid ColumnSpacing="12" MinHeight="56">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="24" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Grid
+                                            Width="24"
+                                            Height="24"
+                                            VerticalAlignment="Center">
+                                            <Border
+                                                Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}"
+                                                CornerRadius="12"
+                                                Visibility="{x:Bind IsSuccess}">
+                                                <FontIcon
+                                                    FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                                    FontSize="12"
+                                                    Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                                                    Glyph="&#xE73E;" />
+                                            </Border>
+                                            <Border
+                                                Background="{ThemeResource SystemFillColorCautionBackgroundBrush}"
+                                                CornerRadius="12"
+                                                Visibility="{x:Bind NeedsAttention}">
+                                                <FontIcon
+                                                    FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                                    FontSize="12"
+                                                    Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                    Glyph="&#xE7BA;" />
+                                            </Border>
+                                        </Grid>
+
+                                        <StackPanel
+                                            Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            Spacing="2">
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <TextBlock Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Operation}" />
+                                                <TextBlock
+                                                    Style="{StaticResource SecondaryBodyTextStyle}"
+                                                    Text="{x:Bind Target}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <TextBlock
+                                                Style="{StaticResource TertiaryCaptionTextStyle}"
+                                                Text="{x:Bind Detail}"
+                                                TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource TertiaryCaptionTextStyle}"
+                                            Text="{x:Bind Time}" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </Border>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Page>
