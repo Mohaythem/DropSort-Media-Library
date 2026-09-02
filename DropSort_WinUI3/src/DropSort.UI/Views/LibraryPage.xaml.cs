@@ -22,6 +22,9 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     private string _sort = "added";
     private string _query = string.Empty;
 
+    /// <summary>The catalog rows for this visit, or null when they still have to be read.</summary>
+    private IReadOnlyList<MovieRecord>? _movies;
+
     /// <summary>
     /// The tab strip raises Checked while the XAML is still being parsed (the selected tab is
     /// declared with IsChecked="True"), at which point the elements the refresh touches do not
@@ -40,7 +43,15 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
 
     public event EventHandler<TVShowRecord>? ShowSelected;
 
-    public void Activate() => Refresh();
+    /// <summary>
+    /// Every arrival re-reads the catalog: media may have been registered, or the library cleared,
+    /// since the page was last shown.
+    /// </summary>
+    public void Activate()
+    {
+        _movies = null;
+        Refresh();
+    }
 
     /// <summary>Entry point for a future library backend to report load progress or failure.</summary>
     public void SetState(LibraryViewState state)
@@ -166,17 +177,29 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     }
 
     /// <summary>
-    /// Reads the catalog. A failure here is the page's error state, not a crash: the grid keeps the
-    /// last good content and the retry button re-runs this.
+    /// The catalog rows for this visit, read once and then filtered in memory.
+    /// <para>
+    /// Refresh runs on every keystroke in the search box, every filter change and every navigation;
+    /// reading the whole table each time put a database query behind each keystroke. The cache is
+    /// dropped by <see cref="Activate" />, so navigating back, registering media or clearing the
+    /// library all pick up fresh rows. A failure here is the page's error state, not a crash.
+    /// </para>
     /// </summary>
     private IReadOnlyList<MovieRecord> LoadMovies()
     {
+        if (_movies is not null)
+        {
+            return _movies;
+        }
+
         try
         {
-            return [.. AppServices.Library.ListMovies().Select(LibraryProjection.ToCard)];
+            _movies = [.. AppServices.Library.ListMovies().Select(LibraryProjection.ToCard)];
+            return _movies;
         }
         catch (Exception)
         {
+            _movies = null;
             _state = LibraryViewState.Error;
             return [];
         }

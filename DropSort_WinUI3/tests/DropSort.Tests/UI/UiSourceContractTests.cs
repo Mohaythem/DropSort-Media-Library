@@ -358,6 +358,164 @@ public sealed class UiSourceContractTests
         Assert.DoesNotContain("Not implemented", source, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// A real move can take minutes on another volume, so it is confirmed with the actual source and
+    /// destination and then run off the UI thread, with the file actions locked while it runs.
+    /// </summary>
+    [Fact]
+    public void Organize_confirms_the_move_and_runs_it_off_the_ui_thread()
+    {
+        var page = Read("Views", "MovieDetailsPage.xaml.cs");
+
+        Assert.Contains("ConfirmOrganizeAsync", page, StringComparison.Ordinal);
+        Assert.Contains("OrganizeConfirmFormat", page, StringComparison.Ordinal);
+        Assert.Contains("await Task.Run(() => AppServices.Organization.PrepareOrganization", page, StringComparison.Ordinal);
+        Assert.Contains("await Task.Run(() => AppServices.Organization.ConfirmOrganization", page, StringComparison.Ordinal);
+        Assert.Contains("DiscardOrganizationPreview", page, StringComparison.Ordinal);
+        Assert.Contains("SetOrganizing", page, StringComparison.Ordinal);
+        Assert.Contains("OrganizeProgress", Read("Views", "MovieDetailsPage.xaml"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A stop signal handed to a worker thread goes through a CancellationTokenSource; a plain bool
+    /// field is not guaranteed to be observed on the other thread.
+    /// </summary>
+    [Fact]
+    public void The_long_running_flows_cancel_through_a_token_source()
+    {
+        foreach (var page in new[] { "AddMediaPage.xaml.cs", "CheckLibraryPage.xaml.cs" })
+        {
+            var source = Read("Views", page);
+            Assert.Contains("CancellationTokenSource", source, StringComparison.Ordinal);
+            Assert.Contains("IsCancellationRequested", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("_cancelRequested", source, StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>
+    /// The composition root publishes services only after every one of them is built, retries after a
+    /// failure instead of latching it for the session, and closes the journal store it owns so SQLite
+    /// can check-point the write-ahead log.
+    /// </summary>
+    [Fact]
+    public void The_composition_root_retries_and_closes_what_it_owns()
+    {
+        var services = Read("Services", "AppServices.cs");
+        var shell = Read("MainWindow.xaml.cs");
+
+        var initialize = services[services.IndexOf("public static void Initialize()", StringComparison.Ordinal)..];
+        var tryIndex = initialize.IndexOf("try", StringComparison.Ordinal);
+        var latchIndex = initialize.IndexOf("_initialized = true", StringComparison.Ordinal);
+        Assert.True(tryIndex > 0 && latchIndex > tryIndex, "the initialized flag must not be set before the attempt");
+
+        Assert.Contains("public static void Shutdown()", services, StringComparison.Ordinal);
+        Assert.Contains("_operationStore?.Dispose()", services, StringComparison.Ordinal);
+        Assert.Contains("_coordinator?.Dispose()", services, StringComparison.Ordinal);
+        Assert.Contains("ReleasePooledConnections()", services, StringComparison.Ordinal);
+        Assert.Contains("AppServices.Shutdown()", shell, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Check Library counts movies, not movies plus their files: the old total reported a four-movie
+    /// library as eight items, and the summary line claimed most media was healthy at any issue count.
+    /// </summary>
+    [Fact]
+    public void Check_library_counts_movies_rather_than_movies_plus_files()
+    {
+        var page = Read("Views", "CheckLibraryPage.xaml.cs");
+
+        Assert.DoesNotContain("FileProgress.CheckedFiles + result.TotalMovies", page, StringComparison.Ordinal);
+        Assert.Contains("AttentionMovieCount", page, StringComparison.Ordinal);
+        Assert.Contains("CheckIssuesFormat", page, StringComparison.Ordinal);
+        Assert.Contains("FilesCheckedFormat", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"CheckCompleteHelp\"", page, StringComparison.Ordinal);
+
+        // The row action resolves the registered file by id, not by a file name two folders can share.
+        Assert.Contains("Tag=\"{x:Bind MediaFileId}\"", Read("Views", "CheckLibraryPage.xaml"), StringComparison.Ordinal);
+        Assert.Contains("Tag: int mediaFileId", page, StringComparison.Ordinal);
+    }
+
+    /// <summary>Copy and Save write the rows on screen, and a failed save is reported, not swallowed.</summary>
+    [Fact]
+    public void The_operations_log_copies_and_saves_the_same_rows()
+    {
+        var page = Read("Views", "OperationsLogPage.xaml.cs");
+
+        Assert.Contains("SaveOperationHistory(_visible", page, StringComparison.Ordinal);
+        Assert.Contains("_visible.Select(ToRecord)", page, StringComparison.Ordinal);
+        Assert.Contains("LogSaveFailed", page, StringComparison.Ordinal);
+        Assert.Contains("InfoBarSeverity.Error", page, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The review list has no per-row selection control, so the action is named after what it does.
+    /// </summary>
+    [Fact]
+    public void Add_media_names_its_action_after_what_it_registers()
+    {
+        var page = Read("Views", "AddMediaPage.xaml.cs");
+        var localization = Read("Services", "LocalizationService.cs");
+
+        Assert.Contains("AddAllFormat", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("LocalizationService.Text(\"AddSelected\")", page, StringComparison.Ordinal);
+        Assert.Contains("[\"AddAllFormat\"] = \"Add All ({0})\"", localization, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Only the composition root knows about Infrastructure and FileSystem, and only it knows where the
+    /// data folder is. A view that built either for itself would be a second source of truth.
+    /// </summary>
+    [Fact]
+    public void Only_the_composition_root_knows_the_infrastructure_and_the_data_folder()
+    {
+        foreach (var path in EnumerateUiSource())
+        {
+            if (Path.GetFileName(path) == "AppServices.cs")
+            {
+                continue;
+            }
+
+            var source = File.ReadAllText(path);
+            Assert.DoesNotContain("using DropSort.Infrastructure", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("using DropSort.FileSystem", source, StringComparison.Ordinal);
+            Assert.DoesNotContain("SpecialFolder.LocalApplicationData", source, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("AppServices.DataFolder", Read("Views", "SettingsPage.xaml.cs"), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Typing in a search box filters rows already in memory. Reading the whole catalog, or the settings
+    /// table, on every refresh put a database query behind every keystroke.
+    /// </summary>
+    [Fact]
+    public void The_collection_pages_do_not_query_on_every_keystroke()
+    {
+        var library = Read("Views", "LibraryPage.xaml.cs");
+        var lists = Read("Views", "MyListsPage.xaml.cs");
+        var check = Read("Views", "CheckLibraryPage.xaml.cs");
+
+        Assert.Contains("if (_movies is not null)", library, StringComparison.Ordinal);
+        Assert.Contains("_movies = null;", library, StringComparison.Ordinal);
+        Assert.Contains("_sectionMovies", lists, StringComparison.Ordinal);
+        Assert.Contains("private void Invalidate()", lists, StringComparison.Ordinal);
+        Assert.Contains("_missing = MissingFiles();", check, StringComparison.Ordinal);
+        Assert.DoesNotContain("foreach (var missing in MissingFiles())", check, StringComparison.Ordinal);
+    }
+
+    /// <summary>One helper labels the watch rows, so the first watch cannot move when a row is added.</summary>
+    [Fact]
+    public void The_watch_history_labels_come_from_one_helper()
+    {
+        var projection = Read("Services", "LibraryProjection.cs");
+        var details = Read("Views", "MovieDetailsPage.xaml.cs");
+
+        Assert.Contains("public static IReadOnlyList<WatchHistoryRecord> ToWatchHistory(", projection, StringComparison.Ordinal);
+        Assert.Contains("index < events.Count - 1", projection, StringComparison.Ordinal);
+        Assert.Contains("LibraryProjection.ToWatchHistory(events)", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"FirstWatch\"", details, StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> EnumerateUiSource() =>
         Directory.EnumerateFiles(UiRoot, "*.*", SearchOption.AllDirectories)
             .Where(path => (path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)

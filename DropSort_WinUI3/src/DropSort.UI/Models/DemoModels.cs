@@ -147,7 +147,12 @@ public sealed record DetectedEpisodeDisplayRecord(
 
 public sealed record LibraryIssueRecord(string Item, string Issue);
 
-public sealed record LibraryIssueDisplayRecord(string Item, string Issue, string ActionLabel);
+/// <summary>
+/// One row in the Check Library issue list. <paramref name="MediaFileId" /> is the registered file the
+/// row is about, so the row action resolves the exact record instead of matching on a file name that
+/// two folders can share; a metadata row has no file and leaves it null.
+/// </summary>
+public sealed record LibraryIssueDisplayRecord(string Item, string Issue, string ActionLabel, int? MediaFileId = null);
 
 public sealed record OperationLogRecord(
     string Timestamp,

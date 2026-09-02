@@ -166,7 +166,7 @@
                                                 VerticalAlignment="Center"
                                                 Click="IssueAction_Click"
                                                 Content="{x:Bind ActionLabel}"
-                                                Tag="{x:Bind Item}"
+                                                Tag="{x:Bind MediaFileId}"
                                                 Style="{StaticResource SubtleControlButtonStyle}" />
                                         </Grid>
                                     </Border>

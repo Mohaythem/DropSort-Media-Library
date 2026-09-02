@@ -49,6 +49,19 @@ public sealed partial class MainWindow : Window
         // starts in Arabic actually open in Arabic instead of English text inside a mirrored shell.
         LocalizeViews();
         Navigate("home");
+
+        // The composition root owns the journal store's long-lived SQLite connection. Closing the
+        // shell is this app's shutdown - it is the only window - so that is where the stack is closed
+        // and the write-ahead log gets check-pointed.
+        Closed += OnWindowClosed;
+    }
+
+    private void OnWindowClosed(object sender, WindowEventArgs args)
+    {
+        Closed -= OnWindowClosed;
+        LocalizationService.LanguageChanged -= OnLanguageChanged;
+        ThemeService.ThemeChanged -= OnThemeChanged;
+        AppServices.Shutdown();
     }
 
     /// <summary>

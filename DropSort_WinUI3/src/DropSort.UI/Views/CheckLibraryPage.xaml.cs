@@ -30,7 +30,19 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     private LibraryCheckState _state = LibraryCheckState.Idle;
     private LibraryHealthProgress? _result;
     private string? _failure;
-    private bool _cancelRequested;
+
+    /// <summary>
+    /// The registered files the last pass found missing, captured once when the pass ends. Refresh runs
+    /// on every language change and every navigation, and re-reading the catalog from there would put a
+    /// database query behind each of those.
+    /// </summary>
+    private IReadOnlyList<Domain.Library.Movies.MediaFile> _missing = [];
+
+    /// <summary>
+    /// Cancellation for the running pass. A CancellationTokenSource is the safe way to hand a stop
+    /// signal to a worker thread; a plain bool field is not guaranteed to be observed there.
+    /// </summary>
+    private CancellationTokenSource? _cancellation;
 
     public CheckLibraryPage()
     {
@@ -76,7 +88,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         RunCheckButton.IsEnabled = !isChecking;
         RunCheckButton.Visibility = isChecking ? Visibility.Collapsed : Visibility.Visible;
         CancelCheckButton.Visibility = isChecking ? Visibility.Visible : Visibility.Collapsed;
-        CancelCheckButton.IsEnabled = isChecking && !_cancelRequested;
+        CancelCheckButton.IsEnabled = isChecking && _cancellation is { IsCancellationRequested: false };
         CheckProgressPanel.Visibility = isChecking ? Visibility.Visible : Visibility.Collapsed;
 
         var hasResult = _state == LibraryCheckState.Complete && _result is not null;
@@ -91,15 +103,26 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
 
         var result = _result!;
         var issues = BuildIssues(result);
-        var totalItems = result.FileProgress.CheckedFiles + result.TotalMovies;
-        var passed = Math.Max(0, totalItems - issues.Count);
+
+        // The unit is the movie, not the movie plus its file: counting both made a four-movie library
+        // report eight items. A movie needs attention when its file is gone or its metadata is thin,
+        // and the file figures are reported separately in the help line under the heading.
+        var attention = AttentionMovieCount(result);
+        var totalMovies = Math.Max(result.TotalMovies, attention);
+        var passed = Math.Max(0, totalMovies - attention);
 
         SummaryHeadingText.Text = LocalizationService.Text("CheckComplete");
-        SummaryHelpText.Text = LocalizationService.Text(
-            issues.Count == 0 ? "CheckHealthyHelp" : "CheckCompleteHelp");
+        SummaryHelpText.Text = attention == 0
+            ? LocalizationService.Text("CheckHealthyHelp")
+            : LocalizationService.Format("CheckIssuesFormat", attention, totalMovies)
+                + " "
+                + LocalizationService.Format(
+                    "FilesCheckedFormat",
+                    result.FileProgress.CheckedFiles,
+                    result.FileProgress.MissingFiles);
         PassedValueText.Text = LocalizationService.Number(passed);
-        AttentionValueText.Text = LocalizationService.Number(issues.Count);
-        TotalValueText.Text = LocalizationService.Number(totalItems);
+        AttentionValueText.Text = LocalizationService.Number(attention);
+        TotalValueText.Text = LocalizationService.Number(totalMovies);
 
         IssuesRepeater.ItemsSource = issues;
         IssuesSection.Visibility = issues.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -107,20 +130,46 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     }
 
     /// <summary>
+    /// How many movies need attention. A movie with both a missing file and thin metadata is one movie
+    /// with a problem, so the two sources are unioned by movie id rather than added up.
+    /// </summary>
+    private int AttentionMovieCount(LibraryHealthProgress result)
+    {
+        var movies = new HashSet<int>();
+
+        foreach (var missing in _missing)
+        {
+            if (missing.MovieId is int movieId)
+            {
+                movies.Add(movieId);
+            }
+        }
+
+        foreach (var item in result.CurrentIssues)
+        {
+            movies.Add(item.MovieId);
+        }
+
+        return movies.Count;
+    }
+
+    /// <summary>
     /// The issue rows: first the files that are registered but no longer on disk, then the movies whose
     /// metadata is incomplete. A missing file keeps its registration - that is the product contract -
-    /// so it is reported, never removed.
+    /// so it is reported, never removed. The file rows carry their media-file id, which is what the row
+    /// action resolves.
     /// </summary>
-    private static IReadOnlyList<LibraryIssueDisplayRecord> BuildIssues(LibraryHealthProgress result)
+    private IReadOnlyList<LibraryIssueDisplayRecord> BuildIssues(LibraryHealthProgress result)
     {
         var rows = new List<LibraryIssueDisplayRecord>();
 
-        foreach (var missing in MissingFiles())
+        foreach (var missing in _missing)
         {
             rows.Add(new LibraryIssueDisplayRecord(
                 Path.GetFileName(missing.CurrentPath),
                 LocalizationService.Text("IssueMovieMissing"),
-                LocalizationService.Text("OpenFolder")));
+                LocalizationService.Text("OpenFolder"),
+                missing.Id));
         }
 
         foreach (var item in result.CurrentIssues)
@@ -135,8 +184,8 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     }
 
     /// <summary>
-    /// Reads the missing files straight from the catalog after the pass, which is where the pass just
-    /// recorded them.
+    /// Reads the missing files straight from the catalog, which is where the pass just recorded them.
+    /// Called once per pass; every later redraw uses the captured list.
     /// </summary>
     private static IReadOnlyList<Domain.Library.Movies.MediaFile> MissingFiles()
     {
@@ -153,10 +202,14 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     /// <summary>Runs the pass on a worker thread; the UI thread only draws progress.</summary>
     private async void RunCheckButton_Click(object sender, RoutedEventArgs e)
     {
+        _cancellation?.Dispose();
+        _cancellation = new CancellationTokenSource();
+        var token = _cancellation.Token;
+
         _state = LibraryCheckState.Checking;
-        _cancelRequested = false;
         _failure = null;
         _result = null;
+        _missing = [];
         CheckProgressBar.IsIndeterminate = true;
         CheckProgressText.Text = LocalizationService.Format("CheckedCountFormat", 0);
         Refresh();
@@ -165,9 +218,10 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         {
             var result = await Task.Run(() => AppServices.Reconciliation.CheckLibrary(
                 progress: update => DispatcherQueue.TryEnqueue(() => ReportProgress(update)),
-                isCancelled: () => _cancelRequested));
+                isCancelled: () => token.IsCancellationRequested));
 
             _result = result;
+            _missing = MissingFiles();
             _state = LibraryCheckState.Complete;
         }
         catch (OperationCanceledException)
@@ -193,27 +247,24 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
 
     private void CancelCheckButton_Click(object sender, RoutedEventArgs e)
     {
-        _cancelRequested = true;
+        _cancellation?.Cancel();
         CancelCheckButton.IsEnabled = false;
     }
 
     /// <summary>
     /// The row action opens the folder a missing file used to live in, which is the one thing that can
-    /// be done about it without a relink candidate. Metadata rows have nothing to open, so they only
-    /// state the issue.
+    /// be done about it without a relink candidate. The button carries the media-file id, so the record
+    /// is resolved exactly even when two missing files share a name. Metadata rows have no file and no
+    /// id, so they only state the issue.
     /// </summary>
     private async void IssueAction_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: string item })
+        if (sender is not Button { Tag: int mediaFileId })
         {
             return;
         }
 
-        var missing = MissingFiles()
-            .FirstOrDefault(file => string.Equals(
-                Path.GetFileName(file.CurrentPath),
-                item,
-                StringComparison.OrdinalIgnoreCase));
+        var missing = _missing.FirstOrDefault(file => file.Id == mediaFileId);
 
         if (missing is null)
         {

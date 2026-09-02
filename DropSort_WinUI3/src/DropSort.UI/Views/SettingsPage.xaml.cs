@@ -7,9 +7,6 @@ namespace DropSort.UI.Views;
 
 public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableView
 {
-    private static readonly string DataFolderPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DropSort");
-
     /// <summary>
     /// True until the page has pushed the stored theme and language into the two selectors.
     /// <para>
@@ -28,7 +25,6 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     /// silently reset the stored language to English on startup.
     /// </summary>
     private bool _hasBeenShown;
-    private string _sessionToken = string.Empty;
 
     public SettingsPage()
     {
@@ -74,7 +70,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         ManageTvFoldersButton.Content = LocalizationService.Text("Manage");
         DataFolderLabelText.Text = LocalizationService.Text("LibraryDataFolder");
         DataFolderHelpText.Text = LocalizationService.Text("LibraryDataFolderHelp");
-        DataFolderPathText.Text = DataFolderPath;
+        DataFolderPathText.Text = AppServices.DataFolder;
         OpenDataFolderButton.Content = LocalizationService.Text("OpenFolder");
 
         TmdbHeadingText.Text = LocalizationService.Text("Tmdb");
@@ -126,9 +122,13 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         _isSyncing = false;
     }
 
+    /// <summary>
+    /// The pill reads the settings service, which is where the session token actually lives. Keeping a
+    /// second copy on the page meant the two could disagree.
+    /// </summary>
     private void RefreshTmdbStatus()
     {
-        var isConnected = _sessionToken.Length > 0;
+        var isConnected = IsTmdbConfigured();
         TmdbStatusText.Text = LocalizationService.Text(isConnected ? "Connected" : "NotConfigured");
         TmdbConnectedDot.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
         TmdbMissingDot.Visibility = isConnected ? Visibility.Collapsed : Visibility.Visible;
@@ -223,9 +223,9 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     /// <summary>Opening the data folder is fully implemented through the shell launcher.</summary>
     private void OpenDataFolderButton_Click(object sender, RoutedEventArgs e)
     {
-        if (Directory.Exists(DataFolderPath))
+        if (Directory.Exists(AppServices.DataFolder))
         {
-            _ = Launcher.LaunchFolderPathAsync(DataFolderPath);
+            _ = Launcher.LaunchFolderPathAsync(AppServices.DataFolder);
         }
     }
 
@@ -235,21 +235,29 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     /// </summary>
     private void UseTokenButton_Click(object sender, RoutedEventArgs e)
     {
-        var token = TokenBox.Password.Trim();
-
         try
         {
-            if (AppServices.Settings.ApplyTmdbSessionToken(token))
-            {
-                _sessionToken = token;
-            }
+            AppServices.Settings.ApplyTmdbSessionToken(TokenBox.Password.Trim());
         }
         catch (Exception)
         {
-            _sessionToken = string.Empty;
+            // An invalid or rejected token leaves the status as "not configured"; nothing else to undo.
         }
 
         RefreshTmdbStatus();
+    }
+
+    /// <summary>The one place the token status is read; an unavailable stack answers "not configured".</summary>
+    private static bool IsTmdbConfigured()
+    {
+        try
+        {
+            return AppServices.IsAvailable && AppServices.Settings.IsTmdbConfigured();
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private void ClearTokenButton_Click(object sender, RoutedEventArgs e)
@@ -260,9 +268,9 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         }
         catch (Exception)
         {
+            // Nothing to clear when the stack is unavailable; the field is emptied regardless.
         }
 
-        _sessionToken = string.Empty;
         TokenBox.Password = string.Empty;
         RefreshTmdbStatus();
     }

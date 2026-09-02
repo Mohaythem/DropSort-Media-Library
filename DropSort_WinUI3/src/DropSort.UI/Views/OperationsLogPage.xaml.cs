@@ -12,7 +12,12 @@ namespace DropSort.UI.Views;
 public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivatableView
 {
     private string _statusFilter = "all";
-    private IReadOnlyList<OperationHistoryItem> _items = [];
+
+    /// <summary>
+    /// The journal rows the filter currently shows, as application items. Copy, Save and the row count
+    /// all read this one list, so what is written can never differ from what is on screen.
+    /// </summary>
+    private IReadOnlyList<OperationHistoryItem> _visible = [];
 
     /// <summary>
     /// The tab strip raises Checked while the XAML is still being parsed, before the log surface
@@ -45,6 +50,7 @@ public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivat
         FilterAllItem.Content = LocalizationService.Text("All");
         FilterSuccessItem.Content = LocalizationService.Text("Success");
         FilterAttentionItem.Content = LocalizationService.Text("NeedsAttention");
+        CopiedInfoBar.Severity = InfoBarSeverity.Informational;
         CopiedInfoBar.Message = LocalizationService.Text("LogCopied");
         EmptyState.Title = LocalizationService.Text("NoEntries");
         EmptyState.Message = LocalizationService.Text("NoEntriesHelp");
@@ -66,11 +72,11 @@ public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivat
         SaveLogButton.IsEnabled = !isEmpty;
     }
 
-    /// <summary>The visible entries as tab-separated text - the shape both Copy and Save write.</summary>
+    /// <summary>The entries on screen as tab-separated text - the shape both Copy and Save write.</summary>
     private string BuildLogText()
     {
         var builder = new StringBuilder();
-        foreach (var entry in BuildEntries())
+        foreach (var entry in _visible.Select(ToRecord))
         {
             builder
                 .Append(entry.Timestamp).Append('\t')
@@ -84,33 +90,38 @@ public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivat
     }
 
     /// <summary>
-    /// The journal, newest first. Every row is a real recorded file operation: DropSort only writes
-    /// one when it moves or renames a file, so a library that has only ever registered files in place
-    /// has an empty log - and the page says so rather than inventing entries.
+    /// The journal, newest first, reduced to the active filter. Every row is a real recorded file
+    /// operation: DropSort only writes one when it moves or renames a file, so a library that has only
+    /// ever registered files in place has an empty log - and the page says so rather than inventing
+    /// entries. The filtered application items are kept in <see cref="_visible" /> so Copy and Save
+    /// write exactly these rows.
     /// </summary>
     private IReadOnlyList<OperationLogRecord> BuildEntries()
     {
+        IReadOnlyList<OperationHistoryItem> items;
+
         try
         {
-            _items = AppServices.History.ListOperationHistory(new OperationHistoryQuery(Limit: 200));
+            items = AppServices.History.ListOperationHistory(new OperationHistoryQuery(Limit: 200));
         }
         catch (Exception)
         {
-            _items = [];
+            items = [];
         }
 
-        return
-        [
-            .. _items
-                .Select(ToRecord)
-                .Where(entry => _statusFilter switch
-                {
-                    "success" => entry.IsSuccess,
-                    "attention" => entry.NeedsAttention,
-                    _ => true,
-                }),
-        ];
+        _visible = [.. items.Where(item => _statusFilter switch
+        {
+            "success" => IsSuccess(item),
+            "attention" => !IsSuccess(item),
+            _ => true,
+        })];
+
+        return [.. _visible.Select(ToRecord)];
     }
+
+    /// <summary>A committed or filesystem-verified operation is the success case; everything else is not.</summary>
+    private static bool IsSuccess(OperationHistoryItem item) =>
+        item.State is OperationState.Committed or OperationState.FsVerified;
 
     private static OperationLogRecord ToRecord(OperationHistoryItem item)
     {
@@ -149,19 +160,19 @@ public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivat
         }
     }
 
-    /// <summary>Copying is fully implemented: the visible entries are written to the clipboard as TSV.</summary>
+    /// <summary>Copying is fully implemented: the entries on screen are written to the clipboard as TSV.</summary>
     private void CopyLogButton_Click(object sender, RoutedEventArgs e)
     {
         var package = new DataPackage { RequestedOperation = DataPackageOperation.Copy };
         package.SetText(BuildLogText());
         Clipboard.SetContent(package);
-        CopiedInfoBar.Message = LocalizationService.Text("LogCopied");
-        CopiedInfoBar.IsOpen = true;
+        ShowInfo(LocalizationService.Text("LogCopied"), InfoBarSeverity.Informational);
     }
 
     /// <summary>
-    /// Saving is fully implemented too: the same text is written next to the user's documents, which
-    /// needs no picker and no V2 backend.
+    /// Saving writes exactly the rows on screen, next to the user's documents, which needs no picker and
+    /// no V2 backend. A failure is reported in the same InfoBar as the success: a save that silently did
+    /// nothing is indistinguishable from one that worked.
     /// </summary>
     private void SaveLogButton_Click(object sender, RoutedEventArgs e)
     {
@@ -170,17 +181,20 @@ public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivat
 
         try
         {
-            AppServices.History.SaveOperationHistory(_items, path);
-            CopiedInfoBar.Message = LocalizationService.Text("LogSaved");
-            CopiedInfoBar.IsOpen = true;
+            AppServices.History.SaveOperationHistory(_visible, path);
+            ShowInfo(LocalizationService.Text("LogSaved"), InfoBarSeverity.Success);
         }
-        catch (IOException)
+        catch (Exception error)
         {
-            // A failed save must never take the shell down; the InfoBar simply stays closed.
+            ShowInfo(LocalizationService.Format("LogSaveFailed", error.Message), InfoBarSeverity.Error);
         }
-        catch (UnauthorizedAccessException)
-        {
-        }
+    }
+
+    private void ShowInfo(string message, InfoBarSeverity severity)
+    {
+        CopiedInfoBar.Severity = severity;
+        CopiedInfoBar.Message = message;
+        CopiedInfoBar.IsOpen = true;
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);

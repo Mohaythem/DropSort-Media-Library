@@ -28,6 +28,9 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
     private bool _inWatchlist;
     private string _returnDestination = "library";
 
+    /// <summary>True while a journalled move is running; the file actions stay locked until it ends.</summary>
+    private bool _isOrganizing;
+
     public MovieDetailsPage()
     {
         InitializeComponent();
@@ -75,6 +78,12 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         OverviewText.Text = movie.Overview;
         GenresRepeater.ItemsSource = movie.Genres;
 
+        // A movie registered from a file name has no overview yet. A heading with nothing under it
+        // reads as a rendering fault, so the whole block goes away until there is text for it.
+        var hasOverview = !string.IsNullOrWhiteSpace(movie.Overview);
+        OverviewTitleText.Visibility = hasOverview ? Visibility.Visible : Visibility.Collapsed;
+        OverviewText.Visibility = hasOverview ? Visibility.Visible : Visibility.Collapsed;
+
         var hasFile = movie.HasLocalFile;
         FileNameText.Text = movie.FileName ?? string.Empty;
         FilePathText.Text = movie.FilePath ?? string.Empty;
@@ -83,9 +92,9 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         FilePresentPanel.Visibility = hasFile ? Visibility.Visible : Visibility.Collapsed;
         NoFilePanel.Visibility = hasFile ? Visibility.Collapsed : Visibility.Visible;
         PresentPill.Visibility = hasFile ? Visibility.Visible : Visibility.Collapsed;
-        PlayButton.IsEnabled = hasFile;
-        OpenFolderButton.IsEnabled = hasFile;
-        OrganizeButton.IsEnabled = hasFile;
+        PlayButton.IsEnabled = hasFile && !_isOrganizing;
+        OpenFolderButton.IsEnabled = hasFile && !_isOrganizing;
+        OrganizeButton.IsEnabled = hasFile && !_isOrganizing;
 
         _history.Clear();
         foreach (var entry in movie.WatchHistory ?? [])
@@ -192,11 +201,22 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
 
     /// <summary>
     /// Organizing moves the file into the approved movies root through the journalled coordinator.
-    /// The destination root is the folder configured on the Settings page; without one there is no
-    /// approved destination, so the flow says so instead of guessing a location.
+    /// <para>
+    /// The preview is prepared, the move is confirmed with the real source and destination in front of
+    /// the user, and only then does the transfer run - on a worker thread, because the engine copies and
+    /// hashes the file when the destination is on another volume and that would otherwise freeze the
+    /// window for as long as the copy takes. Declining the confirmation discards the preview, so no
+    /// operation is left parked in the service. The journal, the approved-root check and the
+    /// no-overwrite rule are the coordinator's, untouched: this only decides when they run.
+    /// </para>
     /// </summary>
-    private void OrganizeButton_Click(object sender, RoutedEventArgs e)
+    private async void OrganizeButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isOrganizing)
+        {
+            return;
+        }
+
         if (_movie.MediaFileId is not int mediaFileId || _movie.FilePath is null)
         {
             ReportMissingFile();
@@ -207,24 +227,74 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
 
         if (string.IsNullOrWhiteSpace(root))
         {
-            _ = ShowMessageAsync(LocalizationService.Text("OrganizeFile"), LocalizationService.Text("NoMovieFolderHelp"));
+            await ShowMessageAsync(LocalizationService.Text("OrganizeFile"), LocalizationService.Text("NoMovieFolderHelp"));
             return;
         }
 
+        var fileName = Path.GetFileName(_movie.FilePath);
+        var movieId = _movie.Id;
+        SetOrganizing(true);
+
         try
         {
-            var preview = AppServices.Organization.PrepareOrganization(
-                mediaFileId,
-                root,
-                Path.GetFileName(_movie.FilePath));
+            var preview = await Task.Run(() => AppServices.Organization.PrepareOrganization(mediaFileId, root, fileName));
 
-            AppServices.Organization.ConfirmOrganization(preview.PreviewId);
-            LoadMovie(_movie.Id);
+            if (!await ConfirmOrganizeAsync(preview.Plan.Source, preview.Plan.Destination))
+            {
+                AppServices.Organization.DiscardOrganizationPreview(preview.PreviewId);
+                return;
+            }
+
+            await Task.Run(() => AppServices.Organization.ConfirmOrganization(preview.PreviewId));
+
+            LoadMovie(movieId);
+            await ShowMessageAsync(LocalizationService.Text("OrganizeFile"), LocalizationService.Text("OrganizeDone"));
         }
         catch (Exception error)
         {
             ReportFailure(error);
         }
+        finally
+        {
+            SetOrganizing(false);
+        }
+    }
+
+    /// <summary>
+    /// Locks the file actions for the duration of a move and swaps the button's glyph for a ring. The
+    /// three actions all address the same file, so none of them may run while it is being moved.
+    /// </summary>
+    private void SetOrganizing(bool isOrganizing)
+    {
+        _isOrganizing = isOrganizing;
+
+        OrganizeProgress.IsActive = isOrganizing;
+        OrganizeProgress.Visibility = isOrganizing ? Visibility.Visible : Visibility.Collapsed;
+        OrganizeGlyph.Visibility = isOrganizing ? Visibility.Collapsed : Visibility.Visible;
+        OrganizeText.Text = LocalizationService.Text(isOrganizing ? "Organizing" : "OrganizeFile");
+
+        var canAct = !isOrganizing && _movie.HasLocalFile;
+        OrganizeButton.IsEnabled = canAct;
+        PlayButton.IsEnabled = canAct;
+        OpenFolderButton.IsEnabled = canAct;
+    }
+
+    /// <summary>Shows the exact move that is about to happen; the destination is the approved root.</summary>
+    private async Task<bool> ConfirmOrganizeAsync(string source, string destination)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.ElementTheme,
+            FlowDirection = LocalizationService.FlowDirection,
+            Title = LocalizationService.Text("OrganizeFile"),
+            Content = LocalizationService.Format("OrganizeConfirmFormat", source, destination),
+            PrimaryButtonText = LocalizationService.Text("Confirm"),
+            CloseButtonText = LocalizationService.Text("Cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
     private void ReportMissingFile() => _ = ShowMessageAsync(
@@ -390,10 +460,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
             {
                 Preference = _preference,
                 InWatchlist = _inWatchlist,
-                WatchHistory = [.. events.Select((watch, index) => new WatchHistoryRecord(
-                    LocalizationService.Digits(watch.WatchedAt.ToLocalTime().ToString("MMM d, yyyy", LocalizationService.Culture)),
-                    LocalizationService.Text(watch.Rewatch || index < events.Count - 1 ? "Rewatch" : "FirstWatch"),
-                    watch.Id))],
+                WatchHistory = LibraryProjection.ToWatchHistory(events),
             };
 
             _history.Clear();

@@ -40,7 +40,12 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private IReadOnlyList<DiscoveredMedia> _detected = [];
     private IReadOnlyList<string> _pickedEpisodeFiles = [];
     private bool _isScanning;
-    private bool _cancelRequested;
+
+    /// <summary>
+    /// Cancellation for the running scan. A CancellationTokenSource is the safe way to hand a stop
+    /// signal to a worker thread; a plain bool field is not guaranteed to be observed there.
+    /// </summary>
+    private CancellationTokenSource? _cancellation;
 
     /// <summary>
     /// The tab strip raises Checked while the XAML is still being parsed, before the result sections
@@ -79,7 +84,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         ColumnActionText.Text = LocalizationService.Text("Action");
         MoviesResultHeadingText.Text = LocalizationService.Text("DetectedMovies");
         EpisodesResultHeadingText.Text = LocalizationService.Text("DetectedEpisodes");
-        AddSelectedButton.Content = LocalizationService.Text("AddSelected");
         SearchTmdbHeadingText.Text = LocalizationService.Text("SearchTmdbHeading");
         SearchTmdbHelpText.Text = LocalizationService.Text("SearchTmdbHelp");
         TmdbSearchBox.PlaceholderText = LocalizationService.Text("SearchTmdbPlaceholder");
@@ -121,6 +125,10 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         DetectedMoviesRepeater.ItemsSource = movies;
         MoviesResultCountText.Text = LocalizationService.Format("ItemsFoundFormat", movies.Count);
         AddSelectedButton.IsEnabled = movies.Count > 0;
+
+        // There is no per-row selection control in this list, so the action cannot honestly be called
+        // "Add Selected": it registers every detected movie. The label states the count it will add.
+        AddSelectedButton.Content = LocalizationService.Format("AddAllFormat", movies.Count);
 
         var episodes = BuildDetectedEpisodes();
         DetectedEpisodesRepeater.ItemsSource = episodes;
@@ -275,7 +283,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     {
         if (_isScanning)
         {
-            _cancelRequested = true;
+            _cancellation?.Cancel();
             return;
         }
 
@@ -308,8 +316,11 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             return;
         }
 
+        _cancellation?.Dispose();
+        _cancellation = new CancellationTokenSource();
+        var token = _cancellation.Token;
+
         _isScanning = true;
-        _cancelRequested = false;
         _detected = [];
         _pickedEpisodeFiles = [];
         _state = AddMediaScanState.Scanning;
@@ -323,7 +334,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 root,
                 recursive: true,
                 progress: update => DispatcherQueue.TryEnqueue(() => ReportScanProgress(update)),
-                isCancelled: () => _cancelRequested));
+                isCancelled: () => token.IsCancellationRequested));
 
             _detected = session.Items;
             _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
@@ -361,8 +372,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     }
 
     /// <summary>
-    /// Registers every detected candidate. Registration is per file path and idempotent, so a folder
-    /// that was already added simply reports the same movies again instead of duplicating them.
+    /// Registers every detected candidate - the list has no per-row selection, and the button says
+    /// "Add All (n)" for that reason. Registration is per file path and idempotent, so a folder that was
+    /// already added simply reports the same movies again instead of duplicating them.
     /// </summary>
     private async void AddSelectedButton_Click(object sender, RoutedEventArgs e)
     {

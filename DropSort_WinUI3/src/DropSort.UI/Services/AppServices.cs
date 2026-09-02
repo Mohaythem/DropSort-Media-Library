@@ -8,6 +8,7 @@ using DropSort.Domain.Metadata.Contracts;
 using DropSort.FileSystem.Discovery;
 using DropSort.FileSystem.Inspection;
 using DropSort.FileSystem.Operations;
+using DropSort.Infrastructure.Persistence;
 using DropSort.Infrastructure.Persistence.Migrations;
 using DropSort.Infrastructure.Persistence.Repositories;
 
@@ -30,6 +31,13 @@ internal static class AppServices
 {
     private static readonly object Gate = new();
     private static bool _initialized;
+
+    /// <summary>
+    /// True once the shell has closed. A task that was still running then must not be able to reopen
+    /// the database on its way out - that would recreate the write-ahead log the shutdown just
+    /// check-pointed away.
+    /// </summary>
+    private static bool _closed;
 
     /// <summary>Why the stack is unavailable, or null when it started normally.</summary>
     public static string? InitializationError { get; private set; }
@@ -154,17 +162,40 @@ internal static class AppServices
     private static SettingsRepository? _settingsRepository;
     private static IMediaFileRepository? _mediaFiles;
 
-    /// <summary>Opens and migrates the database, then builds the services. Safe to call repeatedly.</summary>
+    /// <summary>
+    /// The two objects that own a resource rather than a connection string: the journal store holds a
+    /// SQLite connection for the process lifetime and the coordinator wraps it. They are kept here so
+    /// <see cref="Shutdown" /> can close them.
+    /// </summary>
+    private static FileOperationStore? _operationStore;
+    private static FileOperationCoordinator? _coordinator;
+
+    /// <summary>When the last failed attempt happened, so a retry does not run on every property read.</summary>
+    private static DateTimeOffset _lastFailure = DateTimeOffset.MinValue;
+
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Opens and migrates the database, then builds the services. Safe to call repeatedly.
+    /// <para>
+    /// A failure is not final: nothing is marked initialized, the half-built objects are disposed and
+    /// the next call - the Library page's Retry button, or simply navigating again - attempts the whole
+    /// thing once more. <see cref="RetryDelay" /> keeps that from turning a locked database into an
+    /// attempt on every property read. Services are published only once every one of them is built, so
+    /// a failed attempt can never leave a partial stack behind.
+    /// </para>
+    /// </summary>
     public static void Initialize()
     {
         lock (Gate)
         {
-            if (_initialized)
+            if (_closed || _initialized || DateTimeOffset.UtcNow - _lastFailure < RetryDelay)
             {
                 return;
             }
 
-            _initialized = true;
+            FileOperationStore? operations = null;
+            FileOperationCoordinator? coordinator = null;
 
             try
             {
@@ -175,31 +206,83 @@ internal static class AppServices
                 var catalogFactory = new CatalogUnitOfWorkFactory(connectionString);
                 IMovieRepository movies = new UnitOfWorkMovieRepository(catalogFactory);
                 IMediaFileRepository mediaFiles = new UnitOfWorkMediaFileRepository(catalogFactory);
-                _mediaFiles = mediaFiles;
                 var personal = new PersonalLibraryRepository(connectionString);
                 var settingsRepository = new SettingsRepository(connectionString);
-                _settingsRepository = settingsRepository;
                 var maintenance = new LibraryMaintenanceRepository(connectionString);
-                var operations = new FileOperationStore(connectionString);
-                var coordinator = new FileOperationCoordinator(operations);
+                operations = new FileOperationStore(connectionString);
+                coordinator = new FileOperationCoordinator(operations);
 
                 var library = new LibraryService(movies, mediaFiles, personal);
-                _library = library;
-                _personal = library;
-                _import = new ImportService(
+                var import = new ImportService(
                     catalogFactory,
                     new UnconfiguredMetadataProvider(),
                     new MediaDiscoveryService());
-                _reconciliation = new ReconciliationService(mediaFiles, new AvailabilityInspector(), movies);
-                _history = new OperationHistoryService(operations, coordinator, mediaFiles, movies);
-                _settings = new SettingsService(maintenance, posterCache: null, settings: settingsRepository);
-                _organization = new OrganizationService(mediaFiles, coordinator);
+                var reconciliation = new ReconciliationService(mediaFiles, new AvailabilityInspector(), movies);
+                var history = new OperationHistoryService(operations, coordinator, mediaFiles, movies);
+                var settings = new SettingsService(maintenance, posterCache: null, settings: settingsRepository);
+                var organization = new OrganizationService(mediaFiles, coordinator);
+
+                _mediaFiles = mediaFiles;
+                _settingsRepository = settingsRepository;
+                _operationStore = operations;
+                _coordinator = coordinator;
+                _library = library;
+                _personal = library;
+                _import = import;
+                _reconciliation = reconciliation;
+                _history = history;
+                _settings = settings;
+                _organization = organization;
+
+                InitializationError = null;
+                _initialized = true;
             }
             catch (Exception error)
             {
                 InitializationError = error.Message;
+                _lastFailure = DateTimeOffset.UtcNow;
+                coordinator?.Dispose();
+                operations?.Dispose();
+                Clear();
             }
         }
+    }
+
+    /// <summary>
+    /// Closes everything this root owns. Called when the shell window closes: the journal store holds
+    /// the only long-lived SQLite connection, and while it is open SQLite cannot truncate the
+    /// write-ahead log, so the database file stays a stub with a growing -wal beside it. Clearing the
+    /// connection pool afterwards releases the per-call connections too, which is what actually lets
+    /// the last close check-point and remove the -wal and -shm files.
+    /// </summary>
+    public static void Shutdown()
+    {
+        lock (Gate)
+        {
+            _closed = true;
+            _coordinator?.Dispose();
+            _operationStore?.Dispose();
+            Clear();
+            _initialized = false;
+            InitializationError = "The application is shutting down.";
+            DatabaseBootstrap.ReleasePooledConnections();
+        }
+    }
+
+    /// <summary>Drops every published service. The caller holds <see cref="Gate" />.</summary>
+    private static void Clear()
+    {
+        _library = null;
+        _personal = null;
+        _import = null;
+        _reconciliation = null;
+        _history = null;
+        _settings = null;
+        _organization = null;
+        _settingsRepository = null;
+        _mediaFiles = null;
+        _operationStore = null;
+        _coordinator = null;
     }
 
     private static T Require<T>(T? service)

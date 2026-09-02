@@ -24,6 +24,20 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     private string _query = string.Empty;
 
     /// <summary>
+    /// The stored name of the user's list, read once per visit. The tab strip, the definitions and the
+    /// header all ask for it several times per refresh, and each ask was a settings-table read.
+    /// </summary>
+    private string? _customList;
+
+    /// <summary>
+    /// The movies of the selected system list for this visit, so typing in the search box filters in
+    /// memory instead of re-querying the personal library on every keystroke.
+    /// </summary>
+    private IReadOnlyList<MovieRecord>? _sectionMovies;
+
+    private string? _sectionKey;
+
+    /// <summary>
     /// The tab strip raises Checked while the XAML is still being parsed (the selected tab is
     /// declared with IsChecked="True"), before the grid and the empty state exist. The constructor
     /// applies the initial list instead.
@@ -34,12 +48,26 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     {
         this.InitializeComponent();
         _isReady = true;
+        _customList = AppSettingsStore.CustomLists.FirstOrDefault();
         ApplyLocalization();
     }
 
     public event EventHandler<MovieRecord>? MovieSelected;
 
-    public void Activate() => Refresh();
+    /// <summary>Every arrival re-reads the personal library and the stored list name.</summary>
+    public void Activate()
+    {
+        Invalidate();
+        Refresh();
+    }
+
+    /// <summary>Drops the per-visit caches: the stored list name and the loaded section.</summary>
+    private void Invalidate()
+    {
+        _customList = AppSettingsStore.CustomLists.FirstOrDefault();
+        _sectionMovies = null;
+        _sectionKey = null;
+    }
 
     public void ApplyLocalization()
     {
@@ -94,7 +122,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     }
 
     /// <summary>The user's list name, or null when they have not created one (or deleted it).</summary>
-    private static string? CustomListName => AppSettingsStore.CustomLists.FirstOrDefault();
+    private string? CustomListName => _customList;
 
     private void LocalizeTabs()
     {
@@ -166,14 +194,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     private IReadOnlyList<ListMediaItem> BuildItems(MediaListDefinition definition)
     {
         var showBadge = definition.Key == "watch-later";
-
-        var movies = definition.Key switch
-        {
-            "watchlist" => LoadSection(PersonalLibrarySection.Watchlist),
-            "favorites" => LoadSection(PersonalLibrarySection.Liked),
-            "watch-later" => LoadSection(PersonalLibrarySection.ReadyToWatch),
-            _ => [],
-        };
+        var movies = SectionMovies(definition.Key);
 
         return
         [
@@ -189,7 +210,45 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         ];
     }
 
-    private static IReadOnlyList<MovieRecord> LoadSection(PersonalLibrarySection section)
+    /// <summary>The rows of one list, read on first use for this visit and reused afterwards.</summary>
+    private IReadOnlyList<MovieRecord> SectionMovies(string key)
+    {
+        if (_sectionKey == key && _sectionMovies is not null)
+        {
+            return _sectionMovies;
+        }
+
+        var section = key switch
+        {
+            "watchlist" => PersonalLibrarySection.Watchlist,
+            "favorites" => PersonalLibrarySection.Liked,
+            "watch-later" => PersonalLibrarySection.ReadyToWatch,
+            _ => (PersonalLibrarySection?)null,
+        };
+
+        if (section is null)
+        {
+            // The user's own list has no membership store, so it is empty by definition, not by
+            // failure - that is safe to remember for the visit.
+            _sectionKey = key;
+            _sectionMovies = [];
+            return _sectionMovies;
+        }
+
+        if (LoadSection(section.Value) is not { } movies)
+        {
+            // A read that failed is not cached: the next refresh tries again instead of leaving the
+            // list looking empty for the rest of the visit.
+            return [];
+        }
+
+        _sectionKey = key;
+        _sectionMovies = movies;
+        return movies;
+    }
+
+    /// <summary>The section's rows, or null when the personal library could not be read.</summary>
+    private static IReadOnlyList<MovieRecord>? LoadSection(PersonalLibrarySection section)
     {
         try
         {
@@ -197,7 +256,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         }
         catch (Exception)
         {
-            return [];
+            return null;
         }
     }
 
@@ -285,6 +344,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         }
 
         AppSettingsStore.CustomLists = [name];
+        Invalidate();
         _selectedKey = CustomListKey;
         ThrillersItem.IsChecked = true;
         ApplyLocalization();
@@ -314,6 +374,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         }
 
         AppSettingsStore.CustomLists = [];
+        Invalidate();
         _selectedKey = "watchlist";
         WatchlistItem.IsChecked = true;
         ApplyLocalization();

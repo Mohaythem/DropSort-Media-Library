@@ -60,8 +60,22 @@ internal static class LibraryProjection
             FilePath: file?.CurrentPath,
             FileFacts: file is null ? null : FileFacts(file),
             MediaFileId: file?.Id,
-            WatchHistory: [.. watchEvents.Select(ToWatchHistory)]);
+            WatchHistory: ToWatchHistory(watchEvents));
     }
+
+    /// <summary>
+    /// The watch rows for one movie. <c>ListWatchEvents</c> answers newest first, so the oldest row is
+    /// the first watch and every row above it is a rewatch. Both the initial load and every reload go
+    /// through here, so the label cannot disagree between them.
+    /// </summary>
+    public static IReadOnlyList<WatchHistoryRecord> ToWatchHistory(IReadOnlyList<WatchEvent> events) =>
+    [
+        .. events.Select((watch, index) => new WatchHistoryRecord(
+            LocalizationService.Digits(
+                watch.WatchedAt.ToLocalTime().ToString("MMM d, yyyy", LocalizationService.Culture)),
+            LocalizationService.Text(watch.Rewatch || index < events.Count - 1 ? "Rewatch" : "FirstWatch"),
+            watch.Id)),
+    ];
 
     /// <summary>"1080p · x264 · 4.2 GB" - only the facts the record actually carries.</summary>
     private static string FileFacts(MediaFile file)
