@@ -16,6 +16,7 @@ namespace DropSort.UI.Views;
 public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
 {
     private IReadOnlyList<MovieRecord> _movies = [];
+    private IReadOnlyList<TVShowRecord> _shows = [];
 
     public HomePage()
     {
@@ -33,9 +34,11 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
     public void Activate()
     {
         _movies = LoadMovies();
+        _shows = LoadShows();
         StatsRepeater.ItemsSource = BuildStats();
-        ContinueRepeater.ItemsSource = DemoData.ContinueWatching;
+        ContinueRepeater.ItemsSource = BuildContinueWatching();
         RecentGrid.ItemsSource = _movies.Take(8).ToArray();
+        UpdateContinueVisibility();
     }
 
     public void ApplyLocalization()
@@ -62,16 +65,58 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
         }
     }
 
+    /// <summary>A catalog read failure leaves Home with no shows rather than taking the page down.</summary>
+    private static IReadOnlyList<TVShowRecord> LoadShows()
+    {
+        try
+        {
+            return [.. AppServices.Tv.ListShows().Select(TvProjection.ToCard)];
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>
+    /// The shows with an episode on disk, each pointing at the first episode that can be played. There
+    /// is no episode watch state in this build, so "continue" means the first available episode rather
+    /// than a resume point that would have to be invented.
+    /// </summary>
+    private IReadOnlyList<ContinueWatchingRecord> BuildContinueWatching() =>
+    [
+        .. _shows
+            .Where(show => show.LocalEpisodeCount > 0)
+            .Take(6)
+            .Select(show => new ContinueWatchingRecord(
+                show.Id,
+                show.Title,
+                LocalizationService.Format("EpisodesOnDiskFormat", show.LocalEpisodeCount, show.EpisodeCount))),
+    ];
+
+    private void UpdateContinueVisibility()
+    {
+        var hasAny = _shows.Any(show => show.LocalEpisodeCount > 0);
+        ContinueRepeater.Visibility = hasAny
+            ? Microsoft.UI.Xaml.Visibility.Visible
+            : Microsoft.UI.Xaml.Visibility.Collapsed;
+        ContinueEmptyState.Visibility = hasAny
+            ? Microsoft.UI.Xaml.Visibility.Collapsed
+            : Microsoft.UI.Xaml.Visibility.Visible;
+        ContinueEmptyState.Title = LocalizationService.Text("NothingToContinue");
+        ContinueEmptyState.Message = LocalizationService.Text("NothingToContinueHelp");
+    }
+
     private IReadOnlyList<StatCardRecord> BuildStats()
     {
-        var episodes = DemoData.Shows.Sum(show => show.EpisodeCount);
-        var watched = DemoData.Shows.Sum(show => show.WatchedEpisodeCount);
+        var episodes = _shows.Sum(show => show.EpisodeCount);
+        var onDisk = _shows.Sum(show => show.LocalEpisodeCount);
         return
         [
             new(LocalizationService.Text("StatMovies"), Count(_movies.Count)),
-            new(LocalizationService.Text("StatShows"), Count(DemoData.Shows.Count)),
+            new(LocalizationService.Text("StatShows"), Count(_shows.Count)),
             new(LocalizationService.Text("StatEpisodes"), Count(episodes)),
-            new(LocalizationService.Text("StatWatched"), Count(watched)),
+            new(LocalizationService.Text("StatEpisodesOnDisk"), Count(onDisk)),
         ];
     }
 
@@ -80,7 +125,7 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
     private void ContinueCard_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
     {
         if (sender is Button { Tag: int showId } &&
-            DemoData.Shows.FirstOrDefault(show => show.Id == showId) is TVShowRecord show)
+            _shows.FirstOrDefault(show => show.Id == showId) is TVShowRecord show)
         {
             ShowSelected?.Invoke(this, show);
         }

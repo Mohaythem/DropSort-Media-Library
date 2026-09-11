@@ -121,7 +121,10 @@
                                 Margin="0,4,0,0"
                                 Orientation="Vertical"
                                 Spacing="8">
-                                <Button x:Name="PlayNextButton" Style="{StaticResource AccentControlButtonStyle}">
+                                <Button
+                                    x:Name="PlayNextButton"
+                                    Click="PlayNextButton_Click"
+                                    Style="{StaticResource AccentControlButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon
                                             VerticalAlignment="Center"
@@ -130,7 +133,10 @@
                                         <TextBlock x:Name="PlayNextText" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="AddToListButton" Style="{StaticResource SubtleControlButtonStyle}">
+                                <Button
+                                    x:Name="AddToListButton"
+                                    IsEnabled="False"
+                                    Style="{StaticResource SubtleControlButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon
                                             VerticalAlignment="Center"
@@ -336,6 +342,7 @@
                                                                 VerticalAlignment="Center">
                                                                 <Button
                                                                     AutomationProperties.Name="{x:Bind Labels.Play}"
+                                                                    Click="EpisodePlay_Click"
                                                                     IsEnabled="{x:Bind HasLocalFile}"
                                                                     Style="{StaticResource SubtleIconActionButtonStyle}"
                                                                     Tag="{x:Bind}"
@@ -344,6 +351,7 @@
                                                                 </Button>
                                                                 <Button
                                                                     AutomationProperties.Name="{x:Bind Labels.OpenFolder}"
+                                                                    Click="EpisodeOpenFolder_Click"
                                                                     IsEnabled="{x:Bind HasLocalFile}"
                                                                     Style="{StaticResource SubtleIconActionButtonStyle}"
                                                                     Tag="{x:Bind}"
@@ -352,6 +360,7 @@
                                                                 </Button>
                                                                 <Button
                                                                     AutomationProperties.Name="{x:Bind Labels.More}"
+                                                                    Click="EpisodeDetails_Click"
                                                                     Style="{StaticResource SubtleIconActionButtonStyle}"
                                                                     Tag="{x:Bind}"
                                                                     ToolTipService.ToolTip="{x:Bind Labels.More}">

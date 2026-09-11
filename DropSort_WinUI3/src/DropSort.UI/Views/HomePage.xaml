@@ -2,6 +2,7 @@
     x:Class="DropSort.UI.Views.HomePage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:DropSort.UI.Controls"
     xmlns:models="using:DropSort.UI.Models"
     Background="Transparent">
 
@@ -113,6 +114,15 @@
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
+
+                    <!--
+                        The row is empty until a show has an episode on disk. The designed strings for
+                        that state exist, so the card states it instead of leaving a gap.
+                    -->
+                    <controls:EmptyStateCard
+                        x:Name="ContinueEmptyState"
+                        Glyph="&#xE768;"
+                        Visibility="Collapsed" />
                 </StackPanel>
 
                 <StackPanel Spacing="12">

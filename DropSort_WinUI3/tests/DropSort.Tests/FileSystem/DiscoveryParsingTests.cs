@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using DropSort.Domain.Media.Discovery;
+using DropSort.Domain.Media.Parser;
 using DropSort.FileSystem.Discovery;
 using Xunit;
 
@@ -27,10 +28,16 @@ public sealed class DiscoveryParsingTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// Writes one file into its own directory and discovers it, so a test that needs several names does
+    /// not have to reason about which result belongs to which file.
+    /// </summary>
     private DiscoveredMedia DiscoverOne(string fileName)
     {
-        File.WriteAllText(Path.Combine(_root, fileName), "payload");
-        return new MediaDiscoveryService().Discover(_root, recursive: false).Single();
+        var directory = Path.Combine(_root, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, fileName), "payload");
+        return new MediaDiscoveryService().Discover(directory, recursive: false).Single();
     }
 
     [Fact]
@@ -65,11 +72,56 @@ public sealed class DiscoveryParsingTests : IDisposable
     }
 
     [Fact]
-    public void An_episode_file_is_classified_as_tv_and_skipped()
+    public void An_episode_file_is_resolved_into_a_show_season_and_episode()
     {
         var item = DiscoverOne("Breaking Bad S01E01 1080p.mkv");
 
+        Assert.Equal(DiscoveryClassification.TvEpisodeCandidate, item.Classification);
+        Assert.Equal(MediaType.TvEpisode, item.ParsedMedia!.MediaType);
+        Assert.Equal("Breaking Bad", item.ParsedMedia!.Title);
+        Assert.Equal(1, item.ParsedMedia!.SeasonNumber);
+        Assert.Equal(1, item.ParsedMedia!.EpisodeNumber);
+        Assert.Equal("1080p", item.ParsedMedia!.Resolution);
+    }
+
+    [Fact]
+    public void The_dotted_and_the_alternate_episode_forms_are_both_read()
+    {
+        var dotted = DiscoverOne("Better.Call.Saul.S02E07.1080p.WEB-DL.x265.mkv");
+        var alternate = DiscoverOne("Severance 1x04 720p.mkv");
+
+        Assert.Equal(DiscoveryClassification.TvEpisodeCandidate, dotted.Classification);
+        Assert.Equal("Better Call Saul", dotted.ParsedMedia!.Title);
+        Assert.Equal(2, dotted.ParsedMedia!.SeasonNumber);
+        Assert.Equal(7, dotted.ParsedMedia!.EpisodeNumber);
+
+        Assert.Equal(DiscoveryClassification.TvEpisodeCandidate, alternate.Classification);
+        Assert.Equal("Severance", alternate.ParsedMedia!.Title);
+        Assert.Equal(1, alternate.ParsedMedia!.SeasonNumber);
+        Assert.Equal(4, alternate.ParsedMedia!.EpisodeNumber);
+    }
+
+    [Fact]
+    public void An_episode_with_no_show_name_before_the_marker_stays_unresolved()
+    {
+        var item = DiscoverOne("S03E09.mkv");
+
         Assert.Equal(DiscoveryClassification.TvEpisodeSkipped, item.Classification);
+        Assert.Equal(MediaType.TvEpisode, item.ParsedMedia!.MediaType);
         Assert.Null(item.ParsedMedia!.Title);
+    }
+
+    /// <summary>
+    /// A resolution is not an episode marker. "1920x1080" must stay a movie, or every remux in a library
+    /// would be filed as season 1920.
+    /// </summary>
+    [Fact]
+    public void A_resolution_is_never_read_as_an_episode_marker()
+    {
+        var item = DiscoverOne("Some Movie 2019 1920x1080 x264.mkv");
+
+        Assert.Equal(DiscoveryClassification.MovieCandidate, item.Classification);
+        Assert.Equal(MediaType.Movie, item.ParsedMedia!.MediaType);
+        Assert.Null(item.ParsedMedia!.SeasonNumber);
     }
 }

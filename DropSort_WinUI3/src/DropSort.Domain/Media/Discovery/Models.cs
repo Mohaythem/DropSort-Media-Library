@@ -6,6 +6,17 @@ namespace DropSort.Domain.Media.Discovery;
 public enum DiscoveryClassification
 {
     MovieCandidate,
+
+    /// <summary>
+    /// An episode file whose name carries a season and episode the parser recognized, so it can be
+    /// registered into the TV hierarchy.
+    /// </summary>
+    TvEpisodeCandidate,
+
+    /// <summary>
+    /// An episode file the parser could not resolve - no recognizable season / episode marker, or no
+    /// show name left once the marker was removed. It is reported, never guessed at.
+    /// </summary>
     TvEpisodeSkipped,
     UnknownMedia,
     Error
@@ -75,6 +86,16 @@ public record DiscoveredMedia
             
             if (classification == DiscoveryClassification.MovieCandidate && parsedMedia.MediaType != MediaType.Movie)
                 throw new ArgumentException("MOVIE_CANDIDATE requires media type Movie");
+
+            if (classification == DiscoveryClassification.TvEpisodeCandidate)
+            {
+                if (parsedMedia.MediaType != MediaType.TvEpisode)
+                    throw new ArgumentException("TV_EPISODE_CANDIDATE requires media type TvEpisode");
+                if (parsedMedia.SeasonNumber is null || parsedMedia.EpisodeNumber is null)
+                    throw new ArgumentException("TV_EPISODE_CANDIDATE requires a season and an episode number");
+                if (string.IsNullOrWhiteSpace(parsedMedia.Title))
+                    throw new ArgumentException("TV_EPISODE_CANDIDATE requires a show title");
+            }
         }
 
         Path = path;

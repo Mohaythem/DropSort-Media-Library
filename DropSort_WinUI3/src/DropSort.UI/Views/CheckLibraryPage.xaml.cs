@@ -39,6 +39,12 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     private IReadOnlyList<Domain.Library.Movies.MediaFile> _missing = [];
 
     /// <summary>
+    /// Which of those missing files are episode files, resolved once when the pass ends so the rows and
+    /// the counts do not each query the catalog again.
+    /// </summary>
+    private HashSet<int> _missingEpisodeFiles = [];
+
+    /// <summary>
     /// Cancellation for the running pass. A CancellationTokenSource is the safe way to hand a stop
     /// signal to a worker thread; a plain bool field is not guaranteed to be observed there.
     /// </summary>
@@ -107,14 +113,14 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         // The unit is the movie, not the movie plus its file: counting both made a four-movie library
         // report eight items. A movie needs attention when its file is gone or its metadata is thin,
         // and the file figures are reported separately in the help line under the heading.
-        var attention = AttentionMovieCount(result);
-        var totalMovies = Math.Max(result.TotalMovies, attention);
-        var passed = Math.Max(0, totalMovies - attention);
+        var attention = AttentionItemCount(result);
+        var total = Math.Max(result.TotalMovies + EpisodeTotal(), attention);
+        var passed = Math.Max(0, total - attention);
 
         SummaryHeadingText.Text = LocalizationService.Text("CheckComplete");
         SummaryHelpText.Text = attention == 0
             ? LocalizationService.Text("CheckHealthyHelp")
-            : LocalizationService.Format("CheckIssuesFormat", attention, totalMovies)
+            : LocalizationService.Format("CheckIssuesFormat", attention, total)
                 + " "
                 + LocalizationService.Format(
                     "FilesCheckedFormat",
@@ -122,7 +128,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
                     result.FileProgress.MissingFiles);
         PassedValueText.Text = LocalizationService.Number(passed);
         AttentionValueText.Text = LocalizationService.Number(attention);
-        TotalValueText.Text = LocalizationService.Number(totalMovies);
+        TotalValueText.Text = LocalizationService.Number(total);
 
         IssuesRepeater.ItemsSource = issues;
         IssuesSection.Visibility = issues.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -133,15 +139,20 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     /// How many movies need attention. A movie with both a missing file and thin metadata is one movie
     /// with a problem, so the two sources are unioned by movie id rather than added up.
     /// </summary>
-    private int AttentionMovieCount(LibraryHealthProgress result)
+    private int AttentionItemCount(LibraryHealthProgress result)
     {
         var movies = new HashSet<int>();
+        var episodes = new HashSet<int>();
 
         foreach (var missing in _missing)
         {
             if (missing.MovieId is int movieId)
             {
                 movies.Add(movieId);
+            }
+            else if (EpisodeForFile(missing.Id) is int episodeId)
+            {
+                episodes.Add(episodeId);
             }
         }
 
@@ -150,7 +161,33 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
             movies.Add(item.MovieId);
         }
 
-        return movies.Count;
+        return movies.Count + episodes.Count;
+    }
+
+    /// <summary>The episode a registered file belongs to, or null when it is not an episode file.</summary>
+    private static int? EpisodeForFile(int mediaFileId)
+    {
+        try
+        {
+            return AppServices.Tv.FindEpisodeForMediaFile(mediaFileId);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>How many episodes the catalog holds, so the total counts TV as well as movies.</summary>
+    private static int EpisodeTotal()
+    {
+        try
+        {
+            return AppServices.Tv.ListShows().Sum(show => show.EpisodeCount);
+        }
+        catch (Exception)
+        {
+            return 0;
+        }
     }
 
     /// <summary>
@@ -167,7 +204,8 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         {
             rows.Add(new LibraryIssueDisplayRecord(
                 Path.GetFileName(missing.CurrentPath),
-                LocalizationService.Text("IssueMovieMissing"),
+                LocalizationService.Text(
+                    _missingEpisodeFiles.Contains(missing.Id) ? "IssueEpisodeFileMissing" : "IssueMovieMissing"),
                 LocalizationService.Text("OpenFolder"),
                 missing.Id));
         }
@@ -210,6 +248,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         _failure = null;
         _result = null;
         _missing = [];
+        _missingEpisodeFiles = [];
         CheckProgressBar.IsIndeterminate = true;
         CheckProgressText.Text = LocalizationService.Format("CheckedCountFormat", 0);
         Refresh();
@@ -222,6 +261,10 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
 
             _result = result;
             _missing = MissingFiles();
+            _missingEpisodeFiles = [.. _missing
+                .Select(file => (File: file, Episode: EpisodeForFile(file.Id)))
+                .Where(pair => pair.Episode is not null)
+                .Select(pair => pair.File.Id)];
             _state = LibraryCheckState.Complete;
         }
         catch (OperationCanceledException)

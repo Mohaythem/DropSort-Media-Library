@@ -65,6 +65,9 @@ internal static class AppServices
 
     public static IReconciliationUiActions Reconciliation => Require(_reconciliation);
 
+    /// <summary>The TV catalog: the shows grid, one show's hierarchy, and an episode's files.</summary>
+    public static ITvLibraryUiActions Tv => Require(_tv);
+
     public static IOperationHistoryUiActions History => Require(_history);
 
     public static ISettingsUiActions Settings => Require(_settings);
@@ -159,6 +162,7 @@ internal static class AppServices
     private static OperationHistoryService? _history;
     private static SettingsService? _settings;
     private static OrganizationService? _organization;
+    private static TvLibraryService? _tv;
     private static SettingsRepository? _settingsRepository;
     private static IMediaFileRepository? _mediaFiles;
 
@@ -218,6 +222,10 @@ internal static class AppServices
                     new UnconfiguredMetadataProvider(),
                     new MediaDiscoveryService());
                 var reconciliation = new ReconciliationService(mediaFiles, new AvailabilityInspector(), movies);
+                var tv = new TvLibraryService(
+                    new UnitOfWorkTvShowRepository(catalogFactory),
+                    new UnitOfWorkTvSeasonRepository(catalogFactory),
+                    new UnitOfWorkTvEpisodeRepository(catalogFactory));
                 var history = new OperationHistoryService(operations, coordinator, mediaFiles, movies);
                 var settings = new SettingsService(maintenance, posterCache: null, settings: settingsRepository);
                 var organization = new OrganizationService(mediaFiles, coordinator);
@@ -230,6 +238,7 @@ internal static class AppServices
                 _personal = library;
                 _import = import;
                 _reconciliation = reconciliation;
+                _tv = tv;
                 _history = history;
                 _settings = settings;
                 _organization = organization;
@@ -276,6 +285,7 @@ internal static class AppServices
         _personal = null;
         _import = null;
         _reconciliation = null;
+        _tv = null;
         _history = null;
         _settings = null;
         _organization = null;

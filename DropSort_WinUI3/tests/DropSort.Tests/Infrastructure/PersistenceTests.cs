@@ -37,7 +37,7 @@ public class PersistenceTests : IDisposable
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = "PRAGMA user_version;";
         var version = Convert.ToInt32(cmd.ExecuteScalar());
-        Assert.Equal(5, version); // We have 5 migrations
+        Assert.Equal(DatabaseMigrator.LatestVersion, version);
         
         // Verify tables exist
         cmd.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='movies';";

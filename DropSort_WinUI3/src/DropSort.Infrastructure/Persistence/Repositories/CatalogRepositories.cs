@@ -15,6 +15,9 @@ public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
 
     public IMovieRepository Movies { get; }
     public IMediaFileRepository MediaFiles { get; }
+    public ITvShowRepository TvShows { get; }
+    public ITvSeasonRepository TvSeasons { get; }
+    public ITvEpisodeRepository TvEpisodes { get; }
 
     public CatalogUnitOfWork(string connectionString)
     {
@@ -22,6 +25,9 @@ public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
         _transaction = _connection.BeginTransaction();
         Movies = new MovieRepository(_connection, _transaction);
         MediaFiles = new MediaFileRepository(_connection, _transaction);
+        TvShows = new TvShowRepository(_connection, _transaction);
+        TvSeasons = new TvSeasonRepository(_connection, _transaction);
+        TvEpisodes = new TvEpisodeRepository(_connection, _transaction);
     }
 
     public void Commit()
@@ -375,18 +381,24 @@ public sealed class MediaFileRepository : IMediaFileRepository
         return result;
     }
 
-    internal static MediaFile Map(SqliteDataReader reader) => new(
-        reader.GetInt32(0),
-        reader.IsDBNull(1) ? null : reader.GetInt32(1),
-        reader.GetString(2),
-        reader.GetInt64(3),
-        reader.IsDBNull(4) ? null : reader.GetString(4),
-        reader.IsDBNull(5) ? null : reader.GetString(5),
-        reader.IsDBNull(6) ? null : reader.GetString(6),
-        reader.IsDBNull(7) ? null : reader.GetString(7),
-        reader.GetString(8) == "PRESENT" ? MediaFileStatus.Present : MediaFileStatus.Missing,
-        MovieRepository.ParseTimestamp(reader.GetString(9)),
-        MovieRepository.ParseTimestamp(reader.GetString(10)));
+    internal static MediaFile Map(SqliteDataReader reader) => MapOffset(reader, 0);
+
+    /// <summary>
+    /// Maps a media file whose columns start at <paramref name="offset" />, so a join that selects
+    /// something of its own first - the episode id, for instance - can reuse this one mapper.
+    /// </summary>
+    internal static MediaFile MapOffset(SqliteDataReader reader, int offset) => new(
+        reader.GetInt32(offset),
+        reader.IsDBNull(offset + 1) ? null : reader.GetInt32(offset + 1),
+        reader.GetString(offset + 2),
+        reader.GetInt64(offset + 3),
+        reader.IsDBNull(offset + 4) ? null : reader.GetString(offset + 4),
+        reader.IsDBNull(offset + 5) ? null : reader.GetString(offset + 5),
+        reader.IsDBNull(offset + 6) ? null : reader.GetString(offset + 6),
+        reader.IsDBNull(offset + 7) ? null : reader.GetString(offset + 7),
+        reader.GetString(offset + 8) == "PRESENT" ? MediaFileStatus.Present : MediaFileStatus.Missing,
+        MovieRepository.ParseTimestamp(reader.GetString(offset + 9)),
+        MovieRepository.ParseTimestamp(reader.GetString(offset + 10)));
 }
 
 internal static class EnumText

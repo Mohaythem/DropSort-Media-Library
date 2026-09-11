@@ -152,7 +152,8 @@ public sealed partial class MainWindow : Window
     {
         _detailsReturnDestination = ReturnDestinationFor(sender);
         _showDetailsPage.SetReturnDestination(_detailsReturnDestination);
-        _showDetailsPage.SetShow(show);
+        _showDetailsPage.SetReturnDestination(_detailsReturnDestination);
+        _showDetailsPage.LoadShow(show.Id);
         Navigate("show");
     }
 

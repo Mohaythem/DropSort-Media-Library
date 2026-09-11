@@ -5,6 +5,7 @@ using DropSort.Application.Dto;
 using DropSort.Application.Repositories;
 using DropSort.Application.External;
 using DropSort.Domain.Library.Movies;
+using DropSort.Domain.Library.Shows;
 using DropSort.Domain.Metadata.Contracts;
 
 namespace DropSort.Application.Services;
@@ -125,5 +126,122 @@ public class ImportService : IImportUiActions
         int? parsedYear = int.TryParse(year, out var y) ? y : null;
         var results = _metadataProvider.Search(new MovieSearchQuery(title, parsedYear));
         return new ManualMovieSearchResult(results);
+    }
+
+    /// <summary>
+    /// Registers one episode file into the hierarchy.
+    /// <para>
+    /// Everything happens in one transaction: the show is looked up by its normalized title and created
+    /// only if it is new, then the season, then the episode, then the media file is stored and linked.
+    /// Re-registering the same path returns the rows it already belongs to, so scanning a folder twice
+    /// does not duplicate anything and does not move a file between episodes.
+    /// </para>
+    /// <para>
+    /// A file the parser could not resolve is refused with the reason instead of being registered
+    /// against a guessed show or season - that is what keeps an ambiguous name from corrupting the
+    /// hierarchy.
+    /// </para>
+    /// </summary>
+    public EpisodeFileIngestionResult RegisterEpisodeImport(ConfirmEpisodeImportCommand command)
+    {
+        var parsed = command.ParsedMedia;
+
+        if (parsed.SeasonNumber is not int seasonNumber || parsed.EpisodeNumber is not int episodeNumber)
+        {
+            throw new EpisodeRegistrationException(
+                EpisodeRegistrationRefusal.NoEpisodeMarker,
+                $"'{System.IO.Path.GetFileName(command.FilePath)}' carries no season and episode marker.");
+        }
+
+        if (string.IsNullOrWhiteSpace(parsed.Title))
+        {
+            throw new EpisodeRegistrationException(
+                EpisodeRegistrationRefusal.NoShowTitle,
+                $"'{System.IO.Path.GetFileName(command.FilePath)}' has no show name before the episode marker.");
+        }
+
+        if (seasonNumber is < 0 or > 999 || episodeNumber is < 0 or > 999)
+        {
+            throw new EpisodeRegistrationException(
+                EpisodeRegistrationRefusal.NumbersOutOfRange,
+                $"Season {seasonNumber} episode {episodeNumber} is outside the range the catalog accepts.");
+        }
+
+        var showData = new TvShowCatalogData(provider: null, externalId: null, title: parsed.Title!);
+        var now = _clock();
+
+        using var uow = _uowFactory.Begin();
+
+        var existingFile = uow.MediaFiles.GetByPath(command.FilePath);
+
+        if (existingFile is not null)
+        {
+            if (existingFile.MovieId.HasValue)
+            {
+                throw new EpisodeRegistrationException(
+                    EpisodeRegistrationRefusal.AlreadyAMovieFile,
+                    $"'{System.IO.Path.GetFileName(command.FilePath)}' is already registered as a movie file.");
+            }
+
+            var owner = uow.TvEpisodes.GetEpisodeIdForMediaFile(existingFile.Id);
+
+            if (owner is int ownerEpisodeId)
+            {
+                var ownerEpisode = uow.TvEpisodes.GetById(ownerEpisodeId)!;
+                var ownerSeason = uow.TvSeasons.GetById(ownerEpisode.SeasonId)!;
+                var ownerShow = uow.TvShows.GetById(ownerSeason.ShowId)!;
+
+                var isSameEpisode = ownerSeason.Number == seasonNumber
+                    && ownerEpisode.Number == episodeNumber
+                    && string.Equals(ownerShow.SortTitle, showData.SortTitle, StringComparison.Ordinal);
+
+                if (!isSameEpisode)
+                {
+                    throw new EpisodeRegistrationException(
+                        EpisodeRegistrationRefusal.OwnedByAnotherEpisode,
+                        $"'{System.IO.Path.GetFileName(command.FilePath)}' is already registered as "
+                            + $"{ownerShow.Title} S{ownerSeason.Number:00}E{ownerEpisode.Number:00}.");
+                }
+
+                return new EpisodeFileIngestionResult(
+                    ownerShow,
+                    ownerSeason,
+                    ownerEpisode,
+                    existingFile,
+                    AlreadyRegistered: true);
+            }
+        }
+
+        var show = uow.TvShows.GetBySortTitle(showData.SortTitle)
+            ?? uow.TvShows.Create(showData, now);
+
+        var season = uow.TvSeasons.GetByNumber(show.Id, seasonNumber)
+            ?? uow.TvSeasons.Create(show.Id, seasonNumber, title: null, overview: null, now);
+
+        var episode = uow.TvEpisodes.GetByNumber(season.Id, episodeNumber)
+            ?? uow.TvEpisodes.Create(
+                season.Id,
+                episodeNumber,
+                title: null,
+                overview: null,
+                runtimeMinutes: null,
+                airDate: null,
+                now);
+
+        var facts = new VerifiedMediaFileFacts(
+            command.FilePath,
+            command.FileSize,
+            parsed.Extension,
+            parsed.Resolution,
+            parsed.Codec,
+            parsed.Source,
+            command.ObservedAt);
+
+        var mediaFile = existingFile ?? uow.MediaFiles.Add(facts);
+        uow.TvEpisodes.LinkMediaFile(episode.Id, mediaFile.Id, now);
+
+        uow.Commit();
+
+        return new EpisodeFileIngestionResult(show, season, episode, mediaFile, AlreadyRegistered: false);
     }
 }

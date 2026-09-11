@@ -19,8 +19,15 @@ public class ApplicationServiceTests
         public FakeMovieRepo FakeMovies { get; } = new();
         public FakeMediaFileRepo FakeMediaFiles { get; } = new();
 
+        public FakeTvShowRepo FakeTvShows { get; } = new();
+        public FakeTvSeasonRepo FakeTvSeasons { get; } = new();
+        public FakeTvEpisodeRepo FakeTvEpisodes { get; } = new();
+
         public IMovieRepository Movies => FakeMovies;
         public IMediaFileRepository MediaFiles => FakeMediaFiles;
+        public ITvShowRepository TvShows => FakeTvShows;
+        public ITvSeasonRepository TvSeasons => FakeTvSeasons;
+        public ITvEpisodeRepository TvEpisodes => FakeTvEpisodes;
 
         public ICatalogUnitOfWork Begin() => this;
         public void Commit() { }
@@ -110,9 +117,9 @@ public class ApplicationServiceTests
 
     private class FakeMaintenanceRepo : ILibraryMaintenanceRepository
     {
-        public (int Movies, int MediaFiles, int MetadataEntries) ClearCatalog()
+        public (int Movies, int MediaFiles, int MetadataEntries, int Shows, int Seasons, int Episodes) ClearCatalog()
         {
-            return (10, 15, 10);
+            return (10, 15, 10, 2, 3, 24);
         }
     }
 

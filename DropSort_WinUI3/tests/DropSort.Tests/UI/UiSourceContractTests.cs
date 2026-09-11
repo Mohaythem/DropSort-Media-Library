@@ -233,7 +233,7 @@ public sealed class UiSourceContractTests
     public void Tv_hierarchy_keeps_lossless_show_season_episode_identity()
     {
         var models = Read("Models", "ShowModels.cs");
-        var data = Read("Models", "DemoData.cs");
+        var projection = Read("Services", "TvProjection.cs");
         var details = Read("Views", "TVShowDetailsPage.xaml.cs");
         var detailsXaml = Read("Views", "TVShowDetailsPage.xaml");
 
@@ -241,7 +241,13 @@ public sealed class UiSourceContractTests
         Assert.Contains("int ShowId", models, StringComparison.Ordinal);
         Assert.Contains("int SeasonNumber", models, StringComparison.Ordinal);
         Assert.Contains("int EpisodeNumber", models, StringComparison.Ordinal);
-        Assert.Contains("show.NextPlayableEpisode", data, StringComparison.Ordinal);
+
+        // The row carries the catalog's episode id, and the page resolves an action through it rather
+        // than by matching numbers.
+        Assert.Contains("int EpisodeId", models, StringComparison.Ordinal);
+        Assert.Contains("episode.Id == row.EpisodeId", details, StringComparison.Ordinal);
+        Assert.Contains("season.Id,", projection, StringComparison.Ordinal);
+        Assert.Contains("episode.Id,", projection, StringComparison.Ordinal);
         Assert.Contains("show.Id,", details, StringComparison.Ordinal);
         Assert.Contains("season.Number,", details, StringComparison.Ordinal);
         Assert.Contains("episode.Number,", details, StringComparison.Ordinal);
@@ -254,11 +260,11 @@ public sealed class UiSourceContractTests
         var localization = Read("Services", "LocalizationService.cs");
         var library = Read("Views", "LibraryPage.xaml.cs");
 
-        Assert.Contains("[\"SeasonWatchedFormat\"] = \"1 season", localization, StringComparison.Ordinal);
-        Assert.Contains("[\"SeasonWatchedFormat\"] = \"موسم واحد", localization, StringComparison.Ordinal);
-        Assert.Contains("show.Seasons.Count == 1", library, StringComparison.Ordinal);
-        Assert.Contains("\"SeasonWatchedFormat\"", library, StringComparison.Ordinal);
-        Assert.Contains("\"SeasonsWatchedFormat\"", library, StringComparison.Ordinal);
+        Assert.Contains("[\"SeasonAvailableFormat\"] = \"1 season", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"SeasonAvailableFormat\"] = \"موسم واحد", localization, StringComparison.Ordinal);
+        Assert.Contains("show.SeasonCount == 1", library, StringComparison.Ordinal);
+        Assert.Contains("\"SeasonAvailableFormat\"", library, StringComparison.Ordinal);
+        Assert.Contains("\"SeasonsAvailableFormat\"", library, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -425,7 +431,7 @@ public sealed class UiSourceContractTests
         var page = Read("Views", "CheckLibraryPage.xaml.cs");
 
         Assert.DoesNotContain("FileProgress.CheckedFiles + result.TotalMovies", page, StringComparison.Ordinal);
-        Assert.Contains("AttentionMovieCount", page, StringComparison.Ordinal);
+        Assert.Contains("AttentionItemCount", page, StringComparison.Ordinal);
         Assert.Contains("CheckIssuesFormat", page, StringComparison.Ordinal);
         Assert.Contains("FilesCheckedFormat", page, StringComparison.Ordinal);
         Assert.DoesNotContain("\"CheckCompleteHelp\"", page, StringComparison.Ordinal);

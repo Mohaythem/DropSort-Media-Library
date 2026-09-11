@@ -35,15 +35,40 @@ public interface IPersonalLibraryUiActions
 public interface IImportUiActions
 {
     ImportReviewSession PrepareImportReview(
-        string rootPath, 
-        bool recursive, 
-        Action<ImportReviewProgress>? progress = null, 
+        string rootPath,
+        bool recursive,
+        Action<ImportReviewProgress>? progress = null,
         Func<bool>? isCancelled = null);
 
     MovieFileIngestionResult ConfirmMovieImport(ConfirmMovieImportCommand command);
     MovieFileIngestionResult RegisterMovieImport(ConfirmMovieImportCommand command);
     MovieFileIngestionResult EnrichMovieImport(ConfirmMovieImportCommand command, MovieFileIngestionResult registration);
     ManualMovieSearchResult ManualMovieSearch(string title, string? year = null);
+
+    /// <summary>
+    /// Registers one local episode file into the show / season / episode hierarchy, creating only the
+    /// rows it needs and reusing the ones that exist. Registering the same path twice is a no-op that
+    /// reports the existing rows. A file the parser could not resolve confidently is refused with an
+    /// <see cref="EpisodeRegistrationException" /> instead of being registered somewhere plausible.
+    /// </summary>
+    EpisodeFileIngestionResult RegisterEpisodeImport(ConfirmEpisodeImportCommand command);
+}
+
+/// <summary>The read side of the TV catalog: the shows grid and one show's full hierarchy.</summary>
+public interface ITvLibraryUiActions
+{
+    IReadOnlyList<TvShowListItem> ListShows();
+
+    TvShowDetails GetShowDetails(int showId);
+
+    /// <summary>The registered files of one episode, for Play and Open Folder.</summary>
+    IReadOnlyList<DropSort.Domain.Library.Movies.MediaFile> ListEpisodeFiles(int episodeId);
+
+    /// <summary>
+    /// The episode a registered media file belongs to, or null when the file is not an episode file.
+    /// Check Library uses it to name a missing file as an episode rather than as a movie.
+    /// </summary>
+    int? FindEpisodeForMediaFile(int mediaFileId);
 }
 
 public interface ISettingsUiActions

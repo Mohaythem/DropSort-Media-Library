@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 5;
+    public const int LatestVersion = 6;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -235,6 +235,95 @@ public class DatabaseMigrator
 
             DROP TABLE movies;
             ALTER TABLE movies_offline_registration RENAME TO movies;
+        ",
+        // 0006_tv_hierarchy
+        //
+        // The TV catalog: show -> season -> episode, plus the link from an episode to the media files
+        // already registered in media_files. Additive only - no existing table is rewritten, so an
+        // existing movie library migrates by gaining empty tables.
+        //
+        // Identity is the row id everywhere. sort_title is the normalized title registration matches on
+        // (see TvShowCatalogData.NormalizeTitle) and is unique, so scanning the same show twice reuses
+        // one show row instead of creating a second. The pair uniqueness on (show_id, season_number) and
+        // (season_id, episode_number) is what keeps a repeated scan idempotent.
+        //
+        // episode_media_files has the media file as its primary key: one file belongs to at most one
+        // episode, while an episode can carry several files (a 1080p and a 4K copy of the same episode).
+        // Deleting a media file removes the link and leaves the episode registered; that is the same
+        // rule the movie side follows for a missing file.
+        @"
+            CREATE TABLE tv_shows (
+                id INTEGER PRIMARY KEY,
+                provider TEXT,
+                external_id TEXT,
+                title TEXT NOT NULL,
+                sort_title TEXT NOT NULL,
+                original_title TEXT,
+                year INTEGER,
+                overview TEXT,
+                genres TEXT NOT NULL DEFAULT '[]',
+                poster_path TEXT,
+                metadata_status TEXT NOT NULL DEFAULT 'PENDING'
+                    CHECK(metadata_status IN ('PENDING', 'READY', 'FAILED', 'NEEDS_MATCH')),
+                date_added TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                CHECK (length(trim(title)) > 0),
+                CHECK (length(trim(sort_title)) > 0),
+                CHECK (year IS NULL OR (year >= 1 AND year <= 9999)),
+                CHECK (
+                    (provider IS NULL AND external_id IS NULL)
+                    OR (
+                        provider IS NOT NULL
+                        AND external_id IS NOT NULL
+                        AND length(trim(provider)) > 0
+                        AND length(trim(external_id)) > 0
+                    )
+                ),
+                CHECK (
+                    metadata_status != 'READY'
+                    OR (provider IS NOT NULL AND external_id IS NOT NULL)
+                ),
+                UNIQUE(provider, external_id)
+            );
+
+            CREATE UNIQUE INDEX idx_tv_shows_sort_title ON tv_shows(sort_title);
+
+            CREATE TABLE tv_seasons (
+                id INTEGER PRIMARY KEY,
+                show_id INTEGER NOT NULL REFERENCES tv_shows(id) ON DELETE CASCADE,
+                season_number INTEGER NOT NULL CHECK(season_number >= 0 AND season_number <= 999),
+                title TEXT,
+                overview TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(show_id, season_number)
+            );
+
+            CREATE INDEX idx_tv_seasons_show_id ON tv_seasons(show_id);
+
+            CREATE TABLE tv_episodes (
+                id INTEGER PRIMARY KEY,
+                season_id INTEGER NOT NULL REFERENCES tv_seasons(id) ON DELETE CASCADE,
+                episode_number INTEGER NOT NULL CHECK(episode_number >= 0 AND episode_number <= 999),
+                title TEXT,
+                overview TEXT,
+                runtime_minutes INTEGER CHECK(runtime_minutes IS NULL OR runtime_minutes > 0),
+                air_date TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(season_id, episode_number)
+            );
+
+            CREATE INDEX idx_tv_episodes_season_id ON tv_episodes(season_id);
+
+            CREATE TABLE episode_media_files (
+                media_file_id INTEGER PRIMARY KEY REFERENCES media_files(id) ON DELETE CASCADE,
+                episode_id INTEGER NOT NULL REFERENCES tv_episodes(id) ON DELETE CASCADE,
+                linked_at TEXT NOT NULL
+            );
+
+            CREATE INDEX idx_episode_media_files_episode_id ON episode_media_files(episode_id);
         "
     };
 
@@ -292,13 +381,16 @@ public class DatabaseMigrator
         var requiredTables = new[]
         {
             "movies", "media_files", "metadata_cache", "file_operations", "watched_folders",
-            "settings", "movie_personal_state", "watch_events"
+            "settings", "movie_personal_state", "watch_events",
+            "tv_shows", "tv_seasons", "tv_episodes", "episode_media_files"
         };
         var requiredIndexes = new[]
         {
             "idx_file_operations_state", "idx_file_operations_media_file_id", "idx_media_files_movie_id",
             "idx_movie_personal_state_preference", "idx_movie_personal_state_watchlist",
-            "idx_watch_events_movie_watched"
+            "idx_watch_events_movie_watched",
+            "idx_tv_shows_sort_title", "idx_tv_seasons_show_id", "idx_tv_episodes_season_id",
+            "idx_episode_media_files_episode_id"
         };
         foreach (var table in requiredTables) RequireSchemaObject(connection, "table", table);
         foreach (var index in requiredIndexes) RequireSchemaObject(connection, "index", index);

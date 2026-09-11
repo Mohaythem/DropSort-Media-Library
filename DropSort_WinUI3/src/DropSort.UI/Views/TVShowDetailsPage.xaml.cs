@@ -7,12 +7,21 @@ using Microsoft.UI.Xaml.Controls;
 namespace DropSort.UI.Views;
 
 /// <summary>
-/// TV show details. Season / episode rows are built as display records so the templates never call
-/// the localization service; episode actions stay inert until the V2 backend exists.
+/// TV show details.
+/// <para>
+/// The hierarchy comes from the catalog: the show is re-read by id on every navigation, its seasons and
+/// episodes are the persisted rows, and an episode's state is derived from the media files registered
+/// against it. Play and Open Folder act on the registered file; an episode whose file has disappeared
+/// stays listed and is marked missing rather than being dropped.
+/// </para>
+/// <para>
+/// There is no episode watch state in this build, so nothing here reports a watched count - the season
+/// line and the progress figure report how much of the show is on disk instead.
+/// </para>
 /// </summary>
 public sealed partial class TVShowDetailsPage : Page, ILocalizableView
 {
-    private TVShowRecord _show = DemoData.Shows[0];
+    private TVShowRecord _show = new(0, string.Empty, 0, [], string.Empty, []);
     private string _returnDestination = "library";
 
     public TVShowDetailsPage()
@@ -29,12 +38,32 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         UpdateBackLabel();
     }
 
+    /// <summary>Loads one show's hierarchy from the catalog.</summary>
+    public void LoadShow(int showId)
+    {
+        try
+        {
+            SetShow(TvProjection.ToDetails(AppServices.Tv.GetShowDetails(showId)));
+        }
+        catch (Exception error)
+        {
+            SetShow(new TVShowRecord(0, string.Empty, 0, [], string.Empty, []));
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+        }
+    }
+
     public void SetShow(TVShowRecord show)
     {
         _show = show;
         ShowTitleText.Text = show.Title;
         ShowMetaText.Text = show.MetaLine;
         OverviewText.Text = show.Overview;
+
+        // A show registered from file names has no overview yet; a heading with nothing under it reads
+        // as a rendering fault, so the block goes away until there is text for it.
+        var hasOverview = !string.IsNullOrWhiteSpace(show.Overview);
+        OverviewText.Visibility = hasOverview ? Visibility.Visible : Visibility.Collapsed;
+
         ProgressValueText.Text = show.ProgressLine;
         PlayNextButton.IsEnabled = show.NextPlayableEpisode is not null;
         ApplyLocalization();
@@ -46,7 +75,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
 
         UpdateBackLabel();
         KindText.Text = LocalizationService.Text("TvShow");
-        ProgressLabelText.Text = LocalizationService.Text("EpisodesWatched");
+        ProgressLabelText.Text = LocalizationService.Text("EpisodesOnDisk");
         PlayNextText.Text = LocalizationService.Text("PlayNextEpisode");
         AddToListText.Text = LocalizationService.Text("AddToList");
         MoreButton.SetValue(AutomationProperties.NameProperty, LocalizationService.Text("MoreOptions"));
@@ -59,8 +88,6 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         SeasonsRepeater.ItemsSource = BuildSeasons(_show);
     }
 
-    private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
-
     private void UpdateBackLabel()
     {
         BackText.Text = LocalizationService.Text(_returnDestination switch
@@ -69,6 +96,144 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
             "lists" => "BackToMyLists",
             _ => "BackToLibrary",
         });
+    }
+
+    private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Plays the first episode of the show that has a file on disk.</summary>
+    private void PlayNextButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_show.NextPlayableEpisode is { } selection)
+        {
+            PlayEpisode(selection.Episode);
+        }
+    }
+
+    private void EpisodePlay_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: EpisodeDisplayRecord row })
+        {
+            PlayEpisode(FindEpisode(row));
+        }
+    }
+
+    private void EpisodeOpenFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: EpisodeDisplayRecord row })
+        {
+            return;
+        }
+
+        var episode = FindEpisode(row);
+
+        if (episode?.FilePath is not { Length: > 0 } path || !File.Exists(path))
+        {
+            ReportMissingFile();
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe")
+            {
+                // Quoted so a path with spaces stays one argument.
+                Arguments = "/select,\"" + path + "\"",
+                UseShellExecute = true,
+            })?.Dispose();
+        }
+        catch (Exception error)
+        {
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+        }
+    }
+
+    /// <summary>
+    /// Shows what the catalog knows about the episode's file. The flyout the design puts on a movie's
+    /// file block has no episode equivalent, so the same facts are stated in a themed dialog.
+    /// </summary>
+    private void EpisodeDetails_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: EpisodeDisplayRecord row })
+        {
+            return;
+        }
+
+        var episode = FindEpisode(row);
+
+        if (episode is null)
+        {
+            return;
+        }
+
+        var files = SafeEpisodeFiles(episode.Id);
+
+        var body = files.Count == 0
+            ? LocalizationService.Text("NoLocalFileHelp")
+            : string.Join(
+                Environment.NewLine,
+                files.Select(file => file.CurrentPath
+                    + Environment.NewLine
+                    + LocalizationService.Text(
+                        file.Status == DropSort.Domain.Library.Movies.MediaFileStatus.Present
+                            ? "Present"
+                            : "Missing")));
+
+        _ = ShowMessageAsync(LocalizationService.Text("MediaFile"), body);
+    }
+
+    private void PlayEpisode(EpisodeRecord? episode)
+    {
+        if (episode?.FilePath is not { Length: > 0 } path || !File.Exists(path))
+        {
+            ReportMissingFile();
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception error)
+        {
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+        }
+    }
+
+    /// <summary>Resolves a row back to the loaded episode by its catalog id.</summary>
+    private EpisodeRecord? FindEpisode(EpisodeDisplayRecord row) => _show.Seasons
+        .SelectMany(season => season.Episodes)
+        .FirstOrDefault(episode => episode.Id == row.EpisodeId);
+
+    private static IReadOnlyList<DropSort.Domain.Library.Movies.MediaFile> SafeEpisodeFiles(int episodeId)
+    {
+        try
+        {
+            return AppServices.Tv.ListEpisodeFiles(episodeId);
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
+    private void ReportMissingFile() => _ = ShowMessageAsync(
+        LocalizationService.Text("NoLocalFile"),
+        LocalizationService.Text("NoLocalFileHelp"));
+
+    private async Task ShowMessageAsync(string title, string message)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.ElementTheme,
+            FlowDirection = LocalizationService.FlowDirection,
+            Title = title,
+            Content = message,
+            CloseButtonText = LocalizationService.Text("Close"),
+        };
+
+        await dialog.ShowAsync();
     }
 
     /// <summary>The first season starts expanded, exactly like the design source.</summary>
@@ -81,27 +246,48 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
             LocalizationService.Text("OpenFolder"),
             LocalizationService.Text("MoreOptions"));
 
-        return [.. show.Seasons.Select((season, index) => new SeasonDisplayRecord(
-            show.Id,
-            season.Number,
-            ShowFormatting.SeasonArtLabel(season.Number),
-            LocalizationService.Format("SeasonFormat", season.Number),
-            LocalizationService.Format(
-                "SeasonMetaFormat",
-                season.Episodes.Count,
-                season.WatchedCount,
-                season.LocalCount),
-            season.Episodes.Count == 0 ? 0 : 100.0 * season.WatchedCount / season.Episodes.Count,
-            index == 0,
-            [.. season.Episodes.Select(episode => new EpisodeDisplayRecord(
+        return
+        [
+            .. show.Seasons.Select((season, index) => new SeasonDisplayRecord(
                 show.Id,
                 season.Number,
-                episode.Number,
-                ShowFormatting.EpisodeThumbnailLabel(episode.Number),
-                episode.Title,
-                ShowFormatting.EpisodeCode(season.Number, episode.Number) + " · " + episode.Runtime,
-                episode.Watched,
-                episode.HasLocalFile,
-                labels))]))];
+                ShowFormatting.SeasonArtLabel(season.Number),
+                LocalizationService.Format("SeasonFormat", season.Number),
+                SeasonMeta(season),
+                season.Episodes.Count == 0 ? 0 : 100.0 * season.LocalCount / season.Episodes.Count,
+                index == 0,
+                [
+                    .. season.Episodes.Select(episode => new EpisodeDisplayRecord(
+                        show.Id,
+                        season.Number,
+                        episode.Number,
+                        episode.Id,
+                        ShowFormatting.EpisodeThumbnailLabel(episode.Number),
+                        episode.Title,
+                        EpisodeMeta(season.Number, episode),
+                        episode.Watched,
+                        episode.HasLocalFile,
+                        episode.IsFileMissing,
+                        labels)),
+                ])),
+        ];
+    }
+
+    /// <summary>The season line names the missing files only when there are some.</summary>
+    private static string SeasonMeta(SeasonRecord season) => season.MissingCount == 0
+        ? LocalizationService.Format("SeasonMetaFormat", season.Episodes.Count, season.LocalCount)
+        : LocalizationService.Format(
+            "SeasonMetaMissingFormat",
+            season.Episodes.Count,
+            season.LocalCount,
+            season.MissingCount);
+
+    /// <summary>The episode code, plus the runtime when the catalog knows one.</summary>
+    private static string EpisodeMeta(int seasonNumber, EpisodeRecord episode)
+    {
+        var code = ShowFormatting.EpisodeCode(seasonNumber, episode.Number);
+
+        return LocalizationService.Digits(
+            episode.Runtime.Length == 0 ? code : code + " · " + episode.Runtime);
     }
 }

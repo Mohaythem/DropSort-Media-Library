@@ -50,6 +50,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     public void Activate()
     {
         _movies = null;
+        _shows = null;
         Refresh();
     }
 
@@ -205,13 +206,40 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         }
     }
 
+    /// <summary>
+    /// The TV catalog for this visit, or null when it still has to be read. Same rule as the movie
+    /// cache: read once per arrival, filter in memory.
+    /// </summary>
+    private IReadOnlyList<TVShowRecord>? _shows;
+
+    /// <summary>Reads the shows grid from the catalog; a failure is the page's error state.</summary>
+    private IReadOnlyList<TVShowRecord> LoadShows()
+    {
+        if (_shows is not null)
+        {
+            return _shows;
+        }
+
+        try
+        {
+            _shows = [.. AppServices.Tv.ListShows().Select(TvProjection.ToCard)];
+            return _shows;
+        }
+        catch (Exception)
+        {
+            _shows = null;
+            _state = LibraryViewState.Error;
+            return [];
+        }
+    }
+
     private int PopulateShows()
     {
-        var items = DemoData.Shows
+        var items = LoadShows()
             .Where(show => _availability switch
             {
-                "local" => show.Seasons.Any(season => season.LocalCount > 0),
-                "remote" => show.Seasons.All(season => season.LocalCount == 0),
+                "local" => show.LocalEpisodeCount > 0,
+                "remote" => show.LocalEpisodeCount == 0,
                 _ => true,
             })
             .Where(MatchesShow);
@@ -224,15 +252,15 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         };
 
         var result = items
-            .Select(show => new ShowCardItem(show, show.Seasons.Count == 1
+            .Select(show => new ShowCardItem(show, show.SeasonCount == 1
                 ? LocalizationService.Format(
-                    "SeasonWatchedFormat",
-                    show.WatchedEpisodeCount,
+                    "SeasonAvailableFormat",
+                    show.LocalEpisodeCount,
                     show.EpisodeCount)
                 : LocalizationService.Format(
-                    "SeasonsWatchedFormat",
-                    show.Seasons.Count,
-                    show.WatchedEpisodeCount,
+                    "SeasonsAvailableFormat",
+                    show.SeasonCount,
+                    show.LocalEpisodeCount,
                     show.EpisodeCount)))
             .ToArray();
         ShowsGrid.ItemsSource = result;

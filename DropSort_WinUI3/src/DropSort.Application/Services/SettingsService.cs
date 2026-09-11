@@ -63,7 +63,14 @@ public sealed class SettingsService : ISettingsUiActions
                 warning = "POSTER_CACHE_CLEANUP_FAILED";
             }
             return new ClearLibraryDataResult(
-                counts.Movies, counts.MediaFiles, counts.MetadataEntries, posterFiles, warning);
+                counts.Movies,
+                counts.MediaFiles,
+                counts.MetadataEntries,
+                posterFiles,
+                warning,
+                counts.Shows,
+                counts.Seasons,
+                counts.Episodes);
         }
         finally
         {

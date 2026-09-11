@@ -38,7 +38,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private AddMediaScanState _state = AddMediaScanState.Idle;
     private string _mediaType = "movies";
     private IReadOnlyList<DiscoveredMedia> _detected = [];
-    private IReadOnlyList<string> _pickedEpisodeFiles = [];
     private bool _isScanning;
 
     /// <summary>
@@ -133,7 +132,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         var episodes = BuildDetectedEpisodes();
         DetectedEpisodesRepeater.ItemsSource = episodes;
         EpisodesResultCountText.Text = LocalizationService.Format(
-            "DetectedEpisodesFormat", SeasonNumber(episodes), episodes.Count);
+            "DetectedEpisodesFormat", DetectedSeasonNumber(), episodes.Count);
         AddEpisodesButton.Content = LocalizationService.Format("AddEpisodesFormat", episodes.Count);
         AddEpisodesButton.IsEnabled = episodes.Count > 0;
     }
@@ -158,40 +157,47 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 item.ParsedMedia?.Year is not null)),
     ];
 
+    /// <summary>
+    /// The detected episode rows. A file the parser resolved shows its show name and code and is ready
+    /// to register; one it could not resolve is still listed - as its file name, marked for review - so
+    /// nothing found on disk disappears silently from the review.
+    /// </summary>
     private IReadOnlyList<DetectedEpisodeDisplayRecord> BuildDetectedEpisodes() =>
     [
-        .. _pickedEpisodeFiles.Select(path => new DetectedEpisodeDisplayRecord(
-            string.Empty,
-            Path.GetFileNameWithoutExtension(path),
-            Path.GetFileName(path),
-            LocalizationService.Text("NeedsReview"),
-            false)),
+        .. EpisodeItems().Select(item =>
+        {
+            var isReady = item.Classification == DiscoveryClassification.TvEpisodeCandidate;
+
+            return new DetectedEpisodeDisplayRecord(
+                isReady
+                    ? ShowFormatting.EpisodeCode(
+                        item.ParsedMedia!.SeasonNumber!.Value,
+                        item.ParsedMedia!.EpisodeNumber!.Value)
+                    : string.Empty,
+                isReady ? item.ParsedMedia!.Title! : Path.GetFileNameWithoutExtension(item.Path),
+                Path.GetFileName(item.Path),
+                LocalizationService.Text(isReady ? "Review" : "NeedsReview"),
+                isReady);
+        }),
     ];
 
-    /// <summary>The season the picked episode files claim, read from the first parsable file name.</summary>
-    private static int SeasonNumber(IReadOnlyList<DetectedEpisodeDisplayRecord> episodes)
+    /// <summary>Every discovered file that is an episode, resolved or not.</summary>
+    private IEnumerable<DiscoveredMedia> EpisodeItems() => _detected.Where(item =>
+        item.Classification is DiscoveryClassification.TvEpisodeCandidate
+            or DiscoveryClassification.TvEpisodeSkipped);
+
+    /// <summary>
+    /// The season the detected episodes belong to, for the results heading: the lowest season any
+    /// resolved row claims, or 1 when nothing resolved.
+    /// </summary>
+    private int DetectedSeasonNumber()
     {
-        foreach (var episode in episodes)
-        {
-            var name = episode.FileName;
-            var marker = name.IndexOf('S', StringComparison.OrdinalIgnoreCase);
+        var seasons = EpisodeItems()
+            .Where(item => item.Classification == DiscoveryClassification.TvEpisodeCandidate)
+            .Select(item => item.ParsedMedia!.SeasonNumber!.Value)
+            .ToArray();
 
-            while (marker >= 0 && marker + 3 <= name.Length)
-            {
-                if (int.TryParse(
-                        name.AsSpan(marker + 1, 2),
-                        NumberStyles.Integer,
-                        CultureInfo.InvariantCulture,
-                        out var season))
-                {
-                    return season;
-                }
-
-                marker = name.IndexOf("S", marker + 1, StringComparison.OrdinalIgnoreCase);
-            }
-        }
-
-        return 1;
+        return seasons.Length == 0 ? 1 : seasons.Min();
     }
 
     private void MediaTypeItem_Checked(object sender, RoutedEventArgs e)
@@ -264,9 +270,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 return;
             }
 
-            _pickedEpisodeFiles = [.. files.Select(file => file.Path)];
-            _detected = [];
-            _state = AddMediaScanState.Results;
+            var picked = files.Select(file => file.Path).ToArray();
+            _detected = await Task.Run(() => DiscoverPicked(picked));
+            _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
             Refresh();
         }
         catch (Exception error)
@@ -290,7 +296,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         if (_state == AddMediaScanState.Results)
         {
             _detected = [];
-            _pickedEpisodeFiles = [];
             _state = AddMediaScanState.Idle;
             Refresh();
             return;
@@ -322,7 +327,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
         _isScanning = true;
         _detected = [];
-        _pickedEpisodeFiles = [];
         _state = AddMediaScanState.Scanning;
         ScanProgressBar.Maximum = 1;
         ScanProgressBar.Value = 0;
@@ -437,12 +441,112 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     }
 
     /// <summary>
-    /// The catalog has no season or episode tables, so there is nothing to register an episode into.
-    /// The flow says exactly that rather than reporting a success that did not happen.
+    /// Registers every resolved episode into the show / season / episode hierarchy. Registration is per
+    /// file path and idempotent, so re-adding a folder reports the same episodes instead of duplicating
+    /// them. A file the parser could not resolve is not registered at all, and the summary says why.
     /// </summary>
-    private async void AddEpisodesButton_Click(object sender, RoutedEventArgs e) => await ShowMessageAsync(
-        LocalizationService.Text("AddMedia"),
-        LocalizationService.Text("EpisodesUnsupportedHelp"));
+    private async void AddEpisodesButton_Click(object sender, RoutedEventArgs e)
+    {
+        var candidates = EpisodeItems()
+            .Where(item => item.Classification == DiscoveryClassification.TvEpisodeCandidate)
+            .ToArray();
+
+        var unresolved = EpisodeItems()
+            .Where(item => item.Classification == DiscoveryClassification.TvEpisodeSkipped)
+            .Select(item => Path.GetFileName(item.Path) + ": " + LocalizationService.Text("EpisodeNoMarkerHelp"))
+            .ToList();
+
+        if (candidates.Length == 0 && unresolved.Count == 0)
+        {
+            return;
+        }
+
+        AddEpisodesButton.IsEnabled = false;
+        var added = 0;
+
+        try
+        {
+            var observedAt = DateTimeOffset.UtcNow;
+
+            await Task.Run(() =>
+            {
+                foreach (var candidate in candidates)
+                {
+                    try
+                    {
+                        AppServices.Import.RegisterEpisodeImport(new ConfirmEpisodeImportCommand(
+                            candidate.Path,
+                            candidate.FileSize ?? 0,
+                            candidate.ParsedMedia!,
+                            observedAt));
+                        added++;
+                    }
+                    catch (EpisodeRegistrationException refusal)
+                    {
+                        unresolved.Add(Path.GetFileName(candidate.Path) + ": " + RefusalText(refusal.Refusal));
+                    }
+                    catch (Exception error)
+                    {
+                        unresolved.Add(Path.GetFileName(candidate.Path) + ": " + error.Message);
+                    }
+                }
+            });
+        }
+        finally
+        {
+            AddEpisodesButton.IsEnabled = true;
+        }
+
+        MediaRegistered?.Invoke(this, EventArgs.Empty);
+
+        _detected = [];
+        _state = AddMediaScanState.Idle;
+        Refresh();
+
+        var summary = LocalizationService.Format("EpisodesAddedFormat", added);
+
+        if (unresolved.Count > 0)
+        {
+            summary += Environment.NewLine + Environment.NewLine
+                + LocalizationService.Format("EpisodesSkippedFormat", unresolved.Count)
+                + Environment.NewLine
+                + string.Join(Environment.NewLine, unresolved);
+        }
+
+        await ShowMessageAsync(LocalizationService.Text("AddMedia"), summary);
+    }
+
+    /// <summary>The plain reason a file was refused, in the user's language.</summary>
+    private static string RefusalText(EpisodeRegistrationRefusal refusal) => LocalizationService.Text(refusal switch
+    {
+        EpisodeRegistrationRefusal.NoEpisodeMarker => "EpisodeNoMarkerHelp",
+        EpisodeRegistrationRefusal.NoShowTitle => "EpisodeNoTitleHelp",
+        EpisodeRegistrationRefusal.NumbersOutOfRange => "EpisodeRangeHelp",
+        EpisodeRegistrationRefusal.AlreadyAMovieFile => "EpisodeIsMovieFileHelp",
+        _ => "EpisodeOtherOwnerHelp",
+    });
+
+    /// <summary>
+    /// Parses picked files through the same discovery service the folder scan uses: each file's own
+    /// directory is scanned without recursion and the results are filtered back to what was picked, so
+    /// one parser decides what a name means.
+    /// </summary>
+    private static IReadOnlyList<DiscoveredMedia> DiscoverPicked(IReadOnlyList<string> paths)
+    {
+        var wanted = new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
+        var results = new List<DiscoveredMedia>();
+
+        foreach (var directory in paths
+            .Select(Path.GetDirectoryName)
+            .Where(directory => !string.IsNullOrEmpty(directory))
+            .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var found = AppServices.Import.PrepareImportReview(directory!, recursive: false);
+            results.AddRange(found.Items.Where(item => wanted.Contains(item.Path)));
+        }
+
+        return results;
+    }
 
     /// <summary>
     /// The per-row action seeds the manual TMDB lookup with the detected title instead of opening a

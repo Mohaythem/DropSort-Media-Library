@@ -36,7 +36,15 @@ public record ImportReviewSession(IReadOnlyList<DiscoveredMedia> Items);
 
 public record ManualMovieSearchResult(IReadOnlyList<MovieCandidate> Candidates);
 
-public record ClearLibraryDataResult(int MoviesRemoved, int MediaFilesRemoved, int MetadataEntriesRemoved, int PosterFilesRemoved, string? Warning);
+public record ClearLibraryDataResult(
+    int MoviesRemoved,
+    int MediaFilesRemoved,
+    int MetadataEntriesRemoved,
+    int PosterFilesRemoved,
+    string? Warning,
+    int ShowsRemoved = 0,
+    int SeasonsRemoved = 0,
+    int EpisodesRemoved = 0);
 
 public record PersonalMovieSnapshot(
     int MovieId,

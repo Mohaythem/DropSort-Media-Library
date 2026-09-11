@@ -20,6 +20,15 @@ public record ParsedMedia
     public string? Codec { get; }
     public string Extension { get; }
 
+    /// <summary>
+    /// The season the file name claims, for an episode. Null when the name carries no season / episode
+    /// marker the parser recognizes - which is what makes the item unresolved rather than registerable.
+    /// </summary>
+    public int? SeasonNumber { get; }
+
+    /// <summary>The episode the file name claims; see <see cref="SeasonNumber" />.</summary>
+    public int? EpisodeNumber { get; }
+
     public ParsedMedia(
         string originalName,
         MediaType mediaType,
@@ -28,8 +37,25 @@ public record ParsedMedia
         string? resolution,
         string? source,
         string? codec,
-        string extension)
+        string extension,
+        int? seasonNumber = null,
+        int? episodeNumber = null)
     {
+        if (seasonNumber is not null && seasonNumber is < 0 or > 999)
+        {
+            throw new ArgumentOutOfRangeException(nameof(seasonNumber), "season number must be from 0 through 999");
+        }
+
+        if (episodeNumber is not null && episodeNumber is < 0 or > 999)
+        {
+            throw new ArgumentOutOfRangeException(nameof(episodeNumber), "episode number must be from 0 through 999");
+        }
+
+        if (mediaType == MediaType.TvEpisode && (seasonNumber is null) != (episodeNumber is null))
+        {
+            throw new ArgumentException("an episode carries both a season and an episode number, or neither");
+        }
+
         OriginalName = originalName;
         MediaType = mediaType;
         Title = title;
@@ -38,5 +64,7 @@ public record ParsedMedia
         Source = source;
         Codec = codec;
         Extension = extension;
+        SeasonNumber = seasonNumber;
+        EpisodeNumber = episodeNumber;
     }
 }

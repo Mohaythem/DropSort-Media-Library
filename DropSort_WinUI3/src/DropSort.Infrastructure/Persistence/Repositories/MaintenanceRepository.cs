@@ -13,7 +13,7 @@ public class LibraryMaintenanceRepository : ILibraryMaintenanceRepository
         _connectionString = connectionString;
     }
 
-    public (int Movies, int MediaFiles, int MetadataEntries) ClearCatalog()
+    public (int Movies, int MediaFiles, int MetadataEntries, int Shows, int Seasons, int Episodes) ClearCatalog()
     {
         using var connection = SqliteConnections.Open(_connectionString);
         using var cmd = connection.CreateCommand();
@@ -31,8 +31,21 @@ public class LibraryMaintenanceRepository : ILibraryMaintenanceRepository
         var mediaFiles = Convert.ToInt32(cmd.ExecuteScalar());
         cmd.CommandText = "SELECT COUNT(*) FROM metadata_cache;";
         var metadata = Convert.ToInt32(cmd.ExecuteScalar());
+        cmd.CommandText = "SELECT COUNT(*) FROM tv_shows;";
+        var shows = Convert.ToInt32(cmd.ExecuteScalar());
+        cmd.CommandText = "SELECT COUNT(*) FROM tv_seasons;";
+        var seasons = Convert.ToInt32(cmd.ExecuteScalar());
+        cmd.CommandText = "SELECT COUNT(*) FROM tv_episodes;";
+        var episodes = Convert.ToInt32(cmd.ExecuteScalar());
 
-        foreach (var table in new[] { "metadata_cache", "watch_events", "movie_personal_state", "media_files", "movies" })
+        var tables = new[]
+        {
+            "metadata_cache", "watch_events", "movie_personal_state",
+            "episode_media_files", "tv_episodes", "tv_seasons", "tv_shows",
+            "media_files", "movies",
+        };
+
+        foreach (var table in tables)
         {
             cmd.CommandText = $"DELETE FROM {table};";
             cmd.ExecuteNonQuery();
@@ -46,6 +59,6 @@ public class LibraryMaintenanceRepository : ILibraryMaintenanceRepository
         
         tx.Commit();
         
-        return (movies, mediaFiles, metadata);
+        return (movies, mediaFiles, metadata, shows, seasons, episodes);
     }
 }

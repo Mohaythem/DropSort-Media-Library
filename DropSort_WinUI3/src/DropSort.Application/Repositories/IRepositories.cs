@@ -58,7 +58,12 @@ public interface IPersonalLibraryRepository
 
 public interface ILibraryMaintenanceRepository
 {
-    (int Movies, int MediaFiles, int MetadataEntries) ClearCatalog();
+    /// <summary>
+    /// Empties the local index - movies, media files, metadata, personal state and the whole TV
+    /// hierarchy - in one transaction, and reports what was removed. Catalog rows only: not one media
+    /// file on disk is touched.
+    /// </summary>
+    (int Movies, int MediaFiles, int MetadataEntries, int Shows, int Seasons, int Episodes) ClearCatalog();
 }
 
 public interface ISettingsRepository
@@ -72,6 +77,14 @@ public interface ICatalogUnitOfWork : IDisposable
 {
     IMovieRepository Movies { get; }
     IMediaFileRepository MediaFiles { get; }
+
+    /// <summary>The TV half of the catalog, in the same transaction as the movie half.</summary>
+    ITvShowRepository TvShows { get; }
+
+    ITvSeasonRepository TvSeasons { get; }
+
+    ITvEpisodeRepository TvEpisodes { get; }
+
     void Commit();
 }
 

@@ -50,7 +50,7 @@ public sealed class MigrationUpgradeTests : IDisposable
         migrator.Migrate();
 
         using var upgraded = Open();
-        Assert.Equal(5L, Scalar(upgraded, "PRAGMA user_version;"));
+        Assert.Equal((long)DatabaseMigrator.LatestVersion, Scalar(upgraded, "PRAGMA user_version;"));
         Assert.Equal("18446744073709551615", Scalar(upgraded, "SELECT source_dev FROM file_operations WHERE id = 'op-1';"));
         Assert.Equal(9L, Scalar(upgraded, "SELECT media_file_id FROM file_operations WHERE id = 'op-1';"));
         Assert.Equal("READY", Scalar(upgraded, "SELECT metadata_status FROM movies WHERE id = 7;"));
