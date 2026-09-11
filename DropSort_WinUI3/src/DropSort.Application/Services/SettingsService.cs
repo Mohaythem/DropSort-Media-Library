@@ -25,8 +25,11 @@ public sealed class SettingsService : ISettingsUiActions
         _maintenanceRepository = maintenanceRepository;
         _posterCache = posterCache;
         _settings = settings;
-        _tmdbToken = string.IsNullOrWhiteSpace(initialTmdbToken) ? null : initialTmdbToken.Trim();
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
+        var token = string.IsNullOrWhiteSpace(initialTmdbToken)
+            ? _settings?.Get("tmdb_read_access_token")
+            : initialTmdbToken.Trim();
+        _tmdbToken = string.IsNullOrWhiteSpace(token) ? null : token.Trim();
     }
 
     public bool IsTmdbConfigured() => _tmdbToken is not null;
@@ -35,6 +38,7 @@ public sealed class SettingsService : ISettingsUiActions
     {
         if (string.IsNullOrWhiteSpace(token)) return false;
         _tmdbToken = token.Trim();
+        _settings?.Set("tmdb_read_access_token", _tmdbToken, _clock());
         return true;
     }
 
@@ -42,7 +46,16 @@ public sealed class SettingsService : ISettingsUiActions
     {
         var changed = _tmdbToken is not null;
         _tmdbToken = null;
+        _settings?.Delete("tmdb_read_access_token");
         return changed;
+    }
+
+    public string? GetTmdbToken() => _tmdbToken;
+
+    public Task<ConnectionTestResult> TestTmdbConnectionAsync(IMetadataProvider provider, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(provider);
+        return provider.TestConnectionAsync(cancellationToken);
     }
 
     public ClearLibraryDataResult ClearLibraryData()

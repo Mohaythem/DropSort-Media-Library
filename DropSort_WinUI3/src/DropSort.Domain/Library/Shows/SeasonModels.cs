@@ -19,6 +19,12 @@ public record TvSeason
 
     public DateTimeOffset UpdatedAt { get; }
 
+    public string? PosterReference { get; }
+
+    public string? AirDate { get; }
+
+    public string? ExternalId { get; }
+
     public TvSeason(
         int id,
         int showId,
@@ -26,7 +32,10 @@ public record TvSeason
         string? title,
         string? overview,
         DateTimeOffset createdAt,
-        DateTimeOffset updatedAt)
+        DateTimeOffset updatedAt,
+        string? posterReference = null,
+        string? airDate = null,
+        string? externalId = null)
     {
         if (id <= 0)
         {
@@ -50,6 +59,21 @@ public record TvSeason
             throw new ArgumentException("overview must be null or a non-empty string", nameof(overview));
         }
 
+        if (posterReference != null && string.IsNullOrWhiteSpace(posterReference))
+        {
+            throw new ArgumentException("posterReference must be null or a non-empty string", nameof(posterReference));
+        }
+
+        if (airDate != null && string.IsNullOrWhiteSpace(airDate))
+        {
+            throw new ArgumentException("airDate must be null or a non-empty string", nameof(airDate));
+        }
+
+        if (externalId != null && string.IsNullOrWhiteSpace(externalId))
+        {
+            throw new ArgumentException("externalId must be null or a non-empty string", nameof(externalId));
+        }
+
         Id = id;
         ShowId = showId;
         Number = number;
@@ -57,6 +81,9 @@ public record TvSeason
         Overview = overview?.Trim();
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
+        PosterReference = posterReference?.Trim();
+        AirDate = airDate?.Trim();
+        ExternalId = externalId?.Trim();
     }
 
     /// <summary>
@@ -93,6 +120,12 @@ public record TvEpisode
 
     public DateTimeOffset UpdatedAt { get; }
 
+    public string? StillReference { get; }
+
+    public double? Rating { get; }
+
+    public string? ExternalId { get; }
+
     public TvEpisode(
         int id,
         int seasonId,
@@ -102,7 +135,10 @@ public record TvEpisode
         int? runtimeMinutes,
         DateTimeOffset? airDate,
         DateTimeOffset createdAt,
-        DateTimeOffset updatedAt)
+        DateTimeOffset updatedAt,
+        string? stillReference = null,
+        double? rating = null,
+        string? externalId = null)
     {
         if (id <= 0)
         {
@@ -131,6 +167,21 @@ public record TvEpisode
             throw new ArgumentOutOfRangeException(nameof(runtimeMinutes), "runtime_minutes must be positive");
         }
 
+        if (stillReference != null && string.IsNullOrWhiteSpace(stillReference))
+        {
+            throw new ArgumentException("stillReference must be null or a non-empty string", nameof(stillReference));
+        }
+
+        if (rating != null && (double.IsNaN(rating.Value) || double.IsInfinity(rating.Value) || rating < 0.0 || rating > 10.0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(rating), "rating must be a finite number from 0 through 10");
+        }
+
+        if (externalId != null && string.IsNullOrWhiteSpace(externalId))
+        {
+            throw new ArgumentException("externalId must be null or a non-empty string", nameof(externalId));
+        }
+
         Id = id;
         SeasonId = seasonId;
         Number = number;
@@ -140,6 +191,9 @@ public record TvEpisode
         AirDate = airDate;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
+        StillReference = stillReference?.Trim();
+        Rating = rating;
+        ExternalId = externalId?.Trim();
     }
 
     /// <summary>The range the catalog accepts; see <see cref="TvSeason.ValidateSeasonNumber" />.</summary>

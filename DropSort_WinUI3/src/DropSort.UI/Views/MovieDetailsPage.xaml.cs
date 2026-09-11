@@ -1,6 +1,7 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using DropSort.Application.Contracts;
 using DropSort.Domain.Library.Personal;
 using DropSort.UI.Models;
@@ -8,6 +9,7 @@ using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace DropSort.UI.Views;
 
@@ -30,6 +32,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
 
     /// <summary>True while a journalled move is running; the file actions stay locked until it ends.</summary>
     private bool _isOrganizing;
+    private bool _isMatching;
 
     public MovieDetailsPage()
     {
@@ -95,6 +98,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         PlayButton.IsEnabled = hasFile && !_isOrganizing;
         OpenFolderButton.IsEnabled = hasFile && !_isOrganizing;
         OrganizeButton.IsEnabled = hasFile && !_isOrganizing;
+        MatchButton.IsEnabled = !_isOrganizing && !_isMatching;
 
         _history.Clear();
         foreach (var entry in movie.WatchHistory ?? [])
@@ -104,6 +108,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
 
         WatchedDatePicker.Date = null;
         MarkOnDateButton.IsEnabled = false;
+        UpdatePosterVisuals();
         ApplyLocalization();
     }
 
@@ -149,6 +154,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         UpdatePreferenceVisuals();
         UpdateWatchlistVisuals();
         RelabelHistory();
+        UpdateMatchButtonVisuals();
     }
 
     private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
@@ -277,6 +283,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         OrganizeButton.IsEnabled = canAct;
         PlayButton.IsEnabled = canAct;
         OpenFolderButton.IsEnabled = canAct;
+        MatchButton.IsEnabled = !isOrganizing && !_isMatching;
     }
 
     /// <summary>Shows the exact move that is about to happen; the destination is the approved root.</summary>
@@ -539,5 +546,165 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
     {
         NoHistoryText.Visibility = _history.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         HistoryRepeater.Visibility = _history.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void UpdatePosterVisuals()
+    {
+        if (string.IsNullOrWhiteSpace(_movie.PosterReference) || !AppServices.IsAvailable)
+        {
+            PosterImage.Source = null;
+            PosterGlyph.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var posterRef = _movie.PosterReference;
+        var cachedPath = AppServices.Poster.GetCachedPosterPath("TMDB", posterRef);
+        if (cachedPath != null && File.Exists(cachedPath))
+        {
+            PosterImage.Source = new BitmapImage(new Uri(cachedPath));
+            PosterGlyph.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            PosterImage.Source = null;
+            PosterGlyph.Visibility = Visibility.Visible;
+
+            _ = Task.Run(async () =>
+            {
+                var downloadedPath = await AppServices.Poster.EnsurePosterCachedAsync("TMDB", posterRef);
+                if (downloadedPath != null && File.Exists(downloadedPath))
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (_movie.PosterReference == posterRef)
+                        {
+                            PosterImage.Source = new BitmapImage(new Uri(downloadedPath));
+                            PosterGlyph.Visibility = Visibility.Collapsed;
+                        }
+                    });
+                }
+            });
+        }
+    }
+
+    private bool HasExternalId()
+    {
+        try
+        {
+            if (_movie.Id <= 0 || !AppServices.IsAvailable)
+            {
+                return false;
+            }
+
+            var item = AppServices.Library.GetMovieItem(_movie.Id);
+            return !item.HasPendingMetadata;
+        }
+        catch
+        {
+            return !string.IsNullOrWhiteSpace(_movie.PosterReference);
+        }
+    }
+
+    private void UpdateMatchButtonVisuals()
+    {
+        var hasId = HasExternalId();
+        MatchText.Text = LocalizationService.Text(hasId ? "RefreshMetadata" : "MatchMetadata");
+    }
+
+    private void SetMatchingState(bool isMatching)
+    {
+        _isMatching = isMatching;
+        MatchButton.IsEnabled = !isMatching && !_isOrganizing;
+        MatchProgress.IsActive = isMatching;
+        MatchProgress.Visibility = isMatching ? Visibility.Visible : Visibility.Collapsed;
+        MatchGlyph.Visibility = isMatching ? Visibility.Collapsed : Visibility.Visible;
+        if (isMatching)
+        {
+            MatchText.Text = LocalizationService.Text("MatchingProgress");
+        }
+        else
+        {
+            UpdateMatchButtonVisuals();
+        }
+    }
+
+    private async void MatchButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!AppServices.Settings.IsTmdbConfigured())
+        {
+            await ShowMessageAsync(
+                LocalizationService.Text("MatchWithTmdb"),
+                LocalizationService.Text("TmdbNotConfiguredPrompt"));
+            return;
+        }
+
+        if (HasExternalId())
+        {
+            var flyout = new MenuFlyout();
+
+            var refreshItem = new MenuFlyoutItem
+            {
+                Text = LocalizationService.Text("RefreshMetadata"),
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            refreshItem.Click += async (_, _) => await RefreshMovieMetadataAsync();
+
+            var fixMatchItem = new MenuFlyoutItem
+            {
+                Text = LocalizationService.Text("FixMatch"),
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            fixMatchItem.Click += async (_, _) => await FixMovieMatchAsync();
+
+            flyout.Items.Add(refreshItem);
+            flyout.Items.Add(fixMatchItem);
+            flyout.ShowAt(MatchButton);
+            return;
+        }
+
+        await FixMovieMatchAsync();
+    }
+
+    private async Task RefreshMovieMetadataAsync()
+    {
+        SetMatchingState(true);
+        try
+        {
+            var refreshed = await Task.Run(() => AppServices.Matching.RefreshMovieMetadataAsync(_movie.Id));
+            if (refreshed != null)
+            {
+                LoadMovie(_movie.Id);
+            }
+        }
+        catch (Exception error)
+        {
+            ReportFailure(error);
+        }
+        finally
+        {
+            SetMatchingState(false);
+        }
+    }
+
+    private async Task FixMovieMatchAsync()
+    {
+        var candidate = await MatchMediaDialog.ShowForMovieAsync(this, _movie.Title, _movie.Year > 0 ? _movie.Year : null);
+        if (candidate != null)
+        {
+            SetMatchingState(true);
+            try
+            {
+                await Task.Run(() => AppServices.Matching.MatchMovieAsync(_movie.Id, candidate));
+                LoadMovie(_movie.Id);
+            }
+            catch (Exception error)
+            {
+                ReportFailure(error);
+            }
+            finally
+            {
+                SetMatchingState(false);
+            }
+        }
     }
 }

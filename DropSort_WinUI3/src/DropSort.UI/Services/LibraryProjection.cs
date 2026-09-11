@@ -26,7 +26,8 @@ internal static class LibraryProjection
         0,
         [],
         string.Empty,
-        HasLocalFile: !item.IsMissing);
+        HasLocalFile: !item.IsMissing,
+        PosterReference: item.PosterReference);
 
     /// <summary>
     /// The details hero, file block, personal state and watch history for one movie. The watch
@@ -60,7 +61,8 @@ internal static class LibraryProjection
             FilePath: file?.CurrentPath,
             FileFacts: file is null ? null : FileFacts(file),
             MediaFileId: file?.Id,
-            WatchHistory: ToWatchHistory(watchEvents));
+            WatchHistory: ToWatchHistory(watchEvents),
+            PosterReference: details.PosterReference);
     }
 
     /// <summary>

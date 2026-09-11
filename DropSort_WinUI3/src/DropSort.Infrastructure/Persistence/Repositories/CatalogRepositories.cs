@@ -57,7 +57,7 @@ public sealed class CatalogUnitOfWorkFactory : ICatalogUnitOfWorkFactory
 
 public sealed class MovieRepository : IMovieRepository
 {
-    private const string Columns = "id, provider, external_id, title, original_title, year, overview, runtime_minutes, rating, poster_path, date_added, created_at, updated_at, genres, metadata_status";
+    private const string Columns = "id, provider, external_id, title, original_title, year, overview, runtime_minutes, rating, poster_path, date_added, created_at, updated_at, genres, metadata_status, backdrop_path, tagline";
     private readonly SqliteConnection _connection;
     private readonly SqliteTransaction? _transaction;
 
@@ -74,11 +74,11 @@ public sealed class MovieRepository : IMovieRepository
             INSERT INTO movies (
                 provider, external_id, title, original_title, year, overview,
                 runtime_minutes, rating, poster_path, date_added, created_at, updated_at,
-                genres, metadata_status
+                genres, metadata_status, backdrop_path, tagline
             ) VALUES (
                 $provider, $external, $title, $original, $year, $overview,
                 $runtime, $rating, $poster, $dateAdded, $created, $updated,
-                $genres, $status
+                $genres, $status, $backdrop, $tagline
             );
             SELECT last_insert_rowid();
             """);
@@ -95,7 +95,8 @@ public sealed class MovieRepository : IMovieRepository
                SET provider = $provider, external_id = $external, title = $title,
                    original_title = $original, year = $year, overview = $overview,
                    runtime_minutes = $runtime, rating = $rating, poster_path = $poster,
-                   genres = $genres, metadata_status = $status, updated_at = $updated
+                   genres = $genres, metadata_status = $status, updated_at = $updated,
+                   backdrop_path = $backdrop, tagline = $tagline
              WHERE id = $id;
             """);
         AddMovieParameters(command, data, now);
@@ -175,6 +176,8 @@ public sealed class MovieRepository : IMovieRepository
         command.Parameters.AddWithValue("$updated", now.ToString("O"));
         command.Parameters.AddWithValue("$genres", JsonSerializer.Serialize(data.Genres));
         command.Parameters.AddWithValue("$status", EnumText.MetadataStatus(data.MetadataStatus));
+        command.Parameters.AddWithValue("$backdrop", (object?)data.BackdropReference ?? DBNull.Value);
+        command.Parameters.AddWithValue("$tagline", (object?)data.Tagline ?? DBNull.Value);
     }
 
     private static Movie? ReadOne(SqliteCommand command)
@@ -205,7 +208,9 @@ public sealed class MovieRepository : IMovieRepository
             reader.IsDBNull(7) ? null : reader.GetInt32(7),
             reader.IsDBNull(8) ? null : reader.GetDouble(8),
             reader.IsDBNull(9) ? null : reader.GetString(9),
-            EnumText.ParseMetadataStatus(reader.GetString(14)));
+            EnumText.ParseMetadataStatus(reader.GetString(14)),
+            reader.IsDBNull(15) ? null : reader.GetString(15),
+            reader.IsDBNull(16) ? null : reader.GetString(16));
         return new Movie(
             reader.GetInt32(0),
             data,

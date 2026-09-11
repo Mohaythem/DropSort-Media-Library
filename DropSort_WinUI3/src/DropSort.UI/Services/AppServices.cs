@@ -11,6 +11,8 @@ using DropSort.FileSystem.Operations;
 using DropSort.Infrastructure.Persistence;
 using DropSort.Infrastructure.Persistence.Migrations;
 using DropSort.Infrastructure.Persistence.Repositories;
+using DropSort.Infrastructure.Metadata.Cache;
+using DropSort.Infrastructure.Metadata.Tmdb;
 
 namespace DropSort.UI.Services;
 
@@ -41,6 +43,8 @@ internal static class AppServices
 
     /// <summary>Why the stack is unavailable, or null when it started normally.</summary>
     public static string? InitializationError { get; private set; }
+
+    public static Microsoft.UI.Dispatching.DispatcherQueue? UiDispatcherQueue { get; set; }
 
     /// <summary>True when every service below is safe to call.</summary>
     public static bool IsAvailable
@@ -73,6 +77,16 @@ internal static class AppServices
     public static ISettingsUiActions Settings => Require(_settings);
 
     public static IOrganizationUiActions Organization => Require(_organization);
+
+    public static IMetadataProvider Metadata => Require(_metadataProvider);
+
+    public static IPosterService Poster => Require(_posterCache);
+
+    public static IPosterCacheMaintenance PosterMaintenance => Require(_posterCache);
+
+    public static MetadataMatchingService Matching => Require(_matching);
+
+    public static TmdbClient TmdbClient => Require(_tmdbClient);
 
     /// <summary>
     /// The raw settings table, for the UI's own configuration - the scan folders and the user's
@@ -165,6 +179,10 @@ internal static class AppServices
     private static TvLibraryService? _tv;
     private static SettingsRepository? _settingsRepository;
     private static IMediaFileRepository? _mediaFiles;
+    private static DiskPosterCache? _posterCache;
+    private static TmdbClient? _tmdbClient;
+    private static IMetadataProvider? _metadataProvider;
+    private static MetadataMatchingService? _matching;
 
     /// <summary>
     /// The two objects that own a resource rather than a connection string: the journal store holds a
@@ -217,10 +235,16 @@ internal static class AppServices
                 coordinator = new FileOperationCoordinator(operations);
                 RecoverInterruptedOperations(operations, coordinator, settingsRepository);
 
+                var posterFolder = Path.Combine(DataFolder, "Posters");
+                var posterCache = new DiskPosterCache(posterFolder);
+                var settings = new SettingsService(maintenance, posterCache: posterCache, settings: settingsRepository);
+                var tmdbClient = new TmdbClient(() => settings.GetTmdbToken());
+                var matching = new MetadataMatchingService(catalogFactory, tmdbClient, posterCache);
+
                 var library = new LibraryService(movies, mediaFiles, personal);
                 var import = new ImportService(
                     catalogFactory,
-                    new UnconfiguredMetadataProvider(),
+                    tmdbClient,
                     new MediaDiscoveryService());
                 var reconciliation = new ReconciliationService(mediaFiles, new AvailabilityInspector(), movies);
                 var tv = new TvLibraryService(
@@ -228,7 +252,6 @@ internal static class AppServices
                     new UnitOfWorkTvSeasonRepository(catalogFactory),
                     new UnitOfWorkTvEpisodeRepository(catalogFactory));
                 var history = new OperationHistoryService(operations, coordinator, mediaFiles, movies);
-                var settings = new SettingsService(maintenance, posterCache: null, settings: settingsRepository);
                 var organization = new OrganizationService(mediaFiles, coordinator);
 
                 _mediaFiles = mediaFiles;
@@ -243,6 +266,10 @@ internal static class AppServices
                 _history = history;
                 _settings = settings;
                 _organization = organization;
+                _posterCache = posterCache;
+                _tmdbClient = tmdbClient;
+                _metadataProvider = tmdbClient;
+                _matching = matching;
 
                 InitializationError = null;
                 _initialized = true;
@@ -292,6 +319,12 @@ internal static class AppServices
         _organization = null;
         _settingsRepository = null;
         _mediaFiles = null;
+        _posterCache?.Dispose();
+        _posterCache = null;
+        _tmdbClient?.Dispose();
+        _tmdbClient = null;
+        _metadataProvider = null;
+        _matching = null;
         _operationStore = null;
         _coordinator = null;
     }
@@ -391,7 +424,27 @@ internal sealed class UnconfiguredMetadataProvider : IMetadataProvider
 {
     public string ProviderName => "unconfigured";
 
+    public bool IsConfigured => false;
+
+    public Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(new ConnectionTestResult(false, "TMDB read token is not configured.", 401));
+
     public IReadOnlyList<MovieCandidate> Search(MovieSearchQuery query) => [];
 
+    public Task<IReadOnlyList<MovieCandidate>> SearchMoviesAsync(MovieSearchQuery query, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<MovieCandidate>>([]);
+
     public MovieMetadata? GetMovie(string externalId) => null;
+
+    public Task<MovieMetadata?> GetMovieAsync(string externalId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<MovieMetadata?>(null);
+
+    public Task<IReadOnlyList<TvCandidate>> SearchTvAsync(TvSearchQuery query, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<TvCandidate>>([]);
+
+    public Task<TvShowMetadata?> GetTvShowAsync(string externalId, CancellationToken cancellationToken = default) =>
+        Task.FromResult<TvShowMetadata?>(null);
+
+    public Task<TvSeasonMetadata?> GetTvSeasonAsync(string showExternalId, int seasonNumber, CancellationToken cancellationToken = default) =>
+        Task.FromResult<TvSeasonMetadata?>(null);
 }

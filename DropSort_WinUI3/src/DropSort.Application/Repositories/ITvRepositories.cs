@@ -38,6 +38,15 @@ public interface ITvSeasonRepository
 
     TvSeason Create(int showId, int seasonNumber, string? title, string? overview, DateTimeOffset now);
 
+    TvSeason UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        string? posterPath,
+        string? airDate,
+        string? externalId,
+        DateTimeOffset now);
+
     void Delete(int id);
 }
 
@@ -59,6 +68,17 @@ public interface ITvEpisodeRepository
         string? overview,
         int? runtimeMinutes,
         DateTimeOffset? airDate,
+        DateTimeOffset now);
+
+    TvEpisode UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        int? runtimeMinutes,
+        string? airDate,
+        double? rating,
+        string? stillPath,
+        string? externalId,
         DateTimeOffset now);
 
     void Delete(int id);

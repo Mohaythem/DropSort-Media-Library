@@ -76,7 +76,7 @@ public sealed class TvHierarchyTests : IDisposable
             Assert.Equal(1L, Scalar(connection, $"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='{index}';"));
         }
 
-        Assert.Equal(6L, Scalar(connection, "PRAGMA user_version;"));
+        Assert.Equal((long)DatabaseMigrator.LatestVersion, Scalar(connection, "PRAGMA user_version;"));
     }
 
     [Fact]

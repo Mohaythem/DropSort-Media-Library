@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DropSort.Application.Dto;
+using DropSort.Application.External;
 using DropSort.Domain.Configuration;
 using DropSort.Domain.Library.Personal;
 
@@ -77,6 +78,8 @@ public interface ISettingsUiActions
     bool IsTmdbConfigured();
     bool ApplyTmdbSessionToken(string token);
     bool ClearTmdbSessionToken();
+    string? GetTmdbToken();
+    Task<ConnectionTestResult> TestTmdbConnectionAsync(IMetadataProvider provider, CancellationToken cancellationToken = default);
     
     ClearLibraryDataResult ClearLibraryData();
     

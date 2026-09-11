@@ -103,11 +103,14 @@
                             Height="{StaticResource DetailsPosterHeight}"
                             VerticalAlignment="Top"
                             Style="{StaticResource PosterSurfaceStyle}">
-                            <FontIcon
-                                x:Name="PosterGlyph"
-                                FontSize="40"
-                                Foreground="{ThemeResource PosterGlyphForegroundBrush}"
-                                Glyph="&#xE714;" />
+                            <Grid>
+                                <Image x:Name="PosterImage" Stretch="UniformToFill" />
+                                <FontIcon
+                                    x:Name="PosterGlyph"
+                                    FontSize="40"
+                                    Foreground="{ThemeResource PosterGlyphForegroundBrush}"
+                                    Glyph="&#xE714;" />
+                            </Grid>
                         </Border>
 
                         <StackPanel Grid.Column="1" Spacing="8">
@@ -196,6 +199,26 @@
                                             IsActive="False"
                                             Visibility="Collapsed" />
                                         <TextBlock x:Name="OrganizeText" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
+                                <Button
+                                    x:Name="MatchButton"
+                                    Click="MatchButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon
+                                            x:Name="MatchGlyph"
+                                            VerticalAlignment="Center"
+                                            FontSize="14"
+                                            Glyph="&#xE721;" />
+                                        <ProgressRing
+                                            x:Name="MatchProgress"
+                                            Width="14"
+                                            Height="14"
+                                            VerticalAlignment="Center"
+                                            IsActive="False"
+                                            Visibility="Collapsed" />
+                                        <TextBlock x:Name="MatchText" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
                                 <Button x:Name="MoreButton" Style="{StaticResource SubtleIconActionButtonStyle}">

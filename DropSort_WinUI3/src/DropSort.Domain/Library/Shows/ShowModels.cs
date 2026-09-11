@@ -54,6 +54,12 @@ public record TvShowCatalogData
 
     public MetadataStatus MetadataStatus { get; }
 
+    public double? Rating { get; }
+
+    public string? BackdropReference { get; }
+
+    public string? Tagline { get; }
+
     public TvShowCatalogData(
         string? provider,
         string? externalId,
@@ -63,7 +69,10 @@ public record TvShowCatalogData
         string? overview = null,
         ImmutableArray<string>? genres = null,
         string? posterReference = null,
-        MetadataStatus metadataStatus = MetadataStatus.Pending)
+        MetadataStatus metadataStatus = MetadataStatus.Pending,
+        double? rating = null,
+        string? backdropReference = null,
+        string? tagline = null)
     {
         if ((provider == null) != (externalId == null))
         {
@@ -128,6 +137,21 @@ public record TvShowCatalogData
             throw new ArgumentException("poster_reference must be null or a non-empty string");
         }
 
+        if (rating != null && (double.IsNaN(rating.Value) || double.IsInfinity(rating.Value) || rating < 0.0 || rating > 10.0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(rating), "rating must be a finite number from 0 through 10");
+        }
+
+        if (backdropReference != null && string.IsNullOrWhiteSpace(backdropReference))
+        {
+            throw new ArgumentException("backdrop_reference must be null or a non-empty string", nameof(backdropReference));
+        }
+
+        if (tagline != null && string.IsNullOrWhiteSpace(tagline))
+        {
+            throw new ArgumentException("tagline must be null or a non-empty string", nameof(tagline));
+        }
+
         Title = title.Trim();
         SortTitle = NormalizeTitle(Title);
         OriginalTitle = originalTitle?.Trim();
@@ -136,6 +160,9 @@ public record TvShowCatalogData
         Genres = [.. resolvedGenres.Select(genre => genre.Trim())];
         PosterReference = posterReference?.Trim();
         MetadataStatus = metadataStatus;
+        Rating = rating;
+        BackdropReference = backdropReference?.Trim();
+        Tagline = tagline?.Trim();
 
         if (SortTitle.Length == 0)
         {
@@ -201,6 +228,10 @@ public record TvShow
         UpdatedAt = updatedAt;
     }
 
+    public string? Provider => Data.Provider;
+
+    public string? ExternalId => Data.ExternalId;
+
     public string Title => Data.Title;
 
     public string SortTitle => Data.SortTitle;
@@ -214,4 +245,10 @@ public record TvShow
     public string? PosterReference => Data.PosterReference;
 
     public MetadataStatus MetadataStatus => Data.MetadataStatus;
+
+    public double? Rating => Data.Rating;
+
+    public string? BackdropReference => Data.BackdropReference;
+
+    public string? Tagline => Data.Tagline;
 }

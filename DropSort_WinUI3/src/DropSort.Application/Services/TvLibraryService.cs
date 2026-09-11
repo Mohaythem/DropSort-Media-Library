@@ -102,7 +102,9 @@ public sealed class TvLibraryService(
             show.Overview,
             show.Genres,
             show.PosterReference,
-            seasonDetails);
+            seasonDetails,
+            show.ExternalId,
+            show.MetadataStatus);
     }
 
     public IReadOnlyList<MediaFile> ListEpisodeFiles(int episodeId) => episodes.ListMediaFiles(episodeId);

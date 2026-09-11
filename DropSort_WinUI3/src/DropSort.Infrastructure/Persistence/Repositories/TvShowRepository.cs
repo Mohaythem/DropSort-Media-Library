@@ -17,7 +17,7 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
 {
     private const string Columns =
         "id, provider, external_id, title, sort_title, original_title, year, overview, genres, "
-        + "poster_path, metadata_status, date_added, created_at, updated_at";
+        + "poster_path, metadata_status, date_added, created_at, updated_at, backdrop_path, rating, tagline";
 
     public TvShow? GetById(int id)
     {
@@ -66,11 +66,13 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
         using var command = Command($"""
             INSERT INTO tv_shows (
                 provider, external_id, title, sort_title, original_title, year, overview, genres,
-                poster_path, metadata_status, date_added, created_at, updated_at
+                poster_path, metadata_status, date_added, created_at, updated_at,
+                backdrop_path, rating, tagline
             )
             VALUES (
                 $provider, $externalId, $title, $sortTitle, $originalTitle, $year, $overview, $genres,
-                $poster, $status, $now, $now, $now
+                $poster, $status, $now, $now, $now,
+                $backdrop, $rating, $tagline
             )
             RETURNING {Columns};
             """);
@@ -92,7 +94,10 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
                    genres = $genres,
                    poster_path = $poster,
                    metadata_status = $status,
-                   updated_at = $now
+                   updated_at = $now,
+                   backdrop_path = $backdrop,
+                   rating = $rating,
+                   tagline = $tagline
              WHERE id = $id
             RETURNING {Columns};
             """);
@@ -129,6 +134,9 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
         command.Parameters.AddWithValue("$poster", data.PosterReference ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$status", EnumText.MetadataStatus(data.MetadataStatus));
         command.Parameters.AddWithValue("$now", now.ToString("O"));
+        command.Parameters.AddWithValue("$backdrop", data.BackdropReference ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$rating", data.Rating ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$tagline", data.Tagline ?? (object)DBNull.Value);
     }
 
     private static TvShow? ReadOne(SqliteCommand command)
@@ -160,7 +168,10 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
             overview: reader.IsDBNull(7) ? null : reader.GetString(7),
             genres: [.. JsonSerializer.Deserialize<string[]>(reader.GetString(8)) ?? []],
             posterReference: reader.IsDBNull(9) ? null : reader.GetString(9),
-            metadataStatus: EnumText.ParseMetadataStatus(reader.GetString(10))),
+            metadataStatus: EnumText.ParseMetadataStatus(reader.GetString(10)),
+            rating: reader.IsDBNull(15) ? null : reader.GetDouble(15),
+            backdropReference: reader.IsDBNull(14) ? null : reader.GetString(14),
+            tagline: reader.IsDBNull(16) ? null : reader.GetString(16)),
         MovieRepository.ParseTimestamp(reader.GetString(11)),
         MovieRepository.ParseTimestamp(reader.GetString(12)),
         MovieRepository.ParseTimestamp(reader.GetString(13)));

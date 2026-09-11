@@ -1,7 +1,11 @@
+using System.ComponentModel;
 using System.Globalization;
+using System.IO;
+using System.Threading.Tasks;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace DropSort.UI.Models;
 
@@ -21,8 +25,14 @@ public sealed record MovieRecord(
     string? FilePath = null,
     string? FileFacts = null,
     IReadOnlyList<WatchHistoryRecord>? WatchHistory = null,
-    int? MediaFileId = null)
+    int? MediaFileId = null,
+    string? PosterReference = null) : INotifyPropertyChanged
 {
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private ImageSource? _posterSource;
+    private bool _posterRequested;
+
     /// <summary>
     /// Year · runtime · rating, with the parts the catalog does not know yet left out: a movie
     /// registered from a file name has no runtime or rating until metadata enrichment exists, and a
@@ -64,9 +74,54 @@ public sealed record MovieRecord(
     /// placeholder instead. Both occupy the same fixed 2:3 rectangle and the image is drawn with
     /// UniformToFill, so a real poster later changes the pixels inside the frame and nothing else.
     /// </summary>
-    public ImageSource? PosterSource => null;
+    public ImageSource? PosterSource
+    {
+        get
+        {
+            if (_posterSource != null)
+            {
+                return _posterSource;
+            }
 
-    public bool IsPosterMissing => PosterSource is null;
+            if (string.IsNullOrWhiteSpace(PosterReference) || !AppServices.IsAvailable)
+            {
+                return null;
+            }
+
+            var cachedPath = AppServices.Poster.GetCachedPosterPath("TMDB", PosterReference);
+            if (cachedPath != null && File.Exists(cachedPath))
+            {
+                _posterSource = new BitmapImage(new Uri(cachedPath));
+                return _posterSource;
+            }
+
+            if (!_posterRequested)
+            {
+                _posterRequested = true;
+                var posterRef = PosterReference;
+                _ = Task.Run(async () =>
+                {
+                    var downloaded = await AppServices.Poster.EnsurePosterCachedAsync("TMDB", posterRef);
+                    if (downloaded != null && File.Exists(downloaded))
+                    {
+                        AppServices.UiDispatcherQueue?.TryEnqueue(() =>
+                        {
+                            if (PosterReference == posterRef)
+                            {
+                                _posterSource = new BitmapImage(new Uri(downloaded));
+                                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PosterSource)));
+                                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsPosterMissing)));
+                            }
+                        });
+                    }
+                });
+            }
+
+            return null;
+        }
+    }
+
+    public bool IsPosterMissing => _posterSource is null && (string.IsNullOrWhiteSpace(PosterReference) || !AppServices.IsAvailable || AppServices.Poster.GetCachedPosterPath("TMDB", PosterReference) is null);
 
     /// <summary>
     /// A GridView item container takes its accessible name from the item's ToString(), so the
@@ -90,12 +145,35 @@ public sealed record WatchHistoryDisplayRecord(WatchHistoryRecord Entry, string 
 }
 
 /// <summary>A movie rendered inside one of the My Lists collections.</summary>
-public sealed record ListMediaItem(
-    MovieRecord Movie,
-    bool ShowLocalBadge,
-    bool IsLocal,
-    string LocalBadgeText)
+public sealed record ListMediaItem : INotifyPropertyChanged
 {
+    public MovieRecord Movie { get; }
+    public bool ShowLocalBadge { get; }
+    public bool IsLocal { get; }
+    public string LocalBadgeText { get; }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public ListMediaItem(
+        MovieRecord movie,
+        bool showLocalBadge,
+        bool isLocal,
+        string localBadgeText)
+    {
+        Movie = movie;
+        ShowLocalBadge = showLocalBadge;
+        IsLocal = isLocal;
+        LocalBadgeText = localBadgeText;
+
+        Movie.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(MovieRecord.PosterSource) or nameof(MovieRecord.IsPosterMissing))
+            {
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(e.PropertyName));
+            }
+        };
+    }
+
     public string Title => Movie.Title;
 
     public ImageSource? PosterSource => Movie.PosterSource;

@@ -52,6 +52,8 @@ public record MovieCatalogData
     public double? Rating { get; }
     public string? PosterReference { get; }
     public MetadataStatus MetadataStatus { get; }
+    public string? BackdropReference { get; }
+    public string? Tagline { get; }
 
     public MovieCatalogData(
         string? provider,
@@ -64,7 +66,9 @@ public record MovieCatalogData
         int? runtimeMinutes,
         double? rating,
         string? posterReference,
-        MetadataStatus metadataStatus = MetadataStatus.Ready)
+        MetadataStatus metadataStatus = MetadataStatus.Ready,
+        string? backdropReference = null,
+        string? tagline = null)
     {
         if ((provider == null) != (externalId == null))
             throw new ArgumentException("provider and external_id must both be populated or both be null");
@@ -106,6 +110,12 @@ public record MovieCatalogData
         if (posterReference != null && string.IsNullOrWhiteSpace(posterReference))
             throw new ArgumentException("poster_reference must be null or a non-empty string");
 
+        if (backdropReference != null && string.IsNullOrWhiteSpace(backdropReference))
+            throw new ArgumentException("backdrop_reference must be null or a non-empty string");
+
+        if (tagline != null && string.IsNullOrWhiteSpace(tagline))
+            throw new ArgumentException("tagline must be null or a non-empty string");
+
         Title = title.Trim();
         OriginalTitle = originalTitle?.Trim();
         Year = year;
@@ -115,6 +125,8 @@ public record MovieCatalogData
         Rating = rating;
         PosterReference = posterReference?.Trim();
         MetadataStatus = metadataStatus;
+        BackdropReference = backdropReference?.Trim();
+        Tagline = tagline?.Trim();
     }
 }
 
@@ -148,6 +160,8 @@ public record Movie
     public int? RuntimeMinutes => Data.RuntimeMinutes;
     public double? Rating => Data.Rating;
     public string? PosterReference => Data.PosterReference;
+    public string? BackdropReference => Data.BackdropReference;
+    public string? Tagline => Data.Tagline;
 }
 
 public record VerifiedMediaFileFacts

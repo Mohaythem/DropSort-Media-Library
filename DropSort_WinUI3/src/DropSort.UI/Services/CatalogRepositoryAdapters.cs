@@ -167,6 +167,21 @@ internal sealed class UnitOfWorkTvSeasonRepository(ICatalogUnitOfWorkFactory fac
         return season;
     }
 
+    public TvSeason UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        string? posterPath,
+        string? airDate,
+        string? externalId,
+        DateTimeOffset now)
+    {
+        using var work = factory.Begin();
+        var season = work.TvSeasons.UpdateMetadata(id, title, overview, posterPath, airDate, externalId, now);
+        work.Commit();
+        return season;
+    }
+
     public void Delete(int id)
     {
         using var work = factory.Begin();
@@ -204,6 +219,23 @@ internal sealed class UnitOfWorkTvEpisodeRepository(ICatalogUnitOfWorkFactory fa
     {
         using var work = factory.Begin();
         var episode = work.TvEpisodes.Create(seasonId, episodeNumber, title, overview, runtimeMinutes, airDate, now);
+        work.Commit();
+        return episode;
+    }
+
+    public TvEpisode UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        int? runtimeMinutes,
+        string? airDate,
+        double? rating,
+        string? stillPath,
+        string? externalId,
+        DateTimeOffset now)
+    {
+        using var work = factory.Begin();
+        var episode = work.TvEpisodes.UpdateMetadata(id, title, overview, runtimeMinutes, airDate, rating, stillPath, externalId, now);
         work.Commit();
         return episode;
     }

@@ -24,7 +24,9 @@ public record TvShowDetails(
     string? Overview,
     IReadOnlyList<string> Genres,
     string? PosterReference,
-    IReadOnlyList<TvSeasonDetails> Seasons);
+    IReadOnlyList<TvSeasonDetails> Seasons,
+    string? ExternalId = null,
+    MetadataStatus MetadataStatus = MetadataStatus.Pending);
 
 public record TvSeasonDetails(
     int Id,

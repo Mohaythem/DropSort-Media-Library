@@ -33,7 +33,8 @@ internal static class TvProjection
             item.SeasonCount,
             item.EpisodeCount,
             item.EpisodesWithLocalFile,
-            item.MissingEpisodeCount));
+            item.MissingEpisodeCount),
+        PosterReference: item.PosterReference);
 
     /// <summary>The full hierarchy of one show: seasons in order, each with its episodes in order.</summary>
     public static TVShowRecord ToDetails(TvShowDetails details) => new(
@@ -47,7 +48,10 @@ internal static class TvProjection
                 season.Id,
                 season.Number,
                 [.. season.Episodes.Select(episode => ToEpisode(season.Number, episode))])),
-        ]);
+        ],
+        PosterReference: details.PosterReference,
+        ExternalId: details.ExternalId,
+        MetadataStatus: details.MetadataStatus);
 
     private static EpisodeRecord ToEpisode(int seasonNumber, TvEpisodeDetails episode)
     {

@@ -83,6 +83,37 @@ internal sealed class FakeTvSeasonRepo : ITvSeasonRepository
         return season;
     }
 
+    public TvSeason UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        string? posterPath,
+        string? airDate,
+        string? externalId,
+        DateTimeOffset now)
+    {
+        var index = _seasons.FindIndex(season => season.Id == id);
+        if (index < 0)
+        {
+            throw new KeyNotFoundException($"TV season {id} was not found.");
+        }
+
+        var existing = _seasons[index];
+        var updated = new TvSeason(
+            existing.Id,
+            existing.ShowId,
+            existing.Number,
+            title,
+            overview,
+            existing.CreatedAt,
+            now,
+            posterPath,
+            airDate,
+            externalId);
+        _seasons[index] = updated;
+        return updated;
+    }
+
     public void Delete(int id) => _seasons.RemoveAll(season => season.Id == id);
 }
 
@@ -135,6 +166,47 @@ internal sealed class FakeTvEpisodeRepo : ITvEpisodeRepository
             _nextId++, seasonId, episodeNumber, title, overview, runtimeMinutes, airDate, now, now);
         _episodes.Add(episode);
         return episode;
+    }
+
+    public TvEpisode UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        int? runtimeMinutes,
+        string? airDate,
+        double? rating,
+        string? stillPath,
+        string? externalId,
+        DateTimeOffset now)
+    {
+        var index = _episodes.FindIndex(episode => episode.Id == id);
+        if (index < 0)
+        {
+            throw new KeyNotFoundException($"TV episode {id} was not found.");
+        }
+
+        var existing = _episodes[index];
+        DateTimeOffset? parsedAirDate = null;
+        if (!string.IsNullOrWhiteSpace(airDate) && DateTimeOffset.TryParse(airDate, out var dt))
+        {
+            parsedAirDate = dt;
+        }
+
+        var updated = new TvEpisode(
+            existing.Id,
+            existing.SeasonId,
+            existing.Number,
+            title,
+            overview,
+            runtimeMinutes,
+            parsedAirDate,
+            existing.CreatedAt,
+            now,
+            stillPath,
+            rating,
+            externalId);
+        _episodes[index] = updated;
+        return updated;
     }
 
     public void Delete(int id) => _episodes.RemoveAll(episode => episode.Id == id);

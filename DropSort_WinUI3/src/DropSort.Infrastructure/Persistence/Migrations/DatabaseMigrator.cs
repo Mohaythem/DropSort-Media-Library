@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 6;
+    public const int LatestVersion = 7;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -324,6 +324,23 @@ public class DatabaseMigrator
             );
 
             CREATE INDEX idx_episode_media_files_episode_id ON episode_media_files(episode_id);
+        ",
+        // 0007_media_details_enrichment
+        @"
+            ALTER TABLE movies ADD COLUMN backdrop_path TEXT;
+            ALTER TABLE movies ADD COLUMN tagline TEXT;
+
+            ALTER TABLE tv_shows ADD COLUMN backdrop_path TEXT;
+            ALTER TABLE tv_shows ADD COLUMN rating REAL;
+            ALTER TABLE tv_shows ADD COLUMN tagline TEXT;
+
+            ALTER TABLE tv_seasons ADD COLUMN poster_path TEXT;
+            ALTER TABLE tv_seasons ADD COLUMN air_date TEXT;
+            ALTER TABLE tv_seasons ADD COLUMN external_id TEXT;
+
+            ALTER TABLE tv_episodes ADD COLUMN still_path TEXT;
+            ALTER TABLE tv_episodes ADD COLUMN rating REAL;
+            ALTER TABLE tv_episodes ADD COLUMN external_id TEXT;
         "
     };
 

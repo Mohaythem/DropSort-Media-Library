@@ -295,6 +295,20 @@ public static class LocalizationService
         ["RecentlyAdded"] = "Recently Added",
         ["NothingToContinue"] = "Nothing in progress",
         ["NothingToContinueHelp"] = "Start a show and it will show up here.",
+
+        // TMDB matching & metadata
+        ["MatchMetadata"] = "Match metadata…",
+        ["RefreshMetadata"] = "Refresh metadata",
+        ["MatchWithTmdb"] = "Match with TMDB",
+        ["SearchTmdb"] = "Search TMDB",
+        ["ApplyMatch"] = "Apply Match",
+        ["SearchingTmdb"] = "Searching TMDB…",
+        ["MatchingProgress"] = "Updating metadata…",
+        ["NoMatchesFound"] = "No matches found.",
+        ["TmdbNotConfiguredPrompt"] = "TMDB is not configured. Enter your Read Access Token in Settings to enable matching.",
+        ["TmdbConnectionSuccess"] = "Successfully connected to TMDB.",
+        ["TmdbConnectionFailed"] = "Connection to TMDB failed.",
+        ["FixMatch"] = "Fix match…",
     };
 
     private static readonly IReadOnlyDictionary<string, string> Arabic = new Dictionary<string, string>
@@ -582,6 +596,20 @@ public static class LocalizationService
         ["RecentlyAdded"] = "أُضيف حديثًا",
         ["NothingToContinue"] = "لا يوجد شيء قيد المشاهدة",
         ["NothingToContinueHelp"] = "ابدأ مسلسلًا وسيظهر هنا.",
+
+        // TMDB matching & metadata
+        ["MatchMetadata"] = "مطابقة البيانات…",
+        ["RefreshMetadata"] = "تحديث البيانات",
+        ["MatchWithTmdb"] = "مطابقة مع TMDB",
+        ["SearchTmdb"] = "بحث في TMDB",
+        ["ApplyMatch"] = "تطبيق المطابقة",
+        ["SearchingTmdb"] = "جاري البحث في TMDB…",
+        ["MatchingProgress"] = "جاري تحديث البيانات…",
+        ["NoMatchesFound"] = "لم يتم العثور على نتائج مطابقة.",
+        ["TmdbNotConfiguredPrompt"] = "لم يتم ضبط TMDB بعد. أدخل رمز القراءة في الإعدادات لتفعيل المطابقة.",
+        ["TmdbConnectionSuccess"] = "تم الاتصال بـ TMDB بنجاح.",
+        ["TmdbConnectionFailed"] = "فشل الاتصال بـ TMDB.",
+        ["FixMatch"] = "تصحيح المطابقة…",
     };
 
     public static UiLanguage CurrentLanguage { get; private set; } = UiLanguage.English;

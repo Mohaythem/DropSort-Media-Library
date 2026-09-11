@@ -1,8 +1,10 @@
+using System.IO;
 using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace DropSort.UI.Views;
 
@@ -23,6 +25,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
 {
     private TVShowRecord _show = new(0, string.Empty, 0, [], string.Empty, []);
     private string _returnDestination = "library";
+    private bool _isMatching;
 
     public TVShowDetailsPage()
     {
@@ -66,6 +69,8 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
 
         ProgressValueText.Text = show.ProgressLine;
         PlayNextButton.IsEnabled = show.NextPlayableEpisode is not null;
+        MatchButton.IsEnabled = !_isMatching;
+        UpdatePosterVisuals();
         ApplyLocalization();
     }
 
@@ -86,6 +91,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         SeasonsHelpText.Text = LocalizationService.Text("SeasonsHelp");
 
         SeasonsRepeater.ItemsSource = BuildSeasons(_show);
+        UpdateMatchButtonVisuals();
     }
 
     private void UpdateBackLabel()
@@ -289,5 +295,152 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
 
         return LocalizationService.Digits(
             episode.Runtime.Length == 0 ? code : code + " · " + episode.Runtime);
+    }
+
+    private void UpdatePosterVisuals()
+    {
+        if (string.IsNullOrWhiteSpace(_show.PosterReference) || !AppServices.IsAvailable)
+        {
+            PosterImage.Source = null;
+            PosterGlyph.Visibility = Visibility.Visible;
+            return;
+        }
+
+        var posterRef = _show.PosterReference;
+        var cachedPath = AppServices.Poster.GetCachedPosterPath("TMDB", posterRef);
+        if (cachedPath != null && File.Exists(cachedPath))
+        {
+            PosterImage.Source = new BitmapImage(new Uri(cachedPath));
+            PosterGlyph.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            PosterImage.Source = null;
+            PosterGlyph.Visibility = Visibility.Visible;
+
+            _ = Task.Run(async () =>
+            {
+                var downloadedPath = await AppServices.Poster.EnsurePosterCachedAsync("TMDB", posterRef);
+                if (downloadedPath != null && File.Exists(downloadedPath))
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (_show.PosterReference == posterRef)
+                        {
+                            PosterImage.Source = new BitmapImage(new Uri(downloadedPath));
+                            PosterGlyph.Visibility = Visibility.Collapsed;
+                        }
+                    });
+                }
+            });
+        }
+    }
+
+    private bool HasExternalId()
+    {
+        return !string.IsNullOrWhiteSpace(_show?.ExternalId);
+    }
+
+    private void UpdateMatchButtonVisuals()
+    {
+        var hasId = HasExternalId();
+        MatchText.Text = LocalizationService.Text(hasId ? "RefreshMetadata" : "MatchMetadata");
+    }
+
+    private void SetMatchingState(bool isMatching)
+    {
+        _isMatching = isMatching;
+        MatchButton.IsEnabled = !isMatching;
+        MatchProgress.IsActive = isMatching;
+        MatchProgress.Visibility = isMatching ? Visibility.Visible : Visibility.Collapsed;
+        MatchGlyph.Visibility = isMatching ? Visibility.Collapsed : Visibility.Visible;
+        if (isMatching)
+        {
+            MatchText.Text = LocalizationService.Text("MatchingProgress");
+        }
+        else
+        {
+            UpdateMatchButtonVisuals();
+        }
+    }
+
+    private async void MatchButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!AppServices.Settings.IsTmdbConfigured())
+        {
+            await ShowMessageAsync(
+                LocalizationService.Text("MatchWithTmdb"),
+                LocalizationService.Text("TmdbNotConfiguredPrompt"));
+            return;
+        }
+
+        if (HasExternalId())
+        {
+            var flyout = new MenuFlyout();
+
+            var refreshItem = new MenuFlyoutItem
+            {
+                Text = LocalizationService.Text("RefreshMetadata"),
+                Icon = new FontIcon { Glyph = "\uE72C" }
+            };
+            refreshItem.Click += async (_, _) => await RefreshTvShowMetadataAsync();
+
+            var fixMatchItem = new MenuFlyoutItem
+            {
+                Text = LocalizationService.Text("FixMatch"),
+                Icon = new FontIcon { Glyph = "\uE721" }
+            };
+            fixMatchItem.Click += async (_, _) => await FixTvShowMatchAsync();
+
+            flyout.Items.Add(refreshItem);
+            flyout.Items.Add(fixMatchItem);
+            flyout.ShowAt(MatchButton);
+            return;
+        }
+
+        await FixTvShowMatchAsync();
+    }
+
+    private async Task RefreshTvShowMetadataAsync()
+    {
+        SetMatchingState(true);
+        try
+        {
+            var refreshed = await Task.Run(() => AppServices.Matching.RefreshTvShowMetadataAsync(_show.Id));
+            if (refreshed != null)
+            {
+                LoadShow(_show.Id);
+            }
+        }
+        catch (Exception error)
+        {
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+        }
+        finally
+        {
+            SetMatchingState(false);
+        }
+    }
+
+    private async Task FixTvShowMatchAsync()
+    {
+        var candidate = await MatchMediaDialog.ShowForTvShowAsync(this, _show.Title, _show.Year > 0 ? _show.Year : null);
+        if (candidate != null)
+        {
+            SetMatchingState(true);
+            try
+            {
+                await Task.Run(() => AppServices.Matching.MatchTvShowAsync(_show.Id, candidate));
+                LoadShow(_show.Id);
+            }
+            catch (Exception error)
+            {
+                _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            }
+            finally
+            {
+                SetMatchingState(false);
+            }
+        }
     }
 }

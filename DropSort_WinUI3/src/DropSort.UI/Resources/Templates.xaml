@@ -21,13 +21,13 @@
                 HorizontalAlignment="Left"
                 Style="{StaticResource PosterSurfaceStyle}">
                 <Grid>
-                    <Image Source="{x:Bind PosterSource}" Stretch="UniformToFill" />
+                    <Image Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="UniformToFill" />
                     <FontIcon
                         FontFamily="{StaticResource SymbolThemeFontFamily}"
                         FontSize="40"
                         Foreground="{ThemeResource PosterGlyphForegroundBrush}"
                         Glyph="&#xE714;"
-                        Visibility="{x:Bind IsPosterMissing}" />
+                        Visibility="{x:Bind IsPosterMissing, Mode=OneWay}" />
                 </Grid>
             </Border>
             <TextBlock
@@ -48,13 +48,13 @@
                 HorizontalAlignment="Left"
                 Style="{StaticResource ShowPosterSurfaceStyle}">
                 <Grid>
-                    <Image Source="{x:Bind PosterSource}" Stretch="UniformToFill" />
+                    <Image Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="UniformToFill" />
                     <FontIcon
                         FontFamily="{StaticResource SymbolThemeFontFamily}"
                         FontSize="40"
                         Foreground="{ThemeResource PosterGlyphForegroundBrush}"
                         Glyph="&#xE7F4;"
-                        Visibility="{x:Bind IsPosterMissing}" />
+                        Visibility="{x:Bind IsPosterMissing, Mode=OneWay}" />
                 </Grid>
             </Border>
             <StackPanel Spacing="2">
@@ -82,13 +82,13 @@
                 HorizontalAlignment="Left"
                 Style="{StaticResource PosterSurfaceStyle}">
                 <Grid>
-                    <Image Source="{x:Bind PosterSource}" Stretch="UniformToFill" />
+                    <Image Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="UniformToFill" />
                     <FontIcon
                         FontFamily="{StaticResource SymbolThemeFontFamily}"
                         FontSize="40"
                         Foreground="{ThemeResource PosterGlyphForegroundBrush}"
                         Glyph="&#xE714;"
-                        Visibility="{x:Bind IsPosterMissing}" />
+                        Visibility="{x:Bind IsPosterMissing, Mode=OneWay}" />
                     <Border
                         MinHeight="20"
                         Margin="8"

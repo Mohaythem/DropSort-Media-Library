@@ -36,6 +36,7 @@ public sealed partial class MainWindow : Window
         LocalizationService.Restore(language);
 
         InitializeComponent();
+        AppServices.UiDispatcherQueue = this.DispatcherQueue;
         ConfigureNativeWindow();
         HostPages();
         WireNavigation();

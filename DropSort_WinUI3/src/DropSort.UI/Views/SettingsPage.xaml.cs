@@ -134,6 +134,11 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         TmdbMissingDot.Visibility = isConnected ? Visibility.Collapsed : Visibility.Visible;
         ClearTokenButton.IsEnabled = isConnected;
         TestConnectionButton.IsEnabled = isConnected;
+
+        if (isConnected && string.IsNullOrEmpty(TokenBox.Password))
+        {
+            TokenBox.Password = AppServices.Settings.GetTmdbToken() ?? string.Empty;
+        }
     }
 
     private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -275,13 +280,26 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         RefreshTmdbStatus();
     }
 
-    /// <summary>
-    /// There is no TMDB client in this build - the metadata provider answers "unconfigured" - so a
-    /// connection cannot be verified. The button states that plainly instead of reporting a pass.
-    /// </summary>
-    private async void TestConnectionButton_Click(object sender, RoutedEventArgs e) => await ShowMessageAsync(
-        LocalizationService.Text("TestConnection"),
-        LocalizationService.Text("TmdbNoClientHelp"));
+    private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        TestConnectionButton.IsEnabled = false;
+        try
+        {
+            var result = await AppServices.Settings.TestTmdbConnectionAsync(AppServices.TmdbClient);
+            var message = result.Success
+                ? LocalizationService.Text("TmdbConnectionSuccess")
+                : (!string.IsNullOrWhiteSpace(result.Message) ? result.Message : LocalizationService.Text("TmdbConnectionFailed"));
+            await ShowMessageAsync(LocalizationService.Text("TestConnection"), message);
+        }
+        catch (Exception ex)
+        {
+            await ShowMessageAsync(LocalizationService.Text("TestConnection"), ex.Message);
+        }
+        finally
+        {
+            RefreshTmdbStatus();
+        }
+    }
 
     private void SetupGuideButton_Click(object sender, RoutedEventArgs e) =>
         _ = Launcher.LaunchUriAsync(new Uri("https://developer.themoviedb.org/docs/authentication-application"));

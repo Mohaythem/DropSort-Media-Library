@@ -1,6 +1,11 @@
-﻿using System.Globalization;
+using System.ComponentModel;
+using System.Globalization;
+using System.IO;
+using System.Threading.Tasks;
+using DropSort.Domain.Library.Movies;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace DropSort.UI.Models;
 
@@ -53,7 +58,10 @@ public sealed record TVShowRecord(
     IReadOnlyList<string> Genres,
     string Overview,
     IReadOnlyList<SeasonRecord> Seasons,
-    ShowCounts? Counts = null)
+    ShowCounts? Counts = null,
+    string? PosterReference = null,
+    string? ExternalId = null,
+    MetadataStatus MetadataStatus = MetadataStatus.Pending)
 {
     public int SeasonCount => Counts?.Seasons ?? Seasons.Count;
 
@@ -104,14 +112,64 @@ public sealed record TVShowRecord(
 }
 
 /// <summary>A TV show as it appears inside a media grid: poster, title and one progress line.</summary>
-public sealed record ShowCardItem(TVShowRecord Show, string SecondaryLine)
+public sealed record ShowCardItem(TVShowRecord Show, string SecondaryLine) : INotifyPropertyChanged
 {
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private ImageSource? _posterSource;
+    private bool _posterRequested;
+
     public string Title => Show.Title;
 
     /// <summary>Show artwork, null until a backend supplies it. See MovieRecord.PosterSource.</summary>
-    public ImageSource? PosterSource => null;
+    public ImageSource? PosterSource
+    {
+        get
+        {
+            if (_posterSource != null)
+            {
+                return _posterSource;
+            }
 
-    public bool IsPosterMissing => PosterSource is null;
+            if (string.IsNullOrWhiteSpace(Show.PosterReference) || !AppServices.IsAvailable)
+            {
+                return null;
+            }
+
+            var cachedPath = AppServices.Poster.GetCachedPosterPath("TMDB", Show.PosterReference);
+            if (cachedPath != null && File.Exists(cachedPath))
+            {
+                _posterSource = new BitmapImage(new Uri(cachedPath));
+                return _posterSource;
+            }
+
+            if (!_posterRequested)
+            {
+                _posterRequested = true;
+                var posterRef = Show.PosterReference;
+                _ = Task.Run(async () =>
+                {
+                    var downloaded = await AppServices.Poster.EnsurePosterCachedAsync("TMDB", posterRef);
+                    if (downloaded != null && File.Exists(downloaded))
+                    {
+                        AppServices.UiDispatcherQueue?.TryEnqueue(() =>
+                        {
+                            if (Show.PosterReference == posterRef)
+                            {
+                                _posterSource = new BitmapImage(new Uri(downloaded));
+                                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PosterSource)));
+                                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsPosterMissing)));
+                            }
+                        });
+                    }
+                });
+            }
+
+            return null;
+        }
+    }
+
+    public bool IsPosterMissing => _posterSource is null && (string.IsNullOrWhiteSpace(Show.PosterReference) || !AppServices.IsAvailable || AppServices.Poster.GetCachedPosterPath("TMDB", Show.PosterReference) is null);
 
     public override string ToString() => Title;
 }

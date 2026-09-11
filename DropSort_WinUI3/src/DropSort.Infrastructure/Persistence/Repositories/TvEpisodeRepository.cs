@@ -14,7 +14,10 @@ public sealed class TvEpisodeRepository(SqliteConnection connection, SqliteTrans
     : ITvEpisodeRepository
 {
     private const string Columns =
-        "id, season_id, episode_number, title, overview, runtime_minutes, air_date, created_at, updated_at";
+        "id, season_id, episode_number, title, overview, runtime_minutes, air_date, created_at, updated_at, still_path, rating, external_id";
+
+    private const string PrefixedColumns =
+        "e.id, e.season_id, e.episode_number, e.title, e.overview, e.runtime_minutes, e.air_date, e.created_at, e.updated_at, e.still_path, e.rating, e.external_id";
 
     public TvEpisode? GetById(int id)
     {
@@ -43,8 +46,7 @@ public sealed class TvEpisodeRepository(SqliteConnection connection, SqliteTrans
     public IReadOnlyList<TvEpisode> ListByShow(int showId)
     {
         using var command = Command($"""
-            SELECT e.id, e.season_id, e.episode_number, e.title, e.overview, e.runtime_minutes,
-                   e.air_date, e.created_at, e.updated_at
+            SELECT {PrefixedColumns}
               FROM tv_episodes e
               JOIN tv_seasons s ON s.id = e.season_id
              WHERE s.show_id = $showId
@@ -80,6 +82,42 @@ public sealed class TvEpisodeRepository(SqliteConnection connection, SqliteTrans
         command.Parameters.AddWithValue("$airDate", airDate?.ToString("O") ?? (object)DBNull.Value);
         command.Parameters.AddWithValue("$now", now.ToString("O"));
         return ReadOne(command) ?? throw new InvalidOperationException("Inserting an episode returned no row.");
+    }
+
+    public TvEpisode UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        int? runtimeMinutes,
+        string? airDate,
+        double? rating,
+        string? stillPath,
+        string? externalId,
+        DateTimeOffset now)
+    {
+        using var command = Command($"""
+            UPDATE tv_episodes
+               SET title = $title,
+                   overview = $overview,
+                   runtime_minutes = $runtime,
+                   air_date = $airDate,
+                   still_path = $stillPath,
+                   rating = $rating,
+                   external_id = $externalId,
+                   updated_at = $now
+             WHERE id = $id
+            RETURNING {Columns};
+            """);
+        command.Parameters.AddWithValue("$id", id);
+        command.Parameters.AddWithValue("$title", title ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$overview", overview ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$runtime", runtimeMinutes ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$airDate", airDate ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$stillPath", stillPath ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$rating", rating ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$externalId", externalId ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$now", now.ToString("O"));
+        return ReadOne(command) ?? throw new KeyNotFoundException($"TV episode {id} was not found.");
     }
 
     public void Delete(int id)
@@ -213,6 +251,14 @@ public sealed class TvEpisodeRepository(SqliteConnection connection, SqliteTrans
         return result;
     }
 
+    private static DateTimeOffset? ParseEpisodeAirDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        if (DateTimeOffset.TryParse(value, null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed)) return parsed;
+        if (DateTimeOffset.TryParse(value, out var parsedFallback)) return parsedFallback;
+        return null;
+    }
+
     internal static TvEpisode Map(SqliteDataReader reader) => new(
         reader.GetInt32(0),
         reader.GetInt32(1),
@@ -220,7 +266,10 @@ public sealed class TvEpisodeRepository(SqliteConnection connection, SqliteTrans
         reader.IsDBNull(3) ? null : reader.GetString(3),
         reader.IsDBNull(4) ? null : reader.GetString(4),
         reader.IsDBNull(5) ? null : reader.GetInt32(5),
-        reader.IsDBNull(6) ? null : MovieRepository.ParseTimestamp(reader.GetString(6)),
+        reader.IsDBNull(6) ? null : ParseEpisodeAirDate(reader.GetString(6)),
         MovieRepository.ParseTimestamp(reader.GetString(7)),
-        MovieRepository.ParseTimestamp(reader.GetString(8)));
+        MovieRepository.ParseTimestamp(reader.GetString(8)),
+        stillReference: reader.IsDBNull(9) ? null : reader.GetString(9),
+        rating: reader.IsDBNull(10) ? null : reader.GetDouble(10),
+        externalId: reader.IsDBNull(11) ? null : reader.GetString(11));
 }

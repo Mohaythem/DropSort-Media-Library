@@ -9,7 +9,7 @@ namespace DropSort.Infrastructure.Persistence.Repositories;
 public sealed class TvSeasonRepository(SqliteConnection connection, SqliteTransaction? transaction = null)
     : ITvSeasonRepository
 {
-    private const string Columns = "id, show_id, season_number, title, overview, created_at, updated_at";
+    private const string Columns = "id, show_id, season_number, title, overview, created_at, updated_at, poster_path, air_date, external_id";
 
     public TvSeason? GetById(int id)
     {
@@ -52,6 +52,36 @@ public sealed class TvSeasonRepository(SqliteConnection connection, SqliteTransa
         return ReadOne(command) ?? throw new InvalidOperationException("Inserting a season returned no row.");
     }
 
+    public TvSeason UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        string? posterPath,
+        string? airDate,
+        string? externalId,
+        DateTimeOffset now)
+    {
+        using var command = Command($"""
+            UPDATE tv_seasons
+               SET title = $title,
+                   overview = $overview,
+                   poster_path = $posterPath,
+                   air_date = $airDate,
+                   external_id = $externalId,
+                   updated_at = $now
+             WHERE id = $id
+            RETURNING {Columns};
+            """);
+        command.Parameters.AddWithValue("$id", id);
+        command.Parameters.AddWithValue("$title", title ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$overview", overview ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$posterPath", posterPath ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$airDate", airDate ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$externalId", externalId ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("$now", now.ToString("O"));
+        return ReadOne(command) ?? throw new KeyNotFoundException($"TV season {id} was not found.");
+    }
+
     public void Delete(int id)
     {
         using var command = Command("DELETE FROM tv_seasons WHERE id = $id;");
@@ -92,5 +122,8 @@ public sealed class TvSeasonRepository(SqliteConnection connection, SqliteTransa
         reader.IsDBNull(3) ? null : reader.GetString(3),
         reader.IsDBNull(4) ? null : reader.GetString(4),
         MovieRepository.ParseTimestamp(reader.GetString(5)),
-        MovieRepository.ParseTimestamp(reader.GetString(6)));
+        MovieRepository.ParseTimestamp(reader.GetString(6)),
+        posterReference: reader.IsDBNull(7) ? null : reader.GetString(7),
+        airDate: reader.IsDBNull(8) ? null : reader.GetString(8),
+        externalId: reader.IsDBNull(9) ? null : reader.GetString(9));
 }

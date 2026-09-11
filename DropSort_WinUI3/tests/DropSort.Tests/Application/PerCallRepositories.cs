@@ -168,6 +168,21 @@ internal sealed class PerCallTvSeasonRepository(ICatalogUnitOfWorkFactory factor
         return season;
     }
 
+    public DropSort.Domain.Library.Shows.TvSeason UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        string? posterPath,
+        string? airDate,
+        string? externalId,
+        DateTimeOffset now)
+    {
+        using var work = factory.Begin();
+        var season = work.TvSeasons.UpdateMetadata(id, title, overview, posterPath, airDate, externalId, now);
+        work.Commit();
+        return season;
+    }
+
     public void Delete(int id)
     {
         using var work = factory.Begin();
@@ -208,6 +223,23 @@ internal sealed class PerCallTvEpisodeRepository(ICatalogUnitOfWorkFactory facto
     {
         using var work = factory.Begin();
         var episode = work.TvEpisodes.Create(seasonId, episodeNumber, title, overview, runtimeMinutes, airDate, now);
+        work.Commit();
+        return episode;
+    }
+
+    public DropSort.Domain.Library.Shows.TvEpisode UpdateMetadata(
+        int id,
+        string? title,
+        string? overview,
+        int? runtimeMinutes,
+        string? airDate,
+        double? rating,
+        string? stillPath,
+        string? externalId,
+        DateTimeOffset now)
+    {
+        using var work = factory.Begin();
+        var episode = work.TvEpisodes.UpdateMetadata(id, title, overview, runtimeMinutes, airDate, rating, stillPath, externalId, now);
         work.Commit();
         return episode;
     }
