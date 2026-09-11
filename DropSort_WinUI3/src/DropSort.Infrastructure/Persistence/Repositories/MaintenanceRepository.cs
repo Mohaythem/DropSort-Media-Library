@@ -18,7 +18,7 @@ public class LibraryMaintenanceRepository : ILibraryMaintenanceRepository
         using var connection = SqliteConnections.Open(_connectionString);
         using var cmd = connection.CreateCommand();
 
-        using var tx = connection.BeginTransaction();
+        using var tx = connection.BeginTransaction(deferred: false);
         
         cmd.Transaction = tx;
         cmd.CommandText = "SELECT COUNT(*) FROM file_operations WHERE state NOT IN ('COMMITTED', 'FAILED');";

@@ -62,7 +62,7 @@ public sealed class FileOperationStore : IFileOperationStore, IDisposable
     public FileOperationRecord Create(FileOperationPlan plan, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        using var transaction = _connection.BeginTransaction();
+        using var transaction = _connection.BeginTransaction(deferred: false);
         if (plan.ReversesOperationId is not null)
         {
             using var check = _connection.CreateCommand();
@@ -99,7 +99,7 @@ public sealed class FileOperationStore : IFileOperationStore, IDisposable
 
     public FileOperationRecord Transition(string id, OperationState newState, OperationUpdate? update = null)
     {
-        using var transaction = _connection.BeginTransaction();
+        using var transaction = _connection.BeginTransaction(deferred: false);
         var result = Transition(id, newState, update ?? new OperationUpdate(), transaction);
         transaction.Commit();
         return result;
@@ -107,7 +107,7 @@ public sealed class FileOperationStore : IFileOperationStore, IDisposable
 
     public FileOperationRecord CommitVerified(string id)
     {
-        using var transaction = _connection.BeginTransaction();
+        using var transaction = _connection.BeginTransaction(deferred: false);
         var current = GetById(id, transaction) ?? throw new KeyNotFoundException($"Operation {id} was not found.");
         if (current.State != OperationState.FsVerified)
             throw new InvalidOperationException($"Expected FsVerified, got {current.State}.");

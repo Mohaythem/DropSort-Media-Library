@@ -24,7 +24,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository
         if (!Enum.IsDefined(preference)) throw new ArgumentOutOfRangeException(nameof(preference));
         if (preference == PersonalPreference.NoOpinion) return ClearPreference(movieId, now);
         using var connection = SqliteConnections.Open(_connectionString);
-        using var transaction = connection.BeginTransaction();
+        using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
         using var command = Command(connection, transaction, """
             INSERT INTO movie_personal_state(movie_id, preference, watchlist_added_at, created_at, updated_at)
@@ -44,7 +44,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository
     {
         ValidateId(movieId, nameof(movieId));
         using var connection = SqliteConnections.Open(_connectionString);
-        using var transaction = connection.BeginTransaction();
+        using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
         using var command = Command(connection, transaction, """
             DELETE FROM movie_personal_state
@@ -65,7 +65,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository
     {
         ValidateId(movieId, nameof(movieId));
         using var connection = SqliteConnections.Open(_connectionString);
-        using var transaction = connection.BeginTransaction();
+        using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
         using var command = Command(connection, transaction, """
             INSERT INTO movie_personal_state(movie_id, preference, watchlist_added_at, created_at, updated_at)
@@ -87,7 +87,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository
     {
         ValidateId(movieId, nameof(movieId));
         using var connection = SqliteConnections.Open(_connectionString);
-        using var transaction = connection.BeginTransaction();
+        using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
         using var command = Command(connection, transaction, """
             DELETE FROM movie_personal_state
@@ -108,7 +108,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository
     {
         ValidateId(movieId, nameof(movieId));
         using var connection = SqliteConnections.Open(_connectionString);
-        using var transaction = connection.BeginTransaction();
+        using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
         using var command = Command(connection, transaction, """
             INSERT INTO watch_events(movie_id, watched_at, created_at) VALUES ($movie, $watched, $created);
@@ -127,7 +127,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository
     {
         ValidateId(eventId, nameof(eventId));
         using var connection = SqliteConnections.Open(_connectionString);
-        using var transaction = connection.BeginTransaction();
+        using var transaction = connection.BeginTransaction(deferred: false);
         using var find = Command(connection, transaction, "SELECT movie_id FROM watch_events WHERE id = $id;");
         find.Parameters.AddWithValue("$id", eventId);
         var movieValue = find.ExecuteScalar();

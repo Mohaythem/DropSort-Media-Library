@@ -62,17 +62,33 @@ internal static class WindowsNative
         ref FileDispositionInformation information,
         uint bufferSize);
 
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    internal static extern bool CreateHardLinkW(
+    private static extern bool CreateHardLinkWInternal(
         string newFileName,
         string existingFileName,
         IntPtr securityAttributes);
 
+    internal static bool CreateHardLinkW(
+        string newFileName,
+        string existingFileName,
+        IntPtr securityAttributes) =>
+        CreateHardLinkWInternal(EnsureExtendedPath(newFileName), EnsureExtendedPath(existingFileName), securityAttributes);
+
+    internal static string EnsureExtendedPath(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return path;
+        if (path.StartsWith(@"\\?\", StringComparison.Ordinal) || path.StartsWith(@"\\.\", StringComparison.Ordinal))
+            return path;
+        if (path.StartsWith(@"\\", StringComparison.Ordinal))
+            return @"\\?\UNC\" + path[2..];
+        return @"\\?\" + path;
+    }
+
     internal static SafeFileHandle OpenLockedSource(string path)
     {
         var handle = CreateFileW(
-            path,
+            EnsureExtendedPath(path),
             GenericRead | Delete,
             FileShareRead,
             IntPtr.Zero,
@@ -86,7 +102,7 @@ internal static class WindowsNative
     internal static SafeFileHandle OpenDirectoryGuard(string path)
     {
         var handle = CreateFileW(
-            path,
+            EnsureExtendedPath(path),
             0,
             FileShareRead | FileShareWrite,
             IntPtr.Zero,
@@ -131,7 +147,7 @@ internal static class WindowsNative
     private static SafeFileHandle OpenReadIdentity(string path)
     {
         var handle = CreateFileW(
-            path,
+            EnsureExtendedPath(path),
             GenericRead,
             FileShareRead | FileShareWrite,
             IntPtr.Zero,

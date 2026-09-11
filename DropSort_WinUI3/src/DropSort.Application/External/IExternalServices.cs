@@ -50,6 +50,7 @@ public interface IFileOperationCoordinator
     FileOperationRecord Execute(string operationId, IReadOnlyList<string> approvedRoots);
     RecoveryInspection InspectRecovery(string operationId, IReadOnlyList<string> approvedRoots);
     FileOperationRecord Recover(string operationId, IReadOnlyList<string> approvedRoots);
+    IReadOnlyList<StaleTempFileInfo> DetectStaleTempFiles(IEnumerable<string> directoryRoots);
 }
 
 public interface IAvailabilityInspector

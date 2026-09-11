@@ -22,7 +22,7 @@ public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
     public CatalogUnitOfWork(string connectionString)
     {
         _connection = SqliteConnections.Open(connectionString);
-        _transaction = _connection.BeginTransaction();
+        _transaction = _connection.BeginTransaction(deferred: false);
         Movies = new MovieRepository(_connection, _transaction);
         MediaFiles = new MediaFileRepository(_connection, _transaction);
         TvShows = new TvShowRepository(_connection, _transaction);

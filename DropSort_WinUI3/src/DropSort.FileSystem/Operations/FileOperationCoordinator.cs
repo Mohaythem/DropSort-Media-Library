@@ -4,6 +4,7 @@ using DropSort.Application.Repositories;
 using DropSort.Domain.Core.Operations;
 using DropSort.Domain.Core.Safety;
 using DropSort.FileSystem.Engine;
+using DropSort.FileSystem.Inspection;
 using DropSort.FileSystem.Safety;
 
 namespace DropSort.FileSystem.Operations;
@@ -117,11 +118,25 @@ public sealed class FileOperationCoordinator : IFileOperationCoordinator, IDispo
         var record = Require(operationId);
         if (record.State is OperationState.Committed or OperationState.Failed)
             return Inspection(record, RecoverySituation.NotRequired, false, "Operation is terminal.");
-        if (record.State is OperationState.Planned or OperationState.Validated)
-            return Inspection(record, RecoverySituation.NotActionable, false, "Filesystem execution has not started.");
 
         var sourceExists = EntryExists(record.Source);
         var destinationExists = EntryExists(record.Destination);
+
+        if (record.State is OperationState.Planned or OperationState.Validated)
+        {
+            var actionable = sourceExists && !destinationExists;
+            return new RecoveryInspection(
+                record.Id,
+                record.State,
+                actionable ? RecoverySituation.SourceOnlyExecuting : RecoverySituation.NotActionable,
+                sourceExists,
+                destinationExists,
+                actionable,
+                actionable
+                    ? "The intact source can be retained and the interrupted operation marked failed."
+                    : "Filesystem execution has not started, but filesystem state is ambiguous.");
+        }
+
         if (sourceExists && destinationExists)
             return new RecoveryInspection(record.Id, record.State, RecoverySituation.BothExist, true, true, false,
                 "Both source and destination exist; DropSort will preserve both.");
@@ -197,6 +212,9 @@ public sealed class FileOperationCoordinator : IFileOperationCoordinator, IDispo
                 return record;
         }
     }
+
+    public IReadOnlyList<StaleTempFileInfo> DetectStaleTempFiles(IEnumerable<string> directoryRoots) =>
+        CrashTempFileInspector.FindStaleTempFiles(directoryRoots);
 
     public void Dispose() => _engine.Dispose();
 

@@ -347,7 +347,7 @@ public class DatabaseMigrator
             if (requiresForeignKeysOff) ExecutePragma(connection, "foreign_keys", "OFF");
             try
             {
-                using var tx = connection.BeginTransaction();
+                using var tx = connection.BeginTransaction(deferred: false);
                 using var cmd = connection.CreateCommand();
                 cmd.Transaction = tx;
                 cmd.CommandText = MigrationScripts[i];

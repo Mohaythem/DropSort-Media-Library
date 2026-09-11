@@ -215,6 +215,7 @@ internal static class AppServices
                 var maintenance = new LibraryMaintenanceRepository(connectionString);
                 operations = new FileOperationStore(connectionString);
                 coordinator = new FileOperationCoordinator(operations);
+                RecoverInterruptedOperations(operations, coordinator, settingsRepository);
 
                 var library = new LibraryService(movies, mediaFiles, personal);
                 var import = new ImportService(
@@ -293,6 +294,83 @@ internal static class AppServices
         _mediaFiles = null;
         _operationStore = null;
         _coordinator = null;
+    }
+
+    private static void RecoverInterruptedOperations(
+        IFileOperationStore operations,
+        IFileOperationCoordinator coordinator,
+        ISettingsRepository settings)
+    {
+        try
+        {
+            var nonterminal = operations.ListNonterminal();
+            if (nonterminal.Count == 0) return;
+
+            var approvedRoots = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { DataFolder };
+            try
+            {
+                var movieFolder = settings.Get("ui_movie_folder");
+                if (!string.IsNullOrEmpty(movieFolder) && Directory.Exists(movieFolder))
+                    approvedRoots.Add(movieFolder);
+                var showFolder = settings.Get("ui_show_folder");
+                if (!string.IsNullOrEmpty(showFolder) && Directory.Exists(showFolder))
+                    approvedRoots.Add(showFolder);
+            }
+            catch { }
+
+            foreach (var op in nonterminal)
+            {
+                try
+                {
+                    var opRoots = new HashSet<string>(approvedRoots, StringComparer.OrdinalIgnoreCase);
+                    var sourceParent = Path.GetDirectoryName(op.Source);
+                    if (!string.IsNullOrEmpty(sourceParent) && Directory.Exists(sourceParent))
+                        opRoots.Add(sourceParent);
+                    var destParent = Path.GetDirectoryName(op.Destination);
+                    if (!string.IsNullOrEmpty(destParent) && Directory.Exists(destParent))
+                        opRoots.Add(destParent);
+
+                    coordinator.Recover(op.Id, opRoots.ToArray());
+                }
+                catch
+                {
+                    // Interrupted recovery on one operation must not prevent recovering others
+                }
+            }
+        }
+        catch
+        {
+            // Interrupted recovery pass must never crash application startup
+        }
+    }
+
+    /// <summary>
+    /// Detects stale .dropsort-*.tmp files across approved directories without automatic deletion.
+    /// </summary>
+    public static IReadOnlyList<DropSort.Domain.Core.Operations.StaleTempFileInfo> DetectStaleTempFiles(IEnumerable<string>? extraRoots = null)
+    {
+        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { DataFolder };
+        try
+        {
+            if (_settingsRepository is not null)
+            {
+                var movieFolder = _settingsRepository.Get("ui_movie_folder");
+                if (!string.IsNullOrEmpty(movieFolder) && Directory.Exists(movieFolder))
+                    roots.Add(movieFolder);
+                var showFolder = _settingsRepository.Get("ui_show_folder");
+                if (!string.IsNullOrEmpty(showFolder) && Directory.Exists(showFolder))
+                    roots.Add(showFolder);
+            }
+        }
+        catch { }
+        if (extraRoots is not null)
+        {
+            foreach (var root in extraRoots)
+            {
+                if (Directory.Exists(root)) roots.Add(root);
+            }
+        }
+        return DropSort.FileSystem.Inspection.CrashTempFileInspector.FindStaleTempFiles(roots);
     }
 
     private static T Require<T>(T? service)

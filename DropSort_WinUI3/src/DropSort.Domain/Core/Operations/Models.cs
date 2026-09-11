@@ -117,3 +117,9 @@ public sealed record RecoveryInspection(
     bool DestinationExists,
     bool CanReconcile,
     string Message);
+
+public sealed record StaleTempFileInfo(
+    string FilePath,
+    string FileName,
+    long SizeBytes,
+    DateTimeOffset LastModifiedUtc);
