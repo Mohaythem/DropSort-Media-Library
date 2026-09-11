@@ -1,5 +1,6 @@
-﻿using System.Globalization;
+using System.Globalization;
 using DropSort.UI.Services;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 
 namespace DropSort.UI.Models;
@@ -152,7 +153,17 @@ public sealed record LibraryIssueRecord(string Item, string Issue);
 /// row is about, so the row action resolves the exact record instead of matching on a file name that
 /// two folders can share; a metadata row has no file and leaves it null.
 /// </summary>
-public sealed record LibraryIssueDisplayRecord(string Item, string Issue, string ActionLabel, int? MediaFileId = null);
+public sealed record LibraryIssueDisplayRecord(
+    string Item,
+    string Issue,
+    string ActionLabel,
+    int? MediaFileId = null,
+    string? RelinkLabel = null)
+{
+    public bool HasMediaFile => MediaFileId.HasValue;
+    public Visibility HasMediaFileVisibility => MediaFileId.HasValue ? Visibility.Visible : Visibility.Collapsed;
+    public string EffectiveRelinkLabel => RelinkLabel ?? LocalizationService.Text("Relink");
+}
 
 public sealed record OperationLogRecord(
     string Timestamp,

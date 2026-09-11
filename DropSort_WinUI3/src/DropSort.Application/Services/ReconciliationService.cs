@@ -78,8 +78,10 @@ public sealed class ReconciliationService : IReconciliationUiActions
             throw new ArgumentException("Candidate path must be absolute.", nameof(candidatePath));
         var canonical = Path.GetFullPath(candidatePath);
         var inspection = _inspector.Inspect(canonical);
-        var matches = inspection.Status == AvailabilityInspectionStatus.Present && inspection.Size == media.FileSize;
-        if (!matches) throw new InvalidOperationException("Candidate file does not match the persisted media facts.");
+        if (inspection.Status != AvailabilityInspectionStatus.Present)
+            throw new InvalidOperationException("Candidate file does not exist or is not accessible.");
+        if (inspection.Size != media.FileSize)
+            throw new InvalidOperationException($"Candidate file size ({inspection.Size:N0} bytes) does not match expected size ({media.FileSize:N0} bytes).");
         var owner = _mediaFiles.GetByPath(canonical);
         if (owner is not null && owner.Id != mediaFileId)
             throw new InvalidOperationException("Another media record already owns the candidate path.");

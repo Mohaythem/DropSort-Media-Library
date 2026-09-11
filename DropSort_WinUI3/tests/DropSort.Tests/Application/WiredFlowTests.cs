@@ -251,6 +251,100 @@ public sealed class WiredFlowTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Relink_lifecycle_present_to_missing_to_relinked_and_verified_on_restart()
+    {
+        var import = NewImportService();
+        var source = WriteMedia("source", "Oppenheimer (2023) 1080p.mkv");
+        var registered = import.RegisterMovieImport(Command(source));
+
+        var inspector = new AvailabilityInspector();
+        var reconciliation = new ReconciliationService(MediaFiles(), inspector, Movies());
+
+        // Initial state: 1 present, 0 missing
+        var initialProgress = reconciliation.CheckLibrary();
+        Assert.Equal(1, initialProgress.TotalMovies);
+        Assert.Equal(0, initialProgress.FileProgress.MissingFiles);
+
+        // Delete original file on disk
+        File.Delete(source);
+
+        // Run reconciliation: file becomes missing
+        var missingProgress = reconciliation.CheckLibrary();
+        Assert.Equal(1, missingProgress.FileProgress.MissingFiles);
+
+        var missingFiles = MediaFiles().ListMissing();
+        Assert.Single(missingFiles);
+        Assert.Equal(registered.MediaFile.Id, missingFiles[0].Id);
+        Assert.Equal(MediaFileStatus.Missing, missingFiles[0].Status);
+
+        // Prepare replacement file in a different directory with matching size (2048 bytes)
+        var replacement = WriteMedia("replacement", "Oppenheimer.2023.Repaired.mkv");
+
+        // Prepare relink and verify candidate is not mutated
+        var preview = reconciliation.PrepareMediaRelink(registered.MediaFile.Id, replacement);
+        Assert.NotNull(preview);
+        Assert.Equal(replacement, preview.CandidatePath);
+        Assert.True(File.Exists(replacement), "Candidate file must not be moved or deleted during prepare.");
+
+        // Confirm relink
+        var result = reconciliation.ConfirmMediaRelink(preview.PreviewId);
+        Assert.NotNull(result);
+        Assert.Equal(replacement, result.MediaFile.CurrentPath);
+        Assert.Equal(MediaFileStatus.Present, result.MediaFile.Status);
+        Assert.True(File.Exists(replacement), "Candidate file must not be moved or deleted during confirm.");
+
+        // Restart simulation: fresh service instances reading from the database
+        var freshReconciliation = new ReconciliationService(MediaFiles(), inspector, Movies());
+        var restartProgress = freshReconciliation.CheckLibrary();
+        Assert.Equal(0, restartProgress.FileProgress.MissingFiles);
+        Assert.Equal(1, restartProgress.FileProgress.CheckedFiles);
+        Assert.Empty(MediaFiles().ListMissing());
+
+        var updatedMedia = MediaFiles().GetById(registered.MediaFile.Id);
+        Assert.NotNull(updatedMedia);
+        Assert.Equal(replacement, updatedMedia.CurrentPath);
+        Assert.Equal(MediaFileStatus.Present, updatedMedia.Status);
+    }
+
+    [Fact]
+    public void Relink_validates_candidate_existence_size_and_collisions_before_mutation()
+    {
+        var import = NewImportService();
+        var fileA = WriteMedia("sourceA", "Movie A (2024).mkv");
+        var fileB = WriteMedia("sourceB", "Movie B (2024).mkv");
+
+        var regA = import.RegisterMovieImport(Command(fileA));
+        var regB = import.RegisterMovieImport(Command(fileB));
+
+        var inspector = new AvailabilityInspector();
+        var reconciliation = new ReconciliationService(MediaFiles(), inspector, Movies());
+
+        // Attempting to relink a file that is still PRESENT must fail
+        Assert.Throws<InvalidOperationException>(() =>
+            reconciliation.PrepareMediaRelink(regA.MediaFile.Id, fileA));
+
+        // Delete fileA to make it missing
+        File.Delete(fileA);
+        reconciliation.ReconcileLibraryFiles();
+
+        // 1. Candidate does not exist
+        Assert.Throws<InvalidOperationException>(() =>
+            reconciliation.PrepareMediaRelink(regA.MediaFile.Id, Path.Combine(_workspace, "does_not_exist.mkv")));
+
+        // 2. Candidate size mismatch (file is 4096 bytes, media A was 2048 bytes)
+        var wrongSize = Path.Combine(_workspace, "wrong_size.mkv");
+        File.WriteAllBytes(wrongSize, new byte[4096]);
+        var sizeEx = Assert.Throws<InvalidOperationException>(() =>
+            reconciliation.PrepareMediaRelink(regA.MediaFile.Id, wrongSize));
+        Assert.Contains("does not match expected size", sizeEx.Message);
+
+        // 3. Collision: candidate path already belongs to active media file B
+        var collisionEx = Assert.Throws<InvalidOperationException>(() =>
+            reconciliation.PrepareMediaRelink(regA.MediaFile.Id, fileB));
+        Assert.Contains("already owns", collisionEx.Message);
+    }
+
     /// <summary>
     /// A writable folder on a volume other than the workspace's, or null when there is only one. The
     /// transfer engine picks copy-and-verify instead of rename when the destination is another volume,

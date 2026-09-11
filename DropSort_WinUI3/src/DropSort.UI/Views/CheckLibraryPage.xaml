@@ -161,13 +161,25 @@
                                                     Text="{x:Bind Issue}"
                                                     TextTrimming="CharacterEllipsis" />
                                             </StackPanel>
-                                            <Button
+                                            <StackPanel
                                                 Grid.Column="2"
-                                                VerticalAlignment="Center"
-                                                Click="IssueAction_Click"
-                                                Content="{x:Bind ActionLabel}"
-                                                Tag="{x:Bind MediaFileId}"
-                                                Style="{StaticResource SubtleControlButtonStyle}" />
+                                                Orientation="Horizontal"
+                                                Spacing="8"
+                                                VerticalAlignment="Center">
+                                                <Button
+                                                    x:Name="RelinkButton"
+                                                    Click="RelinkAction_Click"
+                                                    Content="{x:Bind EffectiveRelinkLabel, Mode=OneTime}"
+                                                    Tag="{x:Bind MediaFileId}"
+                                                    Visibility="{x:Bind HasMediaFileVisibility, Mode=OneTime}"
+                                                    Style="{StaticResource AccentControlButtonStyle}" />
+                                                <Button
+                                                    x:Name="IssueActionButton"
+                                                    Click="IssueAction_Click"
+                                                    Content="{x:Bind ActionLabel}"
+                                                    Tag="{x:Bind MediaFileId}"
+                                                    Style="{StaticResource SubtleControlButtonStyle}" />
+                                            </StackPanel>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>

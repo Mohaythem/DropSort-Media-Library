@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using Microsoft.UI.Xaml;
 
@@ -163,6 +163,10 @@ public static class LocalizationService
         ["IssueEpisodeMissing"] = "Episode file is missing",
         ["IssueMovieMissing"] = "Movie file is missing",
         ["IssueMetadataReview"] = "Metadata needs review",
+        ["Relink"] = "Relink…",
+        ["RelinkTitle"] = "Relink Missing Media",
+        ["RelinkConfirmMessage"] = "Are you sure you want to relink this media to the selected file?\n\nOriginal: {0}\nNew: {1}\nSize: {2:N0} bytes",
+        ["RelinkSuccess"] = "Media successfully relinked.",
 
         // Operations Log
         ["EntryFormat"] = "{0} entry",
@@ -445,6 +449,10 @@ public static class LocalizationService
         ["IssueEpisodeMissing"] = "ملف الحلقة مفقود",
         ["IssueMovieMissing"] = "ملف الفيلم مفقود",
         ["IssueMetadataReview"] = "البيانات الوصفية تحتاج مراجعة",
+        ["Relink"] = "إعادة ربط…",
+        ["RelinkTitle"] = "إعادة ربط الوسائط المفقودة",
+        ["RelinkConfirmMessage"] = "هل أنت متأكد من رغبتك في إعادة ربط هذا الملف بالملف المحدد؟\n\nالأصلي: {0}\nالجديد: {1}\nالحجم: {2:N0} بايت",
+        ["RelinkSuccess"] = "تمت إعادة ربط الوسائط بنجاح.",
 
         // Operations Log
         ["EntryFormat"] = "سجل واحد",

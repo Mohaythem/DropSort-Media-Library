@@ -207,7 +207,8 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
                 LocalizationService.Text(
                     _missingEpisodeFiles.Contains(missing.Id) ? "IssueEpisodeFileMissing" : "IssueMovieMissing"),
                 LocalizationService.Text("OpenFolder"),
-                missing.Id));
+                missing.Id,
+                LocalizationService.Text("Relink")));
         }
 
         foreach (var item in result.CurrentIssues)
@@ -292,6 +293,83 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     {
         _cancellation?.Cancel();
         CancelCheckButton.IsEnabled = false;
+    }
+
+    private async void RelinkAction_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: int mediaFileId })
+        {
+            return;
+        }
+
+        var missing = _missing.FirstOrDefault(file => file.Id == mediaFileId);
+        if (missing is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            picker.FileTypeFilter.Add("*");
+            WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindow.WindowHandle);
+
+            var picked = await picker.PickSingleFileAsync();
+            if (picked is null)
+            {
+                return;
+            }
+
+            var candidatePath = picked.Path;
+
+            // 1. Validate candidate before mutation
+            var preview = AppServices.Reconciliation.PrepareMediaRelink(mediaFileId, candidatePath);
+
+            // 2. Show confirmation dialog
+            var message = LocalizationService.Format(
+                "RelinkConfirmMessage",
+                missing.CurrentPath,
+                candidatePath,
+                missing.FileSize);
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                RequestedTheme = ThemeService.ElementTheme,
+                FlowDirection = LocalizationService.FlowDirection,
+                Title = LocalizationService.Text("RelinkTitle"),
+                Content = message,
+                PrimaryButtonText = LocalizationService.Text("Confirm"),
+                CloseButtonText = LocalizationService.Text("Cancel"),
+                DefaultButton = ContentDialogButton.Primary,
+            };
+
+            var dialogResult = await dialog.ShowAsync();
+            if (dialogResult != ContentDialogResult.Primary)
+            {
+                AppServices.Reconciliation.DiscardMediaRelinkPreview(preview.PreviewId);
+                return;
+            }
+
+            // 3. Confirm relink (updates SQLite record, does not move/delete candidate file)
+            AppServices.Reconciliation.ConfirmMediaRelink(preview.PreviewId);
+
+            // 4. Immediate UI update
+            _missing = _missing.Where(file => file.Id != mediaFileId).ToList();
+            _missingEpisodeFiles.Remove(mediaFileId);
+
+            Refresh();
+
+            await ShowMessageAsync(
+                LocalizationService.Text("Success"),
+                LocalizationService.Text("RelinkSuccess"));
+        }
+        catch (Exception error)
+        {
+            await ShowMessageAsync(
+                LocalizationService.Text("Failed"),
+                error.Message);
+        }
     }
 
     /// <summary>

@@ -383,6 +383,63 @@ public sealed class TvHierarchyTests : IDisposable
         Assert.Equal(3, Directory.GetFiles(_workspace, "*.mkv").Length);
     }
 
+    [Fact]
+    public void Relink_lifecycle_tv_episode_file_repoints_episode_and_clears_missing()
+    {
+        var import = NewImportService();
+        var path = WriteMedia("Severance.S01E01.1080p.mkv");
+        var registered = import.RegisterEpisodeImport(Command(path));
+
+        var inspector = new AvailabilityInspector();
+        var reconciliation = new ReconciliationService(MediaFiles(), inspector, Movies());
+        var tv = NewTvService();
+
+        // 1. Initial health check: healthy
+        var initial = reconciliation.CheckLibrary();
+        Assert.Equal(0, initial.FileProgress.MissingFiles);
+
+        // 2. Delete episode file on disk and reconcile: marks missing
+        File.Delete(path);
+        reconciliation.ReconcileLibraryFiles();
+
+        var missing = MediaFiles().ListMissing();
+        Assert.Single(missing);
+        Assert.Equal(registered.MediaFile.Id, missing[0].Id);
+        Assert.Equal(MediaFileStatus.Missing, missing[0].Status);
+
+        var episodeId = tv.FindEpisodeForMediaFile(registered.MediaFile.Id);
+        Assert.NotNull(episodeId);
+
+        // 3. Prepare replacement file (same size 2048 bytes)
+        var replacement = WriteMedia("Severance.S01E01.Repaired.1080p.mkv");
+
+        // 4. Prepare relink (validates existence, size, collisions without moving/deleting file)
+        var preview = reconciliation.PrepareMediaRelink(registered.MediaFile.Id, replacement);
+        Assert.NotNull(preview);
+        Assert.Equal(replacement, preview.CandidatePath);
+        Assert.True(File.Exists(replacement), "Candidate file must not be moved or deleted during prepare.");
+
+        // 5. Confirm relink
+        var result = reconciliation.ConfirmMediaRelink(preview.PreviewId);
+        Assert.NotNull(result);
+        Assert.Equal(replacement, result.MediaFile.CurrentPath);
+        Assert.Equal(MediaFileStatus.Present, result.MediaFile.Status);
+        Assert.True(File.Exists(replacement), "Candidate file must not be moved or deleted during confirm.");
+
+        // 6. Verify TV episode points to the new path
+        var episodeFiles = tv.ListEpisodeFiles(episodeId.Value);
+        Assert.Single(episodeFiles);
+        Assert.Equal(replacement, episodeFiles[0].CurrentPath);
+        Assert.Equal(MediaFileStatus.Present, episodeFiles[0].Status);
+
+        // 7. Restart simulation: fresh service instances reading from database
+        var freshReconciliation = new ReconciliationService(MediaFiles(), inspector, Movies());
+        var restartHealth = freshReconciliation.CheckLibrary();
+        Assert.Equal(0, restartHealth.FileProgress.MissingFiles);
+        Assert.Equal(1, restartHealth.FileProgress.CheckedFiles);
+        Assert.Empty(MediaFiles().ListMissing());
+    }
+
     private static long Scalar(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
