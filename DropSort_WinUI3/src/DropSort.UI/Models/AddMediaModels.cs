@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using DropSort.Application.Dto;
 using DropSort.Domain.Media.Discovery;
 using DropSort.Domain.Media.Parser;
 using DropSort.UI.Services;
@@ -12,6 +13,8 @@ namespace DropSort.UI.Models;
 public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
 {
     private bool _isSelected;
+    private bool _isImporting;
+    private ImportItemStatus _status = ImportItemStatus.ReadyToAdd;
 
     public DetectedMediaDisplayRecord(DiscoveredMedia item)
     {
@@ -38,6 +41,42 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
             _isSelected = selected;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelected)));
         }
+    }
+
+    /// <summary>Whether the row can still be changed while an import is running.</summary>
+    public bool IsSelectionEnabled => CanSelect && !_isImporting;
+
+    public ImportItemStatus Status => _status;
+
+    public void SetImporting(bool importing)
+    {
+        if (_isImporting == importing)
+        {
+            return;
+        }
+
+        _isImporting = importing;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelectionEnabled)));
+    }
+
+    public void SetImportStatus(ImportItemStatus status)
+    {
+        if (_status == status)
+        {
+            return;
+        }
+
+        _status = status;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
+    }
+
+    public void RefreshLocalization()
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(TypeLabel)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AutomationName)));
     }
 
     public string TypeLabel => Item.Classification switch
@@ -83,8 +122,23 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
     }
 
     public string StatusLabel => CanSelect
-        ? LocalizationService.Text("Ready")
+        ? _status switch
+        {
+            ImportItemStatus.ReadyToAdd => LocalizationService.Text("ReadyToAdd"),
+            ImportItemStatus.Matching => LocalizationService.Text("Matching"),
+            ImportItemStatus.Matched => LocalizationService.Text("Matched"),
+            ImportItemStatus.NeedsMatch => LocalizationService.Text("NeedsMatch"),
+            ImportItemStatus.MetadataUnavailable => LocalizationService.Text("MetadataUnavailable"),
+            ImportItemStatus.MetadataError => LocalizationService.Text("MetadataError"),
+            ImportItemStatus.MetadataCancelled => LocalizationService.Text("ImportMetadataCancelled"),
+            ImportItemStatus.RegistrationFailed => LocalizationService.Text("RegistrationFailed"),
+            _ => LocalizationService.Text("ReadyToAdd"),
+        }
         : LocalizationService.Text("NeedsReview");
+
+    public string AutomationName => string.Join(" · ",
+        new[] { TypeLabel, Title, Details, FileName }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
 
     public bool NeedsReview => !CanSelect;
 

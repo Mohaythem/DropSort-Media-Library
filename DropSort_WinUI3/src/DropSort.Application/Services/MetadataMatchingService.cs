@@ -49,7 +49,7 @@ public sealed class MetadataMatchingService
         var snapshot = ReadMovieSnapshot(movieId);
         EnsureExpectedMetadataStatus(snapshot.MetadataStatus, expectedMetadataStatus);
         var metadata = await _metadataProvider.GetMovieAsync(candidate.ExternalId, ct)
-            ?? throw new InvalidOperationException($"Could not retrieve metadata for movie ID '{candidate.ExternalId}'.");
+            ?? throw new MetadataServiceException(MetadataFailureKind.NotFound);
 
         using var uow = _uowFactory.Begin();
         var movie = uow.Movies.GetById(movieId)
@@ -87,6 +87,19 @@ public sealed class MetadataMatchingService
             _ = _posterService.EnsurePosterCachedAsync(candidate.Provider, metadata.PosterReference, ct);
         }
         return updatedMovie;
+    }
+
+    public Movie SetMovieMetadataStatus(int movieId, MetadataStatus status, MetadataStatus expectedStatus)
+    {
+        using var uow = _uowFactory.Begin();
+        var movie = uow.Movies.GetById(movieId) ?? throw new InvalidOperationException($"Movie {movieId} not found.");
+        EnsureExpectedMetadataStatus(movie.MetadataStatus, expectedStatus);
+        var data = new MovieCatalogData(movie.Provider, movie.ExternalId, movie.Title, movie.OriginalTitle,
+            movie.Year, movie.Overview, movie.Genres, movie.RuntimeMinutes, movie.Rating,
+            movie.PosterReference, status, movie.BackdropReference, movie.Tagline);
+        var updated = uow.Movies.UpdateMetadata(movieId, data, _clock());
+        uow.Commit();
+        return updated;
     }
 
     public async Task<Movie?> RefreshMovieMetadataAsync(int movieId, CancellationToken ct = default)
@@ -169,7 +182,7 @@ public sealed class MetadataMatchingService
         var snapshot = ReadShowSnapshot(showId);
         EnsureExpectedMetadataStatus(snapshot.MetadataStatus, expectedMetadataStatus);
         var showMetadata = await _metadataProvider.GetTvShowAsync(candidate.ExternalId, ct)
-            ?? throw new InvalidOperationException($"Could not retrieve metadata for TV show ID '{candidate.ExternalId}'.");
+            ?? throw new MetadataServiceException(MetadataFailureKind.NotFound);
 
         return await ApplyTvShowMetadataAsync(
             showId,
@@ -180,6 +193,19 @@ public sealed class MetadataMatchingService
             ct,
             snapshot,
             expectedMetadataStatus);
+    }
+
+    public TvShow SetTvShowMetadataStatus(int showId, MetadataStatus status, MetadataStatus expectedStatus)
+    {
+        using var uow = _uowFactory.Begin();
+        var show = uow.TvShows.GetById(showId) ?? throw new InvalidOperationException($"Show {showId} not found.");
+        EnsureExpectedMetadataStatus(show.MetadataStatus, expectedStatus);
+        var data = new TvShowCatalogData(show.Data.Provider, show.Data.ExternalId, show.Title,
+            show.Data.OriginalTitle, show.Data.Year, show.Data.Overview, show.Data.Genres,
+            show.Data.PosterReference, status, show.Data.Rating, show.Data.BackdropReference, show.Data.Tagline);
+        var updated = uow.TvShows.UpdateMetadata(showId, data, _clock());
+        uow.Commit();
+        return updated;
     }
 
     public async Task<TvShow?> RefreshTvShowMetadataAsync(int showId, bool fetchEpisodes = true, CancellationToken ct = default)

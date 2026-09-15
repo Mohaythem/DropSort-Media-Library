@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using DropSort.Application.External;
 using DropSort.Domain.Library.Movies;
 using DropSort.Domain.Media.Discovery;
 using DropSort.Domain.Media.Parser;
@@ -23,7 +24,7 @@ public record MovieDetails(
     string? PosterReference, 
     IReadOnlyList<MediaFile> MediaFiles);
 
-public record MovieFileIngestionResult(Movie Movie, MediaFile MediaFile);
+public record MovieFileIngestionResult(Movie Movie, MediaFile MediaFile, bool AlreadyRegistered = false);
 
 public record ConfirmMovieImportCommand(
     string FilePath,
@@ -36,6 +37,18 @@ public record ImportReviewProgress(int FilesDiscovered, int FilesProcessed, stri
 
 public record ImportReviewSession(IReadOnlyList<DiscoveredMedia> Items);
 
+public enum ImportItemStatus
+{
+    ReadyToAdd,
+    Matching,
+    Matched,
+    NeedsMatch,
+    MetadataUnavailable,
+    MetadataError,
+    MetadataCancelled,
+    RegistrationFailed
+}
+
 /// <summary>A discovered item selected by the user for local registration.</summary>
 public record ImportSelection(DiscoveredMedia Item);
 
@@ -46,13 +59,24 @@ public record ImportItemResult(
     bool Registered,
     bool AutoMatched,
     MatchStatus? MatchStatus = null,
-    string? Failure = null);
+    string? Failure = null,
+    ImportItemStatus Status = ImportItemStatus.ReadyToAdd,
+    MetadataFailureKind? MetadataFailureKind = null,
+    bool AlreadyRegistered = false);
 
 /// <summary>Batch import results; metadata failures never undo successful local registration.</summary>
 public record ImportBatchResult(IReadOnlyList<ImportItemResult> Items)
 {
     public int RegisteredCount => Items.Count(item => item.Registered);
     public int AutoMatchedCount => Items.Count(item => item.AutoMatched);
+    public int AddedCount => Items.Count(item => item.Registered && !item.AlreadyRegistered);
+    public int ExistingCount => Items.Count(item => item.Registered && item.AlreadyRegistered);
+    public int MatchedCount => Items.Count(item => item.Status == ImportItemStatus.Matched);
+    public int NeedsMatchCount => Items.Count(item => item.Status == ImportItemStatus.NeedsMatch);
+    public int MetadataUnavailableCount => Items.Count(item => item.Status == ImportItemStatus.MetadataUnavailable);
+    public int MetadataErrorsCount => Items.Count(item => item.Status == ImportItemStatus.MetadataError);
+    public int MetadataCancelledCount => Items.Count(item => item.Status == ImportItemStatus.MetadataCancelled);
+    public int RegistrationFailuresCount => Items.Count(item => item.Status == ImportItemStatus.RegistrationFailed);
 }
 
 public record ManualMovieSearchResult(IReadOnlyList<MovieCandidate> Candidates);

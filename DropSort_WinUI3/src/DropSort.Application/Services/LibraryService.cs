@@ -52,7 +52,9 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
     {
         var files = _mediaFiles.GetByMovieId(movie.Id);
         bool isMissing = files.Count == 0 || files.All(f => f.Status == MediaFileStatus.Missing);
-        bool pending = movie.MetadataStatus == MetadataStatus.Pending || movie.MetadataStatus == MetadataStatus.NeedsMatch;
+        bool pending = movie.MetadataStatus is MetadataStatus.Pending
+            or MetadataStatus.NeedsMatch
+            or MetadataStatus.Failed;
         return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, isMissing, pending);
     }
 

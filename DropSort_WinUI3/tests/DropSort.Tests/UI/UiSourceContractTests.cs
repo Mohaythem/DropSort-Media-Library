@@ -487,6 +487,32 @@ public sealed class UiSourceContractTests
         Assert.Contains("[\"AddSelectedFormat\"] = \"Add selected ({0})\"", localization, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Add_media_separates_local_readiness_from_metadata_outcomes()
+    {
+        var model = Read("Models", "AddMediaModels.cs");
+        var page = Read("Views", "AddMediaPage.xaml.cs");
+        var localization = Read("Services", "LocalizationService.cs");
+
+        Assert.Contains("ImportItemStatus.ReadyToAdd", model, StringComparison.Ordinal);
+        Assert.Contains("ImportItemStatus.Matching", model, StringComparison.Ordinal);
+        Assert.Contains("ImportItemStatus.Matched", model, StringComparison.Ordinal);
+        Assert.Contains("ImportItemStatus.NeedsMatch", model, StringComparison.Ordinal);
+        Assert.Contains("ImportItemStatus.MetadataUnavailable", model, StringComparison.Ordinal);
+        Assert.Contains("ImportItemStatus.MetadataError", model, StringComparison.Ordinal);
+        Assert.Contains("private ImportItemStatus _status = ImportItemStatus.ReadyToAdd;", model, StringComparison.Ordinal);
+        Assert.Contains("ImportItemStatus.ReadyToAdd => LocalizationService.Text(\"ReadyToAdd\")", model, StringComparison.Ordinal);
+        Assert.Contains("ImportAddedFormat", page, StringComparison.Ordinal);
+        Assert.Contains("ImportMatchedFormat", page, StringComparison.Ordinal);
+        Assert.Contains("ImportNeedsMatchFormat", page, StringComparison.Ordinal);
+        Assert.Contains("ImportMetadataErrorsFormat", page, StringComparison.Ordinal);
+        Assert.Contains("[\"ReadyToAdd\"] = \"Ready to add\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"MetadataUnavailable\"] = \"Metadata unavailable\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"NeedsMatch\"] = \"Needs match\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"ReadyToAdd\"] = \"جاهز للإضافة\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"MetadataUnavailable\"] = \"البيانات الوصفية غير متاحة\"", localization, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Only the composition root knows about Infrastructure and FileSystem, and only it knows where the
     /// data folder is. A view that built either for itself would be a second source of truth.

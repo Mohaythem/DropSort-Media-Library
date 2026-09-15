@@ -125,14 +125,14 @@
                                                 </Grid.ColumnDefinitions>
                                                 <CheckBox
                                                     VerticalAlignment="Center"
-                                                    AutomationProperties.Name="{x:Bind Title}"
+                                                    AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
                                                     IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
-                                                    IsEnabled="{x:Bind CanSelect}" />
+                                                    IsEnabled="{x:Bind IsSelectionEnabled, Mode=OneWay}" />
                                                 <TextBlock
                                                     Grid.Column="1"
                                                     VerticalAlignment="Center"
                                                     Style="{StaticResource SecondaryBodyTextStyle}"
-                                                    Text="{x:Bind TypeLabel}" />
+                                                    Text="{x:Bind TypeLabel, Mode=OneWay}" />
                                                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
                                                     <TextBlock
                                                         Style="{StaticResource BodyStrongTextBlockStyle}"
@@ -147,13 +147,13 @@
                                                     Grid.Column="3"
                                                     VerticalAlignment="Center"
                                                     Style="{StaticResource SecondaryBodyTextStyle}"
-                                                    Text="{x:Bind Details}"
+                                                    Text="{x:Bind Details, Mode=OneWay}"
                                                     TextTrimming="CharacterEllipsis" />
                                                 <TextBlock
                                                     Grid.Column="4"
                                                     VerticalAlignment="Center"
                                                     Style="{StaticResource SecondaryBodyTextStyle}"
-                                                    Text="{x:Bind StatusLabel}" />
+                                                    Text="{x:Bind StatusLabel, Mode=OneWay}" />
                                             </Grid>
                                         </Border>
                                     </DataTemplate>

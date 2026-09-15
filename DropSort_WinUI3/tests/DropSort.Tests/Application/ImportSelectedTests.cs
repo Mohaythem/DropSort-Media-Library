@@ -11,6 +11,7 @@ using DropSort.Application.Services;
 using DropSort.Domain.Media.Discovery;
 using DropSort.Domain.Media.Parser;
 using DropSort.Domain.Library.Movies;
+using DropSort.Domain.Media.Matcher;
 using DropSort.Domain.Metadata.Contracts;
 using DropSort.FileSystem.Discovery;
 using DropSort.Infrastructure.Persistence.Migrations;
@@ -104,7 +105,7 @@ public sealed class ImportSelectedTests : IDisposable
     }
 
     [Fact]
-    public async Task MatchedMovie_IsEnriched_AndAmbiguousMovieStaysPending()
+    public async Task AmbiguousMovie_IsReportedAsNeedsMatch_AndPersistsNeedsMatch()
     {
         var provider = new CountingProvider { MovieCandidates = [Candidate("Exact", "1"), Candidate("Exact", "2")] };
         var service = CreateService(provider);
@@ -114,8 +115,11 @@ public sealed class ImportSelectedTests : IDisposable
 
         Assert.True(result.Items[0].Registered);
         Assert.False(result.Items[0].AutoMatched);
+        Assert.Equal(ImportItemStatus.NeedsMatch, result.Items[0].Status);
+        Assert.Equal(MatchStatus.ReviewRequired, result.Items[0].MatchStatus);
+        Assert.Equal(1, result.NeedsMatchCount);
         using var uow = _factory.Begin();
-        Assert.Equal(MetadataStatus.Pending, uow.Movies.ListAll().Single().MetadataStatus);
+        Assert.Equal(MetadataStatus.NeedsMatch, uow.Movies.ListAll().Single().MetadataStatus);
     }
 
     [Fact]
@@ -129,10 +133,66 @@ public sealed class ImportSelectedTests : IDisposable
 
         Assert.True(result.Items[0].Registered);
         Assert.True(result.Items[0].AutoMatched);
+        Assert.Equal(ImportItemStatus.Matched, result.Items[0].Status);
+        Assert.Equal(1, result.MatchedCount);
         using var uow = _factory.Begin();
         var movie = uow.Movies.ListAll().Single();
         Assert.Equal(MetadataStatus.Ready, movie.MetadataStatus);
         Assert.Equal("1", movie.ExternalId);
+    }
+
+    [Fact]
+    public async Task NoMovieCandidate_IsReportedAsNeedsMatch_AndRemainsLocallyRegistered()
+    {
+        var provider = new CountingProvider { MovieCandidates = [] };
+        var service = CreateService(provider);
+        var selected = Discovered("NoMatch.mkv", MediaType.Movie, "No Match", 2020);
+
+        var result = await service.ImportSelectedAsync([new ImportSelection(selected)]);
+
+        Assert.True(result.Items[0].Registered);
+        Assert.Equal(ImportItemStatus.NeedsMatch, result.Items[0].Status);
+        Assert.Equal(MatchStatus.NoMatch, result.Items[0].MatchStatus);
+        Assert.Equal(1, result.NeedsMatchCount);
+        using var uow = _factory.Begin();
+        Assert.Equal(MetadataStatus.NeedsMatch, uow.Movies.ListAll().Single().MetadataStatus);
+    }
+
+    [Fact]
+    public async Task InvalidCredential_IsReportedAsMetadataError_AndDoesNotBecomeNeedsMatch()
+    {
+        var provider = new CountingProvider { MovieSearchFailureKind = MetadataFailureKind.Authentication };
+        var service = CreateService(provider);
+        var selected = Discovered("InvalidToken.mkv", MediaType.Movie, "Invalid Token", 2020);
+
+        var result = await service.ImportSelectedAsync([new ImportSelection(selected)]);
+
+        Assert.True(result.Items[0].Registered);
+        Assert.Equal(ImportItemStatus.MetadataError, result.Items[0].Status);
+        Assert.Equal(MetadataFailureKind.Authentication, result.Items[0].MetadataFailureKind);
+        Assert.Equal(0, result.NeedsMatchCount);
+        Assert.Equal(1, result.MetadataErrorsCount);
+        using var uow = _factory.Begin();
+        Assert.Equal(MetadataStatus.Failed, uow.Movies.ListAll().Single().MetadataStatus);
+    }
+
+    [Fact]
+    public async Task ResultCountsSeparateAddedExistingMatchedPendingAndMetadataErrors()
+    {
+        var provider = new CountingProvider { MovieCandidates = [Candidate("Exact", "1")] };
+        var service = CreateService(provider);
+        var selected = Discovered("Counts.mkv", MediaType.Movie, "Exact", 2020);
+
+        var first = await service.ImportSelectedAsync([new ImportSelection(selected)]);
+        var second = await service.ImportSelectedAsync([new ImportSelection(selected)]);
+
+        Assert.Equal(1, first.AddedCount);
+        Assert.Equal(0, first.ExistingCount);
+        Assert.Equal(1, first.MatchedCount);
+        Assert.Equal(0, first.NeedsMatchCount);
+        Assert.Equal(1, second.ExistingCount);
+        Assert.Equal(0, second.AddedCount);
+        Assert.Equal(1, second.MatchedCount);
     }
 
     [Fact]
@@ -195,6 +255,66 @@ public sealed class ImportSelectedTests : IDisposable
     }
 
     [Fact]
+    public async Task ManualTvMatchDuringAutomaticNoMatch_ReconcilesResult()
+    {
+        var gate = new TaskCompletionSource<IReadOnlyList<TvCandidate>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var provider = new CountingProvider { TvSearchGate = gate };
+        var matching = new MetadataMatchingService(_factory, provider);
+        var service = new ImportService(_factory, provider, matching: matching);
+        var selected = Discovered("Race.Show.S01E01.mkv", MediaType.TvEpisode, "Race Show", 2020, 1, 1);
+
+        var importTask = service.ImportSelectedAsync([new ImportSelection(selected)]);
+        await provider.TvSearchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        int showId;
+        using (var uow = _factory.Begin())
+        {
+            showId = uow.TvShows.ListAll().Single().Id;
+        }
+
+        await matching.MatchTvShowAsync(showId, new TvCandidate("tmdb", "manual-tv-1", "Race Show", null, 2020, null, null, null, null));
+        gate.SetResult([]);
+
+        var result = await importTask;
+
+        Assert.Equal(ImportItemStatus.Matched, result.Items[0].Status);
+        Assert.False(result.Items[0].AutoMatched);
+        using var finalUow = _factory.Begin();
+        Assert.Equal("manual-tv-1", finalUow.TvShows.ListAll().Single().ExternalId);
+    }
+
+    [Fact]
+    public async Task ManualTvMatchDuringAutomaticMatch_ReconcilesStaleResult()
+    {
+        var gate = new TaskCompletionSource<IReadOnlyList<TvCandidate>>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var automaticCandidate = new TvCandidate("tmdb", "automatic-tv-1", "Race Match", null, 2020, null, null, null, null);
+        var provider = new CountingProvider { TvSearchGate = gate };
+        var matching = new MetadataMatchingService(_factory, provider);
+        var service = new ImportService(_factory, provider, matching: matching);
+        var selected = Discovered("Race.Match.S01E01.mkv", MediaType.TvEpisode, "Race Match", 2020, 1, 1);
+
+        var importTask = service.ImportSelectedAsync([new ImportSelection(selected)]);
+        await provider.TvSearchStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        int showId;
+        using (var uow = _factory.Begin())
+        {
+            showId = uow.TvShows.ListAll().Single().Id;
+        }
+
+        await matching.MatchTvShowAsync(showId, new TvCandidate("tmdb", "manual-tv-2", "Race Match", null, 2020, null, null, null, null));
+        gate.SetResult([automaticCandidate]);
+
+        var result = await importTask;
+
+        Assert.Equal(ImportItemStatus.Matched, result.Items[0].Status);
+        Assert.Equal(MatchStatus.Matched, result.Items[0].MatchStatus);
+        Assert.False(result.Items[0].AutoMatched);
+        using var finalUow = _factory.Begin();
+        Assert.Equal("manual-tv-2", finalUow.TvShows.ListAll().Single().ExternalId);
+    }
+
+    [Fact]
     public async Task ProviderFailureAfterRegistration_PreservesLocalMovie()
     {
         var provider = new CountingProvider { ThrowOnMovieSearch = true };
@@ -205,8 +325,11 @@ public sealed class ImportSelectedTests : IDisposable
 
         Assert.True(result.Items[0].Registered);
         Assert.False(result.Items[0].AutoMatched);
+        Assert.Equal(ImportItemStatus.MetadataError, result.Items[0].Status);
+        Assert.Equal(MetadataFailureKind.Api, result.Items[0].MetadataFailureKind);
+        Assert.Equal(1, result.MetadataErrorsCount);
         using var uow = _factory.Begin();
-        Assert.Single(uow.Movies.ListAll());
+        Assert.Equal(MetadataStatus.Failed, uow.Movies.ListAll().Single().MetadataStatus);
     }
 
     [Fact]
@@ -220,9 +343,11 @@ public sealed class ImportSelectedTests : IDisposable
 
         Assert.True(result.Items[0].Registered);
         Assert.False(result.Items[0].AutoMatched);
-        Assert.Null(result.Items[0].MatchStatus);
+        Assert.Equal(ImportItemStatus.MetadataUnavailable, result.Items[0].Status);
+        Assert.Equal(MetadataFailureKind.NotConfigured, result.Items[0].MetadataFailureKind);
+        Assert.Equal(1, result.MetadataUnavailableCount);
         using var uow = _factory.Begin();
-        Assert.Single(uow.Movies.ListAll());
+        Assert.Equal(MetadataStatus.Failed, uow.Movies.ListAll().Single().MetadataStatus);
     }
 
     [Fact]
@@ -257,6 +382,7 @@ public sealed class ImportSelectedTests : IDisposable
         var result = await service.ImportSelectedAsync([new ImportSelection(selected)]);
 
         Assert.True(result.Items[0].Registered);
+        Assert.Equal(ImportItemStatus.MetadataCancelled, result.Items[0].Status);
         using var uow = _factory.Begin();
         Assert.Single(uow.Movies.ListAll());
     }
@@ -343,8 +469,11 @@ public sealed class ImportSelectedTests : IDisposable
         public TaskCompletionSource<IReadOnlyList<MovieCandidate>>? MovieSearchGate { get; init; }
         public TaskCompletionSource MovieSearchStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public IReadOnlyList<TvCandidate> TvCandidates { get; init; } = [];
+        public TaskCompletionSource<IReadOnlyList<TvCandidate>>? TvSearchGate { get; init; }
+        public TaskCompletionSource TvSearchStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TvShowMetadata? TvMetadata { get; init; }
         public bool ThrowOnMovieSearch { get; init; }
+        public MetadataFailureKind? MovieSearchFailureKind { get; init; }
         public bool CancelMovieSearch { get; init; }
         public int TvSearchCount { get; private set; }
         public int TvMatchCount { get; private set; }
@@ -354,6 +483,7 @@ public sealed class ImportSelectedTests : IDisposable
             null, ImmutableArray<string>.Empty, null, null, "/movie.jpg");
         public Task<IReadOnlyList<MovieCandidate>> SearchMoviesAsync(MovieSearchQuery query, CancellationToken ct = default)
         {
+            if (MovieSearchFailureKind is { } failureKind) throw new MetadataServiceException(failureKind);
             if (ThrowOnMovieSearch) throw new InvalidOperationException("offline");
             if (CancelMovieSearch) throw new OperationCanceledException(ct);
             if (MovieSearchGate is { } gate)
@@ -368,6 +498,11 @@ public sealed class ImportSelectedTests : IDisposable
         public Task<IReadOnlyList<TvCandidate>> SearchTvAsync(TvSearchQuery query, CancellationToken ct = default)
         {
             TvSearchCount++;
+            if (TvSearchGate is { } gate)
+            {
+                TvSearchStarted.TrySetResult();
+                return gate.Task;
+            }
             return Task.FromResult(TvCandidates);
         }
         public Task<TvShowMetadata?> GetTvShowAsync(string externalId, CancellationToken ct = default)

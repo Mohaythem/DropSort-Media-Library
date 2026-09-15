@@ -77,6 +77,10 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         TmdbSearchButton.Content = LocalizationService.Text("Search");
         EmptyState.Title = LocalizationService.Text("NothingDetected");
         EmptyState.Message = LocalizationService.Text("NothingDetectedHelp");
+        foreach (var row in _rows)
+        {
+            row.RefreshLocalization();
+        }
         Refresh();
     }
 
@@ -423,6 +427,32 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         }
 
         _isAdding = true;
+        var metadataConfigured = false;
+        try
+        {
+            metadataConfigured = AppServices.Metadata.IsConfigured;
+        }
+        catch
+        {
+            // The import service will still report the authoritative outcome. This only controls
+            // the transient label while the asynchronous operation is running.
+        }
+
+        // Freeze the entire review while the captured selection is being processed. Otherwise an
+        // unsubmitted checkbox change would make the visible count disagree with the operation in
+        // flight, even though the application correctly uses the immutable captured selection.
+        foreach (var row in _rows)
+        {
+            row.SetImporting(true);
+        }
+
+        foreach (var row in _rows.Where(row => selections.Any(selection =>
+            string.Equals(selection.Item.Path, row.Item.Path, StringComparison.OrdinalIgnoreCase))))
+        {
+            row.SetImportStatus(metadataConfigured
+                ? ImportItemStatus.Matching
+                : ImportItemStatus.MetadataUnavailable);
+        }
         Refresh();
         ImportBatchResult result;
 
@@ -433,6 +463,10 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         catch (Exception error)
         {
             _isAdding = false;
+            foreach (var row in _rows)
+            {
+                row.SetImporting(false);
+            }
             Refresh();
             await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
             return;
@@ -440,26 +474,54 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         finally
         {
             _isAdding = false;
+            foreach (var row in _rows)
+            {
+                row.SetImporting(false);
+            }
+        }
+
+        foreach (var item in result.Items)
+        {
+            var row = _rows.FirstOrDefault(candidate =>
+                string.Equals(candidate.Item.Path, item.Path, StringComparison.OrdinalIgnoreCase));
+            row?.SetImportStatus(item.Status);
         }
 
         MediaRegistered?.Invoke(this, EventArgs.Empty);
+        Refresh();
+
+        var summaryLines = new List<string>
+        {
+            LocalizationService.Format("ImportAddedFormat", result.AddedCount),
+            LocalizationService.Format("ImportMatchedFormat", result.MatchedCount),
+            LocalizationService.Format("ImportNeedsMatchFormat", result.NeedsMatchCount),
+            LocalizationService.Format("ImportMetadataUnavailableFormat", result.MetadataUnavailableCount),
+            LocalizationService.Format("ImportMetadataErrorsFormat", result.MetadataErrorsCount),
+            LocalizationService.Format("ImportExistingFormat", result.ExistingCount),
+            LocalizationService.Format("ImportRegistrationErrorsFormat", result.RegistrationFailuresCount),
+        };
+
+        if (result.MetadataCancelledCount > 0)
+        {
+            summaryLines.Add(LocalizationService.Format(
+                "ImportMetadataCancelledFormat", result.MetadataCancelledCount));
+        }
+
+        foreach (var kind in result.Items
+            .Where(item => item.MetadataFailureKind is not null)
+            .Select(item => item.MetadataFailureKind!.Value)
+            .Distinct())
+        {
+            summaryLines.Add(LocalizationService.Text(MetadataErrorKey.For(kind)));
+        }
+
+        await ShowMessageAsync(
+            LocalizationService.Text("AddMedia"),
+            string.Join(Environment.NewLine, summaryLines));
+
         SetDetected([]);
         _state = AddMediaScanState.Idle;
         Refresh();
-
-        var summary = LocalizationService.Format("ItemsAddedFormat", result.RegisteredCount);
-        if (result.AutoMatchedCount > 0)
-        {
-            summary += Environment.NewLine + LocalizationService.Format(
-                "AutomaticMatchSummaryFormat", result.AutoMatchedCount);
-        }
-        if (result.Items.Any(item => !string.IsNullOrWhiteSpace(item.Failure)))
-        {
-            summary += Environment.NewLine + Environment.NewLine
-                + LocalizationService.Text("AutomaticMatchUnavailable");
-        }
-
-        await ShowMessageAsync(LocalizationService.Text("AddMedia"), summary);
     }
 
     /// <summary>
