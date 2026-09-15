@@ -31,6 +31,41 @@ internal static class AppSettingsStore
         set => Write(ShowFolderKey, value);
     }
 
+    /// <summary>All configured media roots, preserving the legacy movie/show settings safely.</summary>
+    public static IReadOnlyList<string> ConfiguredMediaFolders =>
+        new[] { MovieFolder, ShowFolder }
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    /// <summary>
+    /// Adds a media root without classifying it. Existing legacy roots are never overwritten; callers
+    /// should present a message when both compatibility slots are already occupied.
+    /// </summary>
+    public static bool TryAddMediaFolder(string path)
+    {
+        var normalized = path.Trim();
+        if (string.IsNullOrWhiteSpace(normalized) || ConfiguredMediaFolders.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(MovieFolder))
+        {
+            MovieFolder = normalized;
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(ShowFolder))
+        {
+            ShowFolder = normalized;
+            return true;
+        }
+
+        return false;
+    }
+
     /// <summary>The user's own lists on My Lists, in display order.</summary>
     public static IReadOnlyList<string> CustomLists
     {

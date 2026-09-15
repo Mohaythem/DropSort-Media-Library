@@ -99,29 +99,35 @@
                             <Grid Padding="12,0,12,0" ColumnSpacing="12" MinHeight="40">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="44" />
-                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="100" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="150" />
+                                    <ColumnDefinition Width="220" />
+                                    <ColumnDefinition Width="140" />
                                     <ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock x:Name="ColumnSelectText" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
                                 <TextBlock x:Name="ColumnTypeText" Grid.Column="1" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
                                 <TextBlock x:Name="ColumnTitleText" Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
-                                <TextBlock x:Name="ColumnDetailsText" Grid.Column="3" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
-                                <TextBlock x:Name="ColumnStatusText" Grid.Column="4" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock x:Name="ColumnPreviewText" Grid.Column="3" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock x:Name="ColumnDetailsText" Grid.Column="4" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock x:Name="ColumnStatusText" Grid.Column="5" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock x:Name="ColumnActionText" Grid.Column="6" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
                             </Grid>
                             <Border Style="{StaticResource HairlineDividerStyle}" />
                             <ItemsRepeater x:Name="DetectedMediaRepeater">
                                 <ItemsRepeater.ItemTemplate>
                                     <DataTemplate x:DataType="models:DetectedMediaDisplayRecord">
                                         <Border Style="{StaticResource RowDividerStyle}">
-                                            <Grid ColumnSpacing="12" MinHeight="56">
+                                            <Grid ColumnSpacing="12" MinHeight="72">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="44" />
-                                                    <ColumnDefinition Width="110" />
+                                                    <ColumnDefinition Width="100" />
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="150" />
+                                                    <ColumnDefinition Width="220" />
+                                                    <ColumnDefinition Width="140" />
                                                     <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
                                                 <CheckBox
                                                     VerticalAlignment="Center"
@@ -134,26 +140,71 @@
                                                     Style="{StaticResource SecondaryBodyTextStyle}"
                                                     Text="{x:Bind TypeLabel, Mode=OneWay}" />
                                                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
+                                                    <TextBox
+                                                        Text="{x:Bind Title, Mode=OneWay}"
+                                                        IsReadOnly="True"
+                                                        FontWeight="SemiBold"
+                                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                        TextWrapping="Wrap"
+                                                        BorderThickness="0"
+                                                        Padding="0" />
+                                                    <TextBox
+                                                        Text="{x:Bind FileName, Mode=OneWay}"
+                                                        IsReadOnly="True"
+                                                        Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                                        TextWrapping="Wrap"
+                                                        BorderThickness="0"
+                                                        Padding="0" />
+                                                </StackPanel>
+                                                <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="2" Visibility="{x:Bind PreviewVisibility, Mode=OneWay}">
+                                                    <TextBox
+                                                        Text="{x:Bind PreviewTitle, Mode=OneWay}"
+                                                        IsReadOnly="True"
+                                                        FontWeight="SemiBold"
+                                                        Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+                                                        TextWrapping="Wrap"
+                                                        BorderThickness="0"
+                                                        Padding="0" />
                                                     <TextBlock
-                                                        Style="{StaticResource BodyStrongTextBlockStyle}"
-                                                        Text="{x:Bind Title}"
+                                                        Style="{StaticResource TertiaryCaptionTextStyle}"
+                                                        Text="{x:Bind PreviewYear, Mode=OneWay}"
                                                         TextTrimming="CharacterEllipsis" />
                                                     <TextBlock
                                                         Style="{StaticResource TertiaryCaptionTextStyle}"
-                                                        Text="{x:Bind FileName}"
-                                                        TextTrimming="CharacterEllipsis" />
+                                                        Text="{x:Bind PreviewDetails, Mode=OneWay}"
+                                                        TextWrapping="Wrap"
+                                                        MaxLines="2" />
                                                 </StackPanel>
-                                                <TextBlock
-                                                    Grid.Column="3"
-                                                    VerticalAlignment="Center"
-                                                    Style="{StaticResource SecondaryBodyTextStyle}"
-                                                    Text="{x:Bind Details, Mode=OneWay}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                                <TextBlock
+                                                <TextBox
                                                     Grid.Column="4"
+                                                    VerticalAlignment="Center"
+                                                    Text="{x:Bind Details, Mode=OneWay}"
+                                                    TextWrapping="Wrap"
+                                                    IsReadOnly="True"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                    BorderThickness="0"
+                                                    Padding="0" />
+                                                <TextBlock
+                                                    Grid.Column="5"
                                                     VerticalAlignment="Center"
                                                     Style="{StaticResource SecondaryBodyTextStyle}"
                                                     Text="{x:Bind StatusLabel, Mode=OneWay}" />
+                                                <StackPanel Grid.Column="6" VerticalAlignment="Center" Spacing="4">
+                                                    <Button
+                                                        Content="{x:Bind ManualMatchLabel, Mode=OneWay}"
+                                                        Tag="{x:Bind}"
+                                                        Click="ManualMatch_Click"
+                                                        Visibility="{x:Bind ManualMatchVisibility, Mode=OneWay}"
+                                                        AutomationProperties.Name="{x:Bind ManualMatchLabel, Mode=OneWay}"
+                                                        Style="{StaticResource TextActionButtonStyle}" />
+                                                    <Button
+                                                        Content="{x:Bind RetryLabel, Mode=OneWay}"
+                                                        Tag="{x:Bind}"
+                                                        Click="RetryMetadata_Click"
+                                                        Visibility="{x:Bind RetryVisibility, Mode=OneWay}"
+                                                        AutomationProperties.Name="{x:Bind RetryLabel, Mode=OneWay}"
+                                                        Style="{StaticResource TextActionButtonStyle}" />
+                                                </StackPanel>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>

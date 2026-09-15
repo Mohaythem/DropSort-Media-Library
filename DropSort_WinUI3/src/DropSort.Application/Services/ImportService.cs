@@ -48,6 +48,89 @@ public class ImportService : IImportUiActions
         return new ImportReviewSession(items);
     }
 
+    public Task<ImportMetadataPreview> RetryMetadataAsync(
+        DiscoveredMedia item, CancellationToken cancellationToken = default) =>
+        PreviewMetadataAsync(item, cancellationToken);
+
+    public async Task<ImportMetadataPreview> PreviewMetadataAsync(
+        DiscoveredMedia item, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (item.Classification is not DiscoveryClassification.MovieCandidate
+            and not DiscoveryClassification.TvEpisodeCandidate)
+        {
+            return new ImportMetadataPreview(ImportItemStatus.MetadataError,
+                Failure: "Only resolved movie and TV episode candidates can be matched.",
+                MetadataFailureKind: MetadataFailureKind.InvalidResponse);
+        }
+        if (_matching is null || !_metadataProvider.IsConfigured)
+        {
+            return new ImportMetadataPreview(ImportItemStatus.MetadataUnavailable,
+                Failure: "Metadata service is not configured.",
+                MetadataFailureKind: MetadataFailureKind.NotConfigured);
+        }
+        if (item.ParsedMedia is null || string.IsNullOrWhiteSpace(item.ParsedMedia.Title))
+        {
+            return new ImportMetadataPreview(ImportItemStatus.NoMatchFound,
+                MatchStatus: Domain.Media.Matcher.MatchStatus.NoMatch,
+                Failure: "No parsed title is available for metadata matching.");
+        }
+
+        try
+        {
+            if (item.Classification == DiscoveryClassification.MovieCandidate)
+            {
+                var decision = await _matching.SearchMovieCandidatesAsync(
+                    item.ParsedMedia.Title!, item.ParsedMedia.Year, cancellationToken);
+                if (decision.Status == MatchStatus.Matched && decision.Candidate is null)
+                {
+                    return new ImportMetadataPreview(
+                        ImportItemStatus.MetadataError,
+                        MatchStatus: decision.Status,
+                        Failure: SafeMetadataFailure(MetadataFailureKind.InvalidResponse),
+                        MetadataFailureKind: MetadataFailureKind.InvalidResponse);
+                }
+                return new ImportMetadataPreview(
+                    decision.Status == MatchStatus.Matched ? ImportItemStatus.Matched
+                        : decision.Status == MatchStatus.ReviewRequired ? ImportItemStatus.NeedsMatch
+                        : ImportItemStatus.NoMatchFound,
+                    decision.Status,
+                    MovieCandidate: decision.Candidate,
+                    Failure: decision.Status == MatchStatus.NoMatch ? "No safe metadata match was found." : null);
+            }
+
+            var tvDecision = await _matching.SearchTvCandidatesAsync(
+                item.ParsedMedia.Title!, item.ParsedMedia.Year, cancellationToken);
+            if (tvDecision.Status == MatchStatus.Matched && tvDecision.Candidate is null)
+            {
+                return new ImportMetadataPreview(
+                    ImportItemStatus.MetadataError,
+                    MatchStatus: tvDecision.Status,
+                    Failure: SafeMetadataFailure(MetadataFailureKind.InvalidResponse),
+                    MetadataFailureKind: MetadataFailureKind.InvalidResponse);
+            }
+            return new ImportMetadataPreview(
+                tvDecision.Status == MatchStatus.Matched ? ImportItemStatus.Matched
+                    : tvDecision.Status == MatchStatus.ReviewRequired ? ImportItemStatus.NeedsMatch
+                    : ImportItemStatus.NoMatchFound,
+                tvDecision.Status,
+                TvCandidate: tvDecision.Candidate,
+                Failure: tvDecision.Status == MatchStatus.NoMatch ? "No safe metadata match was found." : null);
+        }
+        catch (OperationCanceledException)
+        {
+            return new ImportMetadataPreview(ImportItemStatus.MetadataCancelled,
+                Failure: "Metadata matching was cancelled.");
+        }
+        catch (Exception error) when (IsBestEffortMetadataFailure(error))
+        {
+            var kind = GetMetadataFailureKind(error);
+            return new ImportMetadataPreview(ImportItemStatus.MetadataError,
+                Failure: SafeMetadataFailure(kind), MetadataFailureKind: kind);
+        }
+    }
+
     public MovieFileIngestionResult ConfirmMovieImport(ConfirmMovieImportCommand command)
     {
         // V1: Confirms import by registering locally, then enriching if a candidate was selected.
@@ -89,12 +172,19 @@ public class ImportService : IImportUiActions
                         item.Path, size, item.ParsedMedia, _clock()));
                     var resultIndex = results.Count;
                     var needsMetadata = registration.Movie.MetadataStatus != MetadataStatus.Ready;
-                    var canAttemptMetadata = needsMetadata && _matching is not null && _metadataProvider.IsConfigured;
+                    var staged = selection.MetadataPreview;
+                    var canAttemptMetadata = needsMetadata && _matching is not null && _metadataProvider.IsConfigured
+                        && (staged is null || staged.Status == ImportItemStatus.Matched);
+                    var initialStatus = !needsMetadata ? ImportItemStatus.Matched
+                        : staged is not null && staged.Status != ImportItemStatus.Matched ? staged.Status
+                        : canAttemptMetadata ? ImportItemStatus.Matching : ImportItemStatus.MetadataUnavailable;
                     results.Add(new ImportItemResult(item.Path, item.Classification, true, false,
-                        Status: !needsMetadata
-                            ? ImportItemStatus.Matched
-                            : canAttemptMetadata ? ImportItemStatus.Matching : ImportItemStatus.MetadataUnavailable,
-                        MetadataFailureKind: needsMetadata && !canAttemptMetadata ? MetadataFailureKind.NotConfigured : null,
+                        MatchStatus: staged?.MatchStatus,
+                        Failure: staged?.Failure,
+                        Status: initialStatus,
+                        MetadataFailureKind: staged?.MetadataFailureKind
+                            ?? (needsMetadata && !canAttemptMetadata && staged is null
+                                ? MetadataFailureKind.NotConfigured : null),
                         AlreadyRegistered: registration.AlreadyRegistered));
                     if (canAttemptMetadata)
                     {
@@ -103,11 +193,19 @@ public class ImportService : IImportUiActions
                             registration.Movie.Id,
                             registration.Movie.Title,
                             registration.Movie.Year,
-                            registration.Movie.MetadataStatus));
+                            registration.Movie.MetadataStatus,
+                            staged));
                     }
                     else if (needsMetadata)
                     {
-                        TrySetMovieStatus(registration.Movie.Id, MetadataStatus.Failed, registration.Movie.MetadataStatus);
+                        if (staged?.Status is ImportItemStatus.NeedsMatch or ImportItemStatus.NoMatchFound)
+                        {
+                            TrySetMovieStatus(registration.Movie.Id, MetadataStatus.NeedsMatch, registration.Movie.MetadataStatus);
+                        }
+                        else if (needsMetadata)
+                        {
+                            TrySetMovieStatus(registration.Movie.Id, MetadataStatus.Failed, registration.Movie.MetadataStatus);
+                        }
                     }
                 }
                 else if (item.Classification == DiscoveryClassification.TvEpisodeCandidate)
@@ -118,12 +216,19 @@ public class ImportService : IImportUiActions
                     var requiresMatch = registration.Show.MetadataStatus != MetadataStatus.Ready;
                     var requiresRefresh = !registration.AlreadyRegistered && !requiresMatch;
                     var needsMetadata = requiresMatch || requiresRefresh;
-                    var canAttemptMetadata = needsMetadata && _matching is not null && _metadataProvider.IsConfigured;
+                    var staged = selection.MetadataPreview;
+                    var canAttemptMetadata = needsMetadata && _matching is not null && _metadataProvider.IsConfigured
+                        && (staged is null || staged.Status == ImportItemStatus.Matched);
+                    var initialStatus = !needsMetadata ? ImportItemStatus.Matched
+                        : staged is not null && staged.Status != ImportItemStatus.Matched ? staged.Status
+                        : canAttemptMetadata ? ImportItemStatus.Matching : ImportItemStatus.MetadataUnavailable;
                     results.Add(new ImportItemResult(item.Path, item.Classification, true, false,
-                        Status: !needsMetadata
-                            ? ImportItemStatus.Matched
-                            : canAttemptMetadata ? ImportItemStatus.Matching : ImportItemStatus.MetadataUnavailable,
-                        MetadataFailureKind: needsMetadata && !canAttemptMetadata ? MetadataFailureKind.NotConfigured : null,
+                        MatchStatus: staged?.MatchStatus,
+                        Failure: staged?.Failure,
+                        Status: initialStatus,
+                        MetadataFailureKind: staged?.MetadataFailureKind
+                            ?? (needsMetadata && !canAttemptMetadata && staged is null
+                                ? MetadataFailureKind.NotConfigured : null),
                         AlreadyRegistered: registration.AlreadyRegistered));
 
                     if (!tvShows.TryGetValue(registration.Show.Id, out var pending))
@@ -133,13 +238,17 @@ public class ImportService : IImportUiActions
                             item.ParsedMedia.Year,
                             canAttemptMetadata && requiresMatch,
                             canAttemptMetadata && requiresRefresh,
-                            registration.Show.MetadataStatus);
+                            registration.Show.MetadataStatus,
+                            staged);
                         tvShows.Add(registration.Show.Id, pending);
                     }
                     else
                     {
                         pending.ShouldMatch |= canAttemptMetadata && requiresMatch;
                         pending.ShouldRefresh |= canAttemptMetadata && requiresRefresh;
+                        pending.HasConflictingManualMatches |=
+                            HasConflictingManualMatches(pending.StagedPreview, staged);
+                        pending.StagedPreview = PreferStagedPreview(pending.StagedPreview, staged);
                     }
 
                     pending.ResultIndexes.Add(resultIndex);
@@ -147,7 +256,7 @@ public class ImportService : IImportUiActions
                     {
                         pending.EnrichmentResultIndexes.Add(resultIndex);
                     }
-                    else if (requiresMatch)
+                    else if (requiresMatch && staged is null)
                     {
                         TrySetTvStatus(registration.Show.Id, MetadataStatus.Failed, registration.Show.MetadataStatus);
                     }
@@ -171,6 +280,31 @@ public class ImportService : IImportUiActions
             }
         }
 
+        // Apply staged TV terminal states only after every episode in a grouped show is registered.
+        // Updating the show inside the registration loop would change its metadata status before a
+        // later episode's optimistic match can use the original expected status. This also runs when
+        // the provider is unavailable, keeping persisted state truthful; cancellation remains pending
+        // for a future retry.
+        foreach (var pending in tvShows.Values)
+        {
+            if (pending.ShouldMatch || pending.ExpectedMetadataStatus == MetadataStatus.Ready)
+            {
+                continue;
+            }
+
+            switch (pending.StagedPreview?.Status)
+            {
+                case ImportItemStatus.NeedsMatch:
+                case ImportItemStatus.NoMatchFound:
+                    TrySetTvStatus(pending, MetadataStatus.NeedsMatch);
+                    break;
+                case ImportItemStatus.MetadataUnavailable:
+                case ImportItemStatus.MetadataError:
+                    TrySetTvStatus(pending, MetadataStatus.Failed);
+                    break;
+            }
+        }
+
         if (_matching is not null && _metadataProvider.IsConfigured)
         {
             for (var movieIndex = 0; movieIndex < moviesPending.Count; movieIndex++)
@@ -179,8 +313,11 @@ public class ImportService : IImportUiActions
                 try
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var decision = await _matching.SearchMovieCandidatesAsync(
-                        pending.Title, pending.Year, cancellationToken);
+                    var decision = pending.StagedPreview?.MovieCandidate is not null
+                        ? new MatchDecision(MatchStatus.Matched, pending.StagedPreview.MovieCandidate, 1.0,
+                            System.Collections.Immutable.ImmutableArray<MatchReason>.Empty,
+                            System.Collections.Immutable.ImmutableArray<CandidateScore>.Empty)
+                        : await _matching.SearchMovieCandidatesAsync(pending.Title, pending.Year, cancellationToken);
                     if (decision.Status == MatchStatus.Matched)
                     {
                         if (decision.Candidate is null)
@@ -200,16 +337,27 @@ public class ImportService : IImportUiActions
                             pending.ExpectedMetadataStatus);
                         results[pending.ResultIndex] = results[pending.ResultIndex] with
                         {
-                            AutoMatched = true,
+                            AutoMatched = pending.StagedPreview?.IsManual != true,
                             Status = ImportItemStatus.Matched
                         };
+                    }
+                    else if (decision.Status == MatchStatus.ReviewRequired)
+                    {
+                        results[pending.ResultIndex] = results[pending.ResultIndex] with
+                        {
+                            MatchStatus = decision.Status,
+                            Status = ImportItemStatus.NeedsMatch
+                        };
+                        TrySetMovieStatus(pending, MetadataStatus.NeedsMatch);
+                        ReconcileMovieResult(pending.ResultIndex, pending.MovieId, results);
                     }
                     else
                     {
                         results[pending.ResultIndex] = results[pending.ResultIndex] with
                         {
                             MatchStatus = decision.Status,
-                            Status = ImportItemStatus.NeedsMatch
+                            Status = ImportItemStatus.NoMatchFound,
+                            Failure = "No safe metadata match was found."
                         };
                         TrySetMovieStatus(pending, MetadataStatus.NeedsMatch);
                         ReconcileMovieResult(pending.ResultIndex, pending.MovieId, results);
@@ -240,6 +388,27 @@ public class ImportService : IImportUiActions
 
             foreach (var pending in tvShows.Values)
             {
+                if (pending.HasConflictingManualMatches)
+                {
+                    foreach (var index in pending.ResultIndexes)
+                    {
+                        results[index] = results[index] with
+                        {
+                            MatchStatus = MatchStatus.ReviewRequired,
+                            Status = ImportItemStatus.NeedsMatch,
+                            Failure = "The selected TV matches disagree for this show. Choose one match."
+                        };
+                    }
+
+                    if (pending.ExpectedMetadataStatus != MetadataStatus.Ready)
+                    {
+                        TrySetTvStatus(pending, MetadataStatus.NeedsMatch);
+                    }
+
+                    ReconcileTvResults(pending, results);
+                    continue;
+                }
+
                 if (pending.ShouldRefresh)
                 {
                     try
@@ -257,7 +426,7 @@ public class ImportService : IImportUiActions
                         {
                             results[index] = results[index] with
                             {
-                                AutoMatched = true,
+                                AutoMatched = pending.StagedPreview?.IsManual != true,
                                 Status = ImportItemStatus.Matched
                             };
                         }
@@ -298,8 +467,11 @@ public class ImportService : IImportUiActions
                 try
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var decision = await _matching.SearchTvCandidatesAsync(
-                        pending.Show.Title, pending.Year, cancellationToken);
+                    var decision = pending.StagedPreview?.TvCandidate is not null
+                        ? new TvMatchDecision(MatchStatus.Matched, pending.StagedPreview.TvCandidate, 1.0,
+                            System.Collections.Immutable.ImmutableArray<MatchReason>.Empty,
+                            System.Collections.Immutable.ImmutableArray<TvCandidateScore>.Empty)
+                        : await _matching.SearchTvCandidatesAsync(pending.Show.Title, pending.Year, cancellationToken);
                     if (decision.Status == MatchStatus.Matched)
                     {
                         if (decision.Candidate is null)
@@ -323,10 +495,23 @@ public class ImportService : IImportUiActions
                         {
                             results[index] = results[index] with
                             {
-                                AutoMatched = true,
+                                AutoMatched = pending.StagedPreview?.IsManual != true,
                                 Status = ImportItemStatus.Matched
                             };
                         }
+                    }
+                    else if (decision.Status == MatchStatus.ReviewRequired)
+                    {
+                        foreach (var index in pending.EnrichmentResultIndexes)
+                        {
+                            results[index] = results[index] with
+                            {
+                                MatchStatus = decision.Status,
+                                Status = ImportItemStatus.NeedsMatch
+                            };
+                        }
+                        TrySetTvStatus(pending, MetadataStatus.NeedsMatch);
+                        ReconcileTvResults(pending, results);
                     }
                     else
                     {
@@ -335,7 +520,8 @@ public class ImportService : IImportUiActions
                             results[index] = results[index] with
                             {
                                 MatchStatus = decision.Status,
-                                Status = ImportItemStatus.NeedsMatch
+                                Status = ImportItemStatus.NoMatchFound,
+                                Failure = "No safe metadata match was found."
                             };
                         }
                         TrySetTvStatus(pending, MetadataStatus.NeedsMatch);
@@ -379,6 +565,56 @@ public class ImportService : IImportUiActions
 
     private static string SafeMetadataFailure(MetadataFailureKind kind) =>
         $"Metadata request failed ({kind}).";
+
+    private static ImportMetadataPreview? PreferStagedPreview(
+        ImportMetadataPreview? current,
+        ImportMetadataPreview? incoming)
+    {
+        if (incoming is null)
+        {
+            return current;
+        }
+
+        if (current is null)
+        {
+            return incoming;
+        }
+
+        // A user-selected candidate is authoritative for the grouped show. Otherwise a safe matched
+        // preview outranks an ambiguous/empty/error outcome from another episode in the same group.
+        if (incoming.IsManual && incoming.Status == ImportItemStatus.Matched)
+        {
+            return incoming;
+        }
+
+        if (StagedPreviewPriority(incoming) > StagedPreviewPriority(current))
+        {
+            return incoming;
+        }
+
+        return current;
+    }
+
+    private static bool HasConflictingManualMatches(
+        ImportMetadataPreview? current,
+        ImportMetadataPreview? incoming) =>
+        current is { IsManual: true, TvCandidate: not null }
+        && incoming is { IsManual: true, TvCandidate: not null }
+        && (!string.Equals(
+                current.TvCandidate.Provider,
+                incoming.TvCandidate.Provider,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                current.TvCandidate.ExternalId,
+                incoming.TvCandidate.ExternalId,
+                StringComparison.OrdinalIgnoreCase));
+
+    private static int StagedPreviewPriority(ImportMetadataPreview preview) =>
+        preview.IsManual && preview.Status == ImportItemStatus.Matched ? 5
+        : preview.Status == ImportItemStatus.Matched ? 4
+        : preview.Status is ImportItemStatus.MetadataError or ImportItemStatus.MetadataUnavailable ? 3
+        : preview.Status is ImportItemStatus.NeedsMatch or ImportItemStatus.NoMatchFound ? 2
+        : 1;
 
     private bool TrySetMovieStatus(int movieId, MetadataStatus status, MetadataStatus expectedStatus)
     {
@@ -479,7 +715,8 @@ public class ImportService : IImportUiActions
         int MovieId,
         string Title,
         int? Year,
-        MetadataStatus ExpectedMetadataStatus);
+        MetadataStatus ExpectedMetadataStatus,
+        ImportMetadataPreview? StagedPreview = null);
 
     private sealed class TvImportGroup
     {
@@ -488,13 +725,15 @@ public class ImportService : IImportUiActions
             int? year,
             bool shouldMatch,
             bool shouldRefresh,
-            MetadataStatus expectedMetadataStatus)
+            MetadataStatus expectedMetadataStatus,
+            ImportMetadataPreview? stagedPreview = null)
         {
             Show = show;
             Year = year;
             ShouldMatch = shouldMatch;
             ShouldRefresh = shouldRefresh;
             ExpectedMetadataStatus = expectedMetadataStatus;
+            StagedPreview = stagedPreview;
         }
 
         public TvShow Show { get; }
@@ -503,6 +742,8 @@ public class ImportService : IImportUiActions
         public List<int> EnrichmentResultIndexes { get; } = [];
         public bool ShouldMatch { get; set; }
         public bool ShouldRefresh { get; set; }
+        public ImportMetadataPreview? StagedPreview { get; set; }
+        public bool HasConflictingManualMatches { get; set; }
         public MetadataStatus ExpectedMetadataStatus { get; }
     }
 

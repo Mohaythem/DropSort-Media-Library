@@ -513,6 +513,41 @@ public sealed class UiSourceContractTests
         Assert.Contains("[\"MetadataUnavailable\"] = \"البيانات الوصفية غير متاحة\"", localization, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Add_media_reviews_metadata_before_registration_and_keeps_row_recovery_actions()
+    {
+        var dto = ReadApplicationSource("Dto", "CatalogDtos.cs");
+        var contract = ReadApplicationSource("Contracts", "IUiActions.cs");
+        var service = ReadApplicationSource("Services", "ImportService.cs");
+        var model = Read("Models", "AddMediaModels.cs");
+        var xaml = Read("Views", "AddMediaPage.xaml");
+        var page = Read("Views", "AddMediaPage.xaml.cs");
+
+        Assert.Contains("record ImportMetadataPreview", dto, StringComparison.Ordinal);
+        Assert.Contains("ImportSelection(DiscoveredMedia Item, ImportMetadataPreview? MetadataPreview", dto, StringComparison.Ordinal);
+        Assert.Contains("PreviewMetadataAsync", contract, StringComparison.Ordinal);
+        Assert.Contains("RetryMetadataAsync", contract, StringComparison.Ordinal);
+        Assert.Contains("SearchMovieCandidatesAsync", service, StringComparison.Ordinal);
+        Assert.Contains("SearchTvCandidatesAsync", service, StringComparison.Ordinal);
+        Assert.Contains("BeginMetadataReview", page, StringComparison.Ordinal);
+        Assert.Contains("PreviewMetadataAsync(row.Item", page, StringComparison.Ordinal);
+        Assert.Contains("RetryMetadataAsync(row.Item", page, StringComparison.Ordinal);
+        Assert.Contains("MatchMediaDialog.ShowForMovieAsync", page, StringComparison.Ordinal);
+        Assert.Contains("MatchMediaDialog.ShowForTvShowAsync", page, StringComparison.Ordinal);
+        Assert.Contains("ImportSelection(row.Item, row.MetadataPreview)", page, StringComparison.Ordinal);
+        Assert.Contains("IsReadOnly=\"True\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ManualMatch_Click", xaml, StringComparison.Ordinal);
+        Assert.Contains("RetryMetadata_Click", xaml, StringComparison.Ordinal);
+        Assert.Contains("ImportItemStatus.NoMatchFound", model, StringComparison.Ordinal);
+        Assert.Contains("IDeactivatableView", page, StringComparison.Ordinal);
+        Assert.Contains("public void Deactivate()", page, StringComparison.Ordinal);
+        Assert.Contains("row.SetMetadataCancelled()", page, StringComparison.Ordinal);
+        Assert.Contains("SetMetadataCancelled", model, StringComparison.Ordinal);
+        Assert.Contains("IDeactivatableView deactivatable", Read("MainWindow.xaml.cs"), StringComparison.Ordinal);
+        Assert.DoesNotContain("AppSettingsStore.MovieFolder = folder.Path", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppSettingsStore.ShowFolder = folder.Path", page, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Only the composition root knows about Infrastructure and FileSystem, and only it knows where the
     /// data folder is. A view that built either for itself would be a second source of truth.
@@ -534,6 +569,24 @@ public sealed class UiSourceContractTests
         }
 
         Assert.Contains("AppServices.DataFolder", Read("Views", "SettingsPage.xaml.cs"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Settings_use_one_media_folder_concept_and_keep_storage_advanced()
+    {
+        var store = Read("Services", "AppSettingsStore.cs");
+        var xaml = Read("Views", "SettingsPage.xaml");
+        var code = Read("Views", "SettingsPage.xaml.cs");
+
+        Assert.Contains("ConfiguredMediaFolders", store, StringComparison.Ordinal);
+        Assert.Contains("Distinct(StringComparer.OrdinalIgnoreCase)", store, StringComparison.Ordinal);
+        Assert.Contains("TryAddMediaFolder", store, StringComparison.Ordinal);
+        Assert.Contains("MediaFoldersLabelText", xaml, StringComparison.Ordinal);
+        Assert.Contains("StorageAdvancedHeadingText", xaml, StringComparison.Ordinal);
+        Assert.Contains("ManageMediaFolder_Click", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("MovieFoldersLabelText", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("TvFoldersLabelText", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ManageFolders_Click", code, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -578,6 +631,9 @@ public sealed class UiSourceContractTests
     private static string Read(params string[] relativeSegments) =>
         File.ReadAllText(relativeSegments.Aggregate(UiRoot, Path.Combine));
 
+    private static string ReadApplicationSource(params string[] relativeSegments) =>
+        File.ReadAllText(relativeSegments.Aggregate(FindApplicationRoot(), Path.Combine));
+
     private static string FindUiRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -593,5 +649,22 @@ public sealed class UiSourceContractTests
         }
 
         throw new DirectoryNotFoundException("Could not locate src/DropSort.UI from the test output directory.");
+    }
+
+    private static string FindApplicationRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, "src", "DropSort.Application");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate src/DropSort.Application from the test output directory.");
     }
 }

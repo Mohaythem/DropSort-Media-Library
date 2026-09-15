@@ -81,68 +81,39 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock x:Name="MovieFoldersLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock x:Name="MediaFoldersLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <TextBlock
-                                        x:Name="MovieFoldersHelpText"
-                                        Style="{StaticResource SecondaryCaptionTextStyle}"
-                                        TextWrapping="Wrap" />
-                                </StackPanel>
-                                <Button
-                                    x:Name="ManageMovieFoldersButton"
-                                    Grid.Column="1"
-                                    VerticalAlignment="Center"
-                                    Click="ManageFolders_Click"
-                                    Style="{StaticResource SubtleControlButtonStyle}" />
-                            </Grid>
-
-                            <Border Style="{StaticResource HairlineDividerStyle}" />
-
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock x:Name="TvFoldersLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock
-                                        x:Name="TvFoldersHelpText"
-                                        Style="{StaticResource SecondaryCaptionTextStyle}"
-                                        TextWrapping="Wrap" />
-                                </StackPanel>
-                                <Button
-                                    x:Name="ManageTvFoldersButton"
-                                    Grid.Column="1"
-                                    VerticalAlignment="Center"
-                                    Click="ManageFolders_Click"
-                                    Style="{StaticResource SubtleControlButtonStyle}" />
-                            </Grid>
-
-                            <Border Style="{StaticResource HairlineDividerStyle}" />
-
-                            <Grid ColumnSpacing="16">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center" Spacing="2">
-                                    <TextBlock x:Name="DataFolderLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                    <TextBlock
-                                        x:Name="DataFolderPathText"
+                                        x:Name="MediaFoldersPathText"
                                         Style="{StaticResource TertiaryCaptionTextStyle}"
-                                        TextTrimming="CharacterEllipsis" />
+                                        TextWrapping="Wrap" />
                                     <TextBlock
-                                        x:Name="DataFolderHelpText"
+                                        x:Name="MediaFoldersHelpText"
                                         Style="{StaticResource SecondaryCaptionTextStyle}"
                                         TextWrapping="Wrap" />
                                 </StackPanel>
                                 <Button
-                                    x:Name="OpenDataFolderButton"
+                                    x:Name="ManageMediaFolderButton"
                                     Grid.Column="1"
                                     VerticalAlignment="Center"
-                                    Click="OpenDataFolderButton_Click"
+                                    Click="ManageMediaFolder_Click"
                                     Style="{StaticResource SubtleControlButtonStyle}" />
                             </Grid>
                         </StackPanel>
+                    </Border>
+                </StackPanel>
+                <!--  Storage and advanced details  -->
+                <StackPanel Spacing="12">
+                    <TextBlock x:Name="StorageAdvancedHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                <TextBlock x:Name="DataFolderLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock x:Name="DataFolderPathText" Style="{StaticResource TertiaryCaptionTextStyle}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="DataFolderHelpText" Style="{StaticResource SecondaryCaptionTextStyle}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button x:Name="OpenDataFolderButton" Grid.Column="1" VerticalAlignment="Center" Click="OpenDataFolderButton_Click" Style="{StaticResource SubtleControlButtonStyle}" />
+                        </Grid>
                     </Border>
                 </StackPanel>
                 <!--  TMDB  -->

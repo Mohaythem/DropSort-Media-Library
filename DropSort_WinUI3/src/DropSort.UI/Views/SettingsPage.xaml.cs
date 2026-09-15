@@ -62,12 +62,10 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         LanguageArabicItem.Content = LocalizationService.Text("ArabicLanguage");
 
         LibraryHeadingText.Text = LocalizationService.Text("LibrarySection");
-        MovieFoldersLabelText.Text = LocalizationService.Text("MovieFolders");
-        MovieFoldersHelpText.Text = LocalizationService.Text("MovieFoldersHelp");
-        ManageMovieFoldersButton.Content = LocalizationService.Text("Manage");
-        TvFoldersLabelText.Text = LocalizationService.Text("TvFolders");
-        TvFoldersHelpText.Text = LocalizationService.Text("TvFoldersHelp");
-        ManageTvFoldersButton.Content = LocalizationService.Text("Manage");
+        MediaFoldersLabelText.Text = LocalizationService.Text("MediaFolders");
+        MediaFoldersHelpText.Text = LocalizationService.Text("MediaFoldersHelp");
+        ManageMediaFolderButton.Content = LocalizationService.Text("Manage");
+        StorageAdvancedHeadingText.Text = LocalizationService.Text("StorageAdvanced");
         DataFolderLabelText.Text = LocalizationService.Text("LibraryDataFolder");
         DataFolderHelpText.Text = LocalizationService.Text("LibraryDataFolderHelp");
         DataFolderPathText.Text = AppServices.DataFolder;
@@ -179,13 +177,10 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     }
 
     /// <summary>
-    /// Picks the movies or TV root and stores it. The movies root is also the approved destination that
-    /// Organize File moves into, which is why choosing it here enables that action on Movie Details.
+    /// Picks a media root without asking the user to classify it as movie or TV content.
     /// </summary>
-    private async void ManageFolders_Click(object sender, RoutedEventArgs e)
+    private async void ManageMediaFolder_Click(object sender, RoutedEventArgs e)
     {
-        var isMovies = ReferenceEquals(sender, ManageMovieFoldersButton);
-
         try
         {
             var picker = new Windows.Storage.Pickers.FolderPicker();
@@ -197,13 +192,10 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
                 return;
             }
 
-            if (isMovies)
+            if (!AppSettingsStore.TryAddMediaFolder(folder.Path))
             {
-                AppSettingsStore.MovieFolder = folder.Path;
-            }
-            else
-            {
-                AppSettingsStore.ShowFolder = folder.Path;
+                await ShowMessageAsync(LocalizationService.Text("MediaFolders"), LocalizationService.Text("MediaFoldersLimitHelp"));
+                return;
             }
 
             RefreshFolders();
@@ -217,12 +209,10 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     /// <summary>Shows the configured roots, or the help text when none is set yet.</summary>
     private void RefreshFolders()
     {
-        MovieFoldersHelpText.Text = AppSettingsStore.MovieFolder is { Length: > 0 } movies
-            ? movies
-            : LocalizationService.Text("MovieFoldersHelp");
-        TvFoldersHelpText.Text = AppSettingsStore.ShowFolder is { Length: > 0 } shows
-            ? shows
-            : LocalizationService.Text("TvFoldersHelp");
+        var folders = AppSettingsStore.ConfiguredMediaFolders;
+        MediaFoldersPathText.Text = folders.Count == 0
+            ? LocalizationService.Text("MediaFoldersNone")
+            : string.Join(Environment.NewLine, folders);
     }
 
     /// <summary>Opening the data folder is fully implemented through the shell launcher.</summary>

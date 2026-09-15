@@ -6,6 +6,7 @@ using DropSort.Application.Dto;
 using DropSort.Application.External;
 using DropSort.Domain.Configuration;
 using DropSort.Domain.Library.Personal;
+using DropSort.Domain.Media.Discovery;
 
 namespace DropSort.Application.Contracts;
 
@@ -42,6 +43,16 @@ public interface IImportUiActions
         bool recursive,
         Action<ImportReviewProgress>? progress = null,
         Func<bool>? isCancelled = null);
+
+    /// <summary>Pure metadata lookup for the import review surface. It never writes catalog state.</summary>
+    Task<ImportMetadataPreview> PreviewMetadataAsync(
+        DiscoveredMedia item,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Retries metadata lookup for one discovered item without rescanning or registering it.</summary>
+    Task<ImportMetadataPreview> RetryMetadataAsync(
+        DiscoveredMedia item,
+        CancellationToken cancellationToken = default);
 
     MovieFileIngestionResult ConfirmMovieImport(ConfirmMovieImportCommand command);
     MovieFileIngestionResult RegisterMovieImport(ConfirmMovieImportCommand command);

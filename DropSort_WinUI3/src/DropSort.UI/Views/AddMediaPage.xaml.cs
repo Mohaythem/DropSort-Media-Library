@@ -1,10 +1,13 @@
 using System.Collections.ObjectModel;
 using DropSort.Application.Dto;
 using DropSort.Domain.Media.Discovery;
+using DropSort.Domain.Media.Matcher;
+using DropSort.Domain.Metadata.Contracts;
 using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 using Windows.Storage;
 using Windows.Storage.Pickers;
 
@@ -24,14 +27,18 @@ public enum AddMediaScanState
 /// optional confidence-aware metadata enrichment, so an offline or ambiguous lookup never loses a
 /// locally indexed file.
 /// </summary>
-public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableView
+public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableView, IDeactivatableView
 {
     private AddMediaScanState _state = AddMediaScanState.Idle;
     private IReadOnlyList<DiscoveredMedia> _detected = [];
     private readonly ObservableCollection<DetectedMediaDisplayRecord> _rows = [];
     private bool _isScanning;
     private bool _isAdding;
+    private bool _isReviewingMetadata;
     private long _scanVersion;
+    private long _metadataVersion;
+    private CancellationTokenSource? _metadataCancellation;
+    private readonly Dictionary<DetectedMediaDisplayRecord, CancellationTokenSource> _retryCancellations = [];
 
     /// <summary>
     /// Cancellation for the running scan. A CancellationTokenSource is the safe way to hand a stop
@@ -52,6 +59,18 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     public void Activate() => Refresh();
 
+    public void Deactivate()
+    {
+        _cancellation?.Cancel();
+        CancelMetadataReview();
+    }
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        Deactivate();
+        base.OnNavigatedFrom(e);
+    }
+
     public void ApplyLocalization()
     {
         FlowDirection = LocalizationService.FlowDirection;
@@ -69,8 +88,10 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         ColumnSelectText.Text = LocalizationService.Text("Select");
         ColumnTypeText.Text = LocalizationService.Text("MediaType");
         ColumnTitleText.Text = LocalizationService.Text("Title");
+        ColumnPreviewText.Text = LocalizationService.Text("MatchedTitle");
         ColumnDetailsText.Text = LocalizationService.Text("Details");
         ColumnStatusText.Text = LocalizationService.Text("Status");
+        ColumnActionText.Text = LocalizationService.Text("Action");
         SearchTmdbHeadingText.Text = LocalizationService.Text("SearchTmdbHeading");
         SearchTmdbHelpText.Text = LocalizationService.Text("SearchTmdbHelp");
         TmdbSearchBox.PlaceholderText = LocalizationService.Text("SearchTmdbPlaceholder");
@@ -89,12 +110,12 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         ScanButton.Content = LocalizationService.Text(
             _isScanning ? "Cancel" : "ScanFolder");
         ScanProgressText.Text = LocalizationService.Text("ScanningFolder");
-        AddFilesButton.IsEnabled = !_isScanning && !_isAdding;
-        BrowseButton.IsEnabled = !_isScanning && !_isAdding;
+        AddFilesButton.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
+        BrowseButton.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
         CancelButton.Visibility = _isScanning || (_state == AddMediaScanState.Results && !_isAdding)
             ? Visibility.Visible
             : Visibility.Collapsed;
-        ScanButton.IsEnabled = !_isAdding;
+        ScanButton.IsEnabled = !_isAdding && !_isReviewingMetadata;
 
         ScanProgressPanel.Visibility = _state == AddMediaScanState.Scanning
             ? Visibility.Visible
@@ -113,7 +134,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         var selected = _rows.Count(row => row.CanSelect && row.IsSelected);
         ResultsCountText.Text = LocalizationService.Format("ItemsFoundFormat", _rows.Count)
             + " · " + LocalizationService.Format("SelectedItemsFormat", selected);
-        AddSelectedButton.IsEnabled = selected > 0 && !_isAdding;
+        var metadataPending = _rows.Any(row => row.CanSelect && row.Status == ImportItemStatus.Matching);
+        AddSelectedButton.IsEnabled = selected > 0 && !_isAdding && !_isReviewingMetadata && !metadataPending;
         AddSelectedButton.Content = LocalizationService.Format("AddSelectedFormat", selected);
         SelectAllButton.IsEnabled = selectable > 0 && !_isAdding;
         DeselectAllButton.IsEnabled = selected > 0 && !_isAdding;
@@ -166,6 +188,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     {
         var wasScanning = _isScanning;
         _cancellation?.Cancel();
+        CancelMetadataReview();
         SetDetected([]);
         _state = AddMediaScanState.Idle;
         if (!wasScanning)
@@ -176,8 +199,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     }
 
     /// <summary>
-    /// Picks the root to scan and remembers it: the same folder is the approved destination root that
-    /// Organize File moves into, so choosing it here also configures that.
+    /// Picks a transient scan path. Approved media roots are managed in Settings so a one-off scan
+    /// cannot silently replace an existing movie or TV root.
     /// </summary>
     private async void BrowseButton_Click(object sender, RoutedEventArgs e)
     {
@@ -193,12 +216,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             }
 
             FolderPathBox.Text = folder.Path;
-
-            AppSettingsStore.MovieFolder = folder.Path;
-            if (string.IsNullOrWhiteSpace(AppSettingsStore.ShowFolder))
-            {
-                AppSettingsStore.ShowFolder = folder.Path;
-            }
         }
         catch (Exception error)
         {
@@ -246,6 +263,10 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
                 SetDetected(discovered);
                 _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
+                if (_detected.Count > 0)
+                {
+                    BeginMetadataReview();
+                }
             }
             catch (OperationCanceledException)
             {
@@ -340,6 +361,10 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
             SetDetected(session.Items);
             _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
+            if (_detected.Count > 0)
+            {
+                BeginMetadataReview();
+            }
 
             if (_detected.Count == 0)
             {
@@ -371,6 +396,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private (CancellationTokenSource Cancellation, long ScanVersion) BeginScan()
     {
         _cancellation?.Dispose();
+        CancelMetadataReview();
         var cancellation = new CancellationTokenSource();
         _cancellation = cancellation;
         var scanVersion = ++_scanVersion;
@@ -409,6 +435,191 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             Math.Max(update.FilesDiscovered, update.FilesProcessed));
     }
 
+    /// <summary>
+    /// Runs the pure metadata review after discovery. No catalog transaction is opened here; the
+    /// staged previews are copied into ImportSelection only when Add Selected is confirmed.
+    /// </summary>
+    private void BeginMetadataReview()
+    {
+        CancelMetadataReview();
+        var cancellation = new CancellationTokenSource();
+        _metadataCancellation = cancellation;
+        var version = ++_metadataVersion;
+        _isReviewingMetadata = true;
+
+        foreach (var row in _rows.Where(row => row.CanSelect))
+        {
+            row.SetMetadataReviewing();
+        }
+
+        Refresh();
+        _ = ReviewMetadataAsync(version, cancellation);
+    }
+
+    private async Task ReviewMetadataAsync(long version, CancellationTokenSource cancellation)
+    {
+        try
+        {
+            // Keep provider calls sequential during review. This avoids turning a large scan into a
+            // burst that trips TMDB rate limits while still keeping the UI responsive via async I/O.
+            foreach (var row in _rows.Where(row => row.CanSelect).ToArray())
+            {
+                cancellation.Token.ThrowIfCancellationRequested();
+                await ReviewMetadataRowAsync(row, cancellation.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation is an expected lifecycle event (Cancel, rescan, or page deactivation).
+        }
+        finally
+        {
+            if (version == _metadataVersion && ReferenceEquals(_metadataCancellation, cancellation))
+            {
+                _isReviewingMetadata = false;
+                _metadataCancellation = null;
+                Refresh();
+            }
+
+            // The owner may have cancelled and started a newer review. Dispose only this completed
+            // operation's source; CancelMetadataReview never disposes an in-flight source.
+            cancellation.Dispose();
+        }
+    }
+
+    private async Task ReviewMetadataRowAsync(DetectedMediaDisplayRecord row, CancellationToken token)
+    {
+        try
+        {
+            var preview = await AppServices.Import.PreviewMetadataAsync(row.Item, token);
+            if (!token.IsCancellationRequested)
+            {
+                row.SetMetadataPreview(preview);
+                Refresh();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The parent review is being cancelled; do not resurrect rows after the user closed it.
+        }
+        catch (Exception error)
+        {
+            if (!token.IsCancellationRequested)
+            {
+                row.SetMetadataPreview(new ImportMetadataPreview(
+                    ImportItemStatus.MetadataError,
+                    Failure: MetadataErrorText.For(error)));
+                Refresh();
+            }
+        }
+    }
+
+    private void CancelMetadataReview()
+    {
+        _metadataVersion++;
+        _metadataCancellation?.Cancel();
+        _metadataCancellation = null;
+        _isReviewingMetadata = false;
+        foreach (var row in _rows)
+        {
+            row.SetMetadataCancelled();
+        }
+        foreach (var retry in _retryCancellations.Values)
+        {
+            retry.Cancel();
+        }
+    }
+
+    private static DetectedMediaDisplayRecord? RowFromSender(object sender) =>
+        (sender as FrameworkElement)?.Tag as DetectedMediaDisplayRecord;
+
+    private async void RetryMetadata_Click(object sender, RoutedEventArgs e)
+    {
+        var row = RowFromSender(sender);
+        if (row is null || _isAdding || !row.CanSelect || _retryCancellations.ContainsKey(row))
+        {
+            return;
+        }
+
+        var cancellation = new CancellationTokenSource();
+        _retryCancellations[row] = cancellation;
+        row.SetMetadataReviewing();
+        Refresh();
+        try
+        {
+            var preview = await AppServices.Import.RetryMetadataAsync(row.Item, cancellation.Token);
+            if (!cancellation.IsCancellationRequested && _rows.Contains(row))
+            {
+                row.SetMetadataPreview(preview);
+                Refresh();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception error)
+        {
+            if (!cancellation.IsCancellationRequested && _rows.Contains(row))
+            {
+                row.SetMetadataPreview(new ImportMetadataPreview(
+                    ImportItemStatus.MetadataError,
+                    Failure: MetadataErrorText.For(error)));
+                Refresh();
+            }
+        }
+        finally
+        {
+            if (_retryCancellations.Remove(row, out var active))
+            {
+                active.Dispose();
+            }
+            Refresh();
+        }
+    }
+
+    private async void ManualMatch_Click(object sender, RoutedEventArgs e)
+    {
+        var row = RowFromSender(sender);
+        if (row is null || _isAdding || !row.CanSelect)
+        {
+            return;
+        }
+
+        try
+        {
+            var year = row.Item.ParsedMedia?.Year;
+            if (row.Item.Classification == DiscoveryClassification.MovieCandidate)
+            {
+                var movie = await MatchMediaDialog.ShowForMovieAsync(this, row.Title, year);
+                if (movie is not null)
+                {
+                    row.SetMetadataPreview(new ImportMetadataPreview(
+                        ImportItemStatus.Matched,
+                        MatchStatus.Matched,
+                        MovieCandidate: movie,
+                        IsManual: true));
+                }
+            }
+            else
+            {
+                var show = await MatchMediaDialog.ShowForTvShowAsync(this, row.Title, year);
+                if (show is not null)
+                {
+                    row.SetMetadataPreview(new ImportMetadataPreview(
+                        ImportItemStatus.Matched,
+                        MatchStatus.Matched,
+                        TvCandidate: show,
+                        IsManual: true));
+                }
+            }
+            Refresh();
+        }
+        catch (Exception error)
+        {
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+        }
+    }
+
     private async void AddSelectedButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isAdding)
@@ -418,7 +629,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
         var selections = _rows
             .Where(row => row.CanSelect && row.IsSelected)
-            .Select(row => new ImportSelection(row.Item))
+            .Select(row => new ImportSelection(row.Item, row.MetadataPreview))
             .ToArray();
 
         if (selections.Length == 0)
@@ -427,17 +638,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         }
 
         _isAdding = true;
-        var metadataConfigured = false;
-        try
-        {
-            metadataConfigured = AppServices.Metadata.IsConfigured;
-        }
-        catch
-        {
-            // The import service will still report the authoritative outcome. This only controls
-            // the transient label while the asynchronous operation is running.
-        }
-
         // Freeze the entire review while the captured selection is being processed. Otherwise an
         // unsubmitted checkbox change would make the visible count disagree with the operation in
         // flight, even though the application correctly uses the immutable captured selection.
@@ -446,13 +646,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             row.SetImporting(true);
         }
 
-        foreach (var row in _rows.Where(row => selections.Any(selection =>
-            string.Equals(selection.Item.Path, row.Item.Path, StringComparison.OrdinalIgnoreCase))))
-        {
-            row.SetImportStatus(metadataConfigured
-                ? ImportItemStatus.Matching
-                : ImportItemStatus.MetadataUnavailable);
-        }
         Refresh();
         ImportBatchResult result;
 
@@ -495,6 +688,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             LocalizationService.Format("ImportAddedFormat", result.AddedCount),
             LocalizationService.Format("ImportMatchedFormat", result.MatchedCount),
             LocalizationService.Format("ImportNeedsMatchFormat", result.NeedsMatchCount),
+            LocalizationService.Format("ImportNoMatchFoundFormat", result.NoMatchFoundCount),
             LocalizationService.Format("ImportMetadataUnavailableFormat", result.MetadataUnavailableCount),
             LocalizationService.Format("ImportMetadataErrorsFormat", result.MetadataErrorsCount),
             LocalizationService.Format("ImportExistingFormat", result.ExistingCount),

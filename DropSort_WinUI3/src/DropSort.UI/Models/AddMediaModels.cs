@@ -2,7 +2,9 @@ using System.ComponentModel;
 using DropSort.Application.Dto;
 using DropSort.Domain.Media.Discovery;
 using DropSort.Domain.Media.Parser;
+using DropSort.Domain.Metadata.Contracts;
 using DropSort.UI.Services;
+using Microsoft.UI.Xaml;
 
 namespace DropSort.UI.Models;
 
@@ -15,6 +17,7 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
     private bool _isSelected;
     private bool _isImporting;
     private ImportItemStatus _status = ImportItemStatus.ReadyToAdd;
+    private ImportMetadataPreview? _metadataPreview;
 
     public DetectedMediaDisplayRecord(DiscoveredMedia item)
     {
@@ -48,6 +51,87 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
 
     public ImportItemStatus Status => _status;
 
+    /// <summary>
+    /// Metadata found during the review phase. This is staged UI state only; it is not persisted until
+    /// the user confirms Add Selected.
+    /// </summary>
+    public ImportMetadataPreview? MetadataPreview => _metadataPreview;
+
+    public string PreviewTitle => _metadataPreview?.MovieCandidate?.Title
+        ?? _metadataPreview?.TvCandidate?.Title
+        ?? string.Empty;
+
+    public string PreviewYear
+    {
+        get
+        {
+            var year = _metadataPreview?.MovieCandidate?.Year
+                ?? _metadataPreview?.TvCandidate?.FirstAirYear;
+            return year is int value ? LocalizationService.Number(value) : string.Empty;
+        }
+    }
+
+    public string PreviewDetails
+    {
+        get
+        {
+            var candidate = (object?)_metadataPreview?.MovieCandidate
+                ?? _metadataPreview?.TvCandidate;
+            var overview = candidate switch
+            {
+                MovieCandidate movie => movie.Overview,
+                TvCandidate show => show.Overview,
+                _ => null,
+            };
+            var rating = candidate switch
+            {
+                MovieCandidate movie => movie.Rating,
+                TvCandidate show => show.Rating,
+                _ => null,
+            };
+            var poster = candidate switch
+            {
+                MovieCandidate movie => movie.PosterReference,
+                TvCandidate show => show.PosterReference,
+                _ => null,
+            };
+            var details = new List<string>(3);
+            if (rating is double value)
+            {
+                details.Add(value.ToString("0.0", System.Globalization.CultureInfo.CurrentCulture));
+            }
+            if (!string.IsNullOrWhiteSpace(overview))
+            {
+                details.Add(overview!);
+            }
+            if (!string.IsNullOrWhiteSpace(poster))
+            {
+                details.Add(LocalizationService.Text("PosterAvailable"));
+            }
+            return string.Join(" · ", details);
+        }
+    }
+
+    public Visibility ManualMatchVisibility => _status is ImportItemStatus.NeedsMatch or ImportItemStatus.NoMatchFound
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public Visibility RetryVisibility => _status is ImportItemStatus.MetadataError
+        or ImportItemStatus.MetadataUnavailable
+        or ImportItemStatus.MetadataCancelled
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public Visibility PreviewVisibility => !string.IsNullOrWhiteSpace(PreviewTitle)
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    public string ManualMatchLabel => _status == ImportItemStatus.NeedsMatch
+        ? LocalizationService.Text("ReviewMatch")
+        : LocalizationService.Text("MatchManually");
+
+    public string RetryLabel => LocalizationService.Text("Retry");
+
     public void SetImporting(bool importing)
     {
         if (_isImporting == importing)
@@ -69,6 +153,47 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
         _status = status;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
+        RaiseMetadataProperties();
+    }
+
+    public void SetMetadataReviewing()
+    {
+        _metadataPreview = null;
+        SetImportStatus(ImportItemStatus.Matching);
+        RaiseMetadataProperties();
+    }
+
+    public void SetMetadataCancelled()
+    {
+        if (_status != ImportItemStatus.Matching)
+        {
+            return;
+        }
+
+        SetMetadataPreview(new ImportMetadataPreview(
+            ImportItemStatus.MetadataCancelled,
+            Failure: "Metadata matching was cancelled."));
+    }
+
+    public void SetMetadataPreview(ImportMetadataPreview preview)
+    {
+        ArgumentNullException.ThrowIfNull(preview);
+        _metadataPreview = preview;
+        SetImportStatus(preview.Status);
+        RaiseMetadataProperties();
+    }
+
+    private void RaiseMetadataProperties()
+    {
+        foreach (var name in new[]
+        {
+            nameof(MetadataPreview), nameof(PreviewTitle), nameof(PreviewYear), nameof(PreviewDetails),
+            nameof(ManualMatchVisibility), nameof(RetryVisibility), nameof(PreviewVisibility),
+            nameof(ManualMatchLabel), nameof(RetryLabel), nameof(AutomationName)
+        })
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
     }
 
     public void RefreshLocalization()
@@ -77,6 +202,7 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AutomationName)));
+        RaiseMetadataProperties();
     }
 
     public string TypeLabel => Item.Classification switch
@@ -128,6 +254,7 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
             ImportItemStatus.Matching => LocalizationService.Text("Matching"),
             ImportItemStatus.Matched => LocalizationService.Text("Matched"),
             ImportItemStatus.NeedsMatch => LocalizationService.Text("NeedsMatch"),
+            ImportItemStatus.NoMatchFound => LocalizationService.Text("NoMatchFound"),
             ImportItemStatus.MetadataUnavailable => LocalizationService.Text("MetadataUnavailable"),
             ImportItemStatus.MetadataError => LocalizationService.Text("MetadataError"),
             ImportItemStatus.MetadataCancelled => LocalizationService.Text("ImportMetadataCancelled"),
@@ -137,7 +264,7 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
         : LocalizationService.Text("NeedsReview");
 
     public string AutomationName => string.Join(" · ",
-        new[] { TypeLabel, Title, Details, FileName }
+        new[] { TypeLabel, Title, Details, FileName, PreviewTitle, PreviewYear }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
 
     public bool NeedsReview => !CanSelect;

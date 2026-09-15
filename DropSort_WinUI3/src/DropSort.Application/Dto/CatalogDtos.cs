@@ -43,6 +43,7 @@ public enum ImportItemStatus
     Matching,
     Matched,
     NeedsMatch,
+    NoMatchFound,
     MetadataUnavailable,
     MetadataError,
     MetadataCancelled,
@@ -50,7 +51,16 @@ public enum ImportItemStatus
 }
 
 /// <summary>A discovered item selected by the user for local registration.</summary>
-public record ImportSelection(DiscoveredMedia Item);
+public record ImportMetadataPreview(
+    ImportItemStatus Status,
+    MatchStatus? MatchStatus = null,
+    MovieCandidate? MovieCandidate = null,
+    TvCandidate? TvCandidate = null,
+    string? Failure = null,
+    MetadataFailureKind? MetadataFailureKind = null,
+    bool IsManual = false);
+
+public record ImportSelection(DiscoveredMedia Item, ImportMetadataPreview? MetadataPreview = null);
 
 /// <summary>The outcome for one selected item. Registration and enrichment are reported separately.</summary>
 public record ImportItemResult(
@@ -73,6 +83,7 @@ public record ImportBatchResult(IReadOnlyList<ImportItemResult> Items)
     public int ExistingCount => Items.Count(item => item.Registered && item.AlreadyRegistered);
     public int MatchedCount => Items.Count(item => item.Status == ImportItemStatus.Matched);
     public int NeedsMatchCount => Items.Count(item => item.Status == ImportItemStatus.NeedsMatch);
+    public int NoMatchFoundCount => Items.Count(item => item.Status == ImportItemStatus.NoMatchFound);
     public int MetadataUnavailableCount => Items.Count(item => item.Status == ImportItemStatus.MetadataUnavailable);
     public int MetadataErrorsCount => Items.Count(item => item.Status == ImportItemStatus.MetadataError);
     public int MetadataCancelledCount => Items.Count(item => item.Status == ImportItemStatus.MetadataCancelled);

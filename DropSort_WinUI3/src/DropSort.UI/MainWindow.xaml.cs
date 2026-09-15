@@ -192,6 +192,11 @@ public sealed partial class MainWindow : Window
         {
             if (_currentPage is not null)
             {
+                if (_currentPage is IDeactivatableView deactivatable)
+                {
+                    deactivatable.Deactivate();
+                }
+
                 _currentPage.Visibility = Visibility.Collapsed;
             }
 
