@@ -129,7 +129,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     private void RefreshTmdbStatus()
     {
         var isConnected = IsTmdbConfigured();
-        TmdbStatusText.Text = LocalizationService.Text(isConnected ? "Connected" : "NotConfigured");
+        TmdbStatusText.Text = LocalizationService.Text(isConnected ? "TmdbSessionConfigured" : "NotConfigured");
         TmdbConnectedDot.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
         TmdbMissingDot.Visibility = isConnected ? Visibility.Collapsed : Visibility.Visible;
         ClearTokenButton.IsEnabled = isConnected;
@@ -210,7 +210,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         }
         catch (Exception error)
         {
-            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 
@@ -235,8 +235,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     }
 
     /// <summary>
-    /// The token is held for this session only. Persisting it and calling TMDB both belong to the V2
-    /// metadata backend, so the status pill reflects the in-memory value.
+    /// The token is held for this session only; configuration does not imply a verified connection.
     /// </summary>
     private void UseTokenButton_Click(object sender, RoutedEventArgs e)
     {
@@ -285,15 +284,13 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         TestConnectionButton.IsEnabled = false;
         try
         {
-            var result = await AppServices.Settings.TestTmdbConnectionAsync(AppServices.TmdbClient);
-            var message = result.Success
-                ? LocalizationService.Text("TmdbConnectionSuccess")
-                : (!string.IsNullOrWhiteSpace(result.Message) ? result.Message : LocalizationService.Text("TmdbConnectionFailed"));
+            var result = await AppServices.Settings.TestTmdbConnectionAsync(AppServices.Metadata);
+            var message = MetadataErrorText.For(result);
             await ShowMessageAsync(LocalizationService.Text("TestConnection"), message);
         }
         catch (Exception ex)
         {
-            await ShowMessageAsync(LocalizationService.Text("TestConnection"), ex.Message);
+            await ShowMessageAsync(LocalizationService.Text("TestConnection"), MetadataErrorText.For(ex));
         }
         finally
         {
@@ -348,7 +345,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         }
         catch (Exception error)
         {
-            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
             return;
         }
 
@@ -379,7 +376,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         }
         catch (Exception error)
         {
-            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 

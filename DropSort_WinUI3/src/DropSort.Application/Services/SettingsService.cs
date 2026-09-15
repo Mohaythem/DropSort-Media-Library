@@ -26,9 +26,10 @@ public sealed class SettingsService : ISettingsUiActions
         _posterCache = posterCache;
         _settings = settings;
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
-        var token = string.IsNullOrWhiteSpace(initialTmdbToken)
-            ? _settings?.Get("tmdb_read_access_token")
-            : initialTmdbToken.Trim();
+        // Older builds accidentally persisted the session credential. Never restore it.
+        // Remove that obsolete key without changing unrelated user configuration.
+        _settings?.Delete("tmdb_read_access_token");
+        var token = initialTmdbToken;
         _tmdbToken = string.IsNullOrWhiteSpace(token) ? null : token.Trim();
     }
 
@@ -38,7 +39,6 @@ public sealed class SettingsService : ISettingsUiActions
     {
         if (string.IsNullOrWhiteSpace(token)) return false;
         _tmdbToken = token.Trim();
-        _settings?.Set("tmdb_read_access_token", _tmdbToken, _clock());
         return true;
     }
 

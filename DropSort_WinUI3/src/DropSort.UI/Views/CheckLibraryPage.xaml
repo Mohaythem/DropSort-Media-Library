@@ -129,6 +129,12 @@
                     </StackPanel>
                 </Border>
 
+                <InfoBar x:Name="CrashTempInfo" IsOpen="False" IsClosable="False" Severity="Warning">
+                    <InfoBar.Content>
+                        <TextBlock x:Name="CrashTempPaths" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                    </InfoBar.Content>
+                </InfoBar>
+
                 <StackPanel x:Name="IssuesSection" Spacing="12" Visibility="Collapsed">
                     <TextBlock x:Name="IssuesHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
                     <Border Style="{StaticResource ListSurfaceBorderStyle}">

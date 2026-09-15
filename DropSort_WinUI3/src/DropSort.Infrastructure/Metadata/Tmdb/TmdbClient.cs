@@ -60,7 +60,7 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
     {
         if (!IsConfigured)
         {
-            return new ConnectionTestResult(false, "Invalid TMDB API credentials.", 401);
+            return new ConnectionTestResult(false, "TMDB is not configured.", null, MetadataFailureKind.NotConfigured);
         }
 
         try
@@ -76,33 +76,33 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
                 return new ConnectionTestResult(true, "Successfully connected to TMDB.", 200);
             }
 
-            return statusCode switch
-            {
-                401 => new ConnectionTestResult(false, "Invalid TMDB API credentials.", 401),
-                429 => new ConnectionTestResult(false, "TMDB rate limit exceeded.", 429),
-                _ => new ConnectionTestResult(false, $"TMDB returned status code {statusCode}.", statusCode)
-            };
+            return new ConnectionTestResult(false, "TMDB connection failed.", statusCode, FailureKindForStatus(response.StatusCode));
         }
         catch (HttpRequestException)
         {
-            return new ConnectionTestResult(false, "Cannot reach TMDB. Check internet connection.", null);
+            return new ConnectionTestResult(false, "Cannot reach TMDB.", null, MetadataFailureKind.Network);
         }
         catch (OperationCanceledException)
         {
-            return new ConnectionTestResult(false, "TMDB request timed out.", null);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            return new ConnectionTestResult(false, "TMDB request timed out.", null, MetadataFailureKind.Timeout);
         }
-        catch (Exception ex)
+        catch (MetadataServiceException ex)
         {
-            return new ConnectionTestResult(false, $"TMDB connection error: {ex.Message}", null);
+            return new ConnectionTestResult(false, "TMDB connection failed.", null, ex.Kind);
         }
     }
 
     public async Task<IReadOnlyList<MovieCandidate>> SearchMoviesAsync(MovieSearchQuery query, CancellationToken cancellationToken = default)
     {
-        if (!IsConfigured || query == null || string.IsNullOrWhiteSpace(query.Title))
+        if (query == null || string.IsNullOrWhiteSpace(query.Title))
         {
             return [];
         }
+        if (!IsConfigured) throw new MetadataServiceException(MetadataFailureKind.NotConfigured);
 
         try
         {
@@ -115,14 +115,15 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
             using var response = await SendWithRetryAsync(HttpMethod.Get, path, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return [];
+                if (response.StatusCode == HttpStatusCode.NotFound) return [];
+                ThrowForStatus(response.StatusCode);
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("results", out var resultsElem) || resultsElem.ValueKind != JsonValueKind.Array)
             {
-                return [];
+                throw new MetadataServiceException(MetadataFailureKind.InvalidResponse);
             }
 
             var list = new List<MovieCandidate>();
@@ -170,18 +171,29 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
 
             return list;
         }
+        catch (OperationCanceledException) { if (cancellationToken.IsCancellationRequested) throw; throw new MetadataServiceException(MetadataFailureKind.Timeout); }
+        catch (MetadataServiceException) { throw; }
+        catch (HttpRequestException)
+        {
+            throw new MetadataServiceException(MetadataFailureKind.Network);
+        }
+        catch (JsonException)
+        {
+            throw new MetadataServiceException(MetadataFailureKind.InvalidResponse);
+        }
         catch
         {
-            return [];
+            throw new MetadataServiceException(MetadataFailureKind.Api);
         }
     }
 
     public async Task<MovieMetadata?> GetMovieAsync(string externalId, CancellationToken cancellationToken = default)
     {
-        if (!IsConfigured || string.IsNullOrWhiteSpace(externalId))
+        if (string.IsNullOrWhiteSpace(externalId))
         {
             return null;
         }
+        if (!IsConfigured) throw new MetadataServiceException(MetadataFailureKind.NotConfigured);
 
         try
         {
@@ -189,7 +201,8 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
             using var response = await SendWithRetryAsync(HttpMethod.Get, path, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                if (response.StatusCode == HttpStatusCode.NotFound) return null;
+                ThrowForStatus(response.StatusCode);
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -229,7 +242,7 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
             }
 
             int? runtime = null;
-            if (root.TryGetProperty("runtime", out var rtProp) && rtProp.TryGetInt32(out var rt) && rt > 0)
+            if (root.TryGetProperty("runtime", out var rtProp) && rtProp.ValueKind == JsonValueKind.Number && rtProp.TryGetInt32(out var rt) && rt > 0)
             {
                 runtime = rt;
             }
@@ -258,18 +271,23 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
                 backdropReference: backdrop,
                 tagline: string.IsNullOrWhiteSpace(tagline) ? null : tagline);
         }
+        catch (OperationCanceledException) { if (cancellationToken.IsCancellationRequested) throw; throw new MetadataServiceException(MetadataFailureKind.Timeout); }
+        catch (MetadataServiceException) { throw; }
+        catch (HttpRequestException) { throw new MetadataServiceException(MetadataFailureKind.Network); }
+        catch (JsonException) { throw new MetadataServiceException(MetadataFailureKind.InvalidResponse); }
         catch
         {
-            return null;
+            throw new MetadataServiceException(MetadataFailureKind.Api);
         }
     }
 
     public async Task<IReadOnlyList<TvCandidate>> SearchTvAsync(TvSearchQuery query, CancellationToken cancellationToken = default)
     {
-        if (!IsConfigured || query == null || string.IsNullOrWhiteSpace(query.Title))
+        if (query == null || string.IsNullOrWhiteSpace(query.Title))
         {
             return [];
         }
+        if (!IsConfigured) throw new MetadataServiceException(MetadataFailureKind.NotConfigured);
 
         try
         {
@@ -282,14 +300,15 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
             using var response = await SendWithRetryAsync(HttpMethod.Get, path, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return [];
+                if (response.StatusCode == HttpStatusCode.NotFound) return [];
+                ThrowForStatus(response.StatusCode);
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("results", out var resultsElem) || resultsElem.ValueKind != JsonValueKind.Array)
             {
-                return [];
+                throw new MetadataServiceException(MetadataFailureKind.InvalidResponse);
             }
 
             var list = new List<TvCandidate>();
@@ -337,18 +356,23 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
 
             return list;
         }
+        catch (OperationCanceledException) { if (cancellationToken.IsCancellationRequested) throw; throw new MetadataServiceException(MetadataFailureKind.Timeout); }
+        catch (MetadataServiceException) { throw; }
+        catch (HttpRequestException) { throw new MetadataServiceException(MetadataFailureKind.Network); }
+        catch (JsonException) { throw new MetadataServiceException(MetadataFailureKind.InvalidResponse); }
         catch
         {
-            return [];
+            throw new MetadataServiceException(MetadataFailureKind.Api);
         }
     }
 
     public async Task<TvShowMetadata?> GetTvShowAsync(string externalId, CancellationToken cancellationToken = default)
     {
-        if (!IsConfigured || string.IsNullOrWhiteSpace(externalId))
+        if (string.IsNullOrWhiteSpace(externalId))
         {
             return null;
         }
+        if (!IsConfigured) throw new MetadataServiceException(MetadataFailureKind.NotConfigured);
 
         try
         {
@@ -356,7 +380,8 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
             using var response = await SendWithRetryAsync(HttpMethod.Get, path, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                if (response.StatusCode == HttpStatusCode.NotFound) return null;
+                ThrowForStatus(response.StatusCode);
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -442,18 +467,23 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
                 Seasons: seasonsBuilder.ToImmutable(),
                 Tagline: string.IsNullOrWhiteSpace(tagline) ? null : tagline);
         }
+        catch (OperationCanceledException) { if (cancellationToken.IsCancellationRequested) throw; throw new MetadataServiceException(MetadataFailureKind.Timeout); }
+        catch (MetadataServiceException) { throw; }
+        catch (HttpRequestException) { throw new MetadataServiceException(MetadataFailureKind.Network); }
+        catch (JsonException) { throw new MetadataServiceException(MetadataFailureKind.InvalidResponse); }
         catch
         {
-            return null;
+            throw new MetadataServiceException(MetadataFailureKind.Api);
         }
     }
 
     public async Task<TvSeasonMetadata?> GetTvSeasonAsync(string showExternalId, int seasonNumber, CancellationToken cancellationToken = default)
     {
-        if (!IsConfigured || string.IsNullOrWhiteSpace(showExternalId))
+        if (string.IsNullOrWhiteSpace(showExternalId))
         {
             return null;
         }
+        if (!IsConfigured) throw new MetadataServiceException(MetadataFailureKind.NotConfigured);
 
         try
         {
@@ -461,7 +491,8 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
             using var response = await SendWithRetryAsync(HttpMethod.Get, path, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                return null;
+                if (response.StatusCode == HttpStatusCode.NotFound) return null;
+                ThrowForStatus(response.StatusCode);
             }
 
             var json = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -484,7 +515,7 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
                     var epTitle = ep.TryGetProperty("name", out var eptProp) ? eptProp.GetString() : null;
                     var epOverview = ep.TryGetProperty("overview", out var epoProp) ? epoProp.GetString() : null;
                     int? runtime = null;
-                    if (ep.TryGetProperty("runtime", out var eprProp) && eprProp.TryGetInt32(out var rtVal) && rtVal > 0)
+                    if (ep.TryGetProperty("runtime", out var eprProp) && eprProp.ValueKind == JsonValueKind.Number && eprProp.TryGetInt32(out var rtVal) && rtVal > 0)
                     {
                         runtime = rtVal;
                     }
@@ -518,9 +549,13 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
                 Episodes: episodesBuilder.ToImmutable(),
                 ExternalId: sId);
         }
+        catch (OperationCanceledException) { if (cancellationToken.IsCancellationRequested) throw; throw new MetadataServiceException(MetadataFailureKind.Timeout); }
+        catch (MetadataServiceException) { throw; }
+        catch (HttpRequestException) { throw new MetadataServiceException(MetadataFailureKind.Network); }
+        catch (JsonException) { throw new MetadataServiceException(MetadataFailureKind.InvalidResponse); }
         catch
         {
-            return null;
+            throw new MetadataServiceException(MetadataFailureKind.Api);
         }
     }
 
@@ -529,6 +564,20 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
 
     public MovieMetadata? GetMovie(string externalId) =>
         Task.Run(() => GetMovieAsync(externalId)).GetAwaiter().GetResult();
+
+    private static void ThrowForStatus(HttpStatusCode statusCode)
+    {
+        var kind = FailureKindForStatus(statusCode);
+        throw new MetadataServiceException(kind);
+    }
+
+    private static MetadataFailureKind FailureKindForStatus(HttpStatusCode statusCode) => statusCode switch
+    {
+        HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden => MetadataFailureKind.Authentication,
+        HttpStatusCode.TooManyRequests => MetadataFailureKind.RateLimited,
+        HttpStatusCode.NotFound => MetadataFailureKind.NotFound,
+        _ => MetadataFailureKind.Api
+    };
 
     private async Task<HttpResponseMessage> SendWithRetryAsync(HttpMethod method, string relativePath, CancellationToken cancellationToken)
     {

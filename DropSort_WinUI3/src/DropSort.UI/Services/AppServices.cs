@@ -57,9 +57,22 @@ internal static class AppServices
     }
 
     /// <summary>Where the local index, journal and settings live. Shown on the Settings page.</summary>
-    public static string DataFolder { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "DropSort");
+    public static string DataFolder { get; } = ResolveDataFolder();
+
+    private static string ResolveDataFolder()
+    {
+#if DEBUG
+        // Explicit isolated smoke-test profile; never enabled in Release builds.
+        var testRoot = Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT");
+        if (!string.IsNullOrWhiteSpace(testRoot))
+        {
+            if (!Path.IsPathFullyQualified(testRoot))
+                throw new InvalidOperationException("The test data root must be an absolute path.");
+            return Path.GetFullPath(testRoot);
+        }
+#endif
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DropSort");
+    }
 
     public static ILibraryUiActions Library => Require(_library);
 

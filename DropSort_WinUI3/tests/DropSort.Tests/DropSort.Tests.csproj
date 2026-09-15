@@ -19,6 +19,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\DropSort.UI\Services\PostHandoffRequestLifetime.cs" Link="UI\PostHandoffRequestLifetime.cs" />
+    <Compile Include="..\..\src\DropSort.UI\Services\MetadataErrorKey.cs" Link="UI\MetadataErrorKey.cs" />
     <ProjectReference Include="..\..\src\DropSort.Domain\DropSort.Domain.csproj" />
     <ProjectReference Include="..\..\src\DropSort.Application\DropSort.Application.csproj" />
     <ProjectReference Include="..\..\src\DropSort.Infrastructure\DropSort.Infrastructure.csproj" />

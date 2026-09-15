@@ -93,17 +93,48 @@ public sealed class DiskPosterCache : IPosterService, IPosterCacheMaintenance, I
                 return existing;
             }
 
-            var task = DownloadPosterInternalAsync(provider, reference, cacheKey, cancellationToken);
-            _inFlight[cacheKey] = task;
-            return task;
+            // Publish the operation before starting it.  An already-cancelled token can
+            // otherwise make the async method complete synchronously and remove the key
+            // before it has been inserted, poisoning all subsequent retries.
+            var completion = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _inFlight[cacheKey] = completion.Task;
+            _ = CompleteDownloadAsync(provider, reference, cacheKey, completion, cancellationToken);
+            return completion.Task;
         }
     }
 
-    private async Task<string?> DownloadPosterInternalAsync(string provider, string reference, string cacheKey, CancellationToken cancellationToken)
+    private async Task CompleteDownloadAsync(string provider, string reference, string cacheKey,
+        TaskCompletionSource<string?> completion, CancellationToken cancellationToken)
     {
+        string? result = null;
+        Exception? failure = null;
         try
         {
-            var cached = GetCachedPosterPath(provider, reference);
+            result = await DownloadPosterInternalAsync(provider, reference, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+        finally
+        {
+            // Never remove a newer request that reused this key.
+            lock (_inFlight)
+            {
+                if (_inFlight.TryGetValue(cacheKey, out var current) && ReferenceEquals(current, completion.Task))
+                {
+                    _inFlight.TryRemove(cacheKey, out _);
+                }
+            }
+        }
+        // A caller may immediately retry after observing completion. Remove first.
+        if (failure is null) completion.TrySetResult(result);
+        else completion.TrySetException(failure);
+    }
+
+    private async Task<string?> DownloadPosterInternalAsync(string provider, string reference, CancellationToken cancellationToken)
+    {
+        var cached = GetCachedPosterPath(provider, reference);
             if (cached != null)
             {
                 return cached;
@@ -149,11 +180,6 @@ public sealed class DiskPosterCache : IPosterService, IPosterCacheMaintenance, I
                 TryDeleteFile(tempPath);
                 return null;
             }
-        }
-        finally
-        {
-            _inFlight.TryRemove(cacheKey, out _);
-        }
     }
 
     public PosterAsset? LoadPoster(PosterRequest request)

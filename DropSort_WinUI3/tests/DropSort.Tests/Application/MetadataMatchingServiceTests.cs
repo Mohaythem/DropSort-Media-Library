@@ -128,7 +128,7 @@ public class MetadataMatchingServiceTests
     }
 
     [Fact]
-    public void SettingsService_InitializesTokenFromSettings_WhenTokenNotExplicitlyProvided()
+    public void SettingsService_RemovesLegacyToken_WithoutRestoringIt()
     {
         var settingsRepo = new MockSettingsRepo();
         settingsRepo.Set("tmdb_read_access_token", "saved_token_123", DateTimeOffset.UtcNow);
@@ -139,12 +139,13 @@ public class MetadataMatchingServiceTests
             settings: settingsRepo,
             initialTmdbToken: null);
 
-        Assert.True(service.IsTmdbConfigured());
-        Assert.Equal("saved_token_123", service.GetTmdbToken());
+        Assert.False(service.IsTmdbConfigured());
+        Assert.Null(service.GetTmdbToken());
+        Assert.Null(settingsRepo.Get("tmdb_read_access_token"));
     }
 
     [Fact]
-    public void SettingsService_ApplyAndClearToken_PersistsToSettingsRepository()
+    public void SettingsService_ApplyAndClearToken_StaysInMemory()
     {
         var settingsRepo = new MockSettingsRepo();
         var service = new SettingsService(
@@ -159,7 +160,7 @@ public class MetadataMatchingServiceTests
         Assert.True(applied);
         Assert.True(service.IsTmdbConfigured());
         Assert.Equal("new_token_abc", service.GetTmdbToken());
-        Assert.Equal("new_token_abc", settingsRepo.Get("tmdb_read_access_token"));
+        Assert.Null(settingsRepo.Get("tmdb_read_access_token"));
 
         var cleared = service.ClearTmdbSessionToken();
         Assert.True(cleared);
@@ -363,5 +364,54 @@ public class MetadataMatchingServiceTests
         // Poster cached
         Assert.Single(posterService.CachedRequests);
         Assert.Equal("/bb_poster.jpg", posterService.CachedRequests[0].Reference);
+    }
+
+    [Fact]
+    public async Task MetadataMatchingService_RematchTvShow_AbortsWhenSeasonDetailsAreIncomplete()
+    {
+        var uow = new FakeUnitOfWork();
+        var now = DateTimeOffset.UtcNow;
+        var show = uow.TvShowsRepo.Create(new TvShowCatalogData("TMDB", "old", "Old Show"), now);
+        uow.TvSeasonsRepo.Create(show.Id, 1, "Old season", "Old overview", now);
+
+        var provider = new MockMetadataProvider
+        {
+            TvShowToReturn = new TvShowMetadata(
+                "TMDB", "new", "New Show", null, 2024, null, ImmutableArray<string>.Empty,
+                null, null, null,
+                ImmutableArray.Create(new TvSeasonMetadata(1, "New season", null, null, null,
+                    ImmutableArray<TvEpisodeMetadata>.Empty)))
+        };
+
+        var service = new MetadataMatchingService(uow, provider);
+        var error = await Assert.ThrowsAsync<MetadataServiceException>(() =>
+            service.MatchTvShowAsync(show.Id, new TvCandidate("TMDB", "new", "New Show", null, 2024, null, null, null)));
+
+        Assert.Equal(MetadataFailureKind.IncompleteMetadata, error.Kind);
+        Assert.False(uow.Committed);
+        Assert.Equal("old", uow.TvShowsRepo.GetById(show.Id)!.Data.ExternalId);
+        Assert.Equal("Old season", uow.TvSeasonsRepo.GetByNumber(show.Id, 1)!.Title);
+    }
+
+    [Fact]
+    public async Task MetadataMatchingService_MatchTvShow_CancellationBeforeWriteDoesNotCommit()
+    {
+        var uow = new FakeUnitOfWork();
+        var now = DateTimeOffset.UtcNow;
+        var show = uow.TvShowsRepo.Create(new TvShowCatalogData(null, null, "Show"), now);
+        var provider = new MockMetadataProvider
+        {
+            TvShowToReturn = new TvShowMetadata("TMDB", "1", "Show", null, 2024, null,
+                ImmutableArray<string>.Empty, null, null, null, ImmutableArray<TvSeasonMetadata>.Empty)
+        };
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        var service = new MetadataMatchingService(uow, provider);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.MatchTvShowAsync(show.Id, new TvCandidate("TMDB", "1", "Show", null, 2024, null, null, null), ct: cts.Token));
+
+        Assert.False(uow.Committed);
+        Assert.Null(uow.TvShowsRepo.GetById(show.Id)!.Data.ExternalId);
     }
 }

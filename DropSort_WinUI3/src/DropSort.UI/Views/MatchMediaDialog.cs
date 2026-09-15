@@ -21,6 +21,8 @@ public sealed class MatchMediaDialog : ContentDialog
     private readonly StackPanel _statusPanel;
 
     private readonly bool _isMovie;
+    private CancellationTokenSource? _searchCts;
+    private bool _closed;
     private bool _isSearching;
 
     public MovieCandidate? SelectedMovieCandidate { get; private set; }
@@ -114,6 +116,13 @@ public sealed class MatchMediaDialog : ContentDialog
 
         Content = contentStack;
         PrimaryButtonClick += OnPrimaryButtonClick;
+        Closed += (_, _) =>
+        {
+            _closed = true;
+            _searchCts?.Cancel();
+            _searchCts?.Dispose();
+            _searchCts = null;
+        };
         Opened += async (_, _) =>
         {
             if (!string.IsNullOrWhiteSpace(_titleBox.Text))
@@ -154,7 +163,7 @@ public sealed class MatchMediaDialog : ContentDialog
 
     private async Task PerformSearchAsync()
     {
-        if (_isSearching) return;
+        if (_closed || _isSearching) return;
 
         var title = _titleBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(title)) return;
@@ -162,6 +171,10 @@ public sealed class MatchMediaDialog : ContentDialog
         int? year = int.TryParse(_yearBox.Text.Trim(), out var parsedYear) && parsedYear > 0 ? parsedYear : null;
 
         _isSearching = true;
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        var cancellationToken = _searchCts.Token;
         _searchButton.IsEnabled = false;
         _candidateList.Items.Clear();
         IsPrimaryButtonEnabled = false;
@@ -174,7 +187,8 @@ public sealed class MatchMediaDialog : ContentDialog
         {
             if (_isMovie)
             {
-                var decision = await Task.Run(() => AppServices.Matching.SearchMovieCandidatesAsync(title, year));
+                var decision = await Task.Run(() => AppServices.Matching.SearchMovieCandidatesAsync(title, year, cancellationToken));
+                if (_closed || cancellationToken.IsCancellationRequested) return;
                 _progressRing.IsActive = false;
 
                 if (decision.RankedCandidates.Length == 0)
@@ -199,7 +213,8 @@ public sealed class MatchMediaDialog : ContentDialog
             }
             else
             {
-                var decision = await Task.Run(() => AppServices.Matching.SearchTvCandidatesAsync(title, year));
+                var decision = await Task.Run(() => AppServices.Matching.SearchTvCandidatesAsync(title, year, cancellationToken));
+                if (_closed || cancellationToken.IsCancellationRequested) return;
                 _progressRing.IsActive = false;
 
                 if (decision.RankedCandidates.Length == 0)
@@ -223,15 +238,29 @@ public sealed class MatchMediaDialog : ContentDialog
                 }
             }
         }
+        catch (OperationCanceledException error)
+        {
+            if (!_closed && !cancellationToken.IsCancellationRequested)
+            {
+                _progressRing.IsActive = false;
+                _statusText.Text = MetadataErrorText.For(error);
+            }
+        }
         catch (Exception ex)
         {
-            _progressRing.IsActive = false;
-            _statusText.Text = ex.Message;
+            if (!_closed && !cancellationToken.IsCancellationRequested)
+            {
+                _progressRing.IsActive = false;
+                _statusText.Text = MetadataErrorText.For(ex);
+            }
         }
         finally
         {
-            _isSearching = false;
-            _searchButton.IsEnabled = true;
+            if (!_closed && !cancellationToken.IsCancellationRequested)
+            {
+                _isSearching = false;
+                _searchButton.IsEnabled = true;
+            }
         }
     }
 

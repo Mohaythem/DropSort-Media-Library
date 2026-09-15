@@ -7,7 +7,8 @@ using DropSort.Domain.Metadata.Contracts;
 
 namespace DropSort.Application.External;
 
-public record ConnectionTestResult(bool Success, string Message, int? StatusCode = null);
+public record ConnectionTestResult(bool Success, string Message, int? StatusCode = null,
+    MetadataFailureKind? FailureKind = null);
 
 public interface IMetadataProvider
 {

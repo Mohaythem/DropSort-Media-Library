@@ -26,10 +26,13 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
     private TVShowRecord _show = new(0, string.Empty, 0, [], string.Empty, []);
     private string _returnDestination = "library";
     private bool _isMatching;
+    private readonly PostHandoffRequestLifetime _metadataRequests = new();
+    private readonly PostHandoffRequestLifetime _posterRequests = new();
 
     public TVShowDetailsPage()
     {
         InitializeComponent();
+        Unloaded += (_, _) => { _metadataRequests.Cancel(); _posterRequests.Cancel(); };
         SetShow(_show);
     }
 
@@ -51,12 +54,15 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         catch (Exception error)
         {
             SetShow(new TVShowRecord(0, string.Empty, 0, [], string.Empty, []));
-            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 
     public void SetShow(TVShowRecord show)
     {
+        _metadataRequests.Cancel();
+        _posterRequests.Cancel();
+        SetMatchingState(false);
         _show = show;
         ShowTitleText.Text = show.Title;
         ShowMetaText.Text = show.MetaLine;
@@ -149,7 +155,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         }
         catch (Exception error)
         {
-            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 
@@ -202,7 +208,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         }
         catch (Exception error)
         {
-            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 
@@ -318,17 +324,31 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
             PosterImage.Source = null;
             PosterGlyph.Visibility = Visibility.Visible;
 
+            var request = _posterRequests.Begin();
             _ = Task.Run(async () =>
             {
-                var downloadedPath = await AppServices.Poster.EnsurePosterCachedAsync("TMDB", posterRef);
-                if (downloadedPath != null && File.Exists(downloadedPath))
+                try
+                {
+                    var downloadedPath = await AppServices.Poster.EnsurePosterCachedAsync("TMDB", posterRef, request.Token);
+                    if (request.IsCurrent && downloadedPath != null && File.Exists(downloadedPath))
+                    {
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            if (request.IsCurrent && _show.PosterReference == posterRef)
+                            {
+                                PosterImage.Source = new BitmapImage(new Uri(downloadedPath));
+                                PosterGlyph.Visibility = Visibility.Collapsed;
+                            }
+                        });
+                    }
+                }
+                catch (Exception error) when (request.IsCurrent)
                 {
                     DispatcherQueue.TryEnqueue(() =>
                     {
-                        if (_show.PosterReference == posterRef)
+                        if (request.IsCurrent)
                         {
-                            PosterImage.Source = new BitmapImage(new Uri(downloadedPath));
-                            PosterGlyph.Visibility = Visibility.Collapsed;
+                            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
                         }
                     });
                 }
@@ -403,43 +423,49 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
 
     private async Task RefreshTvShowMetadataAsync()
     {
+        var showId = _show.Id;
+        var request = _metadataRequests.Begin();
         SetMatchingState(true);
         try
         {
-            var refreshed = await Task.Run(() => AppServices.Matching.RefreshTvShowMetadataAsync(_show.Id));
-            if (refreshed != null)
+            var refreshed = await Task.Run(() => AppServices.Matching.RefreshTvShowMetadataAsync(showId, true, request.Token));
+            if (request.IsCurrent && refreshed != null)
             {
-                LoadShow(_show.Id);
+                SetMatchingState(false);
+                LoadShow(showId);
             }
         }
         catch (Exception error)
         {
-            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            if (request.IsCurrent) _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
         finally
         {
-            SetMatchingState(false);
+            if (request.IsCurrent) SetMatchingState(false);
         }
     }
 
     private async Task FixTvShowMatchAsync()
     {
+        var showId = _show.Id;
+        var request = _metadataRequests.Begin();
         var candidate = await MatchMediaDialog.ShowForTvShowAsync(this, _show.Title, _show.Year > 0 ? _show.Year : null);
+        if (!request.IsCurrent) return;
         if (candidate != null)
         {
             SetMatchingState(true);
             try
             {
-                await Task.Run(() => AppServices.Matching.MatchTvShowAsync(_show.Id, candidate));
-                LoadShow(_show.Id);
+                await Task.Run(() => AppServices.Matching.MatchTvShowAsync(showId, candidate, true, request.Token));
+                if (request.IsCurrent) { SetMatchingState(false); LoadShow(showId); }
             }
             catch (Exception error)
             {
-                _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+                if (request.IsCurrent) _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
             }
             finally
             {
-                SetMatchingState(false);
+                if (request.IsCurrent) SetMatchingState(false);
             }
         }
     }

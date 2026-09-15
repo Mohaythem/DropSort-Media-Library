@@ -30,6 +30,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     private LibraryCheckState _state = LibraryCheckState.Idle;
     private LibraryHealthProgress? _result;
     private string? _failure;
+    private IReadOnlyList<Domain.Core.Operations.StaleTempFileInfo> _staleTemps = [];
 
     /// <summary>
     /// The registered files the last pass found missing, captured once when the pass ends. Refresh runs
@@ -53,6 +54,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     public CheckLibraryPage()
     {
         this.InitializeComponent();
+        Unloaded += (_, _) => _cancellation?.Cancel();
         ApplyLocalization();
     }
 
@@ -99,6 +101,10 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
 
         var hasResult = _state == LibraryCheckState.Complete && _result is not null;
         CheckSummaryPanel.Visibility = hasResult ? Visibility.Visible : Visibility.Collapsed;
+        CrashTempInfo.IsOpen = hasResult && _staleTemps.Count > 0;
+        CrashTempInfo.Title = LocalizationService.Text("CrashTempTitle");
+        CrashTempInfo.Message = LocalizationService.Format("CrashTempHelp", _staleTemps.Count);
+        CrashTempPaths.Text = string.Join(Environment.NewLine, _staleTemps.Select(file => file.FilePath));
 
         if (!hasResult)
         {
@@ -132,7 +138,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
 
         IssuesRepeater.ItemsSource = issues;
         IssuesSection.Visibility = issues.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        NoIssuesState.Visibility = issues.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        NoIssuesState.Visibility = issues.Count == 0 && _staleTemps.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -250,6 +256,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         _result = null;
         _missing = [];
         _missingEpisodeFiles = [];
+        _staleTemps = [];
         CheckProgressBar.IsIndeterminate = true;
         CheckProgressText.Text = LocalizationService.Format("CheckedCountFormat", 0);
         Refresh();
@@ -260,6 +267,9 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
                 progress: update => DispatcherQueue.TryEnqueue(() => ReportProgress(update)),
                 isCancelled: () => token.IsCancellationRequested));
 
+            token.ThrowIfCancellationRequested();
+            _staleTemps = await Task.Run(() => AppServices.DetectStaleTempFiles(), token);
+            token.ThrowIfCancellationRequested();
             _result = result;
             _missing = MissingFiles();
             _missingEpisodeFiles = [.. _missing
@@ -274,7 +284,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         }
         catch (Exception error)
         {
-            _failure = error.Message;
+            _failure = MetadataErrorText.For(error);
             _state = LibraryCheckState.Failed;
         }
         finally
@@ -364,11 +374,11 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
                 LocalizationService.Text("Success"),
                 LocalizationService.Text("RelinkSuccess"));
         }
-        catch (Exception error)
+        catch (Exception)
         {
             await ShowMessageAsync(
                 LocalizationService.Text("Failed"),
-                error.Message);
+                LocalizationService.Text("RelinkFailedHelp"));
         }
     }
 
@@ -409,7 +419,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         }
         catch (Exception error)
         {
-            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 

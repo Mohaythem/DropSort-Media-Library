@@ -33,12 +33,15 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
     /// <summary>True while a journalled move is running; the file actions stay locked until it ends.</summary>
     private bool _isOrganizing;
     private bool _isMatching;
+    private readonly PostHandoffRequestLifetime _metadataRequests = new();
+    private readonly PostHandoffRequestLifetime _posterRequests = new();
 
     public MovieDetailsPage()
     {
         InitializeComponent();
         HistoryRepeater.ItemsSource = _history;
         WatchedDatePicker.MaxDate = DateTimeOffset.Now;
+        Unloaded += (_, _) => { _metadataRequests.Cancel(); _posterRequests.Cancel(); };
         SetMovie(_movie);
     }
 
@@ -72,6 +75,9 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
 
     private void SetMovie(MovieRecord movie)
     {
+        _metadataRequests.Cancel();
+        _posterRequests.Cancel();
+        SetMatchingState(false);
         _movie = movie;
         _preference = movie.Preference;
         _inWatchlist = movie.InWatchlist;
@@ -487,7 +493,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
     }
 
     private void ReportFailure(Exception error) =>
-        _ = ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+        _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
 
     /// <summary>
     /// One themed message surface for this page. A ContentDialog is hosted outside the window's
@@ -569,18 +575,29 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
             PosterImage.Source = null;
             PosterGlyph.Visibility = Visibility.Visible;
 
+            var request = _posterRequests.Begin();
             _ = Task.Run(async () =>
             {
-                var downloadedPath = await AppServices.Poster.EnsurePosterCachedAsync("TMDB", posterRef);
-                if (downloadedPath != null && File.Exists(downloadedPath))
+                try
+                {
+                    var downloadedPath = await AppServices.Poster.EnsurePosterCachedAsync("TMDB", posterRef, request.Token);
+                    if (request.IsCurrent && downloadedPath != null && File.Exists(downloadedPath))
+                    {
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            if (request.IsCurrent && _movie.PosterReference == posterRef)
+                            {
+                                PosterImage.Source = new BitmapImage(new Uri(downloadedPath));
+                                PosterGlyph.Visibility = Visibility.Collapsed;
+                            }
+                        });
+                    }
+                }
+                catch (Exception error) when (request.IsCurrent)
                 {
                     DispatcherQueue.TryEnqueue(() =>
                     {
-                        if (_movie.PosterReference == posterRef)
-                        {
-                            PosterImage.Source = new BitmapImage(new Uri(downloadedPath));
-                            PosterGlyph.Visibility = Visibility.Collapsed;
-                        }
+                        if (request.IsCurrent) ReportFailure(error);
                     });
                 }
             });
@@ -667,43 +684,49 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
 
     private async Task RefreshMovieMetadataAsync()
     {
+        var movieId = _movie.Id;
+        var request = _metadataRequests.Begin();
         SetMatchingState(true);
         try
         {
-            var refreshed = await Task.Run(() => AppServices.Matching.RefreshMovieMetadataAsync(_movie.Id));
-            if (refreshed != null)
+            var refreshed = await Task.Run(() => AppServices.Matching.RefreshMovieMetadataAsync(movieId, request.Token));
+            if (request.IsCurrent && refreshed != null)
             {
-                LoadMovie(_movie.Id);
+                SetMatchingState(false);
+                LoadMovie(movieId);
             }
         }
         catch (Exception error)
         {
-            ReportFailure(error);
+            if (request.IsCurrent) ReportFailure(error);
         }
         finally
         {
-            SetMatchingState(false);
+            if (request.IsCurrent) SetMatchingState(false);
         }
     }
 
     private async Task FixMovieMatchAsync()
     {
+        var movieId = _movie.Id;
+        var request = _metadataRequests.Begin();
         var candidate = await MatchMediaDialog.ShowForMovieAsync(this, _movie.Title, _movie.Year > 0 ? _movie.Year : null);
+        if (!request.IsCurrent) return;
         if (candidate != null)
         {
             SetMatchingState(true);
             try
             {
-                await Task.Run(() => AppServices.Matching.MatchMovieAsync(_movie.Id, candidate));
-                LoadMovie(_movie.Id);
+                await Task.Run(() => AppServices.Matching.MatchMovieAsync(movieId, candidate, request.Token));
+                if (request.IsCurrent) { SetMatchingState(false); LoadMovie(movieId); }
             }
             catch (Exception error)
             {
-                ReportFailure(error);
+                if (request.IsCurrent) ReportFailure(error);
             }
             finally
             {
-                SetMatchingState(false);
+                if (request.IsCurrent) SetMatchingState(false);
             }
         }
     }
