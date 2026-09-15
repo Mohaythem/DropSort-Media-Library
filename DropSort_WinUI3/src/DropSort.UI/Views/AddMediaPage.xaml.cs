@@ -1,4 +1,4 @@
-using System.Globalization;
+using System.Collections.ObjectModel;
 using DropSort.Application.Dto;
 using DropSort.Domain.Media.Discovery;
 using DropSort.UI.Models;
@@ -19,26 +19,19 @@ public enum AddMediaScanState
 }
 
 /// <summary>
-/// Add Media.
-/// <para>
-/// The movies flow is real end to end: the folder picker chooses a root, the discovery service walks
-/// it on a worker thread while the designed progress row reports live counts and Cancel stops it, and
-/// Add Selected registers every detected candidate in the catalog through
-/// <see cref="IImportUiActions.RegisterMovieImport" /> - which is the offline path, so no metadata
-/// provider is needed. Registration is idempotent per path, so scanning the same folder twice does
-/// not duplicate a movie.
-/// </para>
-/// <para>
-/// The episodes flow can pick files and list them, but the catalog has no episode tables yet, so
-/// adding them is refused with a plain statement instead of a fake success.
-/// </para>
+/// Unified Add Media review. Discovery is shared for movies and TV episodes; only rows the user
+/// selects are handed to the application import use case. Local registration commits before any
+/// optional confidence-aware metadata enrichment, so an offline or ambiguous lookup never loses a
+/// locally indexed file.
 /// </summary>
 public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableView
 {
     private AddMediaScanState _state = AddMediaScanState.Idle;
-    private string _mediaType = "movies";
     private IReadOnlyList<DiscoveredMedia> _detected = [];
+    private readonly ObservableCollection<DetectedMediaDisplayRecord> _rows = [];
     private bool _isScanning;
+    private bool _isAdding;
+    private long _scanVersion;
 
     /// <summary>
     /// Cancellation for the running scan. A CancellationTokenSource is the safe way to hand a stop
@@ -46,17 +39,11 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     /// </summary>
     private CancellationTokenSource? _cancellation;
 
-    /// <summary>
-    /// The tab strip raises Checked while the XAML is still being parsed, before the result sections
-    /// exist; the constructor applies the initial media type instead.
-    /// </summary>
-    private readonly bool _isReady;
-
     public AddMediaPage()
     {
         this.InitializeComponent();
-        _isReady = true;
-        FolderPathBox.Text = AppSettingsStore.MovieFolder ?? string.Empty;
+        DetectedMediaRepeater.ItemsSource = _rows;
+        FolderPathBox.Text = AppSettingsStore.MovieFolder ?? AppSettingsStore.ShowFolder ?? string.Empty;
         ApplyLocalization();
     }
 
@@ -69,20 +56,21 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     {
         FlowDirection = LocalizationService.FlowDirection;
         PageTitleText.Text = LocalizationService.Text("AddMedia");
-        MoviesTypeItem.Content = LocalizationService.Text("MoviesTab");
-        EpisodesTypeItem.Content = LocalizationService.Text("TvEpisodesTab");
-        MediaTypeSelector.SetValue(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty,
-            LocalizationService.Text("MediaTypeLabel"));
+        SourceHeadingText.Text = LocalizationService.Text("AddMediaScanHeading");
+        SourceHelpText.Text = LocalizationService.Text("AddMediaScanHelp");
         FolderPathBox.PlaceholderText = LocalizationService.Text("FolderPathPlaceholder");
         FolderLabelText.Text = LocalizationService.Text("MediaFolderLabel");
         BrowseButton.Content = LocalizationService.Text("Browse");
         AddFilesButton.Content = LocalizationService.Text("AddFiles");
+        CancelButton.Content = LocalizationService.Text("CancelReview");
+        ResultsHeadingText.Text = LocalizationService.Text("ReviewMedia");
+        SelectAllButton.Content = LocalizationService.Text("SelectAll");
+        DeselectAllButton.Content = LocalizationService.Text("DeselectAll");
+        ColumnSelectText.Text = LocalizationService.Text("Select");
+        ColumnTypeText.Text = LocalizationService.Text("MediaType");
         ColumnTitleText.Text = LocalizationService.Text("Title");
-        ColumnYearText.Text = LocalizationService.Text("Year");
-        ColumnQualityText.Text = LocalizationService.Text("Quality");
-        ColumnActionText.Text = LocalizationService.Text("Action");
-        MoviesResultHeadingText.Text = LocalizationService.Text("DetectedMovies");
-        EpisodesResultHeadingText.Text = LocalizationService.Text("DetectedEpisodes");
+        ColumnDetailsText.Text = LocalizationService.Text("Details");
+        ColumnStatusText.Text = LocalizationService.Text("Status");
         SearchTmdbHeadingText.Text = LocalizationService.Text("SearchTmdbHeading");
         SearchTmdbHelpText.Text = LocalizationService.Text("SearchTmdbHelp");
         TmdbSearchBox.PlaceholderText = LocalizationService.Text("SearchTmdbPlaceholder");
@@ -94,17 +82,15 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     private void Refresh()
     {
-        var isEpisodes = _mediaType == "episodes";
-        SourceHeadingText.Text = LocalizationService.Text(isEpisodes ? "AddEpisodesFromFiles" : "AddMoviesFromFolder");
-        SourceHelpText.Text = LocalizationService.Text(isEpisodes ? "AddEpisodesFromFilesHelp" : "AddMoviesFromFolderHelp");
         ScanButton.Content = LocalizationService.Text(
-            _isScanning ? "Cancel" : _state == AddMediaScanState.Results ? "ResetScan" : "ScanFolder");
+            _isScanning ? "Cancel" : "ScanFolder");
         ScanProgressText.Text = LocalizationService.Text("ScanningFolder");
-
-        // Episodes are added as individual files, movies as a folder scan: Add Files therefore only
-        // belongs to the episode flow. The control is not removed, it simply is not part of the
-        // movies source row in the design.
-        AddFilesButton.Visibility = isEpisodes ? Visibility.Visible : Visibility.Collapsed;
+        AddFilesButton.IsEnabled = !_isScanning && !_isAdding;
+        BrowseButton.IsEnabled = !_isScanning && !_isAdding;
+        CancelButton.Visibility = _isScanning || (_state == AddMediaScanState.Results && !_isAdding)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        ScanButton.IsEnabled = !_isAdding;
 
         ScanProgressPanel.Visibility = _state == AddMediaScanState.Scanning
             ? Visibility.Visible
@@ -112,109 +98,77 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         EmptyState.Visibility = _state == AddMediaScanState.Idle ? Visibility.Visible : Visibility.Collapsed;
 
         var showResults = _state == AddMediaScanState.Results;
-        MoviesResultSection.Visibility = showResults && !isEpisodes ? Visibility.Visible : Visibility.Collapsed;
-        EpisodesResultSection.Visibility = showResults && isEpisodes ? Visibility.Visible : Visibility.Collapsed;
+        ResultsSection.Visibility = showResults ? Visibility.Visible : Visibility.Collapsed;
 
         if (!showResults)
         {
             return;
         }
 
-        var movies = BuildDetectedMovies();
-        DetectedMoviesRepeater.ItemsSource = movies;
-        MoviesResultCountText.Text = LocalizationService.Format("ItemsFoundFormat", movies.Count);
-        AddSelectedButton.IsEnabled = movies.Count > 0;
-
-        // There is no per-row selection control in this list, so the action cannot honestly be called
-        // "Add Selected": it registers every detected movie. The label states the count it will add.
-        AddSelectedButton.Content = LocalizationService.Format("AddAllFormat", movies.Count);
-
-        var episodes = BuildDetectedEpisodes();
-        DetectedEpisodesRepeater.ItemsSource = episodes;
-        EpisodesResultCountText.Text = LocalizationService.Format(
-            "DetectedEpisodesFormat", DetectedSeasonNumber(), episodes.Count);
-        AddEpisodesButton.Content = LocalizationService.Format("AddEpisodesFormat", episodes.Count);
-        AddEpisodesButton.IsEnabled = episodes.Count > 0;
+        var selectable = _rows.Count(row => row.CanSelect);
+        var selected = _rows.Count(row => row.CanSelect && row.IsSelected);
+        ResultsCountText.Text = LocalizationService.Format("ItemsFoundFormat", _rows.Count)
+            + " · " + LocalizationService.Format("SelectedItemsFormat", selected);
+        AddSelectedButton.IsEnabled = selected > 0 && !_isAdding;
+        AddSelectedButton.Content = LocalizationService.Format("AddSelectedFormat", selected);
+        SelectAllButton.IsEnabled = selectable > 0 && !_isAdding;
+        DeselectAllButton.IsEnabled = selected > 0 && !_isAdding;
     }
 
-    /// <summary>
-    /// The detected movie rows. Quality is whatever the parser could read out of the file name, and a
-    /// row the parser could not name at all is still listed - as its file name - so nothing found on
-    /// disk disappears silently from the review.
-    /// </summary>
-    private IReadOnlyList<DetectedMovieDisplayRecord> BuildDetectedMovies() =>
-    [
-        .. _detected
-            .Where(item => item.Classification == DiscoveryClassification.MovieCandidate)
-            .Select(item => new DetectedMovieDisplayRecord(
-                item.ParsedMedia?.Title is { Length: > 0 } title
-                    ? title
-                    : Path.GetFileNameWithoutExtension(item.Path),
-                item.ParsedMedia?.Year ?? 0,
-                item.ParsedMedia?.Resolution ?? string.Empty,
-                Path.GetFileName(item.Path),
-                LocalizationService.Text(item.ParsedMedia?.Year is null ? "FindMatch" : "Review"),
-                item.ParsedMedia?.Year is not null)),
-    ];
-
-    /// <summary>
-    /// The detected episode rows. A file the parser resolved shows its show name and code and is ready
-    /// to register; one it could not resolve is still listed - as its file name, marked for review - so
-    /// nothing found on disk disappears silently from the review.
-    /// </summary>
-    private IReadOnlyList<DetectedEpisodeDisplayRecord> BuildDetectedEpisodes() =>
-    [
-        .. EpisodeItems().Select(item =>
-        {
-            var isReady = item.Classification == DiscoveryClassification.TvEpisodeCandidate;
-
-            return new DetectedEpisodeDisplayRecord(
-                isReady
-                    ? ShowFormatting.EpisodeCode(
-                        item.ParsedMedia!.SeasonNumber!.Value,
-                        item.ParsedMedia!.EpisodeNumber!.Value)
-                    : string.Empty,
-                isReady ? item.ParsedMedia!.Title! : Path.GetFileNameWithoutExtension(item.Path),
-                Path.GetFileName(item.Path),
-                LocalizationService.Text(isReady ? "Review" : "NeedsReview"),
-                isReady);
-        }),
-    ];
-
-    /// <summary>Every discovered file that is an episode, resolved or not.</summary>
-    private IEnumerable<DiscoveredMedia> EpisodeItems() => _detected.Where(item =>
-        item.Classification is DiscoveryClassification.TvEpisodeCandidate
-            or DiscoveryClassification.TvEpisodeSkipped);
-
-    /// <summary>
-    /// The season the detected episodes belong to, for the results heading: the lowest season any
-    /// resolved row claims, or 1 when nothing resolved.
-    /// </summary>
-    private int DetectedSeasonNumber()
+    private void SetDetected(IReadOnlyList<DiscoveredMedia> items)
     {
-        var seasons = EpisodeItems()
-            .Where(item => item.Classification == DiscoveryClassification.TvEpisodeCandidate)
-            .Select(item => item.ParsedMedia!.SeasonNumber!.Value)
-            .ToArray();
-
-        return seasons.Length == 0 ? 1 : seasons.Min();
-    }
-
-    private void MediaTypeItem_Checked(object sender, RoutedEventArgs e)
-    {
-        if (!_isReady)
+        foreach (var row in _rows)
         {
-            return;
+            row.PropertyChanged -= SelectionChanged;
         }
 
-        if (sender is RadioButton { Tag: string mediaType } && mediaType != _mediaType)
+        _detected = items;
+        _rows.Clear();
+        foreach (var item in items)
         {
-            _mediaType = mediaType;
-            FolderPathBox.Text = (_mediaType == "episodes"
-                ? AppSettingsStore.ShowFolder
-                : AppSettingsStore.MovieFolder) ?? string.Empty;
+            var row = new DetectedMediaDisplayRecord(item);
+            row.PropertyChanged += SelectionChanged;
+            _rows.Add(row);
+        }
+    }
+
+    private void SelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(DetectedMediaDisplayRecord.IsSelected))
+        {
             Refresh();
         }
+    }
+
+    private void SelectAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var row in _rows.Where(row => row.CanSelect))
+        {
+            row.IsSelected = true;
+        }
+        Refresh();
+    }
+
+    private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var row in _rows)
+        {
+            row.IsSelected = false;
+        }
+        Refresh();
+    }
+
+    private void CancelButton_Click(object sender, RoutedEventArgs e)
+    {
+        var wasScanning = _isScanning;
+        _cancellation?.Cancel();
+        SetDetected([]);
+        _state = AddMediaScanState.Idle;
+        if (!wasScanning)
+        {
+            _isScanning = false;
+        }
+        Refresh();
     }
 
     /// <summary>
@@ -236,22 +190,19 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
             FolderPathBox.Text = folder.Path;
 
-            if (_mediaType == "episodes")
+            AppSettingsStore.MovieFolder = folder.Path;
+            if (string.IsNullOrWhiteSpace(AppSettingsStore.ShowFolder))
             {
                 AppSettingsStore.ShowFolder = folder.Path;
-            }
-            else
-            {
-                AppSettingsStore.MovieFolder = folder.Path;
             }
         }
         catch (Exception error)
         {
-            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 
-    /// <summary>Picks loose episode files. Listing them is supported; registering them is not yet.</summary>
+    /// <summary>Picks loose media files and sends them through the same mixed review as folder scans.</summary>
     private async void AddFilesButton_Click(object sender, RoutedEventArgs e)
     {
         try
@@ -271,31 +222,65 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             }
 
             var picked = files.Select(file => file.Path).ToArray();
-            _detected = await Task.Run(() => DiscoverPicked(picked));
-            _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
-            Refresh();
+            var (cancellation, scanVersion) = BeginScan();
+            try
+            {
+                var discovered = await Task.Run(() => DiscoverPicked(
+                    picked,
+                    () => cancellation.Token.IsCancellationRequested));
+
+                if (!IsCurrentScan(scanVersion, cancellation))
+                {
+                    return;
+                }
+
+                if (cancellation.IsCancellationRequested)
+                {
+                    _state = AddMediaScanState.Idle;
+                    return;
+                }
+
+                SetDetected(discovered);
+                _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
+            }
+            catch (OperationCanceledException)
+            {
+                if (IsCurrentScan(scanVersion, cancellation))
+                {
+                    _state = AddMediaScanState.Idle;
+                }
+            }
+            catch (Exception error)
+            {
+                if (IsCurrentScan(scanVersion, cancellation))
+                {
+                    _state = AddMediaScanState.Idle;
+                    await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+                }
+            }
+            finally
+            {
+                EndScan(scanVersion, cancellation);
+            }
+        }
+        catch (OperationCanceledException)
+        {
         }
         catch (Exception error)
         {
-            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 
     private static readonly string[] MediaExtensions =
-        [".mkv", ".mp4", ".avi", ".mov", ".m4v", ".wmv", ".ts", ".webm"];
+        [".mkv", ".mp4", ".avi", ".mov", ".m4v", ".wmv"];
 
-    /// <summary>Scan, cancel a running scan, or clear the last result - one button, three states.</summary>
+    /// <summary>Starts a folder scan, or requests cancellation of the running scan.</summary>
     private async void ScanButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isScanning)
         {
             _cancellation?.Cancel();
-            return;
-        }
-
-        if (_state == AddMediaScanState.Results)
-        {
-            _detected = [];
             _state = AddMediaScanState.Idle;
             Refresh();
             return;
@@ -313,7 +298,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     {
         var root = FolderPathBox.Text?.Trim();
 
-        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+        if (string.IsNullOrWhiteSpace(root))
         {
             await ShowMessageAsync(
                 LocalizationService.Text("AddMedia"),
@@ -321,26 +306,35 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             return;
         }
 
-        _cancellation?.Dispose();
-        _cancellation = new CancellationTokenSource();
-        var token = _cancellation.Token;
-
-        _isScanning = true;
-        _detected = [];
-        _state = AddMediaScanState.Scanning;
-        ScanProgressBar.Maximum = 1;
-        ScanProgressBar.Value = 0;
-        Refresh();
+        var (cancellation, scanVersion) = BeginScan();
+        var token = cancellation.Token;
 
         try
         {
             var session = await Task.Run(() => AppServices.Import.PrepareImportReview(
                 root,
                 recursive: true,
-                progress: update => DispatcherQueue.TryEnqueue(() => ReportScanProgress(update)),
+                progress: update => DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (IsCurrentScan(scanVersion, cancellation))
+                    {
+                        ReportScanProgress(update);
+                    }
+                }),
                 isCancelled: () => token.IsCancellationRequested));
 
-            _detected = session.Items;
+            if (!IsCurrentScan(scanVersion, cancellation))
+            {
+                return;
+            }
+
+            if (token.IsCancellationRequested)
+            {
+                _state = AddMediaScanState.Idle;
+                return;
+            }
+
+            SetDetected(session.Items);
             _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
 
             if (_detected.Count == 0)
@@ -351,19 +345,55 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         }
         catch (OperationCanceledException)
         {
-            _state = AddMediaScanState.Idle;
+            if (IsCurrentScan(scanVersion, cancellation))
+            {
+                _state = AddMediaScanState.Idle;
+            }
         }
         catch (Exception error)
         {
-            _state = AddMediaScanState.Idle;
-            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            if (IsCurrentScan(scanVersion, cancellation))
+            {
+                _state = AddMediaScanState.Idle;
+                await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+            }
         }
         finally
         {
-            _isScanning = false;
-            Refresh();
+            EndScan(scanVersion, cancellation);
         }
     }
+
+    private (CancellationTokenSource Cancellation, long ScanVersion) BeginScan()
+    {
+        _cancellation?.Dispose();
+        var cancellation = new CancellationTokenSource();
+        _cancellation = cancellation;
+        var scanVersion = ++_scanVersion;
+        _isScanning = true;
+        SetDetected([]);
+        _state = AddMediaScanState.Scanning;
+        ScanProgressBar.Maximum = 1;
+        ScanProgressBar.Value = 0;
+        Refresh();
+        return (cancellation, scanVersion);
+    }
+
+    private void EndScan(long scanVersion, CancellationTokenSource cancellation)
+    {
+        if (!IsCurrentScan(scanVersion, cancellation))
+        {
+            return;
+        }
+
+        _isScanning = false;
+        _cancellation = null;
+        cancellation.Dispose();
+        Refresh();
+    }
+
+    private bool IsCurrentScan(long scanVersion, CancellationTokenSource cancellation) =>
+        scanVersion == _scanVersion && ReferenceEquals(_cancellation, cancellation);
 
     private void ReportScanProgress(ImportReviewProgress update)
     {
@@ -375,163 +405,71 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             Math.Max(update.FilesDiscovered, update.FilesProcessed));
     }
 
-    /// <summary>
-    /// Registers every detected candidate - the list has no per-row selection, and the button says
-    /// "Add All (n)" for that reason. Registration is per file path and idempotent, so a folder that was
-    /// already added simply reports the same movies again instead of duplicating them.
-    /// </summary>
     private async void AddSelectedButton_Click(object sender, RoutedEventArgs e)
     {
-        var candidates = _detected
-            .Where(item => item.Classification == DiscoveryClassification.MovieCandidate)
-            .ToArray();
-
-        if (candidates.Length == 0)
+        if (_isAdding)
         {
             return;
         }
 
-        AddSelectedButton.IsEnabled = false;
-        var added = 0;
-        var failures = new List<string>();
-
-        try
-        {
-            var observedAt = DateTimeOffset.UtcNow;
-
-            await Task.Run(() =>
-            {
-                foreach (var candidate in candidates)
-                {
-                    try
-                    {
-                        AppServices.Import.RegisterMovieImport(new ConfirmMovieImportCommand(
-                            candidate.Path,
-                            candidate.FileSize ?? 0,
-                            candidate.ParsedMedia!,
-                            observedAt));
-                        added++;
-                    }
-                    catch (Exception error)
-                    {
-                        failures.Add(Path.GetFileName(candidate.Path) + ": " + error.Message);
-                    }
-                }
-            });
-        }
-        finally
-        {
-            AddSelectedButton.IsEnabled = true;
-        }
-
-        MediaRegistered?.Invoke(this, EventArgs.Empty);
-
-        _detected = [];
-        _state = AddMediaScanState.Idle;
-        Refresh();
-
-        var summary = LocalizationService.Format("ItemsAddedFormat", added);
-
-        if (failures.Count > 0)
-        {
-            summary += Environment.NewLine + Environment.NewLine + string.Join(Environment.NewLine, failures);
-        }
-
-        await ShowMessageAsync(LocalizationService.Text("AddMedia"), summary);
-    }
-
-    /// <summary>
-    /// Registers every resolved episode into the show / season / episode hierarchy. Registration is per
-    /// file path and idempotent, so re-adding a folder reports the same episodes instead of duplicating
-    /// them. A file the parser could not resolve is not registered at all, and the summary says why.
-    /// </summary>
-    private async void AddEpisodesButton_Click(object sender, RoutedEventArgs e)
-    {
-        var candidates = EpisodeItems()
-            .Where(item => item.Classification == DiscoveryClassification.TvEpisodeCandidate)
+        var selections = _rows
+            .Where(row => row.CanSelect && row.IsSelected)
+            .Select(row => new ImportSelection(row.Item))
             .ToArray();
 
-        var unresolved = EpisodeItems()
-            .Where(item => item.Classification == DiscoveryClassification.TvEpisodeSkipped)
-            .Select(item => Path.GetFileName(item.Path) + ": " + LocalizationService.Text("EpisodeNoMarkerHelp"))
-            .ToList();
-
-        if (candidates.Length == 0 && unresolved.Count == 0)
+        if (selections.Length == 0)
         {
             return;
         }
 
-        AddEpisodesButton.IsEnabled = false;
-        var added = 0;
+        _isAdding = true;
+        Refresh();
+        ImportBatchResult result;
 
         try
         {
-            var observedAt = DateTimeOffset.UtcNow;
-
-            await Task.Run(() =>
-            {
-                foreach (var candidate in candidates)
-                {
-                    try
-                    {
-                        AppServices.Import.RegisterEpisodeImport(new ConfirmEpisodeImportCommand(
-                            candidate.Path,
-                            candidate.FileSize ?? 0,
-                            candidate.ParsedMedia!,
-                            observedAt));
-                        added++;
-                    }
-                    catch (EpisodeRegistrationException refusal)
-                    {
-                        unresolved.Add(Path.GetFileName(candidate.Path) + ": " + RefusalText(refusal.Refusal));
-                    }
-                    catch (Exception error)
-                    {
-                        unresolved.Add(Path.GetFileName(candidate.Path) + ": " + error.Message);
-                    }
-                }
-            });
+            result = await Task.Run(() => AppServices.Import.ImportSelectedAsync(selections));
+        }
+        catch (Exception error)
+        {
+            _isAdding = false;
+            Refresh();
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+            return;
         }
         finally
         {
-            AddEpisodesButton.IsEnabled = true;
+            _isAdding = false;
         }
 
         MediaRegistered?.Invoke(this, EventArgs.Empty);
-
-        _detected = [];
+        SetDetected([]);
         _state = AddMediaScanState.Idle;
         Refresh();
 
-        var summary = LocalizationService.Format("EpisodesAddedFormat", added);
-
-        if (unresolved.Count > 0)
+        var summary = LocalizationService.Format("ItemsAddedFormat", result.RegisteredCount);
+        if (result.AutoMatchedCount > 0)
+        {
+            summary += Environment.NewLine + LocalizationService.Format(
+                "AutomaticMatchSummaryFormat", result.AutoMatchedCount);
+        }
+        if (result.Items.Any(item => !string.IsNullOrWhiteSpace(item.Failure)))
         {
             summary += Environment.NewLine + Environment.NewLine
-                + LocalizationService.Format("EpisodesSkippedFormat", unresolved.Count)
-                + Environment.NewLine
-                + string.Join(Environment.NewLine, unresolved);
+                + LocalizationService.Text("AutomaticMatchUnavailable");
         }
 
         await ShowMessageAsync(LocalizationService.Text("AddMedia"), summary);
     }
-
-    /// <summary>The plain reason a file was refused, in the user's language.</summary>
-    private static string RefusalText(EpisodeRegistrationRefusal refusal) => LocalizationService.Text(refusal switch
-    {
-        EpisodeRegistrationRefusal.NoEpisodeMarker => "EpisodeNoMarkerHelp",
-        EpisodeRegistrationRefusal.NoShowTitle => "EpisodeNoTitleHelp",
-        EpisodeRegistrationRefusal.NumbersOutOfRange => "EpisodeRangeHelp",
-        EpisodeRegistrationRefusal.AlreadyAMovieFile => "EpisodeIsMovieFileHelp",
-        _ => "EpisodeOtherOwnerHelp",
-    });
 
     /// <summary>
     /// Parses picked files through the same discovery service the folder scan uses: each file's own
     /// directory is scanned without recursion and the results are filtered back to what was picked, so
     /// one parser decides what a name means.
     /// </summary>
-    private static IReadOnlyList<DiscoveredMedia> DiscoverPicked(IReadOnlyList<string> paths)
+    private static IReadOnlyList<DiscoveredMedia> DiscoverPicked(
+        IReadOnlyList<string> paths,
+        Func<bool>? isCancelled = null)
     {
         var wanted = new HashSet<string>(paths, StringComparer.OrdinalIgnoreCase);
         var results = new List<DiscoveredMedia>();
@@ -541,24 +479,19 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             .Where(directory => !string.IsNullOrEmpty(directory))
             .Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var found = AppServices.Import.PrepareImportReview(directory!, recursive: false);
+            if (isCancelled?.Invoke() == true)
+            {
+                throw new OperationCanceledException();
+            }
+
+            var found = AppServices.Import.PrepareImportReview(
+                directory!,
+                recursive: false,
+                isCancelled: isCancelled);
             results.AddRange(found.Items.Where(item => wanted.Contains(item.Path)));
         }
 
         return results;
-    }
-
-    /// <summary>
-    /// The per-row action seeds the manual TMDB lookup with the detected title instead of opening a
-    /// placeholder dialog, so the row stays useful without a metadata backend.
-    /// </summary>
-    private void RowAction_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: string title })
-        {
-            TmdbSearchBox.Text = title;
-            TmdbSearchBox.Focus(FocusState.Programmatic);
-        }
     }
 
     /// <summary>
@@ -594,7 +527,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         }
         catch (Exception error)
         {
-            await ShowMessageAsync(LocalizationService.Text("Failed"), error.Message);
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 

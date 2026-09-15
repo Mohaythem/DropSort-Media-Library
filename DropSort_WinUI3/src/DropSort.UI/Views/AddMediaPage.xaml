@@ -15,22 +15,6 @@
             <StackPanel Spacing="24">
                 <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" />
 
-                <StackPanel x:Name="MediaTypeSelector" Style="{StaticResource TabStripStyle}">
-                    <RadioButton
-                        x:Name="MoviesTypeItem"
-                        Checked="MediaTypeItem_Checked"
-                        GroupName="AddMediaType"
-                        IsChecked="True"
-                        Style="{StaticResource TabStripItemStyle}"
-                        Tag="movies" />
-                    <RadioButton
-                        x:Name="EpisodesTypeItem"
-                        Checked="MediaTypeItem_Checked"
-                        GroupName="AddMediaType"
-                        Style="{StaticResource TabStripItemStyle}"
-                        Tag="episodes" />
-                </StackPanel>
-
                 <Border Style="{StaticResource CardBorderStyle}">
                     <StackPanel Spacing="16">
                         <StackPanel Spacing="4">
@@ -41,7 +25,6 @@
                                 TextWrapping="Wrap" />
                         </StackPanel>
 
-                        <!--  The field row carries the path and Browse only, exactly like the design.  -->
                         <StackPanel Spacing="6">
                             <TextBlock x:Name="FolderLabelText" Style="{StaticResource SecondaryCaptionTextStyle}" />
                             <Grid ColumnSpacing="8">
@@ -49,7 +32,6 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-
                                 <TextBox x:Name="FolderPathBox" Style="{StaticResource FormInputTextBoxStyle}" />
                                 <Button
                                     x:Name="BrowseButton"
@@ -61,19 +43,16 @@
 
                         <Border Style="{StaticResource HairlineDividerStyle}" />
 
-                        <!--
-                            Source actions. Add Files belongs to the episode flow - episodes are picked
-                            as individual files - so it is only shown there; the accent action always
-                            scans the chosen folder. HorizontalAlignment="Right" mirrors under RTL.
-                        -->
-                        <StackPanel
-                            HorizontalAlignment="Right"
-                            Orientation="Horizontal"
-                            Spacing="8">
+                        <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" Spacing="8">
                             <Button
                                 x:Name="AddFilesButton"
                                 Click="AddFilesButton_Click"
                                 Style="{StaticResource SubtleControlButtonStyle}" />
+                            <Button
+                                x:Name="CancelButton"
+                                Click="CancelButton_Click"
+                                Style="{StaticResource SubtleControlButtonStyle}"
+                                Visibility="Collapsed" />
                             <Button
                                 x:Name="ScanButton"
                                 Click="ScanButton_Click"
@@ -87,75 +66,74 @@
                     </StackPanel>
                 </Border>
 
-                <controls:EmptyStateCard
-                    x:Name="EmptyState"
-                    Glyph="&#xE8B7;"
-                    Visibility="Collapsed" />
+                <controls:EmptyStateCard x:Name="EmptyState" Glyph="&#xE8B7;" Visibility="Collapsed" />
 
-                <!--  Detected movies  -->
-                <StackPanel x:Name="MoviesResultSection" Spacing="12" Visibility="Collapsed">
+                <StackPanel x:Name="ResultsSection" Spacing="12" Visibility="Collapsed">
                     <Grid ColumnSpacing="12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center" Spacing="2">
-                            <TextBlock x:Name="MoviesResultHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
-                            <TextBlock x:Name="MoviesResultCountText" Style="{StaticResource SecondaryCaptionTextStyle}" />
+                            <TextBlock x:Name="ResultsHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                            <TextBlock x:Name="ResultsCountText" Style="{StaticResource SecondaryCaptionTextStyle}" />
                         </StackPanel>
-                        <Button
-                            x:Name="AddSelectedButton"
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            Click="AddSelectedButton_Click"
-                            Style="{StaticResource AccentControlButtonStyle}" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                            <Button
+                                x:Name="SelectAllButton"
+                                Click="SelectAllButton_Click"
+                                Style="{StaticResource SubtleControlButtonStyle}" />
+                            <Button
+                                x:Name="DeselectAllButton"
+                                Click="DeselectAllButton_Click"
+                                Style="{StaticResource SubtleControlButtonStyle}" />
+                            <Button
+                                x:Name="AddSelectedButton"
+                                Click="AddSelectedButton_Click"
+                                Style="{StaticResource AccentControlButtonStyle}" />
+                        </StackPanel>
                     </Grid>
 
                     <Border Style="{StaticResource ListSurfaceBorderStyle}">
                         <StackPanel>
-                            <Grid
-                                Padding="12,0,12,0"
-                                ColumnSpacing="12"
-                                MinHeight="40">
+                            <Grid Padding="12,0,12,0" ColumnSpacing="12" MinHeight="40">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="44" />
+                                    <ColumnDefinition Width="110" />
                                     <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="88" />
-                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="150" />
                                     <ColumnDefinition Width="120" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock
-                                    x:Name="ColumnTitleText"
-                                    VerticalAlignment="Center"
-                                    Style="{StaticResource TertiaryCaptionTextStyle}" />
-                                <TextBlock
-                                    x:Name="ColumnYearText"
-                                    Grid.Column="1"
-                                    VerticalAlignment="Center"
-                                    Style="{StaticResource TertiaryCaptionTextStyle}" />
-                                <TextBlock
-                                    x:Name="ColumnQualityText"
-                                    Grid.Column="2"
-                                    VerticalAlignment="Center"
-                                    Style="{StaticResource TertiaryCaptionTextStyle}" />
-                                <TextBlock
-                                    x:Name="ColumnActionText"
-                                    Grid.Column="3"
-                                    VerticalAlignment="Center"
-                                    Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock x:Name="ColumnSelectText" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock x:Name="ColumnTypeText" Grid.Column="1" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock x:Name="ColumnTitleText" Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock x:Name="ColumnDetailsText" Grid.Column="3" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <TextBlock x:Name="ColumnStatusText" Grid.Column="4" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
                             </Grid>
                             <Border Style="{StaticResource HairlineDividerStyle}" />
-                            <ItemsRepeater x:Name="DetectedMoviesRepeater">
+                            <ItemsRepeater x:Name="DetectedMediaRepeater">
                                 <ItemsRepeater.ItemTemplate>
-                                    <DataTemplate x:DataType="models:DetectedMovieDisplayRecord">
+                                    <DataTemplate x:DataType="models:DetectedMediaDisplayRecord">
                                         <Border Style="{StaticResource RowDividerStyle}">
-                                            <Grid ColumnSpacing="12" MinHeight="48">
+                                            <Grid ColumnSpacing="12" MinHeight="56">
                                                 <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="44" />
+                                                    <ColumnDefinition Width="110" />
                                                     <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="88" />
-                                                    <ColumnDefinition Width="96" />
+                                                    <ColumnDefinition Width="150" />
                                                     <ColumnDefinition Width="120" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel VerticalAlignment="Center" Spacing="2">
+                                                <CheckBox
+                                                    VerticalAlignment="Center"
+                                                    AutomationProperties.Name="{x:Bind Title}"
+                                                    IsChecked="{x:Bind IsSelected, Mode=TwoWay}"
+                                                    IsEnabled="{x:Bind CanSelect}" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource SecondaryBodyTextStyle}"
+                                                    Text="{x:Bind TypeLabel}" />
+                                                <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
                                                     <TextBlock
                                                         Style="{StaticResource BodyStrongTextBlockStyle}"
                                                         Text="{x:Bind Title}"
@@ -166,22 +144,16 @@
                                                         TextTrimming="CharacterEllipsis" />
                                                 </StackPanel>
                                                 <TextBlock
-                                                    Grid.Column="1"
-                                                    VerticalAlignment="Center"
-                                                    Style="{StaticResource SecondaryBodyTextStyle}"
-                                                    Text="{x:Bind YearText}" />
-                                                <TextBlock
-                                                    Grid.Column="2"
-                                                    VerticalAlignment="Center"
-                                                    Style="{StaticResource SecondaryBodyTextStyle}"
-                                                    Text="{x:Bind Quality}" />
-                                                <Button
                                                     Grid.Column="3"
                                                     VerticalAlignment="Center"
-                                                    Click="RowAction_Click"
-                                                    Content="{x:Bind ActionLabel}"
-                                                    Style="{StaticResource SubtleControlButtonStyle}"
-                                                    Tag="{x:Bind Title}" />
+                                                    Style="{StaticResource SecondaryBodyTextStyle}"
+                                                    Text="{x:Bind Details}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <TextBlock
+                                                    Grid.Column="4"
+                                                    VerticalAlignment="Center"
+                                                    Style="{StaticResource SecondaryBodyTextStyle}"
+                                                    Text="{x:Bind StatusLabel}" />
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
@@ -190,11 +162,6 @@
                         </StackPanel>
                     </Border>
 
-                    <!--
-                        Manual TMDB lookup for anything the scanner could not match. The query field and
-                        button are real and styled; matching needs the V2 metadata backend, so the button
-                        is intentionally inert for now.
-                    -->
                     <Border x:Name="SearchTmdbCard" Style="{StaticResource CardBorderStyle}">
                         <StackPanel Spacing="16">
                             <StackPanel Spacing="4">
@@ -215,89 +182,13 @@
                                     Style="{StaticResource PageSearchBoxStyle}" />
                                 <Button
                                     x:Name="TmdbSearchButton"
-                                    Click="TmdbSearchButton_Click"
                                     Grid.Column="1"
+                                    Click="TmdbSearchButton_Click"
                                     Style="{StaticResource SubtleControlButtonStyle}" />
                             </Grid>
                         </StackPanel>
                     </Border>
                 </StackPanel>
-
-                <!--  Detected episodes: review pass before anything is added  -->
-                <StackPanel x:Name="EpisodesResultSection" Spacing="12" Visibility="Collapsed">
-                    <Grid ColumnSpacing="12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center" Spacing="2">
-                            <TextBlock x:Name="EpisodesResultHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
-                            <TextBlock x:Name="EpisodesResultCountText" Style="{StaticResource SecondaryCaptionTextStyle}" />
-                        </StackPanel>
-                        <Button
-                            x:Name="AddEpisodesButton"
-                            Grid.Column="1"
-                            VerticalAlignment="Center"
-                            Click="AddEpisodesButton_Click"
-                            Style="{StaticResource AccentControlButtonStyle}" />
-                    </Grid>
-
-                    <Border Style="{StaticResource ListSurfaceBorderStyle}">
-                        <ItemsRepeater x:Name="DetectedEpisodesRepeater">
-                            <ItemsRepeater.ItemTemplate>
-                                <DataTemplate x:DataType="models:DetectedEpisodeDisplayRecord">
-                                    <Border Style="{StaticResource RowDividerStyle}">
-                                        <Grid ColumnSpacing="12" MinHeight="56">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="76" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                Style="{StaticResource BodyStrongTextBlockStyle}"
-                                                Text="{x:Bind Code}" />
-                                            <StackPanel
-                                                Grid.Column="1"
-                                                VerticalAlignment="Center"
-                                                Spacing="2">
-                                                <TextBlock
-                                                    Style="{StaticResource BodyTextBlockStyle}"
-                                                    Text="{x:Bind Title}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                                <TextBlock
-                                                    Style="{StaticResource TertiaryCaptionTextStyle}"
-                                                    Text="{x:Bind FileName}"
-                                                    TextTrimming="CharacterEllipsis" />
-                                            </StackPanel>
-                                            <Border
-                                                Grid.Column="2"
-                                                VerticalAlignment="Center"
-                                                Style="{StaticResource StatusPillStyle}">
-                                                <StackPanel Orientation="Horizontal" Spacing="6">
-                                                    <FontIcon
-                                                        FontFamily="{StaticResource SymbolThemeFontFamily}"
-                                                        FontSize="12"
-                                                        Foreground="{ThemeResource SystemFillColorSuccessBrush}"
-                                                        Glyph="&#xE73E;"
-                                                        Visibility="{x:Bind IsReady}" />
-                                                    <FontIcon
-                                                        FontFamily="{StaticResource SymbolThemeFontFamily}"
-                                                        FontSize="12"
-                                                        Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                                                        Glyph="&#xE7BA;"
-                                                        Visibility="{x:Bind NeedsReview}" />
-                                                    <TextBlock Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind StatusLabel}" />
-                                                </StackPanel>
-                                            </Border>
-                                        </Grid>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsRepeater.ItemTemplate>
-                        </ItemsRepeater>
-                    </Border>
-                </StackPanel>
-
             </StackPanel>
         </Grid>
     </ScrollViewer>

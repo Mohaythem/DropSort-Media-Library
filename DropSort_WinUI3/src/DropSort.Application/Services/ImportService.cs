@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using DropSort.Application.Contracts;
 using DropSort.Application.Dto;
 using DropSort.Application.Repositories;
@@ -7,6 +10,8 @@ using DropSort.Application.External;
 using DropSort.Domain.Library.Movies;
 using DropSort.Domain.Library.Shows;
 using DropSort.Domain.Metadata.Contracts;
+using DropSort.Domain.Media.Discovery;
+using DropSort.Domain.Media.Matcher;
 
 namespace DropSort.Application.Services;
 
@@ -15,17 +20,20 @@ public class ImportService : IImportUiActions
     private readonly ICatalogUnitOfWorkFactory _uowFactory;
     private readonly IMetadataProvider _metadataProvider;
     private readonly IMediaDiscoveryService? _discovery;
+    private readonly MetadataMatchingService? _matching;
     private readonly Func<DateTimeOffset> _clock;
 
     public ImportService(
         ICatalogUnitOfWorkFactory uowFactory,
         IMetadataProvider metadataProvider,
         IMediaDiscoveryService? discovery = null,
-        Func<DateTimeOffset>? clock = null)
+        Func<DateTimeOffset>? clock = null,
+        MetadataMatchingService? matching = null)
     {
         _uowFactory = uowFactory;
         _metadataProvider = metadataProvider;
         _discovery = discovery;
+        _matching = matching;
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
     }
 
@@ -49,6 +57,224 @@ public class ImportService : IImportUiActions
             return EnrichMovieImport(command, registration);
         }
         return registration;
+    }
+
+    public async Task<ImportBatchResult> ImportSelectedAsync(
+        IReadOnlyList<ImportSelection> selections,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(selections);
+        var results = new List<ImportItemResult>(selections.Count);
+        var moviesPending = new List<MovieImportWork>();
+        var tvShows = new Dictionary<int, TvImportGroup>();
+
+        foreach (var selection in selections)
+        {
+            ArgumentNullException.ThrowIfNull(selection);
+            var item = selection.Item;
+            if (item.FileSize is not long size || item.ParsedMedia is null)
+            {
+                results.Add(new ImportItemResult(item.Path, item.Classification, false, false,
+                    Failure: "The discovered item has no verified file facts."));
+                continue;
+            }
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (item.Classification == DiscoveryClassification.MovieCandidate)
+                {
+                    var registration = RegisterMovieImport(new ConfirmMovieImportCommand(
+                        item.Path, size, item.ParsedMedia, _clock()));
+                    var resultIndex = results.Count;
+                    results.Add(new ImportItemResult(item.Path, item.Classification, true, false));
+                    if (_matching is not null
+                        && _metadataProvider.IsConfigured
+                        && registration.Movie.MetadataStatus != MetadataStatus.Ready
+                        && !string.IsNullOrWhiteSpace(item.ParsedMedia.Title))
+                    {
+                        moviesPending.Add(new MovieImportWork(
+                            resultIndex,
+                            registration.Movie.Id,
+                            item.ParsedMedia.Title!,
+                            item.ParsedMedia.Year,
+                            registration.Movie.MetadataStatus));
+                    }
+                }
+                else if (item.Classification == DiscoveryClassification.TvEpisodeCandidate)
+                {
+                    var registration = RegisterEpisodeImport(new ConfirmEpisodeImportCommand(
+                        item.Path, size, item.ParsedMedia, _clock()));
+                    var resultIndex = results.Count;
+                    results.Add(new ImportItemResult(item.Path, item.Classification, true, false));
+                    // A new episode can belong to an already matched show. Only pending/failed
+                    // show metadata should trigger an automatic lookup; never replace an accepted
+                    // provider identity merely because another local episode was added.
+                    var requiresMatch = registration.Show.MetadataStatus != MetadataStatus.Ready;
+                    var requiresRefresh = !registration.AlreadyRegistered
+                        && registration.Show.MetadataStatus == MetadataStatus.Ready;
+                    if (!tvShows.TryGetValue(registration.Show.Id, out var pending))
+                    {
+                        pending = new TvImportGroup(
+                            registration.Show,
+                            item.ParsedMedia.Year,
+                            requiresMatch,
+                            requiresRefresh,
+                            registration.Show.MetadataStatus);
+                        tvShows.Add(registration.Show.Id, pending);
+                    }
+                    else
+                    {
+                        pending.ShouldMatch |= requiresMatch;
+                        pending.ShouldRefresh |= requiresRefresh;
+                    }
+                    pending.ResultIndexes.Add(resultIndex);
+                }
+                else
+                {
+                    results.Add(new ImportItemResult(item.Path, item.Classification, false, false,
+                        Failure: "Only resolved movie and TV episode candidates can be imported."));
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception error)
+            {
+                results.Add(new ImportItemResult(item.Path, item.Classification, false, false,
+                    Failure: error.Message));
+            }
+        }
+
+        if (_matching is not null && _metadataProvider.IsConfigured)
+        {
+            foreach (var pending in moviesPending)
+            {
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var decision = await _matching.SearchMovieCandidatesAsync(
+                        pending.Title, pending.Year, cancellationToken);
+                    results[pending.ResultIndex] = results[pending.ResultIndex] with { MatchStatus = decision.Status };
+                    if (decision.Status == MatchStatus.Matched && decision.Candidate is not null)
+                    {
+                        await _matching.MatchMovieAsync(
+                            pending.MovieId,
+                            decision.Candidate,
+                            cancellationToken,
+                            pending.ExpectedMetadataStatus);
+                        results[pending.ResultIndex] = results[pending.ResultIndex] with { AutoMatched = true };
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception error) when (IsBestEffortMetadataFailure(error))
+                {
+                    results[pending.ResultIndex] = results[pending.ResultIndex] with { Failure = error.Message };
+                }
+            }
+
+            foreach (var pending in tvShows.Values)
+            {
+                if (pending.ShouldRefresh)
+                {
+                    try
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var refreshed = await _matching.RefreshTvShowMetadataAsync(
+                            pending.Show.Id,
+                            fetchEpisodes: true,
+                            ct: cancellationToken);
+                        if (refreshed is not null)
+                        {
+                            foreach (var index in pending.ResultIndexes)
+                                results[index] = results[index] with { AutoMatched = true };
+                        }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                    catch (Exception error) when (IsBestEffortMetadataFailure(error))
+                    {
+                        foreach (var index in pending.ResultIndexes)
+                            results[index] = results[index] with { Failure = error.Message };
+                    }
+                }
+
+                if (!pending.ShouldMatch)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var decision = await _matching.SearchTvCandidatesAsync(
+                        pending.Show.Title, pending.Year, cancellationToken);
+                    foreach (var index in pending.ResultIndexes)
+                        results[index] = results[index] with { MatchStatus = decision.Status };
+                    if (decision.Status == MatchStatus.Matched && decision.Candidate is not null)
+                    {
+                        await _matching.MatchTvShowAsync(
+                            pending.Show.Id,
+                            decision.Candidate,
+                            ct: cancellationToken,
+                            expectedMetadataStatus: pending.ExpectedMetadataStatus);
+                        foreach (var index in pending.ResultIndexes)
+                            results[index] = results[index] with { AutoMatched = true };
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (Exception error) when (IsBestEffortMetadataFailure(error))
+                {
+                    foreach (var index in pending.ResultIndexes)
+                        results[index] = results[index] with { Failure = error.Message };
+                }
+            }
+        }
+
+        return new ImportBatchResult(results);
+    }
+
+    private static bool IsBestEffortMetadataFailure(Exception error) =>
+        error is not OutOfMemoryException and not StackOverflowException and not AccessViolationException;
+
+    private sealed record MovieImportWork(
+        int ResultIndex,
+        int MovieId,
+        string Title,
+        int? Year,
+        MetadataStatus ExpectedMetadataStatus);
+
+    private sealed class TvImportGroup
+    {
+        public TvImportGroup(
+            TvShow show,
+            int? year,
+            bool shouldMatch,
+            bool shouldRefresh,
+            MetadataStatus expectedMetadataStatus)
+        {
+            Show = show;
+            Year = year;
+            ShouldMatch = shouldMatch;
+            ShouldRefresh = shouldRefresh;
+            ExpectedMetadataStatus = expectedMetadataStatus;
+        }
+
+        public TvShow Show { get; }
+        public int? Year { get; }
+        public List<int> ResultIndexes { get; } = [];
+        public bool ShouldMatch { get; set; }
+        public bool ShouldRefresh { get; set; }
+        public MetadataStatus ExpectedMetadataStatus { get; }
     }
 
     public MovieFileIngestionResult RegisterMovieImport(ConfirmMovieImportCommand command)

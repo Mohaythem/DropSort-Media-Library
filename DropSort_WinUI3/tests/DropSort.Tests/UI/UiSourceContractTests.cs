@@ -126,7 +126,7 @@ public sealed class UiSourceContractTests
     [Fact]
     public void Selection_surfaces_use_the_shared_native_tab_strip()
     {
-        foreach (var page in new[] { "MyListsPage.xaml", "LibraryPage.xaml", "AddMediaPage.xaml", "OperationsLogPage.xaml" })
+        foreach (var page in new[] { "MyListsPage.xaml", "LibraryPage.xaml", "OperationsLogPage.xaml" })
         {
             var xaml = Read("Views", page);
             Assert.Contains("Style=\"{StaticResource TabStripStyle}\"", xaml, StringComparison.Ordinal);
@@ -141,6 +141,25 @@ public sealed class UiSourceContractTests
         Assert.Contains("x:Key=\"TabStripItemStyle\"", styles, StringComparison.Ordinal);
         Assert.Contains("<VisualState x:Name=\"Checked\">", styles, StringComparison.Ordinal);
         Assert.Contains("<VisualState x:Name=\"PointerOver\">", styles, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Add_media_uses_one_mixed_review_with_native_selection_controls()
+    {
+        var xaml = Read("Views", "AddMediaPage.xaml");
+        var code = Read("Views", "AddMediaPage.xaml.cs");
+        var model = Read("Models", "AddMediaModels.cs");
+
+        Assert.Contains("DetectedMediaRepeater", xaml, StringComparison.Ordinal);
+        Assert.Contains("CheckBox", xaml, StringComparison.Ordinal);
+        Assert.Contains("SelectAllButton", xaml, StringComparison.Ordinal);
+        Assert.Contains("DeselectAllButton", xaml, StringComparison.Ordinal);
+        Assert.Contains("CancelButton", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("MediaTypeSelector", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("RadioButton", xaml, StringComparison.Ordinal);
+        Assert.Contains("ImportSelectedAsync", code, StringComparison.Ordinal);
+        Assert.Contains("DiscoveryClassification.MovieCandidate", model, StringComparison.Ordinal);
+        Assert.Contains("DiscoveryClassification.TvEpisodeCandidate", model, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -454,7 +473,7 @@ public sealed class UiSourceContractTests
     }
 
     /// <summary>
-    /// The review list has no per-row selection control, so the action is named after what it does.
+    /// The review list exposes selective row selection, so the primary action names the selected set.
     /// </summary>
     [Fact]
     public void Add_media_names_its_action_after_what_it_registers()
@@ -462,9 +481,10 @@ public sealed class UiSourceContractTests
         var page = Read("Views", "AddMediaPage.xaml.cs");
         var localization = Read("Services", "LocalizationService.cs");
 
-        Assert.Contains("AddAllFormat", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("LocalizationService.Text(\"AddSelected\")", page, StringComparison.Ordinal);
-        Assert.Contains("[\"AddAllFormat\"] = \"Add All ({0})\"", localization, StringComparison.Ordinal);
+        Assert.Contains("AddSelectedButton", page, StringComparison.Ordinal);
+        Assert.Contains("AddSelectedFormat", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("AddAllFormat", page, StringComparison.Ordinal);
+        Assert.Contains("[\"AddSelectedFormat\"] = \"Add selected ({0})\"", localization, StringComparison.Ordinal);
     }
 
     /// <summary>

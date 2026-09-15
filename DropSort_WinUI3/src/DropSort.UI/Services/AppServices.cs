@@ -258,7 +258,8 @@ internal static class AppServices
                 var import = new ImportService(
                     catalogFactory,
                     tmdbClient,
-                    new MediaDiscoveryService());
+                    new MediaDiscoveryService(),
+                    matching: matching);
                 var reconciliation = new ReconciliationService(mediaFiles, new AvailabilityInspector(), movies);
                 var tv = new TvLibraryService(
                     new UnitOfWorkTvShowRepository(catalogFactory),

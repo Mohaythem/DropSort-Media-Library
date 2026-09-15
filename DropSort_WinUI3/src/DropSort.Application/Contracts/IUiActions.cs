@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using DropSort.Application.Dto;
 using DropSort.Application.External;
 using DropSort.Domain.Configuration;
@@ -44,6 +46,9 @@ public interface IImportUiActions
     MovieFileIngestionResult ConfirmMovieImport(ConfirmMovieImportCommand command);
     MovieFileIngestionResult RegisterMovieImport(ConfirmMovieImportCommand command);
     MovieFileIngestionResult EnrichMovieImport(ConfirmMovieImportCommand command, MovieFileIngestionResult registration);
+    Task<ImportBatchResult> ImportSelectedAsync(
+        IReadOnlyList<ImportSelection> selections,
+        CancellationToken cancellationToken = default);
     ManualMovieSearchResult ManualMovieSearch(string title, string? year = null);
 
     /// <summary>
