@@ -356,7 +356,7 @@ public sealed class MatchMediaDialog : ContentDialog
             XamlRoot = parent.XamlRoot
         };
 
-        var result = await dialog.ShowAsync();
+        var result = await ContentDialogCoordinator.ShowAsync(dialog);
         return result == ContentDialogResult.Primary ? dialog.SelectedMovieCandidate : null;
     }
 
@@ -367,7 +367,7 @@ public sealed class MatchMediaDialog : ContentDialog
             XamlRoot = parent.XamlRoot
         };
 
-        var result = await dialog.ShowAsync();
+        var result = await ContentDialogCoordinator.ShowAsync(dialog);
         return result == ContentDialogResult.Primary ? dialog.SelectedTvCandidate : null;
     }
 }

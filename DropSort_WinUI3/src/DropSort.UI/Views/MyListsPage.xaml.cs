@@ -331,7 +331,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             DefaultButton = ContentDialogButton.Primary,
         };
 
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (await ContentDialogCoordinator.ShowAsync(dialog) != ContentDialogResult.Primary)
         {
             return;
         }
@@ -368,7 +368,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             DefaultButton = ContentDialogButton.Close,
         };
 
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        if (await ContentDialogCoordinator.ShowAsync(dialog) != ContentDialogResult.Primary)
         {
             return;
         }

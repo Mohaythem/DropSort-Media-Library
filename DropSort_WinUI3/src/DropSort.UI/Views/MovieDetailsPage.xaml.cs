@@ -307,7 +307,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
             DefaultButton = ContentDialogButton.Close,
         };
 
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await ContentDialogCoordinator.ShowAsync(dialog) == ContentDialogResult.Primary;
     }
 
     private void ReportMissingFile() => _ = ShowMessageAsync(
@@ -511,7 +511,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
             CloseButtonText = LocalizationService.Text("Close"),
         };
 
-        await dialog.ShowAsync();
+        await ContentDialogCoordinator.ShowAsync(dialog);
     }
 
     /// <summary>Active states use the native accent / critical button styles, never literal colors.</summary>
@@ -593,12 +593,11 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
                         });
                     }
                 }
-                catch (Exception error) when (request.IsCurrent)
+                catch (Exception)
                 {
-                    DispatcherQueue.TryEnqueue(() =>
-                    {
-                        if (request.IsCurrent) ReportFailure(error);
-                    });
+                    // Poster artwork is optional. Keep the fallback glyph visible and do not open a
+                    // second ContentDialog: this worker can finish while MatchMediaDialog is open,
+                    // and WinUI permits only one ContentDialog per XamlRoot.
                 }
             });
         }

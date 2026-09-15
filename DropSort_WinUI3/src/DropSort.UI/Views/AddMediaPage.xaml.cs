@@ -611,6 +611,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             CloseButtonText = LocalizationService.Text("Close"),
         };
 
-        await dialog.ShowAsync();
+        await ContentDialogCoordinator.ShowAsync(dialog);
     }
 }

@@ -395,7 +395,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
             DefaultButton = ContentDialogButton.Close,
         };
 
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        return await ContentDialogCoordinator.ShowAsync(dialog) == ContentDialogResult.Primary;
     }
 
     private async Task ShowMessageAsync(string title, string message)
@@ -410,6 +410,6 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
             CloseButtonText = LocalizationService.Text("Close"),
         };
 
-        await dialog.ShowAsync();
+        await ContentDialogCoordinator.ShowAsync(dialog);
     }
 }

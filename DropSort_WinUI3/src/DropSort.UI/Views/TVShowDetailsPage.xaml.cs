@@ -245,7 +245,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
             CloseButtonText = LocalizationService.Text("Close"),
         };
 
-        await dialog.ShowAsync();
+        await ContentDialogCoordinator.ShowAsync(dialog);
     }
 
     /// <summary>The first season starts expanded, exactly like the design source.</summary>
@@ -342,15 +342,10 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
                         });
                     }
                 }
-                catch (Exception error) when (request.IsCurrent)
+                catch (Exception)
                 {
-                    DispatcherQueue.TryEnqueue(() =>
-                    {
-                        if (request.IsCurrent)
-                        {
-                            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
-                        }
-                    });
+                    // Poster artwork is optional. Keep the fallback glyph visible and do not open a
+                    // second ContentDialog while MatchMediaDialog may own this XamlRoot.
                 }
             });
         }

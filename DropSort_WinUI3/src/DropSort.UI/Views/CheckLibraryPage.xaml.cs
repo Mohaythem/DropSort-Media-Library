@@ -354,7 +354,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
                 DefaultButton = ContentDialogButton.Primary,
             };
 
-            var dialogResult = await dialog.ShowAsync();
+            var dialogResult = await ContentDialogCoordinator.ShowAsync(dialog);
             if (dialogResult != ContentDialogResult.Primary)
             {
                 AppServices.Reconciliation.DiscardMediaRelinkPreview(preview.PreviewId);
@@ -435,6 +435,6 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
             CloseButtonText = LocalizationService.Text("Close"),
         };
 
-        await dialog.ShowAsync();
+        await ContentDialogCoordinator.ShowAsync(dialog);
     }
 }
