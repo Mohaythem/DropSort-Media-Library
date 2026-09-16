@@ -140,7 +140,10 @@ public static class MetadataScorer
             var (score, matchReasons, penaltyReasons) = ScoreSingleCandidate(
                 normalizedQuery, queryYear, c.Title, c.OriginalTitle, c.Year);
             return new ScoredResult<MovieCandidate>(c, score, matchReasons, penaltyReasons);
-        }).OrderByDescending(s => s.Score).ToList();
+        }).OrderByDescending(s => s.Score)
+            // Popularity breaks only an otherwise equal score; it can never outweigh title/year evidence.
+            .ThenByDescending(s => s.Candidate.Popularity ?? double.MinValue)
+            .ToList();
 
         var rankedCandidates = scoredList
             .Select(s => new CandidateScore(s.Candidate, s.Score, s.MatchReasons, s.PenaltyReasons))
@@ -181,7 +184,9 @@ public static class MetadataScorer
             var (score, matchReasons, penaltyReasons) = ScoreSingleCandidate(
                 normalizedQuery, queryYear, c.Title, c.OriginalTitle, c.FirstAirYear);
             return new ScoredResult<TvCandidate>(c, score, matchReasons, penaltyReasons);
-        }).OrderByDescending(s => s.Score).ToList();
+        }).OrderByDescending(s => s.Score)
+            .ThenByDescending(s => s.Candidate.Popularity ?? double.MinValue)
+            .ToList();
 
         var rankedCandidates = scoredList
             .Select(s => new TvCandidateScore(s.Candidate, s.Score, s.MatchReasons, s.PenaltyReasons))

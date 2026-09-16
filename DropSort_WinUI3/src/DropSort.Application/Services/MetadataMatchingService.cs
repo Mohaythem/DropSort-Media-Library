@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using DropSort.Application.External;
@@ -15,6 +17,23 @@ namespace DropSort.Application.Services;
 
 public sealed class MetadataMatchingService
 {
+    private const int MaxSearchQueries = 3;
+    private static readonly Regex LeadingReleaseSite = new(
+        @"^\s*(?:\[\s*)?(?:www\.)?[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.(?:com|net|org)\b(?:\s*\])?[\s._-]*",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex BracketedReleaseNoise = new(
+        @"\[[^\]]*(?:2160p|1440p|1080p|720p|576p|480p|4k|uhd|bluray|blu-ray|bdrip|brrip|web-dl|webrip|hdtv|dvdrip|hdrip|remux|x264|x265|h\.?264|h\.?265|hevc|av1|xvid|divx)[^\]]*\]",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex LanguageBracketNoise = new(
+        @"\[(?:ar|en|eng|ja|jpn|fr|de|ger)\]",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex TechnicalToken = new(
+        @"(?i)\b(?:2160p|1440p|1080p|720p|576p|480p|4k|uhd|bluray|blu-ray|bdrip|brrip|web-dl|webrip|hdtv|dvdrip|hdrip|remux|x264|x265|h\.?264|h\.?265|hevc|av1|xvid|divx)\b",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex StandaloneWebRelease = new(
+        @"(?i)\bWEB(?=\s*(?:[- ]?(?:DL|Rip)\b|(?:2160p|1440p|1080p|720p|576p|480p|4k|uhd|bluray|blu-ray|bdrip|brrip|hdtv|dvdrip|hdrip|remux|x264|x265|h\.?264|h\.?265|hevc|av1|xvid|divx)\b))",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex Separators = new(@"[._-]+", RegexOptions.Compiled);
     private readonly ICatalogUnitOfWorkFactory _uowFactory;
     private readonly IMetadataProvider _metadataProvider;
     private readonly IPosterService? _posterService;
@@ -34,8 +53,26 @@ public sealed class MetadataMatchingService
 
     public async Task<MatchDecision> SearchMovieCandidatesAsync(string title, int? year, CancellationToken ct = default)
     {
-        var candidates = await _metadataProvider.SearchMoviesAsync(new MovieSearchQuery(title, year), ct);
-        return MetadataScorer.Score(title, year, candidates);
+        var scoringTitle = NormalizeSearchTitle(title);
+        var aggregate = new List<MovieCandidate>();
+        MatchDecision? latest = null;
+
+        foreach (var query in BuildSearchQueries(title))
+        {
+            var candidates = await _metadataProvider.SearchMoviesAsync(new MovieSearchQuery(query, year), ct);
+            aggregate.AddRange(candidates);
+            var decision = MetadataScorer.Score(scoringTitle, year, DistinctMovies(aggregate));
+            latest = decision;
+
+            // A clear winner is sufficient evidence; do not spend additional provider calls after
+            // the conservative automatic-match gate has passed.
+            if (decision.Status == MatchStatus.Matched)
+            {
+                break;
+            }
+        }
+
+        return latest ?? MetadataScorer.Score(scoringTitle, year, Array.Empty<MovieCandidate>());
     }
 
     public async Task<Movie> MatchMovieAsync(
@@ -166,8 +203,108 @@ public sealed class MetadataMatchingService
 
     public async Task<TvMatchDecision> SearchTvCandidatesAsync(string title, int? year, CancellationToken ct = default)
     {
-        var candidates = await _metadataProvider.SearchTvAsync(new TvSearchQuery(title, year), ct);
-        return MetadataScorer.ScoreTv(title, year, candidates);
+        var scoringTitle = NormalizeSearchTitle(title);
+        var aggregate = new List<TvCandidate>();
+        TvMatchDecision? latest = null;
+
+        foreach (var query in BuildSearchQueries(title))
+        {
+            var candidates = await _metadataProvider.SearchTvAsync(new TvSearchQuery(query, year), ct);
+            aggregate.AddRange(candidates);
+            var decision = MetadataScorer.ScoreTv(scoringTitle, year, DistinctTv(aggregate));
+            latest = decision;
+            if (decision.Status == MatchStatus.Matched)
+            {
+                break;
+            }
+        }
+
+        return latest ?? MetadataScorer.ScoreTv(scoringTitle, year, Array.Empty<TvCandidate>());
+    }
+
+    /// <summary>
+    /// Produces at most three deterministic queries: the user's text, a release-noise-free title,
+    /// and the scorer's punctuation/case-normalized form. Provider failures are deliberately not
+    /// caught here, so authentication/network errors remain service errors rather than no-match.
+    /// </summary>
+    private static IReadOnlyList<string> BuildSearchQueries(string? title)
+    {
+        var raw = title?.Trim() ?? string.Empty;
+        var cleaned = NormalizeSearchTitle(raw);
+        var normalized = MetadataScorer.NormalizeTitle(cleaned);
+        var queries = new List<string>(MaxSearchQueries);
+        AddQuery(queries, raw);
+        AddQuery(queries, cleaned);
+        AddQuery(queries, normalized);
+        return queries;
+    }
+
+    private static void AddQuery(ICollection<string> queries, string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (!queries.Contains(value, StringComparer.OrdinalIgnoreCase))
+        {
+            queries.Add(value);
+        }
+    }
+
+    private static string NormalizeSearchTitle(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return string.Empty;
+        }
+
+        var value = title.Trim();
+        var extension = Path.GetExtension(value);
+        if (extension is ".mkv" or ".mp4" or ".avi" or ".mov" or ".m4v" or ".wmv")
+        {
+            value = Path.GetFileNameWithoutExtension(value);
+        }
+
+        value = LeadingReleaseSite.Replace(value, string.Empty);
+        value = BracketedReleaseNoise.Replace(value, " ");
+        value = LanguageBracketNoise.Replace(value, " ");
+        value = StandaloneWebRelease.Replace(value, " ");
+        value = value.Replace('[', ' ').Replace(']', ' ');
+        var technical = TechnicalToken.Match(value);
+        if (technical.Success)
+        {
+            value = value[..technical.Index];
+        }
+
+        value = Separators.Replace(value, " ");
+        return string.Join(" ", value.Split(' ', StringSplitOptions.RemoveEmptyEntries)).Trim();
+    }
+
+    private static IReadOnlyList<MovieCandidate> DistinctMovies(IEnumerable<MovieCandidate> candidates) =>
+        candidates
+            .GroupBy(candidate => (candidate.Provider, candidate.ExternalId), StringTupleComparer.Instance)
+            .Select(group => group.First())
+            .ToArray();
+
+    private static IReadOnlyList<TvCandidate> DistinctTv(IEnumerable<TvCandidate> candidates) =>
+        candidates
+            .GroupBy(candidate => (candidate.Provider, candidate.ExternalId), StringTupleComparer.Instance)
+            .Select(group => group.First())
+            .ToArray();
+
+    private sealed class StringTupleComparer : IEqualityComparer<(string Provider, string ExternalId)>
+    {
+        public static StringTupleComparer Instance { get; } = new();
+
+        public bool Equals((string Provider, string ExternalId) x, (string Provider, string ExternalId) y) =>
+            string.Equals(x.Provider, y.Provider, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(x.ExternalId, y.ExternalId, StringComparison.OrdinalIgnoreCase);
+
+        public int GetHashCode((string Provider, string ExternalId) value) =>
+            HashCode.Combine(
+                StringComparer.OrdinalIgnoreCase.GetHashCode(value.Provider ?? string.Empty),
+                StringComparer.OrdinalIgnoreCase.GetHashCode(value.ExternalId ?? string.Empty));
     }
 
     public async Task<TvShow> MatchTvShowAsync(

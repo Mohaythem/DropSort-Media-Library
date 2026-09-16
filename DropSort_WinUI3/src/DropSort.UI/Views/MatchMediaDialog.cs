@@ -4,9 +4,11 @@ using System.Threading.Tasks;
 using DropSort.Domain.Metadata.Contracts;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace DropSort.UI.Views;
 
@@ -203,7 +205,13 @@ public sealed class MatchMediaDialog : ContentDialog
                         var candidate = scored.Candidate;
                         var item = new ListViewItem
                         {
-                            Content = BuildCandidateView(candidate.Title, candidate.Year, scored.Score, candidate.Overview),
+                            Content = BuildCandidateView(
+                                candidate.Title,
+                                candidate.Year,
+                                scored.Score,
+                                candidate.Overview,
+                                candidate.Popularity,
+                                CachedPosterPath(candidate.Provider, candidate.PosterReference)),
                             Tag = candidate,
                             HorizontalContentAlignment = HorizontalAlignment.Stretch
                         };
@@ -229,7 +237,13 @@ public sealed class MatchMediaDialog : ContentDialog
                         var candidate = scored.Candidate;
                         var item = new ListViewItem
                         {
-                            Content = BuildCandidateView(candidate.Title, candidate.FirstAirYear, scored.Score, candidate.Overview),
+                            Content = BuildCandidateView(
+                                candidate.Title,
+                                candidate.FirstAirYear,
+                                scored.Score,
+                                candidate.Overview,
+                                candidate.Popularity,
+                                CachedPosterPath(candidate.Provider, candidate.PosterReference)),
                             Tag = candidate,
                             HorizontalContentAlignment = HorizontalAlignment.Stretch
                         };
@@ -264,18 +278,45 @@ public sealed class MatchMediaDialog : ContentDialog
         }
     }
 
-    private static UIElement BuildCandidateView(string title, int? year, double score, string? overview)
+    private static string? CachedPosterPath(string provider, string? posterReference)
+    {
+        if (string.IsNullOrWhiteSpace(posterReference))
+        {
+            return null;
+        }
+
+        try
+        {
+            return AppServices.Poster.GetCachedPosterPath(provider, posterReference);
+        }
+        catch
+        {
+            // Search results remain usable when the optional local poster cache is unavailable.
+            return null;
+        }
+    }
+
+    private static UIElement BuildCandidateView(
+        string title,
+        int? year,
+        double score,
+        string? overview,
+        double? popularity,
+        string? posterPath)
     {
         var rootGrid = new Grid
         {
             Margin = new Thickness(0, 4, 0, 4),
-            RowSpacing = 4,
+            ColumnSpacing = 10,
         };
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        if (!string.IsNullOrWhiteSpace(overview))
+        if (!string.IsNullOrWhiteSpace(posterPath))
         {
-            rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(52) });
         }
+        rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var details = new StackPanel { Spacing = 4 };
+        Grid.SetColumn(details, string.IsNullOrWhiteSpace(posterPath) ? 0 : 1);
 
         var headerGrid = new Grid { ColumnSpacing = 8 };
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -329,7 +370,28 @@ public sealed class MatchMediaDialog : ContentDialog
         scoreBorder.Child = scoreBlock;
         headerGrid.Children.Add(scoreBorder);
 
-        rootGrid.Children.Add(headerGrid);
+        details.Children.Add(headerGrid);
+
+        var metrics = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 12,
+        };
+        metrics.Children.Add(new TextBlock
+        {
+            Text = LocalizationService.Format("MatchConfidenceFormat", scorePct),
+            Style = (Style)Microsoft.UI.Xaml.Application.Current.Resources["SecondaryBodyTextStyle"],
+            IsTextSelectionEnabled = true,
+        });
+        metrics.Children.Add(new TextBlock
+        {
+            Text = LocalizationService.Format(
+                "TmdbPopularityFormat",
+                popularity.HasValue ? popularity.Value.ToString("0.##", CultureInfo.InvariantCulture) : "—"),
+            Style = (Style)Microsoft.UI.Xaml.Application.Current.Resources["SecondaryBodyTextStyle"],
+            IsTextSelectionEnabled = true,
+        });
+        details.Children.Add(metrics);
 
         if (!string.IsNullOrWhiteSpace(overview))
         {
@@ -342,8 +404,30 @@ public sealed class MatchMediaDialog : ContentDialog
                 MaxLines = 2,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
-            Grid.SetRow(overviewBlock, 1);
-            rootGrid.Children.Add(overviewBlock);
+            details.Children.Add(overviewBlock);
+        }
+
+        rootGrid.Children.Add(details);
+
+        if (!string.IsNullOrWhiteSpace(posterPath))
+        {
+            try
+            {
+                var poster = new Image
+                {
+                    Width = 52,
+                    Height = 78,
+                    Stretch = Stretch.UniformToFill,
+                    Source = new BitmapImage(new Uri(posterPath)),
+                };
+                AutomationProperties.SetName(poster, title);
+                Grid.SetColumn(poster, 0);
+                rootGrid.Children.Add(poster);
+            }
+            catch (UriFormatException)
+            {
+                // A malformed cached path should not make the matching dialog unusable.
+            }
         }
 
         return rootGrid;

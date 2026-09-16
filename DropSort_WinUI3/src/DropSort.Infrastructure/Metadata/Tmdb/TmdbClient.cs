@@ -148,6 +148,8 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
                 }
 
                 var overview = item.TryGetProperty("overview", out var ovProp) ? ovProp.GetString() : null;
+                double? popularity = item.TryGetProperty("popularity", out var popularityProp) && popularityProp.TryGetDouble(out var popularityValue)
+                    ? popularityValue : null;
                 double? rating = null;
                 if (item.TryGetProperty("vote_average", out var voteProp) && voteProp.TryGetDouble(out var d))
                 {
@@ -166,7 +168,8 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
                     overview: overview,
                     rating: rating,
                     posterReference: poster,
-                    backdropReference: backdrop));
+                    backdropReference: backdrop,
+                    popularity: popularity));
             }
 
             return list;
@@ -341,6 +344,8 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
 
                 var poster = item.TryGetProperty("poster_path", out var pProp) ? pProp.GetString() : null;
                 var backdrop = item.TryGetProperty("backdrop_path", out var bProp) ? bProp.GetString() : null;
+                double? popularity = item.TryGetProperty("popularity", out var popularityProp) && popularityProp.TryGetDouble(out var popularityValue)
+                    ? popularityValue : null;
 
                 list.Add(new TvCandidate(
                     Provider: ProviderName,
@@ -351,7 +356,8 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
                     Overview: overview,
                     Rating: rating,
                     PosterReference: poster,
-                    BackdropReference: backdrop));
+                    BackdropReference: backdrop,
+                    Popularity: popularity));
             }
 
             return list;

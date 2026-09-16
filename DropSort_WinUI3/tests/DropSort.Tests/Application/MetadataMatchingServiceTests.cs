@@ -70,8 +70,12 @@ public class MetadataMatchingServiceTests
         public bool IsConfigured => true;
 
         public List<MovieCandidate> MovieSearchResults { get; set; } = [];
+        public List<string> MovieQueries { get; } = [];
+        public Func<MovieSearchQuery, IReadOnlyList<MovieCandidate>>? MovieSearchFactory { get; set; }
         public MovieMetadata? MovieToReturn { get; set; }
         public List<TvCandidate> TvSearchResults { get; set; } = [];
+        public List<string> TvQueries { get; } = [];
+        public Func<TvSearchQuery, IReadOnlyList<TvCandidate>>? TvSearchFactory { get; set; }
         public TvShowMetadata? TvShowToReturn { get; set; }
         public TvSeasonMetadata? TvSeasonToReturn { get; set; }
 
@@ -81,7 +85,13 @@ public class MetadataMatchingServiceTests
         public IReadOnlyList<MovieCandidate> Search(MovieSearchQuery query) => MovieSearchResults;
 
         public Task<IReadOnlyList<MovieCandidate>> SearchMoviesAsync(MovieSearchQuery query, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<MovieCandidate>>(MovieSearchResults);
+            Task.FromResult<IReadOnlyList<MovieCandidate>>(RecordMovieSearch(query));
+
+        private IReadOnlyList<MovieCandidate> RecordMovieSearch(MovieSearchQuery query)
+        {
+            MovieQueries.Add(query.Title);
+            return MovieSearchFactory?.Invoke(query) ?? MovieSearchResults;
+        }
 
         public MovieMetadata? GetMovie(string externalId) => MovieToReturn;
 
@@ -89,7 +99,13 @@ public class MetadataMatchingServiceTests
             Task.FromResult(MovieToReturn);
 
         public Task<IReadOnlyList<TvCandidate>> SearchTvAsync(TvSearchQuery query, CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<TvCandidate>>(TvSearchResults);
+            Task.FromResult<IReadOnlyList<TvCandidate>>(RecordTvSearch(query));
+
+        private IReadOnlyList<TvCandidate> RecordTvSearch(TvSearchQuery query)
+        {
+            TvQueries.Add(query.Title);
+            return TvSearchFactory?.Invoke(query) ?? TvSearchResults;
+        }
 
         public Task<TvShowMetadata?> GetTvShowAsync(string externalId, CancellationToken cancellationToken = default) =>
             Task.FromResult(TvShowToReturn);
@@ -198,6 +214,82 @@ public class MetadataMatchingServiceTests
         Assert.Equal(MatchStatus.Matched, decision.Status);
         Assert.NotNull(decision.Candidate);
         Assert.Equal("550", decision.Candidate!.ExternalId);
+    }
+
+    [Fact]
+    public async Task SearchMovieCandidatesAsync_UsesOneBoundedNormalizedFallback()
+    {
+        var uow = new FakeUnitOfWork();
+        var provider = new MockMetadataProvider
+        {
+            MovieSearchFactory = query => query.Title == "Kaze Tachinu"
+                ? [new MovieCandidate("TMDB", "335984", "The Wind Rises", "Kaze Tachinu", 2013, null, null, null)]
+                : []
+        };
+
+        var decision = await new MetadataMatchingService(uow, provider)
+            .SearchMovieCandidatesAsync("Kaze.Tachinu", 2013);
+
+        Assert.Equal(MatchStatus.Matched, decision.Status);
+        Assert.Equal("335984", decision.Candidate!.ExternalId);
+        Assert.Equal(2, provider.MovieQueries.Count);
+        Assert.Equal("Kaze.Tachinu", provider.MovieQueries[0]);
+        Assert.Equal("Kaze Tachinu", provider.MovieQueries[1]);
+    }
+
+    [Fact]
+    public async Task SearchMovieCandidatesAsync_PropagatesProviderFailure_without_converting_to_no_match()
+    {
+        var provider = new MockMetadataProvider
+        {
+            MovieSearchFactory = _ => throw new MetadataServiceException(MetadataFailureKind.Authentication)
+        };
+
+        var error = await Assert.ThrowsAsync<MetadataServiceException>(() =>
+            new MetadataMatchingService(new FakeUnitOfWork(), provider)
+                .SearchMovieCandidatesAsync("Kaze Tachinu", 2013));
+
+        Assert.Equal(MetadataFailureKind.Authentication, error.Kind);
+        Assert.Single(provider.MovieQueries);
+    }
+
+    [Fact]
+    public async Task SearchMovieCandidatesAsync_RetainsEqualScoreCandidates_from_fallback_queries()
+    {
+        var provider = new MockMetadataProvider
+        {
+            MovieSearchFactory = query => query.Title switch
+            {
+                "Equal.Title" => [new MovieCandidate("TMDB", "first", "Equal Title", null, null, null, null, null)],
+                "Equal Title" => [new MovieCandidate("TMDB", "second", "Equal Title", null, null, null, null, null)],
+                _ => []
+            }
+        };
+
+        var decision = await new MetadataMatchingService(new FakeUnitOfWork(), provider)
+            .SearchMovieCandidatesAsync("Equal.Title", null);
+
+        Assert.Equal(MatchStatus.ReviewRequired, decision.Status);
+        Assert.Equal(2, decision.RankedCandidates.Length);
+        Assert.Equal(2, provider.MovieQueries.Count);
+    }
+
+    [Fact]
+    public async Task SearchTvCandidatesAsync_RetainsLowScoreFallbackCandidates_for_manual_review()
+    {
+        var provider = new MockMetadataProvider
+        {
+            TvSearchFactory = query => query.Title == "Noisy Show"
+                ? [new TvCandidate("TMDB", "1", "Unrelated Show", null, null, null, null, null)]
+                : []
+        };
+
+        var decision = await new MetadataMatchingService(new FakeUnitOfWork(), provider)
+            .SearchTvCandidatesAsync("Noisy.Show", null);
+
+        Assert.Equal(MatchStatus.NoMatch, decision.Status);
+        Assert.Single(decision.RankedCandidates);
+        Assert.Equal(2, provider.TvQueries.Count);
     }
 
     [Fact]

@@ -136,6 +136,7 @@ public class TmdbClientAndPosterCacheTests : IDisposable
                     "release_date": "2008-07-16",
                     "overview": "Batman raises the stakes in his war on crime.",
                     "vote_average": 8.512,
+                    "popularity": 42.5,
                     "poster_path": "/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
                     "backdrop_path": "/dqK9Hag1054tghRQSqLSfrkvQnA.jpg"
                 }
@@ -161,6 +162,7 @@ public class TmdbClientAndPosterCacheTests : IDisposable
         Assert.Equal("The Dark Knight", movie.Title);
         Assert.Equal(2008, movie.Year);
         Assert.Equal(8.5, movie.Rating);
+        Assert.Equal(42.5, movie.Popularity);
         Assert.Equal("/qJ2tW6WMUDux911r6m7haRef0WH.jpg", movie.PosterReference);
     }
 
@@ -277,6 +279,7 @@ public class TmdbClientAndPosterCacheTests : IDisposable
                     "first_air_date": "2008-01-20",
                     "overview": "A high school chemistry teacher diagnosed with cancer...",
                     "vote_average": 8.9,
+                    "popularity": 31.75,
                     "poster_path": "/bb.jpg",
                     "backdrop_path": "/bb_back.jpg"
                 }
@@ -302,6 +305,7 @@ public class TmdbClientAndPosterCacheTests : IDisposable
         Assert.Equal("Breaking Bad", show.Title);
         Assert.Equal(2008, show.FirstAirYear);
         Assert.Equal(8.9, show.Rating);
+        Assert.Equal(31.75, show.Popularity);
     }
 
     [Fact]

@@ -589,6 +589,21 @@ public sealed class UiSourceContractTests
         Assert.Contains("ManualMatch_Click", row, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Manual_match_uses_one_selectable_ranked_candidate_surface()
+    {
+        var dialog = Read("Views", "MatchMediaDialog.cs");
+        var addMedia = Read("Views", "AddMediaPage.xaml.cs");
+
+        Assert.Contains("ListView", dialog, StringComparison.Ordinal);
+        Assert.Contains("ApplyMatch", dialog, StringComparison.Ordinal);
+        Assert.Contains("IsTextSelectionEnabled = true", dialog, StringComparison.Ordinal);
+        Assert.Contains("MatchConfidenceFormat", dialog, StringComparison.Ordinal);
+        Assert.Contains("TmdbPopularityFormat", dialog, StringComparison.Ordinal);
+        Assert.Contains("CachedPosterPath", dialog, StringComparison.Ordinal);
+        Assert.Contains("MatchMediaDialog.ShowForMovieAsync(this, title, null)", addMedia, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Only the composition root knows about Infrastructure and FileSystem, and only it knows where the
     /// data folder is. A view that built either for itself would be a second source of truth.

@@ -17,6 +17,8 @@ public record MovieCandidate
     public string? PosterReference { get; }
     public string? BackdropReference { get; }
     public string? Tagline { get; }
+    /// <summary>Provider popularity, used only as a deterministic secondary ranking signal.</summary>
+    public double? Popularity { get; }
 
     public MovieCandidate(
         string provider,
@@ -28,7 +30,8 @@ public record MovieCandidate
         double? rating,
         string? posterReference,
         string? backdropReference = null,
-        string? tagline = null)
+        string? tagline = null,
+        double? popularity = null)
     {
         Provider = provider;
         ExternalId = externalId;
@@ -40,6 +43,7 @@ public record MovieCandidate
         PosterReference = posterReference;
         BackdropReference = backdropReference;
         Tagline = tagline;
+        Popularity = popularity;
     }
 }
 
@@ -98,7 +102,8 @@ public record TvCandidate(
     string? Overview,
     double? Rating,
     string? PosterReference,
-    string? BackdropReference = null);
+    string? BackdropReference = null,
+    double? Popularity = null);
 
 public record TvShowMetadata(
     string Provider,

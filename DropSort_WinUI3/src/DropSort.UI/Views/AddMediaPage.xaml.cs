@@ -825,13 +825,18 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 return;
             }
 
-            var result = await Task.Run(() => AppServices.Import.ManualMovieSearch(title));
-            await ShowMessageAsync(
-                LocalizationService.Text("SearchTmdbHeading"),
-                result.Candidates.Count == 0
-                    ? LocalizationService.Text("NoResults")
-                    : string.Join(Environment.NewLine, result.Candidates.Take(10).Select(candidate =>
-                        candidate.Title + (candidate.Year is null ? string.Empty : $" ({candidate.Year})"))));
+            // Use the same selectable, ranked result surface as per-row Match Metadata. The global
+            // card has no library row to mutate, so Apply confirms the chosen result and reports it
+            // without inventing a registration side effect.
+            var selected = await MatchMediaDialog.ShowForMovieAsync(this, title, null);
+            if (selected is not null)
+            {
+                await ShowMessageAsync(
+                    LocalizationService.Text("SearchTmdbHeading"),
+                    LocalizationService.Format(
+                        "MatchSelectedFormat",
+                        selected.Title + (selected.Year is null ? string.Empty : $" ({selected.Year})")));
+            }
         }
         catch (Exception error)
         {

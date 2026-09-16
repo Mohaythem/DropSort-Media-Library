@@ -106,7 +106,7 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         var yearMatch = YearPattern().Match(stem);
         int? year = yearMatch.Success ? int.Parse(yearMatch.Value, System.Globalization.CultureInfo.InvariantCulture) : null;
         var titlePart = yearMatch.Success ? stem[..yearMatch.Index] : stem;
-        var title = SeparatorPattern().Replace(titlePart, " ").Trim();
+        var title = CleanReleaseTitle(titlePart);
 
         // "Dune Part Two (2024) 1080p" leaves the opening bracket behind once the year is cut off, so
         // the bracket and punctuation characters that only ever wrap a year or a tag are trimmed too.
@@ -137,8 +137,7 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         // The show name is the part before the marker, cleaned the way a movie title is. An empty result
         // stays null: the file is then an episode the parser could not resolve, not a show named after
         // its own file name.
-        var showPart = SeparatorPattern().Replace(stem[..marker.Index], " ").Trim();
-        showPart = showPart.Trim(' ', '(', ')', '[', ']', '{', '}', '-', '_', '.', ',');
+        var showPart = CleanReleaseTitle(stem[..marker.Index]);
         var numbers = ReadEpisodeNumbers(marker);
 
         return new ParsedMedia(
@@ -178,6 +177,21 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         return match.Success ? match.Value : null;
     }
 
+    private static string CleanReleaseTitle(string value)
+    {
+        var title = LeadingReleaseGroupPattern().Replace(value, " ");
+        title = SeparatorPattern().Replace(title, " ");
+        // Release groups and source labels are commonly wrapped in brackets. Remove only groups
+        // that are clearly release metadata, preserving meaningful parenthesized titles.
+        title = MetadataBracketPattern().Replace(title, " ");
+        title = LanguageBracketPattern().Replace(title, " ");
+        title = StandaloneWebReleasePattern().Replace(title, " ");
+        title = ReleaseTagPattern().Replace(title, " ");
+        title = title.Replace('[', ' ').Replace(']', ' ');
+        title = SeparatorPattern().Replace(title, " ").Trim(' ', '(', ')', '[', ']', '{', '}', '-', '_', '.', ',');
+        return Regex.Replace(title, @"\s+", " ").Trim();
+    }
+
     [GeneratedRegex(@"(?i)\bS(?<season>\d{1,3})E(?<episode>\d{1,3})\b")]
     private static partial Regex EpisodePattern();
 
@@ -193,6 +207,21 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
 
     [GeneratedRegex(@"[._\-]+")]
     private static partial Regex SeparatorPattern();
+
+    [GeneratedRegex(@"(?i)\[(?:[^\]]*(?:bluray|blu-ray|bdrip|brrip|web[- ]?dl|webrip|hdtv|dvdrip|2160p|1440p|1080p|720p|576p|480p|x26[45]|h\.?26[45]|hevc|av1|xvid|divx)[^\]]*)\]")]
+    private static partial Regex MetadataBracketPattern();
+
+    [GeneratedRegex(@"(?i)\[(?:ar|en|eng|ja|jpn|fr|de|ger)\]")]
+    private static partial Regex LanguageBracketPattern();
+
+    [GeneratedRegex(@"^\s*\[\s*(?:www\.)?(?:[A-Za-z0-9-]+\.)+(?:com|net|org)\s*\]\s*", RegexOptions.IgnoreCase)]
+    private static partial Regex LeadingReleaseGroupPattern();
+
+    [GeneratedRegex(@"(?i)\b(?:2160p|1440p|1080p|720p|576p|480p|4K|UHD|BluRay|Blu-Ray|BDRip|BRRip|WEB-DL|WEBRip|HDTV|DVDRip|HDRip|x265|x264|H\.?265|H\.?264|HEVC|AV1|XviD|DivX)\b.*$")]
+    private static partial Regex ReleaseTagPattern();
+
+    [GeneratedRegex(@"(?i)\bWEB(?=\s*(?:[- ]?(?:DL|Rip)\b|(?:2160p|1440p|1080p|720p|576p|480p|4K|UHD|BluRay|Blu-Ray|BDRip|BRRip|HDTV|DVDRip|DVD|HDRip|CAM|TS|x265|x264|H\.?265|H\.?264|HEVC|AV1|XviD|DivX)\b))")]
+    private static partial Regex StandaloneWebReleasePattern();
 
     [GeneratedRegex(@"(?i)\b(?:2160p|1440p|1080p|720p|576p|480p|4K|UHD)\b")]
     private static partial Regex ResolutionPattern();

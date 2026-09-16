@@ -201,4 +201,33 @@ public class MetadataScorerTests
         Assert.Equal(MatchStatus.Matched, decision.Status);
         Assert.Contains(MatchReason.OriginalTitleExact, decision.RankedCandidates[0].MatchReasons);
     }
+
+    [Fact]
+    public void Popularity_is_only_a_tie_breaker_after_title_and_year_score()
+    {
+        var candidates = new[]
+        {
+            new MovieCandidate("tmdb", "strong", "The Wind Rises", null, 2013, null, null, null, popularity: 1),
+            new MovieCandidate("tmdb", "weak", "The Wind Rises Again", null, 2013, null, null, null, popularity: 999)
+        };
+
+        var decision = MetadataScorer.Score("The Wind Rises", 2013, candidates);
+
+        Assert.Equal("strong", decision.RankedCandidates[0].Candidate.ExternalId);
+    }
+
+    [Fact]
+    public void Popularity_breaks_exact_score_ties_without_changing_conservative_ambiguity()
+    {
+        var candidates = new[]
+        {
+            new MovieCandidate("tmdb", "low", "Robin Hood", null, 2010, null, null, null, popularity: 1),
+            new MovieCandidate("tmdb", "high", "Robin Hood", null, 2018, null, null, null, popularity: 100)
+        };
+
+        var decision = MetadataScorer.Score("Robin Hood", null, candidates);
+
+        Assert.Equal("high", decision.RankedCandidates[0].Candidate.ExternalId);
+        Assert.Equal(MatchStatus.ReviewRequired, decision.Status);
+    }
 }

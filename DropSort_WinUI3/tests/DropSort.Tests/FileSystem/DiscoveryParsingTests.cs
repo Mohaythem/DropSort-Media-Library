@@ -124,4 +124,39 @@ public sealed class DiscoveryParsingTests : IDisposable
         Assert.Equal(MediaType.Movie, item.ParsedMedia!.MediaType);
         Assert.Null(item.ParsedMedia!.SeasonNumber);
     }
+
+    [Fact]
+    public void Noisy_source_and_release_tags_are_not_part_of_movie_title()
+    {
+        var item = DiscoverOne("[AnimeSanka.com] Kaze Tachinu [Bluray - 1080p - Ar - X265].mp4");
+
+        Assert.Equal(DiscoveryClassification.MovieCandidate, item.Classification);
+        Assert.Equal("Kaze Tachinu", item.ParsedMedia!.Title);
+        Assert.Equal("1080p", item.ParsedMedia.Resolution);
+        Assert.Equal("Bluray", item.ParsedMedia.Source);
+        Assert.Equal("X265", item.ParsedMedia.Codec);
+    }
+
+    [Fact]
+    public void Meaningful_web_word_is_not_treated_as_a_release_tag()
+    {
+        var item = DiscoverOne("The Web (2020).mp4");
+
+        Assert.Equal("The Web", item.ParsedMedia!.Title);
+        Assert.Equal(2020, item.ParsedMedia.Year);
+    }
+
+    [Theory]
+    [InlineData("Body Cam (2020).mp4", "Body Cam", 2020)]
+    [InlineData("Cam (2018).mp4", "Cam", 2018)]
+    [InlineData("The [Garden] Party (2021).mp4", "The Garden Party", 2021)]
+    [InlineData("[Welcome] Home (2022).mp4", "Welcome Home", 2022)]
+    [InlineData("[Planet] Earth (2023).mp4", "Planet Earth", 2023)]
+    public void Ordinary_title_words_and_brackets_are_preserved(string fileName, string expectedTitle, int expectedYear)
+    {
+        var item = DiscoverOne(fileName);
+
+        Assert.Equal(expectedTitle, item.ParsedMedia!.Title);
+        Assert.Equal(expectedYear, item.ParsedMedia.Year);
+    }
 }
