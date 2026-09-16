@@ -535,7 +535,6 @@ public sealed class UiSourceContractTests
         Assert.Contains("MatchMediaDialog.ShowForMovieAsync", page, StringComparison.Ordinal);
         Assert.Contains("MatchMediaDialog.ShowForTvShowAsync", page, StringComparison.Ordinal);
         Assert.Contains("ImportSelection(row.Item, row.MetadataPreview)", page, StringComparison.Ordinal);
-        Assert.Contains("IsReadOnly=\"True\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ManualMatch_Click", xaml, StringComparison.Ordinal);
         Assert.Contains("RetryMetadata_Click", xaml, StringComparison.Ordinal);
         Assert.Contains("ImportItemStatus.NoMatchFound", model, StringComparison.Ordinal);
@@ -546,6 +545,22 @@ public sealed class UiSourceContractTests
         Assert.Contains("IDeactivatableView deactivatable", Read("MainWindow.xaml.cs"), StringComparison.Ordinal);
         Assert.DoesNotContain("AppSettingsStore.MovieFolder = folder.Path", page, StringComparison.Ordinal);
         Assert.DoesNotContain("AppSettingsStore.ShowFolder = folder.Path", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Add_media_row_information_uses_selectable_static_text_not_input_fields()
+    {
+        var xaml = Read("Views", "AddMediaPage.xaml");
+        var rowStart = xaml.IndexOf("<ItemsRepeater x:Name=\"DetectedMediaRepeater\"", StringComparison.Ordinal);
+        var rowEnd = xaml.IndexOf("</ItemsRepeater>", rowStart, StringComparison.Ordinal);
+
+        Assert.True(rowStart >= 0 && rowEnd > rowStart);
+        var row = xaml.Substring(rowStart, rowEnd - rowStart);
+        Assert.DoesNotContain("<TextBox", row, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsReadOnly=", row, StringComparison.Ordinal);
+        Assert.Equal(6, Occurrences(row, "IsTextSelectionEnabled=\"True\""));
+        Assert.Contains("TmdbSearchButton", xaml, StringComparison.Ordinal);
+        Assert.Contains("ManualMatch_Click", row, StringComparison.Ordinal);
     }
 
     /// <summary>

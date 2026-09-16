@@ -140,50 +140,44 @@
                                                     Style="{StaticResource SecondaryBodyTextStyle}"
                                                     Text="{x:Bind TypeLabel, Mode=OneWay}" />
                                                 <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
-                                                    <TextBox
+                                                    <TextBlock
                                                         Text="{x:Bind Title, Mode=OneWay}"
-                                                        IsReadOnly="True"
+                                                        IsTextSelectionEnabled="True"
                                                         FontWeight="SemiBold"
                                                         Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                                        TextWrapping="Wrap"
-                                                        BorderThickness="0"
-                                                        Padding="0" />
-                                                    <TextBox
+                                                        TextWrapping="Wrap" />
+                                                    <TextBlock
                                                         Text="{x:Bind FileName, Mode=OneWay}"
-                                                        IsReadOnly="True"
+                                                        IsTextSelectionEnabled="True"
                                                         Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                                                        TextWrapping="Wrap"
-                                                        BorderThickness="0"
-                                                        Padding="0" />
+                                                        TextWrapping="Wrap" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="2" Visibility="{x:Bind PreviewVisibility, Mode=OneWay}">
-                                                    <TextBox
+                                                    <TextBlock
                                                         Text="{x:Bind PreviewTitle, Mode=OneWay}"
-                                                        IsReadOnly="True"
+                                                        IsTextSelectionEnabled="True"
                                                         FontWeight="SemiBold"
                                                         Foreground="{ThemeResource TextFillColorPrimaryBrush}"
-                                                        TextWrapping="Wrap"
-                                                        BorderThickness="0"
-                                                        Padding="0" />
+                                                        TextWrapping="Wrap" />
                                                     <TextBlock
                                                         Style="{StaticResource TertiaryCaptionTextStyle}"
                                                         Text="{x:Bind PreviewYear, Mode=OneWay}"
-                                                        TextTrimming="CharacterEllipsis" />
+                                                        TextTrimming="CharacterEllipsis"
+                                                        IsTextSelectionEnabled="True" />
                                                     <TextBlock
                                                         Style="{StaticResource TertiaryCaptionTextStyle}"
                                                         Text="{x:Bind PreviewDetails, Mode=OneWay}"
                                                         TextWrapping="Wrap"
-                                                        MaxLines="2" />
+                                                        MaxLines="2"
+                                                        IsTextSelectionEnabled="True" />
                                                 </StackPanel>
-                                                <TextBox
+                                                <TextBlock
                                                     Grid.Column="4"
                                                     VerticalAlignment="Center"
                                                     Text="{x:Bind Details, Mode=OneWay}"
                                                     TextWrapping="Wrap"
-                                                    IsReadOnly="True"
-                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                    BorderThickness="0"
-                                                    Padding="0" />
+                                                    IsTextSelectionEnabled="True"
+                                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                                                 <TextBlock
                                                     Grid.Column="5"
                                                     VerticalAlignment="Center"
