@@ -30,12 +30,18 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
     public bool CanSelect => Item.Classification is
         DiscoveryClassification.MovieCandidate or DiscoveryClassification.TvEpisodeCandidate;
 
+    /// <summary>
+    /// Whether this row is eligible for a new registration. A path already present in the catalog
+    /// remains visible for honest feedback, but cannot be selected or sent through metadata lookup.
+    /// </summary>
+    public bool CanAdd => CanSelect && _status != ImportItemStatus.AlreadyInLibrary;
+
     public bool IsSelected
     {
         get => _isSelected;
         set
         {
-            var selected = CanSelect && value;
+            var selected = CanAdd && value;
             if (_isSelected == selected)
             {
                 return;
@@ -47,7 +53,7 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
     }
 
     /// <summary>Whether the row can still be changed while an import is running.</summary>
-    public bool IsSelectionEnabled => CanSelect && !_isImporting;
+    public bool IsSelectionEnabled => CanAdd && !_isImporting;
 
     public ImportItemStatus Status => _status;
 
@@ -153,6 +159,17 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
         _status = status;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanAdd)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelectionEnabled)));
+        RaiseMetadataProperties();
+    }
+
+    /// <summary>Marks an exact path already present in the catalog without invoking metadata.</summary>
+    public void SetAlreadyInLibrary()
+    {
+        _metadataPreview = null;
+        IsSelected = false;
+        SetImportStatus(ImportItemStatus.AlreadyInLibrary);
         RaiseMetadataProperties();
     }
 
@@ -178,6 +195,12 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
     public void SetMetadataPreview(ImportMetadataPreview preview)
     {
         ArgumentNullException.ThrowIfNull(preview);
+        if (preview.Status == ImportItemStatus.AlreadyInLibrary)
+        {
+            SetAlreadyInLibrary();
+            return;
+        }
+
         _metadataPreview = preview;
         SetImportStatus(preview.Status);
         RaiseMetadataProperties();
@@ -259,6 +282,7 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
             ImportItemStatus.MetadataError => LocalizationService.Text("MetadataError"),
             ImportItemStatus.MetadataCancelled => LocalizationService.Text("ImportMetadataCancelled"),
             ImportItemStatus.RegistrationFailed => LocalizationService.Text("RegistrationFailed"),
+            ImportItemStatus.AlreadyInLibrary => LocalizationService.Text("AlreadyInLibrary"),
             _ => LocalizationService.Text("ReadyToAdd"),
         }
         : LocalizationService.Text("NeedsReview");

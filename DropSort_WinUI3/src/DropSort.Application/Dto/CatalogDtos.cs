@@ -47,7 +47,8 @@ public enum ImportItemStatus
     MetadataUnavailable,
     MetadataError,
     MetadataCancelled,
-    RegistrationFailed
+    RegistrationFailed,
+    AlreadyInLibrary
 }
 
 /// <summary>A discovered item selected by the user for local registration.</summary>
@@ -81,6 +82,7 @@ public record ImportBatchResult(IReadOnlyList<ImportItemResult> Items)
     public int AutoMatchedCount => Items.Count(item => item.AutoMatched);
     public int AddedCount => Items.Count(item => item.Registered && !item.AlreadyRegistered);
     public int ExistingCount => Items.Count(item => item.Registered && item.AlreadyRegistered);
+    public int AlreadyInLibraryCount => Items.Count(item => item.Status == ImportItemStatus.AlreadyInLibrary);
     public int MatchedCount => Items.Count(item => item.Status == ImportItemStatus.Matched);
     public int NeedsMatchCount => Items.Count(item => item.Status == ImportItemStatus.NeedsMatch);
     public int NoMatchFoundCount => Items.Count(item => item.Status == ImportItemStatus.NoMatchFound);

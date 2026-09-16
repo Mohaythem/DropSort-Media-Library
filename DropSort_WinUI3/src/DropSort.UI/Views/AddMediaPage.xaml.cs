@@ -130,11 +130,11 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             return;
         }
 
-        var selectable = _rows.Count(row => row.CanSelect);
-        var selected = _rows.Count(row => row.CanSelect && row.IsSelected);
+        var selectable = _rows.Count(row => row.CanAdd);
+        var selected = _rows.Count(row => row.CanAdd && row.IsSelected);
         ResultsCountText.Text = LocalizationService.Format("ItemsFoundFormat", _rows.Count)
             + " · " + LocalizationService.Format("SelectedItemsFormat", selected);
-        var metadataPending = _rows.Any(row => row.CanSelect && row.Status == ImportItemStatus.Matching);
+        var metadataPending = _rows.Any(row => row.CanAdd && row.Status == ImportItemStatus.Matching);
         AddSelectedButton.IsEnabled = selected > 0 && !_isAdding && !_isReviewingMetadata && !metadataPending;
         AddSelectedButton.Content = LocalizationService.Format("AddSelectedFormat", selected);
         SelectAllButton.IsEnabled = selectable > 0 && !_isAdding;
@@ -168,7 +168,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     private void SelectAllButton_Click(object sender, RoutedEventArgs e)
     {
-        foreach (var row in _rows.Where(row => row.CanSelect))
+        foreach (var row in _rows.Where(row => row.CanAdd))
         {
             row.IsSelected = true;
         }
@@ -447,11 +447,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         var version = ++_metadataVersion;
         _isReviewingMetadata = true;
 
-        foreach (var row in _rows.Where(row => row.CanSelect))
-        {
-            row.SetMetadataReviewing();
-        }
-
         Refresh();
         _ = ReviewMetadataAsync(version, cancellation);
     }
@@ -462,9 +457,43 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         {
             // Keep provider calls sequential during review. This avoids turning a large scan into a
             // burst that trips TMDB rate limits while still keeping the UI responsive via async I/O.
-            foreach (var row in _rows.Where(row => row.CanSelect).ToArray())
+            foreach (var row in _rows.Where(row => row.CanAdd).ToArray())
             {
                 cancellation.Token.ThrowIfCancellationRequested();
+
+                bool isRegistered;
+                try
+                {
+                    // Catalog reads are synchronous at the application boundary. Run each one off
+                    // the UI thread so a large scan or a busy SQLite writer cannot freeze the page.
+                    isRegistered = await Task.Run(
+                        () => AppServices.Import.IsMediaFileRegistered(row.Item.Path),
+                        cancellation.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception error)
+                {
+                    // A failed identity check is not proof that the file is new. Keep the row
+                    // visible for an explicit retry, but never send it to TMDB on that assumption.
+                    row.SetMetadataPreview(new ImportMetadataPreview(
+                        ImportItemStatus.MetadataError,
+                        Failure: MetadataErrorText.For(error)));
+                    Refresh();
+                    continue;
+                }
+
+                if (isRegistered)
+                {
+                    row.SetAlreadyInLibrary();
+                    Refresh();
+                    continue;
+                }
+
+                row.SetMetadataReviewing();
+                Refresh();
                 await ReviewMetadataRowAsync(row, cancellation.Token);
             }
         }
@@ -491,10 +520,22 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     {
         try
         {
-            var preview = await AppServices.Import.PreviewMetadataAsync(row.Item, token);
+            // PreviewMetadataAsync performs its canonical path check before its first await. Keep
+            // that synchronous application read (and the provider call that follows) off the UI
+            // thread; the continuation returns to the page context for row updates.
+            var preview = await Task.Run(
+                () => AppServices.Import.PreviewMetadataAsync(row.Item, token),
+                token);
             if (!token.IsCancellationRequested)
             {
-                row.SetMetadataPreview(preview);
+                if (preview.Status == ImportItemStatus.AlreadyInLibrary)
+                {
+                    row.SetAlreadyInLibrary();
+                }
+                else
+                {
+                    row.SetMetadataPreview(preview);
+                }
                 Refresh();
             }
         }
@@ -536,7 +577,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private async void RetryMetadata_Click(object sender, RoutedEventArgs e)
     {
         var row = RowFromSender(sender);
-        if (row is null || _isAdding || !row.CanSelect || _retryCancellations.ContainsKey(row))
+        if (row is null || _isAdding || !row.CanAdd || _retryCancellations.ContainsKey(row))
         {
             return;
         }
@@ -547,10 +588,21 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         Refresh();
         try
         {
-            var preview = await AppServices.Import.RetryMetadataAsync(row.Item, cancellation.Token);
+            // RetryMetadataAsync delegates to PreviewMetadataAsync, whose canonical path check is
+            // synchronous before its first await. Run the complete retry off the UI thread as well.
+            var preview = await Task.Run(
+                () => AppServices.Import.RetryMetadataAsync(row.Item, cancellation.Token),
+                cancellation.Token);
             if (!cancellation.IsCancellationRequested && _rows.Contains(row))
             {
-                row.SetMetadataPreview(preview);
+                if (preview.Status == ImportItemStatus.AlreadyInLibrary)
+                {
+                    row.SetAlreadyInLibrary();
+                }
+                else
+                {
+                    row.SetMetadataPreview(preview);
+                }
                 Refresh();
             }
         }
@@ -580,7 +632,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private async void ManualMatch_Click(object sender, RoutedEventArgs e)
     {
         var row = RowFromSender(sender);
-        if (row is null || _isAdding || !row.CanSelect)
+        if (row is null || _isAdding || !row.CanAdd)
         {
             return;
         }
@@ -628,7 +680,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         }
 
         var selections = _rows
-            .Where(row => row.CanSelect && row.IsSelected)
+            .Where(row => row.CanAdd && row.IsSelected)
             .Select(row => new ImportSelection(row.Item, row.MetadataPreview))
             .ToArray();
 

@@ -48,6 +48,12 @@ public class ImportService : IImportUiActions
         return new ImportReviewSession(items);
     }
 
+    public bool IsMediaFileRegistered(string filePath)
+    {
+        using var uow = _uowFactory.Begin();
+        return uow.MediaFiles.GetByPath(filePath) is not null;
+    }
+
     public Task<ImportMetadataPreview> RetryMetadataAsync(
         DiscoveredMedia item, CancellationToken cancellationToken = default) =>
         PreviewMetadataAsync(item, cancellationToken);
@@ -57,6 +63,10 @@ public class ImportService : IImportUiActions
     {
         ArgumentNullException.ThrowIfNull(item);
         cancellationToken.ThrowIfCancellationRequested();
+        if (IsMediaFileRegistered(item.Path))
+        {
+            return new ImportMetadataPreview(ImportItemStatus.AlreadyInLibrary);
+        }
         if (item.Classification is not DiscoveryClassification.MovieCandidate
             and not DiscoveryClassification.TvEpisodeCandidate)
         {
@@ -135,6 +145,13 @@ public class ImportService : IImportUiActions
     {
         // V1: Confirms import by registering locally, then enriching if a candidate was selected.
         var registration = RegisterMovieImport(command);
+        if (registration.AlreadyRegistered)
+        {
+            // An exact path is already in the catalog. Do not re-run an explicitly supplied
+            // candidate through the metadata provider when this legacy confirmation entry point is
+            // used instead of the batch Add Media flow.
+            return registration;
+        }
         if (command.SelectedCandidate != null)
         {
             return EnrichMovieImport(command, registration);
@@ -166,10 +183,36 @@ public class ImportService : IImportUiActions
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                // Path identity is the duplicate boundary. Check it before classification-specific
+                // registration and before any metadata work so an existing file never reaches TMDB.
+                if (IsMediaFileRegistered(item.Path))
+                {
+                    results.Add(new ImportItemResult(
+                        item.Path,
+                        item.Classification,
+                        Registered: true,
+                        AutoMatched: false,
+                        Status: ImportItemStatus.AlreadyInLibrary,
+                        AlreadyRegistered: true));
+                    continue;
+                }
+
                 if (item.Classification == DiscoveryClassification.MovieCandidate)
                 {
                     var registration = RegisterMovieImport(new ConfirmMovieImportCommand(
                         item.Path, size, item.ParsedMedia, _clock()));
+                    if (registration.AlreadyRegistered)
+                    {
+                        results.Add(new ImportItemResult(
+                            item.Path,
+                            item.Classification,
+                            Registered: true,
+                            AutoMatched: false,
+                            Status: ImportItemStatus.AlreadyInLibrary,
+                            AlreadyRegistered: true));
+                        continue;
+                    }
+
                     var resultIndex = results.Count;
                     var needsMetadata = registration.Movie.MetadataStatus != MetadataStatus.Ready;
                     var staged = selection.MetadataPreview;
@@ -212,6 +255,18 @@ public class ImportService : IImportUiActions
                 {
                     var registration = RegisterEpisodeImport(new ConfirmEpisodeImportCommand(
                         item.Path, size, item.ParsedMedia, _clock()));
+                    if (registration.AlreadyRegistered)
+                    {
+                        results.Add(new ImportItemResult(
+                            item.Path,
+                            item.Classification,
+                            Registered: true,
+                            AutoMatched: false,
+                            Status: ImportItemStatus.AlreadyInLibrary,
+                            AlreadyRegistered: true));
+                        continue;
+                    }
+
                     var resultIndex = results.Count;
                     var requiresMatch = registration.Show.MetadataStatus != MetadataStatus.Ready;
                     var requiresRefresh = !registration.AlreadyRegistered && !requiresMatch;

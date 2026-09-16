@@ -38,6 +38,13 @@ public interface IPersonalLibraryUiActions
 
 public interface IImportUiActions
 {
+    /// <summary>
+    /// Checks the catalog's canonical media-path identity without touching metadata services or
+    /// changing catalog state. Add Media uses this before metadata preflight so an exact existing
+    /// file can be shown as already registered and skipped safely.
+    /// </summary>
+    bool IsMediaFileRegistered(string filePath);
+
     ImportReviewSession PrepareImportReview(
         string rootPath,
         bool recursive,

@@ -500,8 +500,11 @@ public sealed class UiSourceContractTests
         Assert.Contains("ImportItemStatus.NeedsMatch", model, StringComparison.Ordinal);
         Assert.Contains("ImportItemStatus.MetadataUnavailable", model, StringComparison.Ordinal);
         Assert.Contains("ImportItemStatus.MetadataError", model, StringComparison.Ordinal);
+        Assert.Contains("ImportItemStatus.AlreadyInLibrary", model, StringComparison.Ordinal);
         Assert.Contains("private ImportItemStatus _status = ImportItemStatus.ReadyToAdd;", model, StringComparison.Ordinal);
         Assert.Contains("ImportItemStatus.ReadyToAdd => LocalizationService.Text(\"ReadyToAdd\")", model, StringComparison.Ordinal);
+        Assert.Contains("ImportItemStatus.AlreadyInLibrary => LocalizationService.Text(\"AlreadyInLibrary\")", model, StringComparison.Ordinal);
+        Assert.Contains("public bool CanAdd", model, StringComparison.Ordinal);
         Assert.Contains("ImportAddedFormat", page, StringComparison.Ordinal);
         Assert.Contains("ImportMatchedFormat", page, StringComparison.Ordinal);
         Assert.Contains("ImportNeedsMatchFormat", page, StringComparison.Ordinal);
@@ -509,8 +512,31 @@ public sealed class UiSourceContractTests
         Assert.Contains("[\"ReadyToAdd\"] = \"Ready to add\"", localization, StringComparison.Ordinal);
         Assert.Contains("[\"MetadataUnavailable\"] = \"Metadata unavailable\"", localization, StringComparison.Ordinal);
         Assert.Contains("[\"NeedsMatch\"] = \"Needs match\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"AlreadyInLibrary\"] = \"Already in Library\"", localization, StringComparison.Ordinal);
         Assert.Contains("[\"ReadyToAdd\"] = \"جاهز للإضافة\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"AlreadyInLibrary\"] = \"موجود بالفعل في المكتبة\"", localization, StringComparison.Ordinal);
         Assert.Contains("[\"MetadataUnavailable\"] = \"البيانات الوصفية غير متاحة\"", localization, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Add_media_checks_exact_registered_paths_before_metadata_and_excludes_them_from_add()
+    {
+        var contract = ReadApplicationSource("Contracts", "IUiActions.cs");
+        var service = ReadApplicationSource("Services", "ImportService.cs");
+        var model = Read("Models", "AddMediaModels.cs");
+        var page = Read("Views", "AddMediaPage.xaml.cs");
+
+        Assert.Contains("bool IsMediaFileRegistered(string filePath)", contract, StringComparison.Ordinal);
+        Assert.Contains("public bool IsMediaFileRegistered(string filePath)", service, StringComparison.Ordinal);
+        Assert.Contains("uow.MediaFiles.GetByPath(filePath)", service, StringComparison.Ordinal);
+        Assert.Contains("if (IsMediaFileRegistered(item.Path))", service, StringComparison.Ordinal);
+        Assert.Contains("Status: ImportItemStatus.AlreadyInLibrary", service, StringComparison.Ordinal);
+        Assert.Contains("public void SetAlreadyInLibrary()", model, StringComparison.Ordinal);
+        Assert.Contains("AppServices.Import.IsMediaFileRegistered(row.Item.Path)", page, StringComparison.Ordinal);
+        Assert.Contains("row.SetAlreadyInLibrary()", page, StringComparison.Ordinal);
+        Assert.Contains("_rows.Count(row => row.CanAdd)", page, StringComparison.Ordinal);
+        Assert.Contains(".Where(row => row.CanAdd && row.IsSelected)", page, StringComparison.Ordinal);
+        Assert.Contains("_rows.Where(row => row.CanAdd).ToArray()", page, StringComparison.Ordinal);
     }
 
     [Fact]

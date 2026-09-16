@@ -422,7 +422,120 @@ public sealed class ImportSelectedTests : IDisposable
         Assert.Equal(0, first.NeedsMatchCount);
         Assert.Equal(1, second.ExistingCount);
         Assert.Equal(0, second.AddedCount);
-        Assert.Equal(1, second.MatchedCount);
+        Assert.Equal(1, second.AlreadyInLibraryCount);
+        Assert.Equal(0, second.MatchedCount);
+    }
+
+    [Fact]
+    public async Task ExistingMoviePath_IsDetectedBeforeMetadataAndCannotDuplicate()
+    {
+        var provider = new CountingProvider { MovieCandidates = [Candidate("Exact", "exact-1")] };
+        var service = CreateService(provider);
+        var item = Discovered("Existing.mkv", MediaType.Movie, "Exact", 2020);
+
+        await service.ImportSelectedAsync([new ImportSelection(item)]);
+        var callsAfterFirstImport = provider.MovieSearchCount;
+        var preview = await service.PreviewMetadataAsync(item);
+        var second = await service.ImportSelectedAsync([new ImportSelection(item)]);
+
+        Assert.Equal(ImportItemStatus.AlreadyInLibrary, preview.Status);
+        Assert.Equal(callsAfterFirstImport, provider.MovieSearchCount);
+        Assert.Single(second.Items);
+        Assert.True(second.Items[0].Registered);
+        Assert.True(second.Items[0].AlreadyRegistered);
+        Assert.Equal(ImportItemStatus.AlreadyInLibrary, second.Items[0].Status);
+        Assert.Equal(1, second.ExistingCount);
+        Assert.Equal(1, second.AlreadyInLibraryCount);
+        Assert.Equal(0, second.AddedCount);
+        Assert.Equal(0, second.MatchedCount);
+        using var uow = _factory.Begin();
+        Assert.Single(uow.Movies.ListAll());
+        Assert.Single(uow.MediaFiles.ListAll());
+    }
+
+    [Fact]
+    public async Task RegisteredPathIdentity_IsCanonicalAndDoesNotUseMovieIdentity()
+    {
+        var provider = new CountingProvider { MovieCandidates = [Candidate("Same Movie", "same-movie")] };
+        var service = CreateService(provider);
+        var first = Discovered("Identity-A.mkv", MediaType.Movie, "Same Movie", 2020);
+        var second = Discovered("Identity-B.mkv", MediaType.Movie, "Same Movie", 2020);
+
+        var firstResult = await service.ImportSelectedAsync([new ImportSelection(first)]);
+        Assert.Equal(ImportItemStatus.Matched, firstResult.Items[0].Status);
+
+        Assert.True(service.IsMediaFileRegistered(first.Path));
+        Assert.True(service.IsMediaFileRegistered(first.Path.ToLowerInvariant()));
+        Assert.False(service.IsMediaFileRegistered(second.Path));
+
+        var providerCallsBeforeSecond = provider.MovieSearchCount;
+        var secondPreview = await service.PreviewMetadataAsync(second);
+        Assert.Equal(ImportItemStatus.Matched, secondPreview.Status);
+        Assert.Equal(providerCallsBeforeSecond + 1, provider.MovieSearchCount);
+        Assert.False(service.IsMediaFileRegistered(second.Path));
+    }
+
+    [Fact]
+    public async Task MixedExistingAndNewSelection_OnlyNewItemCallsMetadataProvider()
+    {
+        var provider = new CountingProvider { MovieCandidates = [Candidate("New", "new-1")] };
+        var service = CreateService(provider);
+        var existing = Discovered("Mixed-existing.mkv", MediaType.Movie, "Existing", 2020);
+        var added = Discovered("Mixed-new.mkv", MediaType.Movie, "New", 2021);
+
+        service.RegisterMovieImport(new ConfirmMovieImportCommand(
+            existing.Path,
+            existing.FileSize!.Value,
+            existing.ParsedMedia!,
+            DateTimeOffset.UtcNow));
+
+        var existingPreview = await service.PreviewMetadataAsync(existing);
+        Assert.Equal(ImportItemStatus.AlreadyInLibrary, existingPreview.Status);
+        Assert.Equal(0, provider.MovieSearchCount);
+        var newPreview = await service.PreviewMetadataAsync(added);
+        Assert.Equal(ImportItemStatus.Matched, newPreview.Status);
+        Assert.Equal(1, provider.MovieSearchCount);
+
+        var result = await service.ImportSelectedAsync([
+            new ImportSelection(existing, existingPreview),
+            new ImportSelection(added, newPreview)]);
+
+        Assert.Equal(2, result.Items.Count);
+        Assert.Equal(ImportItemStatus.AlreadyInLibrary, result.Items[0].Status);
+        Assert.Equal(ImportItemStatus.Matched, result.Items[1].Status);
+        Assert.True(result.Items[0].AlreadyRegistered);
+        Assert.False(result.Items[1].AlreadyRegistered);
+        Assert.Equal(1, provider.MovieSearchCount);
+        Assert.Equal(1, result.ExistingCount);
+        Assert.Equal(1, result.AlreadyInLibraryCount);
+        Assert.Equal(1, result.AddedCount);
+        using var uow = _factory.Begin();
+        Assert.Equal(2, uow.MediaFiles.ListAll().Count);
+    }
+
+    [Fact]
+    public async Task ExistingTvEpisode_IsReportedAlreadyInLibraryWithoutSearchOrDuplicate()
+    {
+        var provider = new CountingProvider
+        {
+            TvCandidates = [new TvCandidate("tmdb", "show-1", "Show", null, 2020, null, null, null)]
+        };
+        var service = CreateService(provider);
+        var item = Discovered("Existing.Show.S01E01.mkv", MediaType.TvEpisode, "Show", 2020, 1, 1);
+
+        await service.ImportSelectedAsync([new ImportSelection(item)]);
+        var searchesAfterFirstImport = provider.TvSearchCount;
+        var matchesAfterFirstImport = provider.TvMatchCount;
+        var second = await service.ImportSelectedAsync([new ImportSelection(item)]);
+
+        Assert.Equal(searchesAfterFirstImport, provider.TvSearchCount);
+        Assert.Equal(matchesAfterFirstImport, provider.TvMatchCount);
+        Assert.Equal(ImportItemStatus.AlreadyInLibrary, second.Items[0].Status);
+        Assert.True(second.Items[0].AlreadyRegistered);
+        using var uow = _factory.Begin();
+        var show = Assert.Single(uow.TvShows.ListAll());
+        Assert.Single(uow.TvEpisodes.ListByShow(show.Id));
+        Assert.Single(uow.MediaFiles.ListAll());
     }
 
     [Fact]
