@@ -1,6 +1,6 @@
 # DropSort WinUI 3 — Forward Plan
 
-This is the authoritative forward plan for the WinUI rewrite as of 2026-09-23. Historical phase reports explain how the current system was built; they do not override this roadmap.
+This is the authoritative forward plan for the WinUI rewrite as of 2026-09-24. Historical phase reports explain how the current system was built; they do not override this roadmap. Product Phase 3 is **closed and manually accepted**; the revised release direction below supersedes the earlier Phase 4–9 ordering, whose detailed scope is retained for reference.
 
 ## Baseline and boundaries
 
@@ -36,11 +36,45 @@ These contracts remain in force unless a later explicit Goal changes them.
 - Migrations, imports, and startup initialization must be idempotent and safe to retry after interruption.
 - Release Candidate validation must precede final release. The installed application must be tested independently from development execution.
 
+## Revised release direction (2026-09-24)
+
+**Product identity (fixed).** DropSort is a **Local-First Personal Media Library + Real File Intelligence + Safe File Management** application. Major **1.0 feature expansion is frozen**: the path to 1.0 is hardening, trust, and lifecycle QA, not new surface area.
+
+**Prioritization rule.** Features that strengthen DropSort's understanding of local media, real files, storage, identity, or local viewing state are high priority. Features that would work equally well as a generic website are usually lower priority.
+
+**Ordered path to 1.0.**
+
+1. **Phase 3 — Closed** (manually accepted 2026-09-24).
+2. **Persistence Write Coordination** — next implementation mini-phase (recorded only; see below).
+3. Freeze 1.0 Scope.
+4. Data / File Trust Pass.
+5. Drive-Aware Availability Model.
+6. Early Backup Protection.
+7. Confirmed UX Corrective Pass.
+8. Golden Journeys + Scale QA.
+9. Release Candidate.
+10. Installer Lifecycle QA.
+11. Clean-Machine / Installed-App Verification.
+12. 0.9.x Preview.
+13. 1.0.
+
+### Next mini-phase — Persistence Write Coordination (recorded; not started)
+
+**Purpose.** Audit every writer to `library.db` and establish one clear write-coordination contract. Do **not** implement without an explicit Goal.
+
+**Known remaining gap.** `FileOperationStore` currently writes `library.db` outside `DatabaseWriteGate`.
+
+**Audit must cover.** Catalog writes, Personal Library writes, Maintenance writes, `FileOperationStore`, organize/recovery, import/catalog, metadata writes, transaction lifetime, gate ownership, cancellation, commit failure, and nesting/reentrancy rules (`DatabaseWriteGate` is non-reentrant).
+
+### Preserved future product priorities (recorded; not scheduled)
+
+Retain, without implementing now: Library Health, Smart Relink Suggestions, Drive Awareness, Copy Intelligence, Local Subtitle Intelligence, Organize Templates, Portable Local Backup / Manifest. Each is subject to the prioritization rule above.
+
 ## Ordered roadmap
 
 ### Phase 3 — Home Artwork + Real Watch History
 
-**Status:** Implementation and automated/runtime verification completed locally on 2026-09-23. Manual acceptance is pending; Phase 4 must not begin until the owner explicitly approves it.
+**Status:** **Closed — implemented, locally verified at 296/296, and manually accepted on 2026-09-24** against a freshly built WinUI app and a real upgraded (drifted v8 → v9) database. Closure added migration v9 drift reconciliation, `DatabaseWriteGate` write coordination, Clear History / `DeleteWatchEvent` fixes, and logical-media Recently Watched (repeated movie → one card; TV episodes/seasons → one show-level card) with raw `watch_events` preserved. Committed locally on `codex`; not pushed; `main` untouched.
 
 **Scope**
 
@@ -74,6 +108,8 @@ These contracts remain in force unless a later explicit Goal changes them.
 - Isolated runtime smoke covering Home, Movie/TV details, real watch actions, restart persistence, unavailable playback, English/Arabic direction, and Light/Dark/Slate themes.
 
 ### Phase 4 — End-to-End Stabilization
+
+> Reference detail. The sections below (Phases 4–9) predate the 2026-09-24 revised release direction above. They are retained for their scope/Definition-of-Done/verification content and are reframed under the revised ordered path; do not treat their numbering as the current next step.
 
 **Scope**
 

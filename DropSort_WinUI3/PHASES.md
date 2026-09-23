@@ -112,6 +112,25 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 
 **Why corrective review mattered.** Independent review caught two issues before the checkpoint: an accidental edit to historical migration 0004 and a single-reference artwork snapshot that could discard a usable cached fallback. Migration 0004 was restored unchanged; the new expression index remains confined to migration 0008, and history now persists separate still/backdrop/poster candidates.
 
+## 9. Product Phase 3 closure — watch-history reliability corrections (manually accepted)
+
+**Purpose.** Take Product Phase 3 from locally verified to manually accepted by fixing the reliability defects found during real upgraded-database use, without expanding scope.
+
+**Important decisions.** Raw `watch_events` are the durable source of truth and are never collapsed, deduped, or altered in persistence; Movie Details / TV Details history preserves every individual event. Home → Recently Watched is a *read-time* projection over logical media, not raw events. Movie identity is `movie_id`; TV identity resolves to the canonical parent `show_id` (through `tv_seasons`), so episodes and seasons of one show share a single card. All writers to a database queue behind one per-database `DatabaseWriteGate`; the gate is non-reentrant, so units of work are scoped and disposed before the next write. Migration scripts are immutable once stamped — schema drift is reconciled with a new forward migration (v9), never by editing a released script.
+
+**Meaningful behavior.**
+- Migration v9 reconciles previously stamped, drifted v8 `watch_events` schemas, so Mark Watched works on upgraded databases.
+- `DatabaseWriteGate` coordinates catalog unit-of-work, maintenance, and personal-library writes to avoid SQLite write contention/deadlock.
+- Clear History removes movie, episode, and orphaned events in one pass; `DeleteWatchEvent` rejects episode events cleanly instead of failing on a `DBNull` cast.
+- Recently Watched shows one card per repeated movie (latest event) and one show-level card per TV show — show title/artwork with a season-oriented context line surfacing the latest watched season/episode; ordering uses each logical item's latest watch event.
+- A speculative `MovieDetailsPage` ItemsRepeater workaround built against a misdiagnosed defect was reverted; the bound `ObservableCollection` already reflects in-place rebuilds.
+
+**Verification.** Focused watch-history/migration/concurrency/UI-contract suites and the full suite passed **296/296** (0 failed, 0 skipped). Visual Studio MSBuild rebuild succeeded and the freshly built WinUI app passed **manual GUI acceptance** on 2026-09-24 against a real upgraded library database: Mark Watched, v9 reconciliation, repeated-movie single card, TV show-level grouping, and preserved raw movie/episode history were all confirmed. Plain `dotnet build` of the WinUI project still fails only at the WinUI PRI task (`MSB4062`) — a known SDK-path tooling gap, not a source defect.
+
+**Commits.** Implementation: `15c676d`. The governance/roadmap update is delivered in the immediately following local docs commit (hash reported in the closure handoff). Neither is pushed.
+
 ## Current boundary
 
-Product Phase 3 is implemented and locally verified, but it is not yet manually accepted or pushed. Phase 4 has not begun and requires a separate explicit approval. Historical reports that name a different “next phase” are preserved as contemporaneous records, not current instructions.
+Product Phase 3 is implemented, locally verified at **296/296**, and **manually accepted** on 2026-09-24 against a freshly built WinUI app and a real upgraded database. It is committed locally on `codex` and **not pushed**; `main` is untouched.
+
+The next implementation mini-phase is **Persistence Write Coordination** (recorded only — do not begin without an explicit Goal): inventory every writer to `library.db` and establish one clear write-coordination contract. The known remaining gap is that `FileOperationStore` writes `library.db` outside `DatabaseWriteGate`. Major 1.0 feature expansion is frozen; see `FUTURE_PLAN.md` for the revised release direction. Phase work stays gated: one explicit Goal at a time.
