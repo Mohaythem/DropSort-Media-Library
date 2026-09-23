@@ -1,13 +1,13 @@
 # DropSort WinUI 3 — Forward Plan
 
-This is the authoritative forward plan for the WinUI rewrite as of 2026-09-22. Historical phase reports explain how the current system was built; they do not override this roadmap.
+This is the authoritative forward plan for the WinUI rewrite as of 2026-09-23. Historical phase reports explain how the current system was built; they do not override this roadmap.
 
 ## Baseline and boundaries
 
 - Product stack: C#, .NET 10, WinUI 3, Windows App SDK, and SQLite through `Microsoft.Data.Sqlite`.
 - The Python/PySide6 V1 project is a **Frozen Reference**. It may be read for behavior, safety rules, and tests, but must not be modified or used as the active runtime.
 - Active development branch: `codex`. Treat `main` as protected. Development stays on a separate branch and reaches `main` only through an explicitly approved integration step.
-- Current product-code baseline: `b158f9daa8660f77dce04529e0de31893001f7d6`. This governance checkpoint adds documentation only on top of it.
+- The committed baseline before the Product Phase 3 work was `f59ce9c5647e08235076f0495990b332cfe13c6d`. Phase 3 implementation and this record are delivered together in one local checkpoint; its resulting hash is reported in the handoff rather than self-referenced here.
 - Work is phase-gated: one explicit Goal at a time, one verified local phase commit, then STOP for review or manual acceptance. Do not begin a later phase implicitly.
 
 ## Accepted product and design contracts
@@ -39,6 +39,8 @@ These contracts remain in force unless a later explicit Goal changes them.
 ## Ordered roadmap
 
 ### Phase 3 — Home Artwork + Real Watch History
+
+**Status:** Implementation and automated/runtime verification completed locally on 2026-09-23. Manual acceptance is pending; Phase 4 must not begin until the owner explicitly approves it.
 
 **Scope**
 

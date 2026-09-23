@@ -15,6 +15,18 @@ public record TvShowListItem(
     int EpisodesWithLocalFile,
     int MissingEpisodeCount);
 
+public record TvContinueWatchingItem(
+    int ShowId,
+    string ShowTitle,
+    string? ShowPosterReference,
+    string? ShowBackdropReference,
+    int EpisodeId,
+    int SeasonNumber,
+    int EpisodeNumber,
+    string? EpisodeTitle,
+    string? ArtworkReference,
+    bool IsAvailable);
+
 /// <summary>The whole hierarchy of one show, read in one call.</summary>
 public record TvShowDetails(
     int Id,
@@ -44,7 +56,8 @@ public record TvEpisodeDetails(
     string? Title,
     int? RuntimeMinutes,
     EpisodeAvailability Availability,
-    IReadOnlyList<MediaFile> MediaFiles);
+    IReadOnlyList<MediaFile> MediaFiles,
+    bool Watched = false);
 
 /// <summary>
 /// The outcome of registering one episode file. Show, season and episode are the rows the file was

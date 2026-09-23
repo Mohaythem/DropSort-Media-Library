@@ -78,6 +78,8 @@ internal static class AppServices
 
     public static IPersonalLibraryUiActions Personal => Require(_personal);
 
+    public static IWatchHistoryUiActions WatchHistory => Require(_watchHistory);
+
     public static IImportUiActions Import => Require(_import);
 
     public static IReconciliationUiActions Reconciliation => Require(_reconciliation);
@@ -184,6 +186,7 @@ internal static class AppServices
 
     private static LibraryService? _library;
     private static LibraryService? _personal;
+    private static WatchHistoryService? _watchHistory;
     private static ImportService? _import;
     private static ReconciliationService? _reconciliation;
     private static OperationHistoryService? _history;
@@ -264,7 +267,9 @@ internal static class AppServices
                 var tv = new TvLibraryService(
                     new UnitOfWorkTvShowRepository(catalogFactory),
                     new UnitOfWorkTvSeasonRepository(catalogFactory),
-                    new UnitOfWorkTvEpisodeRepository(catalogFactory));
+                    new UnitOfWorkTvEpisodeRepository(catalogFactory),
+                    personal);
+                var watchHistory = new WatchHistoryService(personal);
                 var history = new OperationHistoryService(operations, coordinator, mediaFiles, movies);
                 var organization = new OrganizationService(mediaFiles, coordinator);
 
@@ -274,6 +279,7 @@ internal static class AppServices
                 _coordinator = coordinator;
                 _library = library;
                 _personal = library;
+                _watchHistory = watchHistory;
                 _import = import;
                 _reconciliation = reconciliation;
                 _tv = tv;
@@ -325,6 +331,7 @@ internal static class AppServices
     {
         _library = null;
         _personal = null;
+        _watchHistory = null;
         _import = null;
         _reconciliation = null;
         _tv = null;

@@ -77,6 +77,78 @@ public sealed record WatchEvent
     }
 }
 
+/// <summary>A durable historical watch entry. Snapshot fields keep history useful after catalog removal.</summary>
+public sealed record WatchHistoryEntry
+{
+    public int Id { get; }
+    public WatchEventMediaKind MediaKind { get; }
+    public int? MovieId { get; }
+    public int? EpisodeId { get; }
+    public int? ShowId { get; }
+    public string TitleSnapshot { get; }
+    public int? YearSnapshot { get; }
+    public string? ShowTitleSnapshot { get; }
+    public int? SeasonNumberSnapshot { get; }
+    public int? EpisodeNumberSnapshot { get; }
+    public string? ArtworkReference { get; }
+    public string? BackdropReference { get; }
+    public string? PosterReference { get; }
+    public DateTimeOffset WatchedAt { get; }
+    public DateTimeOffset CreatedAt { get; }
+    public bool IsAvailable { get; }
+
+    public WatchHistoryEntry(
+        int id,
+        WatchEventMediaKind mediaKind,
+        int? movieId,
+        int? episodeId,
+        int? showId,
+        string titleSnapshot,
+        int? yearSnapshot,
+        string? showTitleSnapshot,
+        int? seasonNumberSnapshot,
+        int? episodeNumberSnapshot,
+        string? artworkReference,
+        string? backdropReference,
+        string? posterReference,
+        DateTimeOffset watchedAt,
+        DateTimeOffset createdAt,
+        bool isAvailable)
+    {
+        if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
+        if (!Enum.IsDefined(mediaKind)) throw new ArgumentOutOfRangeException(nameof(mediaKind));
+        if (movieId is not null && episodeId is not null)
+            throw new ArgumentException("A watch entry cannot reference both a movie and an episode.");
+        if (mediaKind == WatchEventMediaKind.Movie && episodeId is not null)
+            throw new ArgumentException("A movie watch entry cannot reference an episode.", nameof(episodeId));
+        if (mediaKind == WatchEventMediaKind.Episode && movieId is not null)
+            throw new ArgumentException("An episode watch entry cannot reference a movie.", nameof(movieId));
+        if (string.IsNullOrWhiteSpace(titleSnapshot)) throw new ArgumentException("A title snapshot is required.", nameof(titleSnapshot));
+        TitleSnapshot = titleSnapshot.Trim();
+        Id = id;
+        MediaKind = mediaKind;
+        MovieId = movieId;
+        EpisodeId = episodeId;
+        ShowId = showId;
+        YearSnapshot = yearSnapshot;
+        ShowTitleSnapshot = showTitleSnapshot?.Trim();
+        SeasonNumberSnapshot = seasonNumberSnapshot;
+        EpisodeNumberSnapshot = episodeNumberSnapshot;
+        ArtworkReference = artworkReference?.Trim();
+        BackdropReference = backdropReference?.Trim();
+        PosterReference = posterReference?.Trim();
+        WatchedAt = watchedAt;
+        CreatedAt = createdAt;
+        IsAvailable = isAvailable;
+    }
+}
+
+public enum WatchEventMediaKind
+{
+    Movie,
+    Episode
+}
+
 public record ReadyToWatchMovie(
     int MovieId,
     Movie Movie,

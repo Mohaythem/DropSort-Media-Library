@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using DropSort.Domain.Library.Movies;
+using DropSort.Domain.Library.Personal;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -108,7 +109,7 @@ public sealed record TVShowRecord(
             season.Number,
             episode.Number,
             episode)))
-        .FirstOrDefault(selection => selection.Episode.HasLocalFile);
+        .FirstOrDefault(selection => selection.Episode.HasLocalFile && !selection.Episode.Watched);
 }
 
 /// <summary>A TV show as it appears inside a media grid: poster, title and one progress line.</summary>
@@ -203,11 +204,13 @@ public sealed record EpisodeDisplayRecord(
     /// given a file is not an error, so it shows no pill at all.
     /// </summary>
     public bool IsMissing => IsFileMissing;
+    public bool CanMarkWatched => HasLocalFile && !Watched;
 }
 
 /// <summary>Localized labels shared by every episode row, so templates never call the service.</summary>
 public sealed record EpisodeActionLabels(
     string Watched,
+    string MarkWatched,
     string Missing,
     string Play,
     string OpenFolder,
@@ -215,7 +218,162 @@ public sealed record EpisodeActionLabels(
 
 public sealed record StatCardRecord(string Label, string Value);
 
-public sealed record ContinueWatchingRecord(int ShowId, string ShowTitle, string EpisodeLine);
+/// <summary>
+/// One actionable Continue Watching card. Artwork candidates are ordered by visual relevance, but
+/// every already-cached candidate is checked before the loader attempts a network download. This
+/// keeps an uncached episode still from hiding an available show backdrop while offline.
+/// </summary>
+public sealed class ContinueWatchingRecord : INotifyPropertyChanged
+{
+    private readonly ArtworkLoader _artwork;
+
+    public ContinueWatchingRecord(
+        int showId,
+        string showTitle,
+        string episodeLine,
+        IEnumerable<string?> artworkReferences)
+    {
+        ShowId = showId;
+        ShowTitle = showTitle;
+        EpisodeLine = episodeLine;
+        _artwork = new ArtworkLoader(artworkReferences, () =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ArtworkSource))));
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public int ShowId { get; }
+    public string ShowTitle { get; }
+    public string EpisodeLine { get; }
+    public ImageSource? ArtworkSource => _artwork.Source;
+}
+
+/// <summary>A durable history snapshot rendered on Home, including unavailable catalog entries.</summary>
+public sealed class WatchHistoryCardRecord : INotifyPropertyChanged
+{
+    private readonly ArtworkLoader _artwork;
+
+    public WatchHistoryCardRecord(
+        int eventId,
+        WatchEventMediaKind mediaKind,
+        int? movieId,
+        int? showId,
+        string title,
+        string context,
+        string watchedAt,
+        bool isAvailable,
+        string availabilityText,
+        IEnumerable<string?> artworkReferences)
+    {
+        EventId = eventId;
+        MediaKind = mediaKind;
+        MovieId = movieId;
+        ShowId = showId;
+        Title = title;
+        Context = context;
+        WatchedAt = watchedAt;
+        IsAvailable = isAvailable;
+        AvailabilityText = availabilityText;
+        _artwork = new ArtworkLoader(artworkReferences, () =>
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ArtworkSource))));
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public int EventId { get; }
+    public WatchEventMediaKind MediaKind { get; }
+    public int? MovieId { get; }
+    public int? ShowId { get; }
+    public string Title { get; }
+    public string Context { get; }
+    public string WatchedAt { get; }
+    public bool IsAvailable { get; }
+    public string AvailabilityText { get; }
+    public string AccessibleName => string.Join(", ", new[] { Title, Context, WatchedAt, AvailabilityText }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    public ImageSource? ArtworkSource => _artwork.Source;
+}
+
+/// <summary>
+/// Lazy artwork source shared by the Home landscape cards. It is intentionally UI-only: references
+/// remain application DTO data and the cache/download implementation stays behind AppServices.
+/// </summary>
+internal sealed class ArtworkLoader
+{
+    private readonly string[] _references;
+    private readonly Action _changed;
+    private ImageSource? _source;
+    private bool _requested;
+
+    public ArtworkLoader(IEnumerable<string?> references, Action changed)
+    {
+        _references = references
+            .Where(reference => !string.IsNullOrWhiteSpace(reference))
+            .Select(reference => reference!.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        _changed = changed;
+    }
+
+    public ImageSource? Source
+    {
+        get
+        {
+            if (_source is not null || _references.Length == 0 || !AppServices.IsAvailable)
+            {
+                return _source;
+            }
+
+            // Prefer any already-cached alternative over starting a download for the first choice.
+            var candidates = _references;
+            foreach (var reference in candidates)
+            {
+                var cached = AppServices.Poster.GetCachedPosterPath("TMDB", reference);
+                if (cached is not null && File.Exists(cached))
+                {
+                    return _source = new BitmapImage(new Uri(cached));
+                }
+            }
+
+            if (!_requested)
+            {
+                _requested = true;
+                _ = Task.Run(LoadAsync);
+            }
+
+            return null;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        foreach (var reference in _references)
+        {
+            try
+            {
+                var downloaded = await AppServices.Poster.EnsurePosterCachedAsync("TMDB", reference);
+                if (downloaded is null || !File.Exists(downloaded))
+                {
+                    continue;
+                }
+
+                AppServices.UiDispatcherQueue?.TryEnqueue(() =>
+                {
+                    if (_source is null)
+                    {
+                        _source = new BitmapImage(new Uri(downloaded));
+                        _changed();
+                    }
+                });
+                return;
+            }
+            catch (Exception)
+            {
+                // Artwork is optional. Try the next snapshot/reference and leave the local fallback.
+            }
+        }
+    }
+}
 
 public static class ShowFormatting
 {

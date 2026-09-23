@@ -739,18 +739,22 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         {
             LocalizationService.Format("ImportAddedFormat", result.AddedCount),
             LocalizationService.Format("ImportMatchedFormat", result.MatchedCount),
-            LocalizationService.Format("ImportNeedsMatchFormat", result.NeedsMatchCount),
-            LocalizationService.Format("ImportNoMatchFoundFormat", result.NoMatchFoundCount),
-            LocalizationService.Format("ImportMetadataUnavailableFormat", result.MetadataUnavailableCount),
-            LocalizationService.Format("ImportMetadataErrorsFormat", result.MetadataErrorsCount),
-            LocalizationService.Format("ImportExistingFormat", result.ExistingCount),
-            LocalizationService.Format("ImportRegistrationErrorsFormat", result.RegistrationFailuresCount),
+            LocalizationService.Format("ImportNeedsAttentionFormat", result.NeedsAttentionCount),
         };
 
-        if (result.MetadataCancelledCount > 0)
+        // The three lines above are the result users need every time. Only append actionable
+        // failure detail when a failure actually occurred; zero-value implementation categories
+        // made a successful import look like an accounting report.
+        if (result.RegistrationFailuresCount > 0)
         {
             summaryLines.Add(LocalizationService.Format(
-                "ImportMetadataCancelledFormat", result.MetadataCancelledCount));
+                "ImportRegistrationErrorsFormat", result.RegistrationFailuresCount));
+        }
+
+        if (result.ExistingCount > 0)
+        {
+            summaryLines.Add(LocalizationService.Format(
+                "ImportExistingFormat", result.ExistingCount));
         }
 
         foreach (var kind in result.Items

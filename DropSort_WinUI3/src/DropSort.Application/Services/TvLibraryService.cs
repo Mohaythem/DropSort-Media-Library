@@ -19,7 +19,8 @@ namespace DropSort.Application.Services;
 public sealed class TvLibraryService(
     ITvShowRepository shows,
     ITvSeasonRepository seasons,
-    ITvEpisodeRepository episodes) : ITvLibraryUiActions
+    ITvEpisodeRepository episodes,
+    IWatchHistoryRepository? history = null) : ITvLibraryUiActions
 {
     public IReadOnlyList<TvShowListItem> ListShows()
     {
@@ -67,6 +68,7 @@ public sealed class TvLibraryService(
             ?? throw new KeyNotFoundException($"TV show {showId} was not found.");
 
         var files = episodes.ListMediaFilesByShow(showId);
+        var watched = history?.GetWatchedEpisodeIds(showId) ?? new HashSet<int>();
         var episodesBySeason = episodes.ListByShow(showId)
             .GroupBy(episode => episode.SeasonId)
             .ToDictionary(group => group.Key, group => (IReadOnlyList<TvEpisode>)[.. group.OrderBy(episode => episode.Number)]);
@@ -90,7 +92,8 @@ public sealed class TvLibraryService(
                         episode.Title,
                         episode.RuntimeMinutes,
                         Availability(files, episode.Id),
-                        files.TryGetValue(episode.Id, out var episodeFiles) ? episodeFiles : [])),
+                        files.TryGetValue(episode.Id, out var episodeFiles) ? episodeFiles : [],
+                        watched.Contains(episode.Id))),
                 ]));
         }
 
@@ -110,6 +113,33 @@ public sealed class TvLibraryService(
     public IReadOnlyList<MediaFile> ListEpisodeFiles(int episodeId) => episodes.ListMediaFiles(episodeId);
 
     public int? FindEpisodeForMediaFile(int mediaFileId) => episodes.GetEpisodeIdForMediaFile(mediaFileId);
+
+    public IReadOnlyList<TvContinueWatchingItem> ListContinueWatching(int limit = 20)
+    {
+        if (limit <= 0) throw new ArgumentOutOfRangeException(nameof(limit));
+        if (history is null) return [];
+        var result = new List<TvContinueWatchingItem>();
+        foreach (var show in shows.ListAll())
+        {
+            var watched = history.GetWatchedEpisodeIds(show.Id);
+            if (watched.Count == 0) continue;
+            var allEpisodes = episodes.ListByShow(show.Id)
+                .OrderBy(episode => seasons.GetById(episode.SeasonId)?.Number ?? int.MaxValue)
+                .ThenBy(episode => episode.Number)
+                .ToList();
+            var next = allEpisodes.FirstOrDefault(episode => !watched.Contains(episode.Id) && IsPresent(episodes.ListMediaFiles(episode.Id)));
+            if (next is null) continue;
+            var season = seasons.GetById(next.SeasonId);
+            result.Add(new TvContinueWatchingItem(
+                show.Id, show.Title, show.PosterReference, show.BackdropReference,
+                next.Id, season?.Number ?? 0, next.Number, next.Title,
+                next.StillReference ?? show.BackdropReference ?? show.PosterReference, true));
+            if (result.Count >= limit) break;
+        }
+        return result;
+    }
+
+    private static bool IsPresent(IReadOnlyList<MediaFile> files) => files.Any(file => file.Status == MediaFileStatus.Present);
 
     /// <summary>
     /// An episode is Present when any registered file is on disk, Missing when it has files and none of

@@ -7,6 +7,7 @@ using DropSort.Domain.Media.Discovery;
 using DropSort.Domain.Media.Parser;
 using DropSort.Domain.Metadata.Contracts;
 using DropSort.Domain.Media.Matcher;
+using DropSort.Domain.Library.Personal;
 
 namespace DropSort.Application.Dto;
 
@@ -90,6 +91,14 @@ public record ImportBatchResult(IReadOnlyList<ImportItemResult> Items)
     public int MetadataErrorsCount => Items.Count(item => item.Status == ImportItemStatus.MetadataError);
     public int MetadataCancelledCount => Items.Count(item => item.Status == ImportItemStatus.MetadataCancelled);
     public int RegistrationFailuresCount => Items.Count(item => item.Status == ImportItemStatus.RegistrationFailed);
+    /// <summary>Items requiring user attention after the concise completion summary is shown.</summary>
+    public int NeedsAttentionCount => Items.Count(item => item.Status is
+        ImportItemStatus.NeedsMatch or
+        ImportItemStatus.NoMatchFound or
+        ImportItemStatus.MetadataUnavailable or
+        ImportItemStatus.MetadataError or
+        ImportItemStatus.MetadataCancelled or
+        ImportItemStatus.RegistrationFailed);
 }
 
 public record ManualMovieSearchResult(IReadOnlyList<MovieCandidate> Candidates);
@@ -110,3 +119,20 @@ public record PersonalMovieSnapshot(
     bool Watchlisted,
     int WatchCount,
     DateTimeOffset? LastWatched);
+
+public record WatchHistoryItem(
+    int Id,
+    WatchEventMediaKind MediaKind,
+    int? MovieId,
+    int? ShowId,
+    int? EpisodeId,
+    string Title,
+    int? Year,
+    string? ShowTitle,
+    int? SeasonNumber,
+    int? EpisodeNumber,
+    string? ArtworkReference,
+    string? BackdropReference,
+    string? PosterReference,
+    DateTimeOffset WatchedAt,
+    bool IsAvailable);

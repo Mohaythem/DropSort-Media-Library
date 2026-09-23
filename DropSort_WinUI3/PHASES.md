@@ -100,6 +100,18 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 
 **Why the phase was needed.** Safe matching still produced poor searches for noisy release filenames and could discard useful fallback candidates. The phase improved query quality and ordering without expanding automatic-match authority.
 
+## 8. Product Phase 3 — Home Artwork + Real Watch History
+
+**Purpose.** Replace the remaining Home watch-state placeholders with durable Movie/TV history, real cached artwork, and truthful behavior when formerly watched media is removed or unavailable.
+
+**Important decisions.** Migration 0008 converts watch events into a typed Movie/Episode history stream with nullable catalog links and durable title, year, episode identity, and ordered artwork snapshots. Ordinary catalog deletion uses `ON DELETE SET NULL`, so historical identity survives without weakening explicit Clear Library Data semantics. Episode watched state and Continue Watching are derived through Application contracts; UI code receives DTOs and does not query SQLite directly. Playback remains separate from the explicit `Mark Watched` action.
+
+**Meaningful behavior.** Home now projects real Continue Watching and Recently Watched data for Movies and TV. Continue Watching advances to the next present unwatched episode. History cards use cached still/backdrop/poster candidates before attempting network access, survive restart and individual removal, show an explicit unavailable state, and open a safe explanatory dialog instead of attempting invalid playback. Add Media completion presentation was tightened without changing its matching or registration rules.
+
+**Verification.** Focused migration/history/UI contract tests passed **44/44** and the full suite passed **279/279**. Visual Studio 18 MSBuild solution `Debug|Any CPU` and WinUI `Debug|x64` rebuilds passed with no warnings shown. A fresh self-contained `win-x64` artifact launched against an isolated schema-8 data root; the runtime journey verified Mark Watched, next-episode progression, restart persistence, deletion-surviving snapshots, cached poster fallback, unavailable presentation, and the safe dialog. Manual acceptance remains pending.
+
+**Why corrective review mattered.** Independent review caught two issues before the checkpoint: an accidental edit to historical migration 0004 and a single-reference artwork snapshot that could discard a usable cached fallback. Migration 0004 was restored unchanged; the new expression index remains confined to migration 0008, and history now persists separate still/backdrop/poster candidates.
+
 ## Current boundary
 
-No Product Phase 3 implementation is included in this record. The next planned phase, pending explicit approval, is defined in `FUTURE_PLAN.md`. Historical reports that name a different “next phase” are preserved as contemporaneous records, not current instructions.
+Product Phase 3 is implemented and locally verified, but it is not yet manually accepted or pushed. Phase 4 has not begun and requires a separate explicit approval. Historical reports that name a different “next phase” are preserved as contemporaneous records, not current instructions.

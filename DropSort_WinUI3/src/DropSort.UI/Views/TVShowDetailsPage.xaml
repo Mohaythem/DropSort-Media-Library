@@ -364,6 +364,15 @@
                                                                 Spacing="4"
                                                                 VerticalAlignment="Center">
                                                                 <Button
+                                                                    AutomationProperties.Name="{x:Bind Labels.MarkWatched}"
+                                                                    Click="EpisodeMarkWatched_Click"
+                                                                    IsEnabled="{x:Bind CanMarkWatched}"
+                                                                    Style="{StaticResource SubtleIconActionButtonStyle}"
+                                                                    Tag="{x:Bind}"
+                                                                    ToolTipService.ToolTip="{x:Bind Labels.MarkWatched}">
+                                                                    <FontIcon FontSize="14" Glyph="&#xE73E;" />
+                                                                </Button>
+                                                                <Button
                                                                     AutomationProperties.Name="{x:Bind Labels.Play}"
                                                                     Click="EpisodePlay_Click"
                                                                     IsEnabled="{x:Bind HasLocalFile}"

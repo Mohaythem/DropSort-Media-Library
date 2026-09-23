@@ -36,6 +36,12 @@ public interface IPersonalLibraryUiActions
     IReadOnlyList<MovieListItem> ListPersonalMovies(PersonalLibrarySection section);
 }
 
+public interface IWatchHistoryUiActions
+{
+    IReadOnlyList<WatchHistoryItem> ListRecentWatchHistory(int limit = 50, int offset = 0);
+    WatchHistoryItem RecordEpisodeWatch(int episodeId, DateTimeOffset? watchedAt = null);
+}
+
 public interface IImportUiActions
 {
     /// <summary>
@@ -93,6 +99,8 @@ public interface ITvLibraryUiActions
     /// Check Library uses it to name a missing file as an episode rather than as a movie.
     /// </summary>
     int? FindEpisodeForMediaFile(int mediaFileId);
+
+    IReadOnlyList<TvContinueWatchingItem> ListContinueWatching(int limit = 20);
 }
 
 public interface ISettingsUiActions

@@ -56,6 +56,13 @@ public interface IPersonalLibraryRepository
     IReadOnlyList<PersonalMovieSummary> ListMovies(PersonalLibrarySection section, int limit = 100, int offset = 0);
 }
 
+public interface IWatchHistoryRepository
+{
+    WatchHistoryEntry AddEpisodeWatchEvent(int episodeId, DateTimeOffset watchedAt, DateTimeOffset createdAt);
+    IReadOnlyList<WatchHistoryEntry> ListRecent(int limit = 50, int offset = 0);
+    IReadOnlySet<int> GetWatchedEpisodeIds(int showId);
+}
+
 public interface ILibraryMaintenanceRepository
 {
     /// <summary>

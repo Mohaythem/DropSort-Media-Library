@@ -1,6 +1,9 @@
 ﻿using System.Globalization;
+using DropSort.Application.Dto;
+using DropSort.Domain.Library.Personal;
 using DropSort.UI.Models;
 using DropSort.UI.Services;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace DropSort.UI.Views;
@@ -8,15 +11,14 @@ namespace DropSort.UI.Views;
 /// <summary>
 /// The landing page: library totals, what the user can continue watching, and the newest additions.
 /// <para>
-/// The movie totals and the recent grid come from the catalog. The TV numbers and Continue watching
-/// still come from the bundled sample shows: the catalog has no season or episode tables, so there is
-/// nothing real to count there yet.
+/// The movie totals, TV progression and persisted recent watch history all come from the local catalog.
 /// </para>
 /// </summary>
 public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
 {
     private IReadOnlyList<MovieRecord> _movies = [];
     private IReadOnlyList<TVShowRecord> _shows = [];
+    private IReadOnlyList<WatchHistoryItem> _history = [];
 
     public HomePage()
     {
@@ -35,10 +37,13 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
     {
         _movies = LoadMovies();
         _shows = LoadShows();
+        _history = LoadHistory();
         StatsRepeater.ItemsSource = BuildStats();
         ContinueRepeater.ItemsSource = BuildContinueWatching();
+        HistoryRepeater.ItemsSource = BuildHistoryCards();
         RecentGrid.ItemsSource = _movies.Take(8).ToArray();
         UpdateContinueVisibility();
+        UpdateHistoryVisibility();
     }
 
     public void ApplyLocalization()
@@ -47,9 +52,14 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
         PageTitleText.Text = LocalizationService.Text("WelcomeBack");
         PageSubtitleText.Text = LocalizationService.Text("YourLibrary");
         ContinueHeadingText.Text = LocalizationService.Text("ContinueWatching");
+        HistoryHeadingText.Text = LocalizationService.Text("RecentlyWatched");
         RecentHeadingText.Text = LocalizationService.Text("RecentlyAdded");
         SeeAllButton.Content = LocalizationService.Text("SeeAll");
         StatsRepeater.ItemsSource = BuildStats();
+        ContinueRepeater.ItemsSource = BuildContinueWatching();
+        HistoryRepeater.ItemsSource = BuildHistoryCards();
+        UpdateContinueVisibility();
+        UpdateHistoryVisibility();
     }
 
     /// <summary>A catalog read failure leaves Home with zero movies rather than taking the page down.</summary>
@@ -78,25 +88,75 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
         }
     }
 
+    private static IReadOnlyList<WatchHistoryItem> LoadHistory()
+    {
+        try
+        {
+            return AppServices.WatchHistory.ListRecentWatchHistory(8);
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
     /// <summary>
-    /// The shows with an episode on disk, each pointing at the first episode that can be played. There
-    /// is no episode watch state in this build, so "continue" means the first available episode rather
-    /// than a resume point that would have to be invented.
+    /// Continue Watching is supplied by the application service: only shows with persisted episode
+    /// history and a next available unwatched episode are shown.
     /// </summary>
-    private IReadOnlyList<ContinueWatchingRecord> BuildContinueWatching() =>
-    [
-        .. _shows
-            .Where(show => show.LocalEpisodeCount > 0)
-            .Take(6)
-            .Select(show => new ContinueWatchingRecord(
-                show.Id,
-                show.Title,
-                LocalizationService.Format("EpisodesOnDiskFormat", show.LocalEpisodeCount, show.EpisodeCount))),
-    ];
+    private IReadOnlyList<ContinueWatchingRecord> BuildContinueWatching()
+    {
+        try
+        {
+            return [.. AppServices.Tv.ListContinueWatching(6).Select(item => new ContinueWatchingRecord(
+                item.ShowId,
+                item.ShowTitle,
+                LocalizationService.Digits(string.Format(LocalizationService.Culture, LocalizationService.Text("ContinueEpisodeFormat"), item.SeasonNumber, item.EpisodeNumber, item.EpisodeTitle ?? string.Empty)),
+                [item.ArtworkReference, item.ShowBackdropReference, item.ShowPosterReference]))];
+        }
+        catch { return []; }
+    }
+
+    private IReadOnlyList<WatchHistoryCardRecord> BuildHistoryCards() =>
+        [.. _history.Select(item => new WatchHistoryCardRecord(
+            item.Id,
+            item.MediaKind,
+            item.MovieId,
+            item.ShowId,
+            HistoryTitle(item),
+            HistoryContext(item),
+            LocalizationService.Digits(item.WatchedAt.ToLocalTime().ToString("g", LocalizationService.Culture)),
+            item.IsAvailable,
+            item.IsAvailable ? string.Empty : LocalizationService.Text("Unavailable"),
+            [item.ArtworkReference, item.BackdropReference, item.PosterReference]))];
+
+    private static string HistoryTitle(WatchHistoryItem item)
+    {
+        if (item.MediaKind == WatchEventMediaKind.Episode &&
+            item.EpisodeNumber is int episodeNumber &&
+            string.Equals(item.Title, episodeNumber.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
+        {
+            return LocalizationService.Format("EpisodeNumberFormat", episodeNumber);
+        }
+
+        return item.Title;
+    }
+
+    private static string HistoryContext(WatchHistoryItem item) => item.MediaKind switch
+    {
+        WatchEventMediaKind.Movie when item.Year is int year =>
+            LocalizationService.Digits(year.ToString(CultureInfo.InvariantCulture)),
+        WatchEventMediaKind.Episode => LocalizationService.Format(
+            "HistoryEpisodeFormat",
+            item.ShowTitle ?? string.Empty,
+            item.SeasonNumber ?? 0,
+            item.EpisodeNumber ?? 0),
+        _ => string.Empty,
+    };
 
     private void UpdateContinueVisibility()
     {
-        var hasAny = _shows.Any(show => show.LocalEpisodeCount > 0);
+        var hasAny = ContinueRepeater.ItemsSource is IEnumerable<ContinueWatchingRecord> records && records.Any();
         ContinueRepeater.Visibility = hasAny
             ? Microsoft.UI.Xaml.Visibility.Visible
             : Microsoft.UI.Xaml.Visibility.Collapsed;
@@ -105,6 +165,15 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
             : Microsoft.UI.Xaml.Visibility.Visible;
         ContinueEmptyState.Title = LocalizationService.Text("NothingToContinue");
         ContinueEmptyState.Message = LocalizationService.Text("NothingToContinueHelp");
+    }
+
+    private void UpdateHistoryVisibility()
+    {
+        var hasAny = _history.Count > 0;
+        HistoryRepeater.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
+        HistoryEmptyState.Visibility = hasAny ? Visibility.Collapsed : Visibility.Visible;
+        HistoryEmptyState.Title = LocalizationService.Text("NothingWatched");
+        HistoryEmptyState.Message = LocalizationService.Text("NothingWatchedHelp");
     }
 
     private IReadOnlyList<StatCardRecord> BuildStats()
@@ -126,6 +195,42 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
     {
         if (sender is Button { Tag: int showId } &&
             _shows.FirstOrDefault(show => show.Id == showId) is TVShowRecord show)
+        {
+            ShowSelected?.Invoke(this, show);
+        }
+    }
+
+    private async void HistoryCard_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: WatchHistoryCardRecord card })
+        {
+            return;
+        }
+
+        if (!card.IsAvailable)
+        {
+            var dialog = new ContentDialog
+            {
+                XamlRoot = XamlRoot,
+                RequestedTheme = ThemeService.ElementTheme,
+                FlowDirection = LocalizationService.FlowDirection,
+                Title = LocalizationService.Text("Unavailable"),
+                Content = LocalizationService.Text("HistoryUnavailableHelp"),
+                CloseButtonText = LocalizationService.Text("Close"),
+            };
+            await ContentDialogCoordinator.ShowAsync(dialog);
+            return;
+        }
+
+        if (card.MediaKind == WatchEventMediaKind.Movie &&
+            card.MovieId is int movieId &&
+            _movies.FirstOrDefault(movie => movie.Id == movieId) is MovieRecord movie)
+        {
+            MovieSelected?.Invoke(this, movie);
+        }
+        else if (card.MediaKind == WatchEventMediaKind.Episode &&
+                 card.ShowId is int showId &&
+                 _shows.FirstOrDefault(show => show.Id == showId) is TVShowRecord show)
         {
             ShowSelected?.Invoke(this, show);
         }

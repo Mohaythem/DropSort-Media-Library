@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 7;
+    public const int LatestVersion = 8;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -341,6 +341,41 @@ public class DatabaseMigrator
             ALTER TABLE tv_episodes ADD COLUMN still_path TEXT;
             ALTER TABLE tv_episodes ADD COLUMN rating REAL;
             ALTER TABLE tv_episodes ADD COLUMN external_id TEXT;
+        ",
+        // 0008_durable_watch_history
+        @"
+            PRAGMA defer_foreign_keys = ON;
+            CREATE TABLE watch_events_new (
+                id INTEGER PRIMARY KEY,
+                media_kind TEXT NOT NULL CHECK(media_kind IN ('MOVIE', 'EPISODE')),
+                movie_id INTEGER REFERENCES movies(id) ON DELETE SET NULL,
+                episode_id INTEGER REFERENCES tv_episodes(id) ON DELETE SET NULL,
+                watched_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                title_snapshot TEXT NOT NULL,
+                year_snapshot INTEGER,
+                show_title_snapshot TEXT,
+                season_number_snapshot INTEGER,
+                episode_number_snapshot INTEGER,
+                artwork_reference TEXT,
+                backdrop_reference TEXT,
+                poster_reference TEXT,
+                CHECK (
+                    (media_kind = 'MOVIE' AND episode_id IS NULL) OR
+                    (media_kind = 'EPISODE' AND movie_id IS NULL)
+                )
+            );
+            INSERT INTO watch_events_new
+                (id, media_kind, movie_id, watched_at, created_at, title_snapshot, year_snapshot,
+                 artwork_reference, poster_reference)
+            SELECT w.id, 'MOVIE', w.movie_id, w.watched_at, w.created_at, m.title, m.year,
+                   COALESCE(m.backdrop_path, m.poster_path), m.poster_path
+              FROM watch_events w JOIN movies m ON m.id = w.movie_id;
+            DROP TABLE watch_events;
+            ALTER TABLE watch_events_new RENAME TO watch_events;
+            CREATE INDEX idx_watch_events_movie_watched ON watch_events(movie_id, julianday(watched_at), id);
+            CREATE INDEX idx_watch_events_episode_watched ON watch_events(episode_id, julianday(watched_at), id);
+            CREATE INDEX idx_watch_events_recent ON watch_events(julianday(watched_at) DESC, id DESC);
         "
     };
 
@@ -360,7 +395,7 @@ public class DatabaseMigrator
 
         for (var i = currentVersion; i < targetVersion; i++)
         {
-            var requiresForeignKeysOff = i == 4;
+            var requiresForeignKeysOff = i is 4 or 7;
             if (requiresForeignKeysOff) ExecutePragma(connection, "foreign_keys", "OFF");
             try
             {
@@ -405,7 +440,7 @@ public class DatabaseMigrator
         {
             "idx_file_operations_state", "idx_file_operations_media_file_id", "idx_media_files_movie_id",
             "idx_movie_personal_state_preference", "idx_movie_personal_state_watchlist",
-            "idx_watch_events_movie_watched",
+            "idx_watch_events_movie_watched", "idx_watch_events_episode_watched", "idx_watch_events_recent",
             "idx_tv_shows_sort_title", "idx_tv_seasons_show_id", "idx_tv_episodes_season_id",
             "idx_episode_media_files_episode_id"
         };

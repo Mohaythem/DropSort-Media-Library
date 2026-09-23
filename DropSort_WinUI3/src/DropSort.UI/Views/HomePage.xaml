@@ -85,17 +85,22 @@
                                             Width="112"
                                             Height="70"
                                             Style="{StaticResource ShowPosterSurfaceStyle}">
-                                            <Border
-                                                Width="24"
-                                                Height="24"
-                                                Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                CornerRadius="12">
-                                                <FontIcon
-                                                    FontFamily="{StaticResource SymbolThemeFontFamily}"
-                                                    FontSize="10"
-                                                    Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                                    Glyph="&#xE768;" />
-                                            </Border>
+                                            <Grid>
+                                                <Image
+                                                    Source="{x:Bind ArtworkSource, Mode=OneWay}"
+                                                    Stretch="UniformToFill" />
+                                                <Border
+                                                    Width="24"
+                                                    Height="24"
+                                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                                    CornerRadius="12">
+                                                    <FontIcon
+                                                        FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                                        FontSize="10"
+                                                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
+                                                        Glyph="&#xE768;" />
+                                                </Border>
+                                            </Grid>
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
                                             <TextBlock
@@ -122,6 +127,75 @@
                     <controls:EmptyStateCard
                         x:Name="ContinueEmptyState"
                         Glyph="&#xE768;"
+                        Visibility="Collapsed" />
+                </StackPanel>
+
+                <StackPanel x:Name="HistorySection" Spacing="12">
+                    <TextBlock x:Name="HistoryHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <ItemsRepeater x:Name="HistoryRepeater">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout
+                                ItemsStretch="Fill"
+                                MinColumnSpacing="16"
+                                MinItemWidth="300"
+                                MinRowSpacing="16" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="models:WatchHistoryCardRecord">
+                                <Button
+                                    AutomationProperties.Name="{x:Bind AccessibleName}"
+                                    Click="HistoryCard_Click"
+                                    Style="{StaticResource CardActionButtonStyle}"
+                                    Tag="{x:Bind}">
+                                    <Grid ColumnSpacing="12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border
+                                            Width="88"
+                                            Height="56"
+                                            Style="{StaticResource ShowPosterSurfaceStyle}">
+                                            <Grid>
+                                                <FontIcon
+                                                    FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                                    FontSize="22"
+                                                    Foreground="{ThemeResource PosterGlyphForegroundBrush}"
+                                                    Glyph="&#xE8B2;" />
+                                                <Image
+                                                    Source="{x:Bind ArtworkSource, Mode=OneWay}"
+                                                    Stretch="UniformToFill" />
+                                            </Grid>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+                                            <TextBlock
+                                                Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                Text="{x:Bind Title}"
+                                                TextTrimming="CharacterEllipsis"
+                                                TextWrapping="NoWrap" />
+                                            <TextBlock
+                                                Style="{StaticResource SecondaryCaptionTextStyle}"
+                                                Text="{x:Bind Context}"
+                                                TextTrimming="CharacterEllipsis"
+                                                TextWrapping="NoWrap" />
+                                            <TextBlock
+                                                Style="{StaticResource TertiaryCaptionTextStyle}"
+                                                Text="{x:Bind WatchedAt}"
+                                                TextTrimming="CharacterEllipsis"
+                                                TextWrapping="NoWrap" />
+                                            <TextBlock
+                                                Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                                Style="{StaticResource CaptionTextBlockStyle}"
+                                                Text="{x:Bind AvailabilityText}" />
+                                        </StackPanel>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                    <controls:EmptyStateCard
+                        x:Name="HistoryEmptyState"
+                        Glyph="&#xE81C;"
                         Visibility="Collapsed" />
                 </StackPanel>
 

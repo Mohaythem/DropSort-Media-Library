@@ -68,7 +68,7 @@ internal static class TvProjection
             episode.RuntimeMinutes is { } minutes
                 ? string.Create(CultureInfo.InvariantCulture, $"{minutes} min")
                 : string.Empty,
-            Watched: false,
+            Watched: episode.Watched,
             HasLocalFile: episode.Availability == EpisodeAvailability.Present,
             IsFileMissing: episode.Availability == EpisodeAvailability.Missing,
             FilePath: file?.CurrentPath);

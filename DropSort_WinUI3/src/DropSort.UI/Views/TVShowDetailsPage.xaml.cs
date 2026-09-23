@@ -17,8 +17,8 @@ namespace DropSort.UI.Views;
 /// stays listed and is marked missing rather than being dropped.
 /// </para>
 /// <para>
-/// There is no episode watch state in this build, so nothing here reports a watched count - the season
-/// line and the progress figure report how much of the show is on disk instead.
+/// Watched badges come from persisted episode watch events. The season line and the progress figure
+/// continue to report local availability, while Play remains separate from the explicit watch action.
 /// </para>
 /// </summary>
 public sealed partial class TVShowDetailsPage : Page, ILocalizableView
@@ -126,6 +126,22 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         if (sender is Button { Tag: EpisodeDisplayRecord row })
         {
             PlayEpisode(FindEpisode(row));
+        }
+    }
+
+    private async void EpisodeMarkWatched_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: EpisodeDisplayRecord row }) return;
+        var episode = FindEpisode(row);
+        if (episode is null || episode.Watched) return;
+        try
+        {
+            AppServices.WatchHistory.RecordEpisodeWatch(episode.Id);
+            LoadShow(_show.Id);
+        }
+        catch (Exception error)
+        {
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 
@@ -253,6 +269,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
     {
         var labels = new EpisodeActionLabels(
             LocalizationService.Text("Watched"),
+            LocalizationService.Text("MarkWatched"),
             LocalizationService.Text("Missing"),
             LocalizationService.Text("PlayEpisode"),
             LocalizationService.Text("OpenFolder"),

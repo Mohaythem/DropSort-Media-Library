@@ -507,8 +507,14 @@ public sealed class UiSourceContractTests
         Assert.Contains("public bool CanAdd", model, StringComparison.Ordinal);
         Assert.Contains("ImportAddedFormat", page, StringComparison.Ordinal);
         Assert.Contains("ImportMatchedFormat", page, StringComparison.Ordinal);
-        Assert.Contains("ImportNeedsMatchFormat", page, StringComparison.Ordinal);
-        Assert.Contains("ImportMetadataErrorsFormat", page, StringComparison.Ordinal);
+        Assert.Contains("ImportNeedsAttentionFormat", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("LocalizationService.Format(\"ImportNoMatchFoundFormat\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("LocalizationService.Format(\"ImportMetadataUnavailableFormat\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("LocalizationService.Format(\"ImportMetadataErrorsFormat\"", page, StringComparison.Ordinal);
+        Assert.Contains("if (result.RegistrationFailuresCount > 0)", page, StringComparison.Ordinal);
+        Assert.Contains("if (result.ExistingCount > 0)", page, StringComparison.Ordinal);
+        Assert.Contains("[\"ImportNeedsAttentionFormat\"] = \"Needs attention: {0}\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"ImportNeedsAttentionFormat\"] = \"يحتاج إلى الانتباه: {0}\"", localization, StringComparison.Ordinal);
         Assert.Contains("[\"ReadyToAdd\"] = \"Ready to add\"", localization, StringComparison.Ordinal);
         Assert.Contains("[\"MetadataUnavailable\"] = \"Metadata unavailable\"", localization, StringComparison.Ordinal);
         Assert.Contains("[\"NeedsMatch\"] = \"Needs match\"", localization, StringComparison.Ordinal);
@@ -675,6 +681,32 @@ public sealed class UiSourceContractTests
         Assert.Contains("index < events.Count - 1", projection, StringComparison.Ordinal);
         Assert.Contains("LibraryProjection.ToWatchHistory(events)", details, StringComparison.Ordinal);
         Assert.DoesNotContain("\"FirstWatch\"", details, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Home_uses_real_persisted_history_progression_and_cached_artwork()
+    {
+        var home = Read("Views", "HomePage.xaml.cs");
+        var xaml = Read("Views", "HomePage.xaml");
+        var models = Read("Models", "ShowModels.cs");
+        var services = Read("Services", "AppServices.cs");
+        var tvDetails = Read("Views", "TVShowDetailsPage.xaml.cs");
+        var tvXaml = Read("Views", "TVShowDetailsPage.xaml");
+
+        Assert.Contains("AppServices.WatchHistory.ListRecentWatchHistory(8)", home, StringComparison.Ordinal);
+        Assert.Contains("AppServices.Tv.ListContinueWatching(6)", home, StringComparison.Ordinal);
+        Assert.DoesNotContain("RecordEpisodeWatch", home, StringComparison.Ordinal);
+        Assert.Contains("if (!card.IsAvailable)", home, StringComparison.Ordinal);
+        Assert.Contains("HistoryEmptyState", xaml, StringComparison.Ordinal);
+        Assert.Contains("ArtworkSource, Mode=OneWay", xaml, StringComparison.Ordinal);
+        Assert.Contains("GetCachedPosterPath", models, StringComparison.Ordinal);
+        Assert.Contains("EnsurePosterCachedAsync", models, StringComparison.Ordinal);
+        Assert.Contains("foreach (var reference in candidates)", models, StringComparison.Ordinal);
+        Assert.Contains("selection.Episode.HasLocalFile && !selection.Episode.Watched", models, StringComparison.Ordinal);
+        Assert.Contains("new WatchHistoryService(personal)", services, StringComparison.Ordinal);
+        Assert.Contains("EpisodeMarkWatched_Click", tvDetails, StringComparison.Ordinal);
+        Assert.Contains("AppServices.WatchHistory.RecordEpisodeWatch(episode.Id)", tvDetails, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{x:Bind CanMarkWatched}\"", tvXaml, StringComparison.Ordinal);
     }
 
     private static IEnumerable<string> EnumerateUiSource() =>
