@@ -5,7 +5,7 @@ Last updated: 2026-09-24
 ## Current checkpoint
 
 - Branch: `codex`
-- Product Phase 3 is **manually accepted and closed** locally. The reliability-closure implementation commit is `15c676d`; the governance/docs update follows it as a separate local commit. No network fetch or push was performed, so current server state is not asserted and the Phase 3 checkpoint is **not claimed as pushed**. `main` is untouched.
+- Product Phase 3 is **manually accepted and closed**. The **Persistence Write Coordination** mini-phase is implemented and locally verified at **300/300**. Its implementation commit and a separate governance/docs commit are local only; hashes are reported in the handoff. No network fetch or push was performed; `main` is untouched.
 - Python V1 is a Frozen Reference. Active product work is in `DropSort_WinUI3`.
 
 ## Completed and accepted
@@ -14,6 +14,7 @@ Last updated: 2026-09-24
 - Product Phase 1 — Add Media: completed through selective mixed Movie/TV import, truthful pre-add/post-add metadata states, local-registration-first failure handling, and exact existing-media detection. Corrective commits are recorded in `PHASES.md`.
 - Product Phase 2 — TMDB Search & Matching Quality: completed at `b158f9d` and manually accepted per the project checkpoint instruction.
 - Product Phase 3 — Home Artwork + Real Watch History (incl. reliability closure): real Movie/TV watch events, episode watched state, Continue Watching progression, cached Home artwork, durable watch history, and — from the closure pass — migration v9 drift reconciliation, `DatabaseWriteGate` write coordination, Clear History / `DeleteWatchEvent` fixes, and logical-media Recently Watched (repeated movie → one card; TV episodes/seasons → one show-level card) with raw `watch_events` preserved. Manually accepted 2026-09-24.
+- Persistence Write Coordination (mini-phase): one write-coordination contract for every writer to `library.db`; `FileOperationStore` and `SettingsRepository` now acquire `DatabaseWriteGate` like the catalog/personal/maintenance writers. Migration remains startup-exclusive. Verified 300/300.
 
 ## Completed locally; manual acceptance pending
 
@@ -21,15 +22,13 @@ Last updated: 2026-09-24
 
 ## Latest verification
 
-Fresh on 2026-09-24 from the Phase 3 closure source tree:
+Fresh on 2026-09-24 from the Persistence Write Coordination source tree:
 
-- Focused watch-history/migration/concurrency/UI-contract run — **25 passed, 0 failed, 0 skipped**.
-- `dotnet test tests\DropSort.Tests\DropSort.Tests.csproj` — **296 passed, 0 failed, 0 skipped** (accepted closure baseline).
-- Visual Studio MSBuild rebuild passed and the freshly built WinUI app passed **manual GUI acceptance** against a real upgraded (drifted v8 → v9) library database.
-- Manual acceptance confirmed: Movie Mark Watched on the upgraded DB; migration v9 reconciles the drifted v8 `watch_events` schema; repeated movie watches stay as individual history events; Recently Watched shows a repeated movie once (latest event); TV episodes/seasons of one show collapse to a single show-level card using show identity/title/artwork and the latest watched season/episode; raw movie/episode history intact.
-- Plain `dotnet build` of the WinUI project still fails with `MSB4062` because the .NET SDK path does not contain `Microsoft.Build.Packaging.Pri.Tasks.dll`. Use Visual Studio MSBuild for the solution/UI workflow; this is a confirmed tooling-path limitation, not a source warning. It is not a blocker because the accepted build was produced with Visual Studio MSBuild.
-
-These checks and the owner's manual acceptance close Product Phase 3.
+- Focused coordination/concurrency/recovery/file-operation run — **30 passed, 0 failed, 0 skipped**.
+- `dotnet test tests\DropSort.Tests\DropSort.Tests.csproj` — **300 passed, 0 failed, 0 skipped** (was 296 at Phase 3 closure; +4 `WriteCoordinationTests`).
+- `WriteCoordinationTests` prove: all writer kinds (catalog, personal, journal, settings) serialise under concurrency with no "database is locked"; a held catalog unit of work blocks a `FileOperationStore` write until released; the gate is released on the exception path; `CommitVerified` updates `media_files` under the gate without self-deadlock.
+- Phase 3 acceptance evidence (unchanged): Visual Studio MSBuild rebuild + manual GUI acceptance against a real upgraded (drifted v8 → v9) database.
+- Plain `dotnet build` of the WinUI project still fails with `MSB4062` (missing `Microsoft.Build.Packaging.Pri.Tasks.dll` on the .NET SDK path); no C# errors. Use Visual Studio MSBuild for the UI workflow — a confirmed tooling-path limitation, not a blocker.
 
 ## Next and remaining
 
@@ -38,8 +37,8 @@ Revised release direction (2026-09-24). Product identity is fixed: **Local-First
 Ordered path to 1.0:
 
 1. **Phase 3 — Closed.**
-2. **Persistence Write Coordination** — the next implementation mini-phase (recorded only; not started). Audit every writer to `library.db` and establish one write-coordination contract. Known gap: `FileOperationStore` writes `library.db` outside `DatabaseWriteGate`.
-3. Freeze 1.0 Scope.
+2. **Persistence Write Coordination — Done** (300/300; `FileOperationStore` + `SettingsRepository` now gated).
+3. **Freeze 1.0 Scope** — the next step (not started).
 4. Data / File Trust Pass.
 5. Drive-Aware Availability Model.
 6. Early Backup Protection.
@@ -51,7 +50,7 @@ Ordered path to 1.0:
 12. 0.9.x Preview.
 13. 1.0.
 
-Do not begin Persistence Write Coordination or any later phase without an explicit Goal. Detailed scope, non-goals, and the preserved future product priorities are in `FUTURE_PLAN.md`.
+Do not begin Freeze 1.0 Scope or any later step without an explicit Goal. Detailed scope, the write-coordination contract, and preserved future product priorities are in `FUTURE_PLAN.md`.
 
 ## Current cautions
 

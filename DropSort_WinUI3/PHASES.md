@@ -129,8 +129,22 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 
 **Commits.** Implementation: `15c676d`. The governance/roadmap update is delivered in the immediately following local docs commit (hash reported in the closure handoff). Neither is pushed.
 
+## 10. Persistence Write Coordination
+
+**Purpose.** Establish one explicit write-coordination contract for every writer to `library.db` and close the writers that bypassed `DatabaseWriteGate`.
+
+**Write-coordination contract.** Every writer acquires `DatabaseWriteGate.Enter(connectionString)` — a fair, per-database-path, in-process, non-reentrant semaphore — as its outermost scope, before opening its IMMEDIATE (write-lock) transaction, and releases it only after commit/rollback via `using` (so exceptions and failed commits always release it). Reads that take no write lock are not gated. The gate is non-reentrant: a writer holding it must not invoke another gated writer; nested write helpers (for example `FileOperationStore`'s private transition invoked by `CommitVerified`) run inside the already-open transaction and never re-acquire the gate. Critical sections are database-only and short — slow filesystem work (copy, hash, source removal) happens between journal calls, never while the gate is held, so `FileOperationCoordinator.Execute` performs each journal write as an independent gated transaction around ungated filesystem steps. Migration/startup initialization runs exclusively before any repository or service is exposed and is the one writer permitted to operate without the gate, because no concurrent writer exists at that point.
+
+**Audited writers.** Catalog unit of work (movies/media_files/tv_*): already gated. Personal library (preferences, watchlist, `watch_events`, clear): already gated. `LibraryMaintenanceRepository.ClearCatalog`: already gated. `FileOperationStore.Create/Transition/CommitVerified` (`file_operations`, and `media_files` on commit): **was not gated — now gated**. `SettingsRepository.Set/Delete` (`settings`): **was not gated — now gated**. `DatabaseMigrator`: ungated by design (startup-exclusive).
+
+**Gaps closed.** `FileOperationStore` and `SettingsRepository` now participate in the same gate as the rest of the app; `CommitVerified`'s `media_files` update serialises with catalog writers to that table.
+
+**Verification.** New `WriteCoordinationTests` prove all writer kinds serialise under concurrency with no "database is locked", a held catalog unit of work blocks a journal write until released, the gate is released on the exception path, and `CommitVerified` does not self-deadlock. Focused coordination/recovery/file-operation suites passed **30/30**; full suite **300/300** (0 failed, 0 skipped). Plain `dotnet build` of the WinUI project still fails only at the WinUI PRI task (`MSB4062`); no C# errors.
+
+**Remaining risks.** `FileOperationStore` keeps one long-lived connection; its ungated reads share that connection with gated writes, so writers serialise but a concurrent read+write on the single connection is not thread-safe (the store is driven sequentially from the UI/startup today). The gate is in-process only and does not coordinate a second process against the same database (out of scope for single-instance, local-first use).
+
 ## Current boundary
 
-Product Phase 3 is implemented, locally verified at **296/296**, and **manually accepted** on 2026-09-24 against a freshly built WinUI app and a real upgraded database. It is committed locally on `codex` and **not pushed**; `main` is untouched.
+Product Phase 3 is closed and manually accepted. The **Persistence Write Coordination** mini-phase is implemented and locally verified at **300/300**; `FileOperationStore` and `SettingsRepository` now honour the single write-coordination contract. Committed locally on `codex`; not pushed; `main` untouched.
 
-The next implementation mini-phase is **Persistence Write Coordination** (recorded only — do not begin without an explicit Goal): inventory every writer to `library.db` and establish one clear write-coordination contract. The known remaining gap is that `FileOperationStore` writes `library.db` outside `DatabaseWriteGate`. Major 1.0 feature expansion is frozen; see `FUTURE_PLAN.md` for the revised release direction. Phase work stays gated: one explicit Goal at a time.
+The next roadmap step is **Freeze 1.0 Scope**, then the **Data / File Trust Pass**, as planned in `FUTURE_PLAN.md`. Phase work stays gated: do not begin the next step without an explicit Goal.

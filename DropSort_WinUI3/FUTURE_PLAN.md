@@ -45,8 +45,8 @@ These contracts remain in force unless a later explicit Goal changes them.
 **Ordered path to 1.0.**
 
 1. **Phase 3 — Closed** (manually accepted 2026-09-24).
-2. **Persistence Write Coordination** — next implementation mini-phase (recorded only; see below).
-3. Freeze 1.0 Scope.
+2. **Persistence Write Coordination — Done** (300/300; see the contract below).
+3. **Freeze 1.0 Scope** — next step (not started).
 4. Data / File Trust Pass.
 5. Drive-Aware Availability Model.
 6. Early Backup Protection.
@@ -58,13 +58,21 @@ These contracts remain in force unless a later explicit Goal changes them.
 12. 0.9.x Preview.
 13. 1.0.
 
-### Next mini-phase — Persistence Write Coordination (recorded; not started)
+### Persistence Write Coordination (Done — 2026-09-24)
 
-**Purpose.** Audit every writer to `library.db` and establish one clear write-coordination contract. Do **not** implement without an explicit Goal.
+**Outcome.** One explicit write-coordination contract now governs every writer to `library.db`, and the two writers that bypassed it (`FileOperationStore`, `SettingsRepository`) were brought under it. Verified at 300/300.
 
-**Known remaining gap.** `FileOperationStore` currently writes `library.db` outside `DatabaseWriteGate`.
+**The write-coordination contract.**
+- Every writer acquires `DatabaseWriteGate.Enter(connectionString)` — a fair, per-database-path, in-process, **non-reentrant** semaphore — as its outermost scope, before opening its IMMEDIATE (write-lock) transaction.
+- The gate is released only after commit/rollback, via `using`, so exceptions and failed commits always release it.
+- Reads that take no write lock are not gated.
+- Non-reentrancy: a writer holding the gate must not call another gated writer. Nested write helpers (e.g. `FileOperationStore`'s private transition used by `CommitVerified`) run inside the already-open transaction and never re-acquire the gate.
+- Critical sections are database-only and short. Slow filesystem work (copy, hash, source removal) happens **between** journal calls, never while the gate is held: `FileOperationCoordinator.Execute` runs each journal write as an independent gated transaction around ungated filesystem steps.
+- Migration/startup initialization runs exclusively before any repository/service is exposed and is the one writer permitted to operate without the gate (no concurrent writer exists then).
 
-**Audit must cover.** Catalog writes, Personal Library writes, Maintenance writes, `FileOperationStore`, organize/recovery, import/catalog, metadata writes, transaction lifetime, gate ownership, cancellation, commit failure, and nesting/reentrancy rules (`DatabaseWriteGate` is non-reentrant).
+**Audited writers.** Catalog unit of work, Personal library, `LibraryMaintenanceRepository.ClearCatalog`: already gated. `FileOperationStore.Create/Transition/CommitVerified` and `SettingsRepository.Set/Delete`: **now gated** (were not). `DatabaseMigrator`: ungated by design (startup-exclusive).
+
+**Remaining risks.** `FileOperationStore` keeps one long-lived connection whose ungated reads share it with gated writes — writers serialise, but a concurrent read+write on that single connection is not thread-safe (the store is driven sequentially from UI/startup today; a future hardening could isolate its reads). The gate is in-process only and does not coordinate a second OS process against the same database (out of scope for single-instance local-first use).
 
 ### Preserved future product priorities (recorded; not scheduled)
 
