@@ -20,10 +20,12 @@ public sealed class WatchHistoryService : IWatchHistoryUiActions
     }
 
     public IReadOnlyList<WatchHistoryItem> ListRecentWatchHistory(int limit = 50, int offset = 0) =>
-        _history.ListRecent(limit, offset).Select(Map).ToList();
+        _history.ListRecentlyWatchedMedia(limit, offset).Select(Map).ToList();
 
     public WatchHistoryItem RecordEpisodeWatch(int episodeId, DateTimeOffset? watchedAt = null) =>
         Map(_history.AddEpisodeWatchEvent(episodeId, watchedAt ?? _clock(), _clock()));
+
+    public int ClearWatchHistory() => _history.ClearWatchHistory();
 
     private static WatchHistoryItem Map(WatchHistoryEntry entry) => new(
         entry.Id,

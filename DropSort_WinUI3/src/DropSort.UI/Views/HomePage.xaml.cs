@@ -128,31 +128,50 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
             LocalizationService.Digits(item.WatchedAt.ToLocalTime().ToString("g", LocalizationService.Culture)),
             item.IsAvailable,
             item.IsAvailable ? string.Empty : LocalizationService.Text("Unavailable"),
-            [item.ArtworkReference, item.BackdropReference, item.PosterReference]))];
+            HistoryArtwork(item)))];
+
+    // A Recently Watched TV entry represents the whole show, so its card leads with the show's own
+    // artwork (backdrop, then poster) and only falls back to the latest episode still. A movie leads
+    // with its own backdrop/poster.
+    private static IEnumerable<string?> HistoryArtwork(WatchHistoryItem item) =>
+        item.MediaKind == WatchEventMediaKind.Episode
+            ? [item.BackdropReference, item.PosterReference, item.ArtworkReference]
+            : [item.ArtworkReference, item.BackdropReference, item.PosterReference];
 
     private static string HistoryTitle(WatchHistoryItem item)
     {
-        if (item.MediaKind == WatchEventMediaKind.Episode &&
-            item.EpisodeNumber is int episodeNumber &&
-            string.Equals(item.Title, episodeNumber.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
+        // A TV entry is grouped by show, so the card's primary identity is the show, not the episode.
+        if (item.MediaKind == WatchEventMediaKind.Episode)
         {
-            return LocalizationService.Format("EpisodeNumberFormat", episodeNumber);
+            return string.IsNullOrWhiteSpace(item.ShowTitle) ? item.Title : item.ShowTitle;
         }
 
         return item.Title;
     }
 
-    private static string HistoryContext(WatchHistoryItem item) => item.MediaKind switch
+    private static string HistoryContext(WatchHistoryItem item)
     {
-        WatchEventMediaKind.Movie when item.Year is int year =>
-            LocalizationService.Digits(year.ToString(CultureInfo.InvariantCulture)),
-        WatchEventMediaKind.Episode => LocalizationService.Format(
-            "HistoryEpisodeFormat",
-            item.ShowTitle ?? string.Empty,
-            item.SeasonNumber ?? 0,
-            item.EpisodeNumber ?? 0),
-        _ => string.Empty,
-    };
+        switch (item.MediaKind)
+        {
+            case WatchEventMediaKind.Movie when item.Year is int year:
+                return LocalizationService.Digits(year.ToString(CultureInfo.InvariantCulture));
+
+            // Season-oriented secondary line for a show card, surfacing the latest watched episode:
+            // "Season 2 · Last watched S02E05".
+            case WatchEventMediaKind.Episode when item.SeasonNumber is int season && item.EpisodeNumber is int episode:
+                return LocalizationService.Format(
+                    "HistoryShowContextFormat",
+                    LocalizationService.Format("SeasonFormat", season),
+                    season,
+                    episode);
+
+            case WatchEventMediaKind.Episode:
+                return item.ShowTitle ?? string.Empty;
+
+            default:
+                return string.Empty;
+        }
+    }
 
     private void UpdateContinueVisibility()
     {

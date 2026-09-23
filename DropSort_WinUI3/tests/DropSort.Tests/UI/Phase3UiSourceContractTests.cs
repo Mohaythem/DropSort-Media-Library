@@ -14,7 +14,12 @@ public sealed class Phase3UiSourceContractTests
         Assert.Contains("ListContinueWatching", code);
         Assert.Contains("HistoryUnavailableHelp", code);
         Assert.Contains("HistoryCard_Click", code);
+        // A movie card leads with its own artwork; a TV card is show-grouped and leads with the show's
+        // artwork (backdrop, then poster) plus a season-oriented context line.
         Assert.Contains("[item.ArtworkReference, item.BackdropReference, item.PosterReference]", code);
+        Assert.Contains("[item.BackdropReference, item.PosterReference, item.ArtworkReference]", code);
+        Assert.Contains("HistoryShowContextFormat", code);
+        Assert.Contains("item.ShowTitle", code);
     }
 
     [Fact]

@@ -307,8 +307,8 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         OperationsLogRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
-    /// Clears every watch event, movie by movie, through the personal library. Preferences and the
-    /// watchlist are untouched, which is what the row promises.
+    /// Clears the entire watch history - movie, episode and events orphaned by deleted media - in one
+    /// pass. Preferences and the watchlist are untouched, which is what the row promises.
     /// </summary>
     private async void ClearHistoryButton_Click(object sender, RoutedEventArgs e)
     {
@@ -317,21 +317,11 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
             return;
         }
 
-        var removed = 0;
+        int removed;
 
         try
         {
-            await Task.Run(() =>
-            {
-                foreach (var movie in AppServices.Library.ListMovies())
-                {
-                    foreach (var watch in AppServices.Personal.ListWatchEvents(movie.Id))
-                    {
-                        AppServices.Personal.RemoveWatchEvent(watch.Id);
-                        removed++;
-                    }
-                }
-            });
+            removed = await Task.Run(() => AppServices.WatchHistory.ClearWatchHistory());
         }
         catch (Exception error)
         {

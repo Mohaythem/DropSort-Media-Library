@@ -8,6 +8,7 @@ namespace DropSort.Infrastructure.Persistence.Repositories;
 
 public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
 {
+    private readonly IDisposable _writeGate;
     private readonly SqliteConnection _connection;
     private readonly SqliteTransaction _transaction;
     private bool _completed;
@@ -21,8 +22,20 @@ public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
 
     public CatalogUnitOfWork(string connectionString)
     {
-        _connection = SqliteConnections.Open(connectionString);
-        _transaction = _connection.BeginTransaction(deferred: false);
+        // The unit of work opens an IMMEDIATE transaction (write lock) even for read-only work, so it
+        // must queue behind other writers to this database rather than collide with them in SQLite.
+        _writeGate = DatabaseWriteGate.Enter(connectionString);
+        try
+        {
+            _connection = SqliteConnections.Open(connectionString);
+            _transaction = _connection.BeginTransaction(deferred: false);
+        }
+        catch
+        {
+            _connection?.Dispose();
+            _writeGate.Dispose();
+            throw;
+        }
         Movies = new MovieRepository(_connection, _transaction);
         MediaFiles = new MediaFileRepository(_connection, _transaction);
         TvShows = new TvShowRepository(_connection, _transaction);
@@ -41,10 +54,17 @@ public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
     public void Dispose()
     {
         if (_disposed) return;
-        if (!_completed) _transaction.Rollback();
-        _transaction.Dispose();
-        _connection.Dispose();
         _disposed = true;
+        try
+        {
+            if (!_completed) _transaction.Rollback();
+            _transaction.Dispose();
+            _connection.Dispose();
+        }
+        finally
+        {
+            _writeGate.Dispose();
+        }
     }
 }
 

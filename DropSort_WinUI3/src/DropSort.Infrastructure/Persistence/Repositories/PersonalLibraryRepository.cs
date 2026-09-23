@@ -23,6 +23,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         ValidateId(movieId, nameof(movieId));
         if (!Enum.IsDefined(preference)) throw new ArgumentOutOfRangeException(nameof(preference));
         if (preference == PersonalPreference.NoOpinion) return ClearPreference(movieId, now);
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
@@ -43,6 +44,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
     public PersonalMovieState ClearPreference(int movieId, DateTimeOffset now)
     {
         ValidateId(movieId, nameof(movieId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
@@ -64,6 +66,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
     public PersonalMovieState AddToWatchlist(int movieId, DateTimeOffset now)
     {
         ValidateId(movieId, nameof(movieId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
@@ -86,6 +89,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
     public PersonalMovieState RemoveFromWatchlist(int movieId, DateTimeOffset now)
     {
         ValidateId(movieId, nameof(movieId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
@@ -107,6 +111,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
     public WatchEvent AddWatchEvent(int movieId, DateTimeOffset watchedAt, DateTimeOffset createdAt)
     {
         ValidateId(movieId, nameof(movieId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var transaction = connection.BeginTransaction(deferred: false);
         RequireMovie(connection, movieId, transaction);
@@ -131,12 +136,17 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
     public WatchEvent DeleteWatchEvent(int eventId)
     {
         ValidateId(eventId, nameof(eventId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var transaction = connection.BeginTransaction(deferred: false);
         using var find = Command(connection, transaction, "SELECT movie_id FROM watch_events WHERE id = $id;");
         find.Parameters.AddWithValue("$id", eventId);
         var movieValue = find.ExecuteScalar();
-        if (movieValue is null) throw new KeyNotFoundException($"Watch event {eventId} was not found.");
+        // No row => the event does not exist. A row whose movie_id is NULL is an episode or orphaned
+        // event; DeleteWatchEvent is the movie-scoped contract (it returns a movie WatchEvent), so such
+        // an event is "not a movie watch event" rather than a Convert.ToInt32(DBNull) crash.
+        if (movieValue is null or DBNull)
+            throw new KeyNotFoundException($"Movie watch event {eventId} was not found.");
         var movieId = Convert.ToInt32(movieValue);
         var removed = ReadEvents(connection, movieId, transaction).Single(item => item.Id == eventId);
         using var delete = Command(connection, transaction, "DELETE FROM watch_events WHERE id = $id;");
@@ -211,6 +221,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
     public WatchHistoryEntry AddEpisodeWatchEvent(int episodeId, DateTimeOffset watchedAt, DateTimeOffset createdAt)
     {
         ValidateId(episodeId, nameof(episodeId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var transaction = connection.BeginTransaction(deferred: false);
         using var command = Command(connection, transaction, """
@@ -238,6 +249,17 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         return entry;
     }
 
+    public int ClearWatchHistory()
+    {
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        using var command = Command(connection, transaction, "DELETE FROM watch_events;");
+        var removed = command.ExecuteNonQuery();
+        transaction.Commit();
+        return removed;
+    }
+
     public IReadOnlyList<WatchHistoryEntry> ListRecent(int limit = 50, int offset = 0)
     {
         if (limit <= 0) throw new ArgumentOutOfRangeException(nameof(limit));
@@ -245,6 +267,45 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         using var connection = SqliteConnections.Open(_connectionString);
         using var command = Command(connection, null, """
             SELECT id FROM watch_events
+             ORDER BY julianday(watched_at) DESC, id DESC
+             LIMIT $limit OFFSET $offset;
+            """);
+        command.Parameters.AddWithValue("$limit", limit);
+        command.Parameters.AddWithValue("$offset", offset);
+        var ids = new List<int>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) ids.Add(reader.GetInt32(0));
+        return ids.SelectMany(id => ReadHistory(connection, null, id)).ToList();
+    }
+
+    public IReadOnlyList<WatchHistoryEntry> ListRecentlyWatchedMedia(int limit = 50, int offset = 0)
+    {
+        if (limit <= 0) throw new ArgumentOutOfRangeException(nameof(limit));
+        if (offset < 0) throw new ArgumentOutOfRangeException(nameof(offset));
+        using var connection = SqliteConnections.Open(_connectionString);
+        // Collapse the raw event stream to one row per logical medium for the Home "Recently watched"
+        // read: a movie by movie_id, a TV *show* by its parent show_id (an episode's identity resolves
+        // up through its season to the series - watching any episode of a show shares one card), keeping
+        // the newest event of each group and ordering by that event. Episodes orphaned by a deleted show
+        // (episode_id / show_id nulled) have no shared identity, so each falls into its own group keyed by
+        // event id and stays distinct. Grouping happens before the limit, so N asks for N distinct media.
+        using var command = Command(connection, null, """
+            SELECT id FROM (
+                SELECT w.id, w.watched_at,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY
+                               CASE
+                                   WHEN w.media_kind = 'MOVIE' AND w.movie_id IS NOT NULL THEN 'M:' || w.movie_id
+                                   WHEN w.media_kind = 'EPISODE' AND se.show_id IS NOT NULL THEN 'S:' || se.show_id
+                                   ELSE 'X:' || w.id
+                               END
+                           ORDER BY julianday(w.watched_at) DESC, w.id DESC
+                       ) AS group_rank
+                  FROM watch_events w
+                  LEFT JOIN tv_episodes e ON e.id = w.episode_id
+                  LEFT JOIN tv_seasons se ON se.id = e.season_id
+            ) ranked
+             WHERE group_rank = 1
              ORDER BY julianday(watched_at) DESC, id DESC
              LIMIT $limit OFFSET $offset;
             """);

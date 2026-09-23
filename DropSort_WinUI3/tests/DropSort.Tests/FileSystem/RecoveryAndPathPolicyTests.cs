@@ -95,21 +95,29 @@ public sealed class RecoveryAndPathPolicyTests : IDisposable
         var destination = Path.Combine(_directory, "organized_movie.mkv");
 
         var catalogFactory = new CatalogUnitOfWorkFactory(_connectionString);
-        using var uow = catalogFactory.Begin();
-        var facts = new DropSort.Domain.Library.Movies.VerifiedMediaFileFacts(
-            source,
-            new FileInfo(source).Length,
-            ".mkv",
-            "1080p",
-            "x264",
-            "test",
-            DateTimeOffset.UtcNow);
-        var mediaFile = uow.MediaFiles.Add(facts);
-        uow.Commit();
+
+        // The catalog unit of work holds the per-database write gate until it is disposed, and the gate
+        // is not reentrant. Recovery below writes to the same database (the journal store commits the
+        // verified media file), and the verification step opens a second unit of work, so this seeding
+        // scope must be closed here rather than left open with `using var` for the whole method.
+        int mediaFileId;
+        using (var uow = catalogFactory.Begin())
+        {
+            var facts = new DropSort.Domain.Library.Movies.VerifiedMediaFileFacts(
+                source,
+                new FileInfo(source).Length,
+                ".mkv",
+                "1080p",
+                "x264",
+                "test",
+                DateTimeOffset.UtcNow);
+            mediaFileId = uow.MediaFiles.Add(facts).Id;
+            uow.Commit();
+        }
 
         using var store = new FileOperationStore(_connectionString);
         using var coordinator = new FileOperationCoordinator(store);
-        var (plan, _) = coordinator.Plan(OperationType.Move, source, destination, [_directory], mediaFileId: mediaFile.Id);
+        var (plan, _) = coordinator.Plan(OperationType.Move, source, destination, [_directory], mediaFileId: mediaFileId);
         store.Transition(plan.OperationId, OperationState.Executing);
 
         // Simulate crash right after file move and verification
@@ -144,11 +152,13 @@ public sealed class RecoveryAndPathPolicyTests : IDisposable
         Assert.Equal(OperationState.Committed, finishedOp.State);
 
         // Verify media file record was updated to destination and is PRESENT
-        using var checkUow = catalogFactory.Begin();
-        var updatedMedia = checkUow.MediaFiles.GetById(mediaFile.Id);
-        Assert.NotNull(updatedMedia);
-        Assert.Equal(destination, updatedMedia.CurrentPath);
-        Assert.Equal(DropSort.Domain.Library.Movies.MediaFileStatus.Present, updatedMedia.Status);
+        using (var checkUow = catalogFactory.Begin())
+        {
+            var updatedMedia = checkUow.MediaFiles.GetById(mediaFileId);
+            Assert.NotNull(updatedMedia);
+            Assert.Equal(destination, updatedMedia.CurrentPath);
+            Assert.Equal(DropSort.Domain.Library.Movies.MediaFileStatus.Present, updatedMedia.Status);
+        }
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using DropSort.Application.Dto;
@@ -156,6 +157,47 @@ public sealed class Migration8WatchHistoryTests : IDisposable
         Assert.Equal([later.Id, earlier.Id], history.ListRecent().Select(item => item.Id));
         Assert.Equal([earlier.Id, later.Id], history.GetWatchEvents(1).Select(item => item.Id));
         Assert.Equal(later.WatchedAt, history.GetState(1).LastWatched);
+    }
+
+    [Fact]
+    public void ClearWatchHistory_RemovesMovieEpisodeAndOrphanedEvents_LeavingPreferencesIntact()
+    {
+        new DatabaseMigrator(_connectionString).Migrate();
+        using (var connection = Open()) SeedCatalog(connection);
+        var history = new PersonalLibraryRepository(_connectionString);
+        history.SetPreference(1, DropSort.Domain.Library.Personal.PersonalPreference.Liked, At(5));
+        history.AddWatchEvent(1, At(10), At(10));
+        history.AddEpisodeWatchEvent(101, At(20), At(20));
+        history.AddEpisodeWatchEvent(102, At(30), At(30));
+
+        // Orphan the episode events (ON DELETE SET NULL) so the clear must reach rows with no live
+        // episode_id, exactly the events the old movie-by-movie loop could never see. Movie 1 stays so
+        // a live movie event and its preference are also in the mix.
+        using (var connection = Open())
+        {
+            Execute(connection, "DELETE FROM tv_shows WHERE id = 7;");
+        }
+        Assert.Equal(3, history.ListRecent().Count);
+
+        var removed = history.ClearWatchHistory();
+
+        Assert.Equal(3, removed);
+        Assert.Empty(history.ListRecent());
+        Assert.Equal(DropSort.Domain.Library.Personal.PersonalPreference.Liked, history.GetState(1).Preference);
+    }
+
+    [Fact]
+    public void DeleteWatchEvent_OnEpisodeEvent_ThrowsKeyNotFound_NotInvalidCast()
+    {
+        new DatabaseMigrator(_connectionString).Migrate();
+        using (var connection = Open()) SeedCatalog(connection);
+        var history = new PersonalLibraryRepository(_connectionString);
+        var episodeEvent = history.AddEpisodeWatchEvent(101, At(20), At(20));
+
+        // movie_id is NULL for an episode event; the movie-scoped delete must reject it cleanly rather
+        // than crash on Convert.ToInt32(DBNull).
+        Assert.Throws<KeyNotFoundException>(() => history.DeleteWatchEvent(episodeEvent.Id));
+        Assert.Single(history.ListRecent());
     }
 
     private SqliteConnection Open()

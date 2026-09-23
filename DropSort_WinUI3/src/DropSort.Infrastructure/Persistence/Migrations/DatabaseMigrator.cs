@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 8;
+    public const int LatestVersion = 9;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -376,6 +376,53 @@ public class DatabaseMigrator
             CREATE INDEX idx_watch_events_movie_watched ON watch_events(movie_id, julianday(watched_at), id);
             CREATE INDEX idx_watch_events_episode_watched ON watch_events(episode_id, julianday(watched_at), id);
             CREATE INDEX idx_watch_events_recent ON watch_events(julianday(watched_at) DESC, id DESC);
+        ",
+        // 0009_reconcile_watch_events_artwork_columns
+        // Corrective migration for schema drift: some databases reached user_version = 8 under an
+        // earlier revision of the 0008 script that did NOT create the backdrop_reference and
+        // poster_reference columns. Because the migrator never re-runs a version it has already
+        // stamped, those installs are permanently stuck on the old watch_events shape, and every
+        // write (Mark Watched) fails with 'table watch_events has no column named poster_reference'.
+        // Rebuild the table from the columns that exist in BOTH shapes so the schema is normalised
+        // regardless of which 0008 the database was migrated under. Pre-existing rows keep their data;
+        // the two artwork columns are left NULL for legacy rows (read paths already tolerate NULL) and
+        // are populated normally for events written after this migration. Fresh v8 databases have no
+        // watch_events rows yet when this runs, so no data is lost by copying only the shared columns.
+        @"
+            PRAGMA defer_foreign_keys = ON;
+            CREATE TABLE watch_events_reconciled (
+                id INTEGER PRIMARY KEY,
+                media_kind TEXT NOT NULL CHECK(media_kind IN ('MOVIE', 'EPISODE')),
+                movie_id INTEGER REFERENCES movies(id) ON DELETE SET NULL,
+                episode_id INTEGER REFERENCES tv_episodes(id) ON DELETE SET NULL,
+                watched_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                title_snapshot TEXT NOT NULL,
+                year_snapshot INTEGER,
+                show_title_snapshot TEXT,
+                season_number_snapshot INTEGER,
+                episode_number_snapshot INTEGER,
+                artwork_reference TEXT,
+                backdrop_reference TEXT,
+                poster_reference TEXT,
+                CHECK (
+                    (media_kind = 'MOVIE' AND episode_id IS NULL) OR
+                    (media_kind = 'EPISODE' AND movie_id IS NULL)
+                )
+            );
+            INSERT INTO watch_events_reconciled
+                (id, media_kind, movie_id, episode_id, watched_at, created_at, title_snapshot,
+                 year_snapshot, show_title_snapshot, season_number_snapshot, episode_number_snapshot,
+                 artwork_reference)
+            SELECT id, media_kind, movie_id, episode_id, watched_at, created_at, title_snapshot,
+                   year_snapshot, show_title_snapshot, season_number_snapshot, episode_number_snapshot,
+                   artwork_reference
+              FROM watch_events;
+            DROP TABLE watch_events;
+            ALTER TABLE watch_events_reconciled RENAME TO watch_events;
+            CREATE INDEX idx_watch_events_movie_watched ON watch_events(movie_id, julianday(watched_at), id);
+            CREATE INDEX idx_watch_events_episode_watched ON watch_events(episode_id, julianday(watched_at), id);
+            CREATE INDEX idx_watch_events_recent ON watch_events(julianday(watched_at) DESC, id DESC);
         "
     };
 
@@ -395,7 +442,7 @@ public class DatabaseMigrator
 
         for (var i = currentVersion; i < targetVersion; i++)
         {
-            var requiresForeignKeysOff = i is 4 or 7;
+            var requiresForeignKeysOff = i is 4 or 7 or 8;
             if (requiresForeignKeysOff) ExecutePragma(connection, "foreign_keys", "OFF");
             try
             {
@@ -446,6 +493,13 @@ public class DatabaseMigrator
         };
         foreach (var table in requiredTables) RequireSchemaObject(connection, "table", table);
         foreach (var index in requiredIndexes) RequireSchemaObject(connection, "index", index);
+        // Column-level guard: user_version alone cannot detect a table left on an older shape by a
+        // migration script that was edited after it had already been stamped (the drift that made
+        // Mark Watched fail with 'no column named poster_reference'). Assert the columns the write
+        // paths depend on actually exist so any future drift fails startup loudly instead of being
+        // masked behind a generic runtime error dialog.
+        RequireTableColumns(connection, "watch_events",
+            "artwork_reference", "backdrop_reference", "poster_reference");
         using var command = connection.CreateCommand();
         command.CommandText = "PRAGMA foreign_key_check;";
         using var reader = command.ExecuteReader();
@@ -460,6 +514,21 @@ public class DatabaseMigrator
         command.Parameters.AddWithValue("$name", name);
         if (Convert.ToInt32(command.ExecuteScalar()) != 1)
             throw new InvalidOperationException($"Required SQLite {type} '{name}' is missing.");
+    }
+
+    private static void RequireTableColumns(SqliteConnection connection, string table, params string[] columns)
+    {
+        var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = $"PRAGMA table_info({table});";
+            using var reader = command.ExecuteReader();
+            while (reader.Read()) present.Add(reader.GetString(1));
+        }
+        foreach (var column in columns)
+            if (!present.Contains(column))
+                throw new InvalidOperationException(
+                    $"Required SQLite column '{table}.{column}' is missing (schema drift).");
     }
 
     private static int ReadIntPragma(SqliteConnection connection, string name)

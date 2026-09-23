@@ -15,6 +15,7 @@ public class LibraryMaintenanceRepository : ILibraryMaintenanceRepository
 
     public (int Movies, int MediaFiles, int MetadataEntries, int Shows, int Seasons, int Episodes) ClearCatalog()
     {
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var cmd = connection.CreateCommand();
 

@@ -60,7 +60,23 @@ public interface IWatchHistoryRepository
 {
     WatchHistoryEntry AddEpisodeWatchEvent(int episodeId, DateTimeOffset watchedAt, DateTimeOffset createdAt);
     IReadOnlyList<WatchHistoryEntry> ListRecent(int limit = 50, int offset = 0);
+
+    /// <summary>
+    /// The most recently watched distinct media, newest first: each logical movie (by movie_id) and each
+    /// logical TV show (by its parent show_id, so every episode of a show shares one entry) appears once,
+    /// represented by its latest watch event, and the list is ordered by that latest event. The raw
+    /// watch_events history is untouched; this only collapses the read for "Recently watched", which shows
+    /// media, not individual replays. Episodes orphaned from a deleted show cannot be grouped and each
+    /// stays distinct.
+    /// </summary>
+    IReadOnlyList<WatchHistoryEntry> ListRecentlyWatchedMedia(int limit = 50, int offset = 0);
     IReadOnlySet<int> GetWatchedEpisodeIds(int showId);
+
+    /// <summary>
+    /// Removes every watch event - movie, episode and events orphaned by deleted media - and reports
+    /// how many rows were deleted. Personal preferences and the watchlist are untouched.
+    /// </summary>
+    int ClearWatchHistory();
 }
 
 public interface ILibraryMaintenanceRepository

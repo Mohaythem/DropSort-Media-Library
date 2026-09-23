@@ -40,6 +40,12 @@ public interface IWatchHistoryUiActions
 {
     IReadOnlyList<WatchHistoryItem> ListRecentWatchHistory(int limit = 50, int offset = 0);
     WatchHistoryItem RecordEpisodeWatch(int episodeId, DateTimeOffset? watchedAt = null);
+
+    /// <summary>
+    /// Clears the entire watch history - movie, episode and orphaned events - and returns the number
+    /// of events removed. Personal preferences and the watchlist are left intact.
+    /// </summary>
+    int ClearWatchHistory();
 }
 
 public interface IImportUiActions
