@@ -21,6 +21,7 @@ public sealed class SettingsRepository : ISettingsRepository
     {
         Validate(key, nameof(key));
         Validate(value, nameof(value));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var command = connection.CreateCommand();
         command.CommandText = """
@@ -36,6 +37,7 @@ public sealed class SettingsRepository : ISettingsRepository
     public void Delete(string key)
     {
         Validate(key, nameof(key));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM settings WHERE key = $key;";

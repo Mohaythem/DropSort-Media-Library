@@ -7,6 +7,7 @@ namespace DropSort.Infrastructure.Persistence.Repositories;
 public sealed class FileOperationStore : IFileOperationStore, IDisposable
 {
     private readonly SqliteConnection _connection;
+    private readonly string _connectionString;
     private readonly bool _ownsConnection;
     private readonly Func<DateTimeOffset> _clock;
 
@@ -26,6 +27,7 @@ public sealed class FileOperationStore : IFileOperationStore, IDisposable
     {
         _connection = connection ?? throw new ArgumentNullException(nameof(connection));
         if (_connection.State != System.Data.ConnectionState.Open) _connection.Open();
+        _connectionString = _connection.ConnectionString;
         using var command = _connection.CreateCommand();
         command.CommandText = "PRAGMA foreign_keys = ON; PRAGMA synchronous = FULL;";
         command.ExecuteNonQuery();
@@ -34,6 +36,7 @@ public sealed class FileOperationStore : IFileOperationStore, IDisposable
 
     public FileOperationStore(string connectionString, Func<DateTimeOffset>? clock = null)
     {
+        _connectionString = connectionString;
         _connection = SqliteConnections.Open(connectionString);
         _ownsConnection = true;
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
@@ -62,6 +65,10 @@ public sealed class FileOperationStore : IFileOperationStore, IDisposable
     public FileOperationRecord Create(FileOperationPlan plan, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(plan);
+        // Serialize this journal write with every other writer to library.db (catalog, personal,
+        // maintenance). The gate is the outermost scope so it is released only after the transaction
+        // has committed or rolled back; the critical section is a single fast INSERT, no filesystem work.
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var transaction = _connection.BeginTransaction(deferred: false);
         if (plan.ReversesOperationId is not null)
         {
@@ -99,6 +106,7 @@ public sealed class FileOperationStore : IFileOperationStore, IDisposable
 
     public FileOperationRecord Transition(string id, OperationState newState, OperationUpdate? update = null)
     {
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var transaction = _connection.BeginTransaction(deferred: false);
         var result = Transition(id, newState, update ?? new OperationUpdate(), transaction);
         transaction.Commit();
@@ -107,6 +115,9 @@ public sealed class FileOperationStore : IFileOperationStore, IDisposable
 
     public FileOperationRecord CommitVerified(string id)
     {
+        // CommitVerified also updates media_files, so it must serialize with catalog writers to that
+        // same table; the gate covers the whole transaction and is released after commit/rollback.
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var transaction = _connection.BeginTransaction(deferred: false);
         var current = GetById(id, transaction) ?? throw new KeyNotFoundException($"Operation {id} was not found.");
         if (current.State != OperationState.FsVerified)
