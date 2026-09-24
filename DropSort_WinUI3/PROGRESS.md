@@ -5,7 +5,7 @@ Last updated: 2026-09-24
 ## Current checkpoint
 
 - Branch: `codex`
-- Product Phase 3 is **manually accepted and closed**. The **Persistence Write Coordination** mini-phase is implemented and locally verified at **300/300**. Its implementation commit and a separate governance/docs commit are local only; hashes are reported in the handoff. No network fetch or push was performed; `main` is untouched.
+- Product Phase 3 is **manually accepted and closed**. The **Persistence Write Coordination** mini-phase is implemented and verified at **300/300**. The **1.0 Scope Freeze** (2026-09-24) is a docs-only checkpoint — no implementation code changed, so the 300/300 baseline stands unchanged. Implementation, write-coordination, and freeze commits are local only; `main` is untouched and nothing is pushed.
 - Python V1 is a Frozen Reference. Active product work is in `DropSort_WinUI3`.
 
 ## Completed and accepted
@@ -15,6 +15,7 @@ Last updated: 2026-09-24
 - Product Phase 2 — TMDB Search & Matching Quality: completed at `b158f9d` and manually accepted per the project checkpoint instruction.
 - Product Phase 3 — Home Artwork + Real Watch History (incl. reliability closure): real Movie/TV watch events, episode watched state, Continue Watching progression, cached Home artwork, durable watch history, and — from the closure pass — migration v9 drift reconciliation, `DatabaseWriteGate` write coordination, Clear History / `DeleteWatchEvent` fixes, and logical-media Recently Watched (repeated movie → one card; TV episodes/seasons → one show-level card) with raw `watch_events` preserved. Manually accepted 2026-09-24.
 - Persistence Write Coordination (mini-phase): one write-coordination contract for every writer to `library.db`; `FileOperationStore` and `SettingsRepository` now acquire `DatabaseWriteGate` like the catalog/personal/maintenance writers. Migration remains startup-exclusive. Verified 300/300.
+- 1.0 Scope Freeze (2026-09-24): the DropSort 1.0 boundary is frozen and adversarial-reviewed (Codex, verdict needs-attention). Included/stabilization-only/post-1.0/out-of-scope sets, release blockers, and golden journeys are recorded in `FUTURE_PLAN.md`; the adversarial findings and their ACCEPT/REJECT/DEFER reconciliation are in `PHASES.md` §11. No implementation code changed.
 
 ## Completed locally; manual acceptance pending
 
@@ -38,8 +39,8 @@ Ordered path to 1.0:
 
 1. **Phase 3 — Closed.**
 2. **Persistence Write Coordination — Done** (300/300; `FileOperationStore` + `SettingsRepository` now gated).
-3. **Freeze 1.0 Scope** — the next step (not started).
-4. Data / File Trust Pass.
+3. **Freeze 1.0 Scope — Done** (2026-09-24; adversarial-reviewed; scope + blockers + golden journeys in `FUTURE_PLAN.md`).
+4. **Data / File Trust Pass** — next step (not started). Now carries the promoted 1.0 release blockers: single-instance ownership; stable TV import identity (alias independent of display metadata); honest unsupported-TV classification; offline-vs-deleted drive availability; automatic verified pre-migration DB backup.
 5. Drive-Aware Availability Model.
 6. Early Backup Protection.
 7. Confirmed UX Corrective Pass.
@@ -50,7 +51,7 @@ Ordered path to 1.0:
 12. 0.9.x Preview.
 13. 1.0.
 
-Do not begin Freeze 1.0 Scope or any later step without an explicit Goal. Detailed scope, the write-coordination contract, and preserved future product priorities are in `FUTURE_PLAN.md`.
+Do not begin the Data / File Trust Pass or any later step without an explicit Goal. The 300/300 suite is backend evidence only; exact-artifact and installed-app verification remain hard release gates. Detailed scope, blockers, and preserved future product priorities are in `FUTURE_PLAN.md`.
 
 ## Current cautions
 

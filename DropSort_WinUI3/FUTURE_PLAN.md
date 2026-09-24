@@ -46,8 +46,8 @@ These contracts remain in force unless a later explicit Goal changes them.
 
 1. **Phase 3 — Closed** (manually accepted 2026-09-24).
 2. **Persistence Write Coordination — Done** (300/300; see the contract below).
-3. **Freeze 1.0 Scope** — next step (not started).
-4. Data / File Trust Pass.
+3. **Freeze 1.0 Scope — Done** (frozen 2026-09-24, adversarial-reviewed; see the freeze below).
+4. **Data / File Trust Pass** — next step (not started); now carries the promoted trust blockers.
 5. Drive-Aware Availability Model.
 6. Early Backup Protection.
 7. Confirmed UX Corrective Pass.
@@ -57,6 +57,36 @@ These contracts remain in force unless a later explicit Goal changes them.
 11. Clean-Machine / Installed-App Verification.
 12. 0.9.x Preview.
 13. 1.0.
+
+### DropSort 1.0 Scope Freeze (frozen 2026-09-24, adversarial-reviewed)
+
+**1.0 product definition.** DropSort 1.0 is a **local-first personal media library** that understands the user's real files, keeps logical media identity separate from physical file/path identity, and manages files safely. It is not a discovery/social/tracking product.
+
+**A. Included in 1.0 (implemented; must stay release-quality).** Local-first SQLite catalog; Add Media (selective mixed Movie/TV import; local registration independent of metadata); optional TMDB enrichment + poster cache + manual match; Library / Home / My Lists / Movie & TV details; real persistent watch history; Recently Watched logical-media semantics (repeated movie → one card; TV episodes/seasons → one show-level card); Continue Watching; Play ≠ Mark Watched; journaled safe filesystem organize (approved roots, no overwrite, verify-before-delete, recoverable failure); missing ≠ deleted logical media; Clear Library Data semantics; settings/personal-state; Operations Log; English/Arabic RTL; single write-coordination contract (`DatabaseWriteGate`).
+
+**B. Required stabilization before 1.0 (no new major features).** Data / File Trust Pass; narrow drive-aware availability; automatic pre-migration database backup; UX corrective pass; scale QA (~1K/5K/10K); installer + clean-machine + installed-app verification; Arabic/RTL release-quality pass.
+
+**C. Post-1.0 (recorded, must not block 1.0).** Library Health, Smart Relink Suggestions, richer Drive intelligence/analytics, Copy Intelligence, Local Subtitle Intelligence, Organize Templates, Portable Local Backup / Manifest.
+
+**D. Out of scope / avoid.** Discover expansion, ratings/reviews/social, analytics-heavy expansion, Letterboxd-style direction, large recommendation systems, and any generic media-tracking that does not depend on local filesystem intelligence.
+
+**Release blockers (must be resolved before 1.0).**
+1. **Single-instance ownership** — a second process running startup migration/recovery over the same `library.db` can mark an in-flight file operation Failed while the first process is mid-copy, leaving an orphan destination and journal/catalog divergence. **Verified unconditional:** the UI project ships **unpackaged** (`DropSort.UI.csproj` `<WindowsPackageType>None</WindowsPackageType>`), has no `Package.appxmanifest`, no `AppInstance.FindOrRegisterForKey`/`RedirectActivationTo`, and no custom `Main` — `App.OnLaunched` unconditionally creates a window. So single-instance is enforced in neither dev nor the release artifact, and MSIX is not in use (adopting it would still require explicit `AppInstance` redirect code). Enforce per-user/per-database OS-level instance ownership before migration/recovery. (Resolve in Data / File Trust Pass.)
+2. **Stable TV import identity** — **verified concrete, not merely fragile.** Episode import resolves the show by the filename-derived `sort_title` (`ImportService.RegisterEpisode` → `uow.TvShows.GetBySortTitle`). Metadata matching (`MetadataMatchingService.ApplyTvShowMetadataAsync`) rebuilds the show as `TvShowCatalogData(title: showMetadata.Title, provider, externalId, …)`, and `TvShow`/`TvShowCatalogData` derive `SortTitle = NormalizeTitle(Title)`, so `TvShowRepository.UpdateMetadata` overwrites both `title` **and** `sort_title` (and sets `provider`/`external_id`). No original filename alias is preserved anywhere. A later episode arriving under the original filename alias therefore misses `GetBySortTitle` and **creates a second show** (`sort_title` is UNIQUE, so the insert succeeds), splitting seasons/episodes/viewing state; matching that second show to the same provider identity then **violates `UNIQUE(provider, external_id)`** on `tv_shows`. Keep an immutable local import identity/alias independent of display metadata, and add the alias → match → next-episode regression before 1.0.
+3. **Honest unsupported-TV classification** — unrecognized TV filename forms (e.g. underscore-delimited, multi-episode ranges, absolute numbering, specials) currently fall through to Movie classification. Classify unsupported/ambiguous inputs as unresolved-TV-needing-review rather than silently registering them as movies.
+4. **Narrow drive-aware availability** — distinguish offline/unmounted storage from deleted media (do not present an unmounted drive's media as gone).
+5. **Automatic verified database backup** before migrations and risky maintenance, with a restore path.
+6. **Exact WinUI release artifact + installed-app verification** — the 300/300 suite is backend evidence only and does not exercise the WinUI project or installed app. Clean-machine install, first launch, upgrade, restart, Arabic/RTL, theme, filesystem recovery, repair/uninstall, and user-data preservation must be verified against the exact artifact built with Visual Studio MSBuild.
+
+**Non-blocking hardening (may wait).** The plain `dotnet build` MSB4062 PRI failure (Visual Studio MSBuild builds fine); `FileOperationStore` single-connection read/write isolation; broader drive analytics; performance micro-tuning below the scale budgets.
+
+**1.0 golden journeys (future release-verification matrix).** Create/open a library; add existing media safely; metadata match without losing local identity; movie details + real-file state; TV registration across seasons/episodes; watch history + Recently Watched (movie one-card, show-level TV card); organize a file safely; interrupted organize → recovery; file disappears (missing ≠ deleted); external/removable storage unavailable (offline ≠ deleted); relaunch/restart persistence; Clear personal history without corrupting unrelated state; automatic DB backup + restore before migration; install/upgrade/uninstall/reinstall lifecycle on a clean machine; Arabic/RTL + theme across the above.
+
+**Adversarial gate.** This freeze passed a Codex adversarial review (verdict: needs-attention). Accepted findings are folded into the release blockers above (single-instance ownership, TV import identity, honest unsupported-TV classification, narrow drive/backup criteria, backend-only test caveat, dedicated reviewable freeze commit). The dotnet MSB4062 failure was confirmed a non-blocker. Full findings and the Claude ACCEPT/REJECT/DEFER reconciliation are recorded in `PHASES.md` §11.
+
+**Assumptions still needing validation.** Supported Windows matrix; upgrade origin versions; installer technology (MSIX vs other) and whether it provides single-instance activation; rollback policy; concrete scale budgets; exact-artifact identity. These are release-planning inputs, not implementation work for the next phase.
+
+**Next implementation phase: Data / File Trust Pass** (not started) — carries release blockers 1–5 above plus the recorded residual risks. Do not begin without an explicit Goal.
 
 ### Persistence Write Coordination (Done — 2026-09-24)
 
