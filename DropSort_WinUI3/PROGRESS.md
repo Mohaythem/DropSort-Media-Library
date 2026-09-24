@@ -5,7 +5,7 @@ Last updated: 2026-09-24
 ## Current checkpoint
 
 - Branch: `codex`
-- Product Phase 3 is **manually accepted and closed**. The **Persistence Write Coordination** mini-phase is implemented and verified at **300/300**. The **1.0 Scope Freeze** (2026-09-24) is a docs-only checkpoint — no implementation code changed, so the 300/300 baseline stands unchanged. Implementation, write-coordination, and freeze commits are local only; `main` is untouched and nothing is pushed.
+- Product Phase 3 is **manually accepted and closed**. The **Persistence Write Coordination** mini-phase is implemented and verified at 300/300. The **1.0 Scope Freeze** (2026-09-24) is recorded. The **Data / File Trust Pass** is implemented, adversarial-reviewed, and verified at **323/323**; three 1.0 blockers are closed. All commits are local; `main` is untouched and nothing is pushed.
 - Python V1 is a Frozen Reference. Active product work is in `DropSort_WinUI3`.
 
 ## Completed and accepted
@@ -16,6 +16,7 @@ Last updated: 2026-09-24
 - Product Phase 3 — Home Artwork + Real Watch History (incl. reliability closure): real Movie/TV watch events, episode watched state, Continue Watching progression, cached Home artwork, durable watch history, and — from the closure pass — migration v9 drift reconciliation, `DatabaseWriteGate` write coordination, Clear History / `DeleteWatchEvent` fixes, and logical-media Recently Watched (repeated movie → one card; TV episodes/seasons → one show-level card) with raw `watch_events` preserved. Manually accepted 2026-09-24.
 - Persistence Write Coordination (mini-phase): one write-coordination contract for every writer to `library.db`; `FileOperationStore` and `SettingsRepository` now acquire `DatabaseWriteGate` like the catalog/personal/maintenance writers. Migration remains startup-exclusive. Verified 300/300.
 - 1.0 Scope Freeze (2026-09-24): the DropSort 1.0 boundary is frozen and adversarial-reviewed (Codex, verdict needs-attention). Included/stabilization-only/post-1.0/out-of-scope sets, release blockers, and golden journeys are recorded in `FUTURE_PLAN.md`; the adversarial findings and their ACCEPT/REJECT/DEFER reconciliation are in `PHASES.md` §11. No implementation code changed.
+- Data / File Trust Pass: single-instance ownership, stable TV import identity (migration 0010 `tv_show_aliases`), and honest TV filename classification. Adversarial-reviewed (Codex needs-attention); H1/H2/H3/M1 accepted and fixed, M2/M3 deferred as pre-existing. Verified 323/323. Details in `PHASES.md` §12.
 
 ## Completed locally; manual acceptance pending
 
@@ -23,13 +24,13 @@ Last updated: 2026-09-24
 
 ## Latest verification
 
-Fresh on 2026-09-24 from the Persistence Write Coordination source tree:
+Fresh on 2026-09-24 from the Data / File Trust Pass source tree:
 
-- Focused coordination/concurrency/recovery/file-operation run — **30 passed, 0 failed, 0 skipped**.
-- `dotnet test tests\DropSort.Tests\DropSort.Tests.csproj` — **300 passed, 0 failed, 0 skipped** (was 296 at Phase 3 closure; +4 `WriteCoordinationTests`).
-- `WriteCoordinationTests` prove: all writer kinds (catalog, personal, journal, settings) serialise under concurrency with no "database is locked"; a held catalog unit of work blocks a `FileOperationStore` write until released; the gate is released on the exception path; `CommitVerified` updates `media_files` under the gate without self-deadlock.
-- Phase 3 acceptance evidence (unchanged): Visual Studio MSBuild rebuild + manual GUI acceptance against a real upgraded (drifted v8 → v9) database.
-- Plain `dotnet build` of the WinUI project still fails with `MSB4062` (missing `Microsoft.Build.Packaging.Pri.Tasks.dll` on the .NET SDK path); no C# errors. Use Visual Studio MSBuild for the UI workflow — a confirmed tooling-path limitation, not a blocker.
+- `dotnet test tests\DropSort.Tests\DropSort.Tests.csproj` — **323 passed, 0 failed, 0 skipped** (was 300 at write-coordination closure; +23 across the trust-pass suites and prior mini-phase additions). One transient parallel flake occurred once in `ImportSelectedTests` construction; the isolated run passed 32/32 and the re-run passed 323/323.
+- Focused trust suites pass: `TvImportIdentityTests`, `TvClassificationTrustTests`, `LibraryInstanceGuardTests`, `SingleInstanceUxTests`.
+- Manual GUI acceptance passed: single-instance (a second launch shows one "already running" message and exits; no blank window; first instance keeps working; restart is normal) and TV classification. TV import identity is covered by automated regression by the owner's decision.
+- Codex adversarial review (needs-attention): H1/H2/H3/M1 accepted and fixed in-phase; M2/M3 deferred as pre-existing. See `PHASES.md` §12.
+- Plain `dotnet build` of the WinUI project still fails only at `MSB4062` (missing `Microsoft.Build.Packaging.Pri.Tasks.dll` on the .NET SDK path); no C# errors. Use Visual Studio MSBuild for the UI workflow — a confirmed tooling-path limitation, not a blocker.
 
 ## Next and remaining
 
@@ -38,11 +39,11 @@ Revised release direction (2026-09-24). Product identity is fixed: **Local-First
 Ordered path to 1.0:
 
 1. **Phase 3 — Closed.**
-2. **Persistence Write Coordination — Done** (300/300; `FileOperationStore` + `SettingsRepository` now gated).
-3. **Freeze 1.0 Scope — Done** (2026-09-24; adversarial-reviewed; scope + blockers + golden journeys in `FUTURE_PLAN.md`).
-4. **Data / File Trust Pass** — next step (not started). Now carries the promoted 1.0 release blockers: single-instance ownership; stable TV import identity (alias independent of display metadata); honest unsupported-TV classification; offline-vs-deleted drive availability; automatic verified pre-migration DB backup.
-5. Drive-Aware Availability Model.
-6. Early Backup Protection.
+2. **Persistence Write Coordination — Done** (300/300).
+3. **Freeze 1.0 Scope — Done** (2026-09-24; adversarial-reviewed).
+4. **Data / File Trust Pass — Done** (323/323; adversarial-reviewed; single-instance, TV identity, honest TV classification).
+5. **Drive-Aware Availability Model** — next step (not started). Distinguish offline/unmounted storage from deleted media. 1.0 blocker.
+6. **Early Backup Protection** — 1.0 blocker. Automatic verified DB backup before migrations/risky maintenance.
 7. Confirmed UX Corrective Pass.
 8. Golden Journeys + Scale QA.
 9. Release Candidate.
@@ -51,7 +52,7 @@ Ordered path to 1.0:
 12. 0.9.x Preview.
 13. 1.0.
 
-Do not begin the Data / File Trust Pass or any later step without an explicit Goal. The 300/300 suite is backend evidence only; exact-artifact and installed-app verification remain hard release gates. Detailed scope, blockers, and preserved future product priorities are in `FUTURE_PLAN.md`.
+Do not begin the Drive-Aware Availability Model or any later step without an explicit Goal. Two 1.0 blockers remain open (offline-vs-deleted availability; automatic pre-migration backup). The 300/300-then-323/323 backend suite is backend evidence only; exact-artifact and installed-app verification remain hard release gates. Details are in `FUTURE_PLAN.md`.
 
 ## Current cautions
 

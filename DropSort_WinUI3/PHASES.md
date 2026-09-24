@@ -162,8 +162,31 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 
 **Verification.** Docs-only phase: no implementation code changed, so the accepted **300/300** backend baseline stands unchanged (not re-run for a docs edit). `git diff` confirms only `FUTURE_PLAN.md`, `PROGRESS.md`, and `PHASES.md` changed in this checkpoint.
 
+## 12. Data / File Trust Pass (adversarial-reviewed)
+
+**Purpose.** Fix confirmed trust defects that can corrupt identity, journal state, or catalog truth. No product features. Migration 0010 is a new forward script; no released migration was edited.
+
+**Trust guarantees now enforced.**
+- One process owns a library. `LibraryInstanceGuard` takes an exclusive OS lock on a `<db>.dropsort-lock` sibling file before any window and before `Migrate()`/recovery. A second process does not migrate, recover, or open `library.db`, and opens no window (it shows one "already running" message and exits). Ownership is released last at shutdown, after DB handles are disposed and the connection pool is cleared.
+- TV import identity is stable across metadata matching. Migration 0010 adds `tv_show_aliases`. Import resolves the show by an immutable filename-derived alias, so a later episode under the original filename stays under one logical show. No duplicate show is created, and no `UNIQUE(provider, external_id)` conflict occurs. Re-importing the same file after a metadata rename is recognized as already registered (compared by show identity, not by the rewritten sort_title).
+- TV-like filenames are classified honestly. Single `SxxExx` resolves across dot, underscore, space, and dash separators. Multi-episode and range forms (`S01E01E02`, `S01E01-E03`, `S01E01_S01E02`, `S01E01-03`, `1x01x02`) classify as `TvEpisodeUnsupported` (review), never as a movie or one arbitrary episode. A resolution tag such as `1x01-1080p` stays a single episode.
+
+**Blockers closed (from the 1.0 freeze).** Single-instance ownership; stable TV import identity; honest unsupported-TV classification.
+
+**Adversarial gate (Codex).** Verdict **needs-attention**. Three High, two Medium, no Critical. Independently verified and reconciled:
+- **H1 shutdown releases ownership too early — ACCEPT, fixed.** The guard is now disposed last, after pools are cleared. The broader "await active background tasks at shutdown" concern is pre-existing and out of this phase; recorded.
+- **H2 same-file re-import fails after a metadata rename — ACCEPT, fixed.** The existing-file check now compares the show by alias-resolved identity. New regression added.
+- **H3 numeric ranges and repeated markers still registered as one episode — ACCEPT, fixed.** The multi-episode detector now covers `S01E01-03` and `S01E01_S01E02` (any separator). New cases added.
+- **M1 x-form range consumed a resolution suffix — ACCEPT, fixed.** A trailing boundary stops `1x01-1080p` matching as a range. Negative case added.
+- **M2 two distinct series whose filename titles normalize identically merge — DEFER.** Pre-existing under the `UNIQUE sort_title` contract; the alias mechanism does not worsen it. Needs a product decision on identity disambiguation.
+- **M3 provider-identity `UNIQUE(provider, external_id)` collision throws a raw error on metadata match — DEFER.** Pre-existing; the alias fix reduces the trigger frequency. Needs a metadata-merge/refusal design.
+
+**Verification.** Full backend suite **323 / 323** (0 failed, 0 skipped). One transient parallel flake occurred once in `ImportSelectedTests` construction; the isolated run passed 32/32 and the re-run passed 323/323. Focused trust suites (TV identity, TV classification, instance guard, single-instance UX) pass. `dotnet build` of the WinUI project fails only at the WinUI PRI task (`MSB4062`); no C# errors. Manual GUI acceptance passed for single-instance and TV classification; TV import identity is covered by automated regression by the owner's decision.
+
+**Remaining risks.** M2 and M3 are recorded, not fixed. The guard is in-process and lock-file based; NTFS honors the share mode, but a deleted lock file mid-session or a filesystem that ignores share modes would weaken it. No two-process automated test exists; manual acceptance covers it. The backend suite does not build or run the WinUI application.
+
 ## Current boundary
 
-Product Phase 3 is closed and manually accepted; Persistence Write Coordination is done (300/300); the **DropSort 1.0 scope is frozen** (2026-09-24) and adversarial-reviewed, with accepted findings folded into the release blockers in `FUTURE_PLAN.md`. Committed locally on `codex`; not pushed; `main` untouched. Major feature expansion is frozen until after 1.0.
+Product Phase 3 is closed and manually accepted. Persistence Write Coordination is done. The 1.0 scope is frozen. The **Data / File Trust Pass** is implemented, verified at **323/323**, and adversarial-reviewed; three 1.0 blockers are closed. Committed locally on `codex`; not pushed; `main` untouched.
 
-The next implementation phase is the **Data / File Trust Pass** (not started). It carries the promoted 1.0 blockers: single-instance ownership, stable TV import identity, honest unsupported-TV classification, offline-vs-deleted drive availability, and automatic verified pre-migration backup. Do not begin it without an explicit Goal.
+The next implementation phase is the **Drive-Aware Availability Model** (not started): distinguish offline/unmounted storage from deleted media. **Early Backup Protection** follows it. Both remain 1.0 blockers. Do not begin either without an explicit Goal.
