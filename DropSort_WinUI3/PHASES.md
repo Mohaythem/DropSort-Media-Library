@@ -205,8 +205,32 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 
 **Remaining risks.** M1 (UNC probe latency) and M2 (offline file still displayed as available) are recorded, not fixed. Drive-letter volume-identity (a different volume mounted at the same letter is "ready" but holds different content) is out of scope; it is a relink-identity concern for a later phase. No real removable-drive automated test exists.
 
+## 14. Early Backup Protection (adversarial-reviewed)
+
+**Purpose.** Protect the local database before a risky mutation and provide a verified recovery primitive. This is not the future Portable Backup / Manifest feature. No new user-facing workflow: the backup is silent and its failure surfaces through the existing initialization-error path.
+
+**Backup contract.** Automatic and pre-operation: a verified backup exists before the risky mutation begins. Consistent: taken with the SQLite online backup API (`SqliteConnection.BackupDatabase`), so committed WAL pages are captured, not a raw byte copy. Verified: opened read-only, `PRAGMA integrity_check` must return "ok" and the backup `user_version` must equal the source version. Fail closed: on any create/verify failure a partial file is removed and the caller aborts, leaving the database untouched. Local: backups live in `<dbDir>/backups`. Bounded retention: newest 5 kept, pruned only after the new backup verifies, never deleting the just-created backup, and a pruning failure never invalidates it.
+
+**Protected operations.** Forward schema migration of an existing database (`DatabaseMigrator.Migrate`, only when `user_version` > 0 and a migration is pending; a fresh database has no data and is not backed up). Clear Library Data (`MaintenanceRepository.ClearCatalog`). Classified BACKUP NOT REQUIRED: ordinary watch-history/metadata/settings/import writes and transactions. `ClearWatchHistory` is NEEDS EVIDENCE and deferred (a targeted single-table clear; the whole-library clear is the protected path).
+
+**Backup identity / naming.** `library.<UTCyyyyMMddTHHmmssfffZ>.v<sourceVersion>.<label>.<randomToken>.db`. The token makes same-millisecond collisions impossible; a `File.Exists` guard remains.
+
+**Restore contract (backend primitive; not wired into any user/startup path).** Accepts only a structurally sound DropSort database within the supported schema range (`user_version` 1..latest and the core `movies` table). Preserves the current database with a WAL-safe snapshot, stages the replacement, swaps it in with an atomic same-volume `File.Replace`, removes stale WAL/SHM sidecars (fatal on failure), verifies the result, and rolls back to the preserved copy on failure.
+
+**Adversarial gate (Codex).** Verdict **needs-attention**. Two Critical, one High, two Medium. Independently verified and reconciled:
+- **C1 pre-restore preservation omitted committed WAL — ACCEPT, fixed.** The current database is preserved with a `BackupDatabase` snapshot, and sidecar removal is fatal before any swap.
+- **C3 restore accepted any integrity-valid SQLite file — ACCEPT, fixed.** Restore now requires a supported DropSort schema version and the core table, before and after replacement.
+- **M1 millisecond naming collision — ACCEPT, fixed.** A random token was added.
+- **M2 no ClearCatalog backup test — ACCEPT, fixed.** Success and backup-failure tests were added.
+- **C2 restore is not fully crash-safe/journaled — PARTIAL / DEFER.** Atomicity was improved (staged temp + same-volume `File.Replace` + rollback from the preserved snapshot), but a fully journaled restore with startup reconciliation, together with the user-facing restore workflow, is a documented pre-1.0 release gate. The primitive is not wired into any user or startup path, so no user can trigger it today.
+- Codex privacy note — DEFER / DOCUMENT. Backups are a full copy of the library in a predictable local path. The app-data location is already per-user; an explicit owner-only ACL is a later hardening.
+
+**Verification.** Full backend suite **337 / 337** (0 failed, 0 skipped) across repeated runs. Test parallelization was disabled so the real-SQLite suite is deterministic (it previously produced intermittent parallel-contention failures). `dotnet build` of the WinUI project fails only at the WinUI PRI task (`MSB4062`); no C# errors. No manual GUI acceptance is required: the behavior is backend and deterministically covered.
+
+**Remaining risks.** The fully crash-safe journaled restore and the user-facing restore workflow (C2) are deferred to a pre-1.0 release gate. Backup-file privacy relies on the per-user app-data location. `ClearWatchHistory` is not backup-protected.
+
 ## Current boundary
 
-Product Phase 3 is closed and manually accepted. Persistence Write Coordination is done. The 1.0 scope is frozen. The Data / File Trust Pass closed three 1.0 blockers. The **Drive-Aware Availability Model** is implemented, verified at **329/329**, and adversarial-reviewed; the offline-vs-deleted blocker is closed. Committed locally on `codex`; not pushed; `main` untouched.
+Product Phase 3 is closed and manually accepted. Persistence Write Coordination, the Data / File Trust Pass, the Drive-Aware Availability Model, and **Early Backup Protection** are all done. Early Backup Protection is implemented, verified at **337/337**, and adversarial-reviewed; the last pre-1.0 trust blocker (automatic pre-migration backup) is closed. Committed locally on `codex`; not pushed; `main` untouched.
 
-The next implementation phase is **Early Backup Protection** (not started): an automatic verified database backup before migrations and risky maintenance. It is the last open pre-1.0 trust blocker. Do not begin it without an explicit Goal.
+The next implementation phase is the **Confirmed UX Corrective Pass** (not started): make the accepted UI accurately represent current backend truth (availability wording, Check Library reporting, startup/backup failure messages) without a redesign. Do not begin it without an explicit Goal.
