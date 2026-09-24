@@ -185,8 +185,28 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 
 **Remaining risks.** M2 and M3 are recorded, not fixed. The guard is in-process and lock-file based; NTFS honors the share mode, but a deleted lock file mid-session or a filesystem that ignores share modes would weaken it. No two-process automated test exists; manual acceptance covers it. The backend suite does not build or run the WinUI application.
 
+## 13. Drive-Aware Availability Model (adversarial-reviewed)
+
+**Purpose.** Stop DropSort treating media on temporarily unavailable storage as deleted. No schema change: the new state is transient and is not persisted.
+
+**Availability contract.** `AvailabilityInspectionStatus` has four states. **Available/Present**: the storage root is reachable and the file exists. **StorageUnavailable**: the root is not reachable or not ready (disconnected/unmounted drive). Not deleted; no path rewrite, no delete, no relink pressure. **Missing**: the root is reachable and the file is absent. The only true missing case. **Error**: access denied or another I/O condition; never collapsed into Missing. The model fails closed: if DropSort cannot prove a reachable root lacks the file, it does not claim the media was deleted.
+
+**Storage identity.** The smallest reliable Windows check: the path's root (`Path.GetPathRoot`). A drive-letter root uses `DriveInfo(root).IsReady`; a UNC root uses `Directory.Exists`. The inspector probes with `File.GetAttributes`, not `File.Exists`, so access-denied and I/O conditions are distinguished from true absence. No new persistent identity data was added.
+
+**Reconciliation safety.** `StorageUnavailable` does not `MarkMissing`, does not rewrite the last-known path, and creates no relink pressure (relink still requires status `Missing`). Availability is evaluated once per distinct root, so a disconnected drive with thousands of files is one probe and no per-file work. Reconnecting the storage restores `Present` on the next pass with no re-registration. `Error` and a late `StorageUnavailable` after a successful root probe are non-destructive. Watch history and personal state are untouched.
+
+**Adversarial gate (Codex).** Verdict **needs-attention**. One High, three Medium, no Critical. Independently verified and reconciled:
+- **H1 access-denied files could still be persisted as Missing — ACCEPT, fixed.** `Inspect` now probes with `File.GetAttributes` and returns `Error` for access/I/O conditions on a reachable root; only true not-found on a reachable root is `Missing`. A real-inspector test for parent-absent and directory-at-path was added.
+- **M1 offline UNC probing has no timeout — DEFER.** UNC is not a confirmed 1.0 storage surface; local removable drives use the fast `DriveInfo.IsReady`. The per-root cache limits any UNC stall to once per root. Add a bounded, cancellable probe if and when UNC becomes a supported surface.
+- **M2 an offline was-present file still shows as Present in the UI, and a completed check looks clean — DEFER to the Confirmed UX Corrective Pass.** No data loss and the hard "never falsely Missing" guarantee holds. Surfacing a transient "storage unavailable" signal (an unavailable-root count or a transient availability state) is a UI/reporting change; the user deferred UI work for this phase.
+- **M3 tests simulate the outcome rather than exercising it — PARTIAL.** Added real-inspector classification tests (present/missing/storage-unavailable, parent-absent, directory-at-path). The real removable-drive round trip is deferred to Golden Journeys / RC / clean-machine verification per the owner's decision.
+
+**Verification.** Full backend suite **329 / 329** (0 failed, 0 skipped). Focused availability and reconciliation suites pass. `dotnet build` of the WinUI project fails only at the WinUI PRI task (`MSB4062`); no C# errors. Manual external/removable-drive validation is **NOT APPLICABLE / NOT MANUALLY VERIFIED ON THIS MACHINE**; real removable-drive runtime verification is preserved for the Golden Journeys / RC / clean-machine stage.
+
+**Remaining risks.** M1 (UNC probe latency) and M2 (offline file still displayed as available) are recorded, not fixed. Drive-letter volume-identity (a different volume mounted at the same letter is "ready" but holds different content) is out of scope; it is a relink-identity concern for a later phase. No real removable-drive automated test exists.
+
 ## Current boundary
 
-Product Phase 3 is closed and manually accepted. Persistence Write Coordination is done. The 1.0 scope is frozen. The **Data / File Trust Pass** is implemented, verified at **323/323**, and adversarial-reviewed; three 1.0 blockers are closed. Committed locally on `codex`; not pushed; `main` untouched.
+Product Phase 3 is closed and manually accepted. Persistence Write Coordination is done. The 1.0 scope is frozen. The Data / File Trust Pass closed three 1.0 blockers. The **Drive-Aware Availability Model** is implemented, verified at **329/329**, and adversarial-reviewed; the offline-vs-deleted blocker is closed. Committed locally on `codex`; not pushed; `main` untouched.
 
-The next implementation phase is the **Drive-Aware Availability Model** (not started): distinguish offline/unmounted storage from deleted media. **Early Backup Protection** follows it. Both remain 1.0 blockers. Do not begin either without an explicit Goal.
+The next implementation phase is **Early Backup Protection** (not started): an automatic verified database backup before migrations and risky maintenance. It is the last open pre-1.0 trust blocker. Do not begin it without an explicit Goal.
