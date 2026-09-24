@@ -65,19 +65,22 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
             {
                 var parsed = Parse(file);
 
-                // An episode is a candidate only when the name yielded a show title and both numbers.
-                // Anything less stays skipped: the registration path refuses to guess, so discovery
-                // must not promise more than it actually read.
-                var classification = parsed.MediaType switch
-                {
-                    MediaType.Movie => DiscoveryClassification.MovieCandidate,
-                    MediaType.TvEpisode when parsed.SeasonNumber is not null
-                        && parsed.EpisodeNumber is not null
-                        && !string.IsNullOrWhiteSpace(parsed.Title)
-                        => DiscoveryClassification.TvEpisodeCandidate,
-                    MediaType.TvEpisode => DiscoveryClassification.TvEpisodeSkipped,
-                    _ => DiscoveryClassification.UnknownMedia
-                };
+                // A multi-episode or range marker is TV, but not a single episode the registration path
+                // can represent. It must be surfaced for review, never allowed to fall through to a movie
+                // (its name has no single SxxExx) or be registered as one arbitrary episode of the set.
+                var classification =
+                    MultiEpisodePattern().IsMatch(Path.GetFileNameWithoutExtension(file))
+                        ? DiscoveryClassification.TvEpisodeUnsupported
+                        : parsed.MediaType switch
+                        {
+                            MediaType.Movie => DiscoveryClassification.MovieCandidate,
+                            MediaType.TvEpisode when parsed.SeasonNumber is not null
+                                && parsed.EpisodeNumber is not null
+                                && !string.IsNullOrWhiteSpace(parsed.Title)
+                                => DiscoveryClassification.TvEpisodeCandidate,
+                            MediaType.TvEpisode => DiscoveryClassification.TvEpisodeSkipped,
+                            _ => DiscoveryClassification.UnknownMedia
+                        };
                 results.Add(new DiscoveredMedia(file, new FileInfo(file).Length, parsed, classification, null));
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
@@ -192,8 +195,23 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         return Regex.Replace(title, @"\s+", " ").Trim();
     }
 
-    [GeneratedRegex(@"(?i)\bS(?<season>\d{1,3})E(?<episode>\d{1,3})\b")]
+    // A single SxxExx marker, allowed to sit against ordinary separators (space, dot, underscore, dash)
+    // or a string edge but never against a letter or digit, so "Show_S01E02" resolves and "1920x1080"
+    // or a word containing the letters does not. A second episode token immediately after (S01E01E02)
+    // fails the trailing guard on purpose: that is a multi-episode file, handled separately.
+    [GeneratedRegex(@"(?i)(?<![A-Za-z0-9])S(?<season>\d{1,3})E(?<episode>\d{1,3})(?![A-Za-z0-9])")]
     private static partial Regex EpisodePattern();
+
+    /// <summary>
+    /// A multi-episode or episode-range marker the single-episode path cannot represent. It is detected
+    /// before single-episode parsing so the file is surfaced for review, never registered as a movie or
+    /// as one arbitrary episode of the set. Recognized forms, with dot, underscore, space or dash
+    /// separators: repeated episodes after one season (S01E01E02, S01E01-E03), two full markers
+    /// (S01E01_S01E02), a numeric range (S01E01-03), and the x-form (1x01x02, 1x01-1x03). The trailing
+    /// boundaries stop a resolution tag such as 1x01-1080p from being read as a range.
+    /// </summary>
+    [GeneratedRegex(@"(?i)(?:S\d{1,3}(?:[.\-_ ]*E\d{1,3}){2,}|S\d{1,3}E\d{1,3}[.\-_ ]*S\d{1,3}E\d{1,3}|S\d{1,3}E\d{1,3}\s*-\s*\d{1,3}(?![\dxp])|(?<![\dx])\d{1,3}x\d{1,3}(?:[x-]\d{1,3})+(?![\dxp]))")]
+    private static partial Regex MultiEpisodePattern();
 
     /// <summary>
     /// The "1x02" form. The x has to sit between digits with no digit or x on either side, so a

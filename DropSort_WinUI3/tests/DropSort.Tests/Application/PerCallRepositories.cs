@@ -119,6 +119,15 @@ internal sealed class PerCallTvShowRepository(ICatalogUnitOfWorkFactory factory)
     public DropSort.Domain.Library.Shows.TvShow? GetBySortTitle(string sortTitle) =>
         Read(shows => shows.GetBySortTitle(sortTitle));
 
+    public DropSort.Domain.Library.Shows.TvShow? GetByAlias(string aliasSortTitle) =>
+        Read(shows => shows.GetByAlias(aliasSortTitle));
+
+    public void RegisterAlias(int showId, string aliasSortTitle, DateTimeOffset now) => Write<object?>(shows =>
+    {
+        shows.RegisterAlias(showId, aliasSortTitle, now);
+        return null;
+    });
+
     public DropSort.Domain.Library.Shows.TvShow? GetByExternalId(string provider, string externalId) =>
         Read(shows => shows.GetByExternalId(provider, externalId));
 

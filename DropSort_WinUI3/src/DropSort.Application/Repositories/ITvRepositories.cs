@@ -15,6 +15,20 @@ public interface ITvShowRepository
     /// </summary>
     TvShow? GetBySortTitle(string sortTitle);
 
+    /// <summary>
+    /// The show that owns this local import alias (a filename-derived sort title recorded at import),
+    /// or null. Aliases are immutable local identity and are not changed by metadata matching, so an
+    /// episode arriving under the original filename still resolves to the same logical show after the
+    /// show's display title/sort_title were overwritten by a provider match.
+    /// </summary>
+    TvShow? GetByAlias(string aliasSortTitle);
+
+    /// <summary>
+    /// Records a local import alias for a show if that alias is not already present. Idempotent; a
+    /// blank or already-registered alias is a no-op.
+    /// </summary>
+    void RegisterAlias(int showId, string aliasSortTitle, DateTimeOffset now);
+
     TvShow? GetByExternalId(string provider, string externalId);
 
     IReadOnlyList<TvShow> ListAll();

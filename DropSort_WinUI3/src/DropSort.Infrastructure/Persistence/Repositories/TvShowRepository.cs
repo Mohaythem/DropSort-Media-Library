@@ -48,6 +48,43 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
         return ReadOne(command);
     }
 
+    public TvShow? GetByAlias(string aliasSortTitle)
+    {
+        var normalized = TvShowCatalogData.NormalizeTitle(aliasSortTitle);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        using var command = Command($"""
+            SELECT {Columns} FROM tv_shows
+             WHERE id = (SELECT show_id FROM tv_show_aliases WHERE alias_sort_title = $alias);
+            """);
+        command.Parameters.AddWithValue("$alias", normalized);
+        return ReadOne(command);
+    }
+
+    public void RegisterAlias(int showId, string aliasSortTitle, DateTimeOffset now)
+    {
+        var normalized = TvShowCatalogData.NormalizeTitle(aliasSortTitle);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        // Idempotent: an alias already claimed (by this show or, in the rare collision of two series
+        // sharing a normalized filename title, another) is left untouched rather than moved.
+        using var command = Command("""
+            INSERT INTO tv_show_aliases (show_id, alias_sort_title, created_at)
+            VALUES ($showId, $alias, $now)
+            ON CONFLICT(alias_sort_title) DO NOTHING;
+            """);
+        command.Parameters.AddWithValue("$showId", showId);
+        command.Parameters.AddWithValue("$alias", normalized);
+        command.Parameters.AddWithValue("$now", now.ToString("O"));
+        command.ExecuteNonQuery();
+    }
+
     public IReadOnlyList<TvShow> ListAll()
     {
         using var command = Command(

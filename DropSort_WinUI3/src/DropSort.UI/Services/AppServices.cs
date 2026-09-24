@@ -208,6 +208,13 @@ internal static class AppServices
     private static FileOperationStore? _operationStore;
     private static FileOperationCoordinator? _coordinator;
 
+    /// <summary>
+    /// The process-wide owner of this library database. It is taken before migration or recovery can
+    /// touch the file, so a second DropSort process cannot run the destructive startup path against the
+    /// same database. Held for the session and released in <see cref="Shutdown" />.
+    /// </summary>
+    private static LibraryInstanceGuard? _instanceGuard;
+
     /// <summary>When the last failed attempt happened, so a retry does not run on every property read.</summary>
     private static DateTimeOffset _lastFailure = DateTimeOffset.MinValue;
 
@@ -223,6 +230,26 @@ internal static class AppServices
     /// a failed attempt can never leave a partial stack behind.
     /// </para>
     /// </summary>
+    private static string LibraryConnectionString() => "Data Source=" + Path.Combine(DataFolder, "library.db");
+
+    /// <summary>
+    /// Claims process-wide ownership of the library before any window is shown. Returns false when
+    /// another DropSort process already owns it, so the caller can refuse to open a second, empty
+    /// window instead of building one that can never load data. Acquires the same guard
+    /// <see cref="Initialize" /> would, so a claimed instance initializes normally afterwards.
+    /// </summary>
+    public static bool TryClaimSingleInstance()
+    {
+        lock (Gate)
+        {
+            if (_closed) return false;
+            if (_instanceGuard is not null) return true;
+            Directory.CreateDirectory(DataFolder);
+            _instanceGuard = LibraryInstanceGuard.TryAcquire(LibraryConnectionString());
+            return _instanceGuard is not null;
+        }
+    }
+
     public static void Initialize()
     {
         lock (Gate)
@@ -238,7 +265,21 @@ internal static class AppServices
             try
             {
                 Directory.CreateDirectory(DataFolder);
-                var connectionString = "Data Source=" + Path.Combine(DataFolder, "library.db");
+                var connectionString = LibraryConnectionString();
+
+                // Become the single owner of this library before anything touches it. If another DropSort
+                // process already owns it, do not migrate or recover: a second recovery pass over the same
+                // journal can mark an in-flight file operation Failed while the first process is still
+                // copying. This is a throttled, non-final refusal; the next attempt succeeds once the
+                // other process releases the library.
+                _instanceGuard ??= LibraryInstanceGuard.TryAcquire(connectionString);
+                if (_instanceGuard is null)
+                {
+                    InitializationError = LocalizationService.Text("LibraryInUse");
+                    _lastFailure = DateTimeOffset.UtcNow;
+                    return;
+                }
+
                 new DatabaseMigrator(connectionString).Migrate();
 
                 var catalogFactory = new CatalogUnitOfWorkFactory(connectionString);
@@ -323,6 +364,12 @@ internal static class AppServices
             _initialized = false;
             InitializationError = "The application is shutting down.";
             DatabaseBootstrap.ReleasePooledConnections();
+
+            // Release library ownership last, after every database handle this process holds is closed
+            // and the connection pool is cleared. A second process must not be able to acquire the guard
+            // and start migration or recovery while this process still has open handles to library.db.
+            _instanceGuard?.Dispose();
+            _instanceGuard = null;
         }
     }
 

@@ -124,6 +124,14 @@ internal sealed class UnitOfWorkTvShowRepository(ICatalogUnitOfWorkFactory facto
 
     public TvShow? GetBySortTitle(string sortTitle) => Read(shows => shows.GetBySortTitle(sortTitle));
 
+    public TvShow? GetByAlias(string aliasSortTitle) => Read(shows => shows.GetByAlias(aliasSortTitle));
+
+    public void RegisterAlias(int showId, string aliasSortTitle, DateTimeOffset now) => Write<object?>(shows =>
+    {
+        shows.RegisterAlias(showId, aliasSortTitle, now);
+        return null;
+    });
+
     public TvShow? GetByExternalId(string provider, string externalId) =>
         Read(shows => shows.GetByExternalId(provider, externalId));
 

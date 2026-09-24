@@ -15,12 +15,26 @@ namespace DropSort.Tests.Application;
 internal sealed class FakeTvShowRepo : ITvShowRepository
 {
     private readonly List<TvShow> _shows = [];
+    private readonly Dictionary<string, int> _aliases = new(StringComparer.Ordinal);
     private int _nextId = 1;
 
     public TvShow? GetById(int id) => _shows.FirstOrDefault(show => show.Id == id);
 
     public TvShow? GetBySortTitle(string sortTitle) =>
         _shows.FirstOrDefault(show => string.Equals(show.SortTitle, sortTitle, StringComparison.Ordinal));
+
+    public TvShow? GetByAlias(string aliasSortTitle)
+    {
+        var normalized = TvShowCatalogData.NormalizeTitle(aliasSortTitle);
+        return _aliases.TryGetValue(normalized, out var showId) ? GetById(showId) : null;
+    }
+
+    public void RegisterAlias(int showId, string aliasSortTitle, DateTimeOffset now)
+    {
+        var normalized = TvShowCatalogData.NormalizeTitle(aliasSortTitle);
+        if (string.IsNullOrWhiteSpace(normalized)) return;
+        _aliases.TryAdd(normalized, showId);
+    }
 
     public TvShow? GetByExternalId(string provider, string externalId) => _shows.FirstOrDefault(show =>
         show.Data.Provider == provider && show.Data.ExternalId == externalId);

@@ -232,6 +232,7 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
     {
         DiscoveryClassification.MovieCandidate => LocalizationService.Text("Movie"),
         DiscoveryClassification.TvEpisodeCandidate => LocalizationService.Text("TvEpisode"),
+        DiscoveryClassification.TvEpisodeUnsupported => LocalizationService.Text("TvEpisodeUnsupported"),
         DiscoveryClassification.TvEpisodeSkipped => LocalizationService.Text("TvEpisode"),
         DiscoveryClassification.UnknownMedia => LocalizationService.Text("UnknownMedia"),
         _ => LocalizationService.Text("DiscoveryError"),

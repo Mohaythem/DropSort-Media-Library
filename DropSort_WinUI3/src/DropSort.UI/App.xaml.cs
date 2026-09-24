@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 
 namespace DropSort.UI;
@@ -14,9 +16,29 @@ public partial class App : Microsoft.UI.Xaml.Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
+        // Claim single-instance ownership before any window exists. A second DropSort process must not
+        // open a normal (empty) window it can never fill: the library is already owned, so migration,
+        // recovery and every database read are refused. Tell the user once and exit instead. This never
+        // weakens LibraryInstanceGuard - it acts on the same refusal, only earlier.
+        if (!AppServices.TryClaimSingleInstance())
+        {
+            _ = MessageBox(
+                IntPtr.Zero,
+                LocalizationService.Text("AlreadyRunningBody"),
+                LocalizationService.Text("AlreadyRunningTitle"),
+                MessageBoxOkIcon);
+            Environment.Exit(0);
+            return;
+        }
+
         _window = new MainWindow();
         _window.Activate();
     }
+
+    private const uint MessageBoxOkIcon = 0x00000040; // MB_OK | MB_ICONINFORMATION
+
+    [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode)]
+    private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
 
     /// <summary>
     /// XAML load failures surface as a stowed exception with no message in the event log, so the

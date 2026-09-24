@@ -942,9 +942,15 @@ public class ImportService : IImportUiActions
                 var ownerSeason = uow.TvSeasons.GetById(ownerEpisode.SeasonId)!;
                 var ownerShow = uow.TvShows.GetById(ownerSeason.ShowId)!;
 
+                // Compare the show by its immutable local identity, not by its display sort_title.
+                // Metadata matching rewrites sort_title, so a re-import of the same file must resolve the
+                // filename alias to the owning show id rather than string-match the (now canonical) title.
+                var aliasShow = uow.TvShows.GetByAlias(showData.SortTitle)
+                    ?? uow.TvShows.GetBySortTitle(showData.SortTitle);
                 var isSameEpisode = ownerSeason.Number == seasonNumber
                     && ownerEpisode.Number == episodeNumber
-                    && string.Equals(ownerShow.SortTitle, showData.SortTitle, StringComparison.Ordinal);
+                    && aliasShow is not null
+                    && aliasShow.Id == ownerShow.Id;
 
                 if (!isSameEpisode)
                 {
@@ -963,8 +969,18 @@ public class ImportService : IImportUiActions
             }
         }
 
-        var show = uow.TvShows.GetBySortTitle(showData.SortTitle)
-            ?? uow.TvShows.Create(showData, now);
+        // Resolve the logical show by its immutable local import alias first, then by the current
+        // sort_title (for shows created before aliases existed), and create it only when neither
+        // matches. The filename-derived alias is then recorded idempotently so a later provider match
+        // that rewrites title/sort_title cannot orphan the next episode arriving under this filename.
+        var show = uow.TvShows.GetByAlias(showData.SortTitle)
+            ?? uow.TvShows.GetBySortTitle(showData.SortTitle);
+        if (show is null)
+        {
+            show = uow.TvShows.Create(showData, now);
+        }
+
+        uow.TvShows.RegisterAlias(show.Id, showData.SortTitle, now);
 
         var season = uow.TvSeasons.GetByNumber(show.Id, seasonNumber)
             ?? uow.TvSeasons.Create(show.Id, seasonNumber, title: null, overview: null, now);

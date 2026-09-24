@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 9;
+    public const int LatestVersion = 10;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -423,6 +423,27 @@ public class DatabaseMigrator
             CREATE INDEX idx_watch_events_movie_watched ON watch_events(movie_id, julianday(watched_at), id);
             CREATE INDEX idx_watch_events_episode_watched ON watch_events(episode_id, julianday(watched_at), id);
             CREATE INDEX idx_watch_events_recent ON watch_events(julianday(watched_at) DESC, id DESC);
+        ",
+        // 0010_tv_show_import_aliases
+        // Stable local TV import identity. Episode import resolves a show by its filename-derived
+        // sort_title; metadata matching later overwrites title/sort_title with the provider's canonical
+        // values, so a later episode arriving under the original filename alias could no longer find the
+        // show and created a duplicate (and could then collide on tv_shows UNIQUE(provider, external_id)
+        // when matched). This table keeps the immutable local import aliases independent of display
+        // metadata. Existing shows are backfilled with their current sort_title so present resolvability
+        // survives the next metadata change; aliases already lost to an earlier overwrite cannot be
+        // recovered but no future import will split a show again.
+        @"
+            CREATE TABLE tv_show_aliases (
+                id INTEGER PRIMARY KEY,
+                show_id INTEGER NOT NULL REFERENCES tv_shows(id) ON DELETE CASCADE,
+                alias_sort_title TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(alias_sort_title)
+            );
+            CREATE INDEX idx_tv_show_aliases_show_id ON tv_show_aliases(show_id);
+            INSERT INTO tv_show_aliases (show_id, alias_sort_title, created_at)
+            SELECT id, sort_title, created_at FROM tv_shows;
         "
     };
 
@@ -481,7 +502,7 @@ public class DatabaseMigrator
         {
             "movies", "media_files", "metadata_cache", "file_operations", "watched_folders",
             "settings", "movie_personal_state", "watch_events",
-            "tv_shows", "tv_seasons", "tv_episodes", "episode_media_files"
+            "tv_shows", "tv_seasons", "tv_episodes", "episode_media_files", "tv_show_aliases"
         };
         var requiredIndexes = new[]
         {
@@ -489,7 +510,7 @@ public class DatabaseMigrator
             "idx_movie_personal_state_preference", "idx_movie_personal_state_watchlist",
             "idx_watch_events_movie_watched", "idx_watch_events_episode_watched", "idx_watch_events_recent",
             "idx_tv_shows_sort_title", "idx_tv_seasons_show_id", "idx_tv_episodes_season_id",
-            "idx_episode_media_files_episode_id"
+            "idx_episode_media_files_episode_id", "idx_tv_show_aliases_show_id"
         };
         foreach (var table in requiredTables) RequireSchemaObject(connection, "table", table);
         foreach (var index in requiredIndexes) RequireSchemaObject(connection, "index", index);

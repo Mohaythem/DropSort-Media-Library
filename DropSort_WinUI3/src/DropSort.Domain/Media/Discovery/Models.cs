@@ -18,6 +18,13 @@ public enum DiscoveryClassification
     /// show name left once the marker was removed. It is reported, never guessed at.
     /// </summary>
     TvEpisodeSkipped,
+
+    /// <summary>
+    /// A file whose name clearly names a TV episode but in a form the single-episode registration path
+    /// does not support - a multi-episode file or an episode range. It is surfaced for review instead of
+    /// being silently registered as a movie or as one arbitrary episode of the set.
+    /// </summary>
+    TvEpisodeUnsupported,
     UnknownMedia,
     Error
 }
