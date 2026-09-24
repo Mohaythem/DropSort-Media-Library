@@ -461,6 +461,15 @@ public class DatabaseMigrator
         if (currentVersion > MigrationScripts.Count)
             throw new InvalidOperationException($"Database schema version {currentVersion} is newer than this build.");
 
+        // Protect an existing database before a forward migration. A brand-new database (version 0) has
+        // no data to protect, so no backup is taken. If the required backup cannot be created or
+        // verified, this throws and no migration runs: the database is left untouched (fail closed).
+        if (currentVersion > 0 && currentVersion < targetVersion)
+        {
+            DatabaseSafetyBackup.CreateVerifiedBackup(
+                connection, _connectionString, currentVersion, $"migrate-to-v{targetVersion}");
+        }
+
         for (var i = currentVersion; i < targetVersion; i++)
         {
             var requiresForeignKeysOff = i is 4 or 7 or 8;

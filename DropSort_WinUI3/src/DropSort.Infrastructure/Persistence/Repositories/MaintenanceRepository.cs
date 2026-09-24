@@ -19,6 +19,12 @@ public class LibraryMaintenanceRepository : ILibraryMaintenanceRepository
         using var connection = SqliteConnections.Open(_connectionString);
         using var cmd = connection.CreateCommand();
 
+        // Clear Library Data removes the whole catalog, personal state, watch history and metadata. Take
+        // a verified safety backup first; if it cannot be created or verified, do not clear anything.
+        cmd.CommandText = "PRAGMA user_version;";
+        var schemaVersion = Convert.ToInt32(cmd.ExecuteScalar());
+        DatabaseSafetyBackup.CreateVerifiedBackup(connection, _connectionString, schemaVersion, "clear-catalog");
+
         using var tx = connection.BeginTransaction(deferred: false);
         
         cmd.Transaction = tx;
