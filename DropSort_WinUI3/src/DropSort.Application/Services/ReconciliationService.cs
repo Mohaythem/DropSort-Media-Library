@@ -36,11 +36,33 @@ public sealed class ReconciliationService : IReconciliationUiActions
         var checkedCount = 0;
         var missingCount = 0;
         var errors = 0;
+
+        // Evaluate storage availability once per distinct root, not once per file. A disconnected drive
+        // with thousands of files is then a single cheap probe, and no file on it is inspected or written.
+        var rootAvailable = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var file in files)
         {
             if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
-            var inspection = _inspector.Inspect(file.CurrentPath);
             checkedCount++;
+
+            var rootKey = StorageRootKey(file.CurrentPath);
+            if (!rootAvailable.TryGetValue(rootKey, out var available))
+            {
+                available = _inspector.IsStorageAvailable(file.CurrentPath);
+                rootAvailable[rootKey] = available;
+            }
+
+            if (!available)
+            {
+                // Storage unavailable: not deleted media. Do not mark missing and do not rewrite the
+                // path. The registration and its last-known state are preserved; reconnecting restores
+                // availability on the next pass without re-registration.
+                progress?.Invoke(new LibraryReconciliationProgress(checkedCount, missingCount, 0, errors, file.CurrentPath));
+                continue;
+            }
+
+            var inspection = _inspector.Inspect(file.CurrentPath);
             if (inspection.Status == AvailabilityInspectionStatus.Missing)
             {
                 missingCount++;
@@ -62,11 +84,27 @@ public sealed class ReconciliationService : IReconciliationUiActions
             }
             else
             {
+                // StorageUnavailable (a root that became unreachable between the batch probe and the
+                // per-file inspection) or Error. Both are non-destructive: leave the registration as is.
                 errors++;
             }
             progress?.Invoke(new LibraryReconciliationProgress(checkedCount, missingCount, 0, errors, file.CurrentPath));
         }
         return new LibraryReconciliationProgress(checkedCount, missingCount, 0, errors, null);
+    }
+
+    /// <summary>The storage root used to share one availability probe across every file on it.</summary>
+    private static string StorageRootKey(string path)
+    {
+        try
+        {
+            var root = Path.GetPathRoot(Path.GetFullPath(path));
+            return string.IsNullOrEmpty(root) ? path : root;
+        }
+        catch
+        {
+            return path;
+        }
     }
 
     public RelinkPreview PrepareMediaRelink(int mediaFileId, string candidatePath)

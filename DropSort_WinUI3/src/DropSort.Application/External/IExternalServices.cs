@@ -76,6 +76,15 @@ public interface IFileOperationCoordinator
 public interface IAvailabilityInspector
 {
     AvailabilityInspection Inspect(string path);
+
+    /// <summary>
+    /// Reports whether the storage root that holds <paramref name="path" /> is currently reachable and
+    /// ready (for example the drive is connected and mounted). It does not check the file itself.
+    /// Reconciliation calls this once per distinct root so it does not probe the drive for every file.
+    /// It fails closed: if availability cannot be proven, it returns false, so DropSort never treats a
+    /// file on an unprovable root as deleted.
+    /// </summary>
+    bool IsStorageAvailable(string path);
 }
 
 public interface IMediaDiscoveryService

@@ -76,6 +76,8 @@ public class UiFacingContractTests
             path,
             AvailabilityInspectionStatus.Present,
             new MediaFileIdentity(7, 0, 0, 0, 0));
+
+        public bool IsStorageAvailable(string path) => true;
     }
 
     private sealed class StubMediaFileRepository(IReadOnlyList<MediaFile> files) : IMediaFileRepository

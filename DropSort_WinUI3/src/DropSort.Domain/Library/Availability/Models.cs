@@ -6,6 +6,13 @@ public enum AvailabilityInspectionStatus
 {
     Present,
     Missing,
+
+    /// <summary>
+    /// The storage that holds the path is not currently reachable or ready (for example a disconnected
+    /// or unmounted drive). This is not a deleted or missing file. DropSort must not mark the media
+    /// missing or rewrite its path in this state.
+    /// </summary>
+    StorageUnavailable,
     Error
 }
 
