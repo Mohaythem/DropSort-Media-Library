@@ -46,15 +46,15 @@ Ordered path to 1.0:
 4. **Data / File Trust Pass — Done** (323/323; single-instance, TV identity, honest TV classification).
 5. **Drive-Aware Availability Model — Done** (329/329; StorageUnavailable vs Missing; non-destructive reconciliation). Offline-vs-deleted blocker closed.
 6. **Early Backup Protection — Done** (337/337; verified pre-migration and pre-clear backups; fail-closed; backend restore primitive). Last pre-1.0 trust blocker closed.
-7. **Confirmed UX Corrective Pass** — next step (not started). Make the accepted UI match current backend truth (availability wording, Check Library reporting, failure messages); no redesign. Carries the deferred "storage unavailable" UI signal (`PHASES.md` §13 M2).
+7. **Confirmed UX Corrective Pass — Done** (2026-09-25; 381/381). Schema advanced forward-only to **v13**. Real multiple custom lists with stable IDs; duplicate display names blocked on create/rename via .NET `OrdinalIgnoreCase` (handles accented non-ASCII case variants; SQLite `lower()` folds ASCII only); mixed Movie + TV custom lists (per-kind partial unique indexes; cascades never delete media); `Add media` picker over existing library items; Movie/TV Details "Add to list" show custom lists only while Watchlist/Favorites stay independent; integrated Sort SplitButton (criterion + direction); shell navigation moved to `ItemInvoked` so Home works from a detail page; shell-wide `Esc` Back sharing `GoBack()` with the visible Back, root-page Esc left unhandled. Manually accepted. The adversarial Codex review was **partial** — Codex hit its external usage limit mid-run; its two surfaced candidates were reconciled (Unicode name folding = accepted and fixed here; "Date added" by id = deferred documented proxy) and an independent A–G review found no ship blocker. A preview installer was produced (see item 10 / `packaging/`).
 8. Golden Journeys + Scale QA. Carries real removable-drive runtime verification and the deferred user-facing restore workflow / crash-safe journaled restore (`PHASES.md` §14 C2).
 9. Release Candidate.
-10. Installer Lifecycle QA.
+10. **Installer Lifecycle QA — preview produced** (2026-09-25; `0.9.0-preview`). Per-user Inno Setup single Setup EXE (`artifacts/release/0.9.0-preview/DropSortSetup.exe`, unsigned) built from the self-contained Release build; fresh install, launch-from-installed-location, uninstall, reinstall and user-data preservation verified on this machine. Producing the installer does **not** declare 1.0: the deferred risks below remain open. Clean-machine verification and signing are still outstanding.
 11. Clean-Machine / Installed-App Verification.
 12. 0.9.x Preview.
 13. 1.0.
 
-Do not begin the Confirmed UX Corrective Pass or any later step without an explicit Goal. All pre-1.0 trust blockers are now closed; the remaining 1.0 release gate is exact-artifact / installed-app verification. The backend suite is backend evidence only. Details are in `FUTURE_PLAN.md`.
+Do not begin a later step without an explicit Goal. All pre-1.0 trust blockers are closed; remaining 1.0 gates are clean-machine/installed-app verification and code signing. The backend suite is backend evidence only. Details are in `FUTURE_PLAN.md`.
 
 ## Current cautions
 
