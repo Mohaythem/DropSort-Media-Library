@@ -28,7 +28,7 @@ public record UndoResult(FileOperationRecord Record);
 public record RecoveryAssessment(FileOperationRecord Record, RecoverySituation Situation, string? Details);
 public record RecoveryResult(FileOperationRecord Record, OperationState NewState);
 
-public record LibraryReconciliationProgress(int CheckedFiles, int MissingFiles, int RelinkedFiles, int Errors, string? CurrentPath);
+public record LibraryReconciliationProgress(int CheckedFiles, int MissingFiles, int RelinkedFiles, int Errors, string? CurrentPath, int StorageUnavailableFiles = 0);
 public record RelinkPreview(string PreviewId, int MediaFileId, string CandidatePath, bool MatchesIdentity);
 public record RelinkResult(MediaFile MediaFile, FileOperationRecord? MoveRecord);
 

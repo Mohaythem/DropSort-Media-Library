@@ -97,6 +97,7 @@ public sealed class DriveAwareAvailabilityTests : IDisposable
 
         Assert.Equal(3, progress.CheckedFiles);
         Assert.Equal(0, progress.MissingFiles);            // storage unavailable is never "missing"
+        Assert.Equal(3, progress.StorageUnavailableFiles); // reported honestly, so a check is not "clean"
         Assert.Equal(1, inspector.RootProbes[offline]);    // one probe shared across the three files
         foreach (var id in new[] { 1, 2, 3 })
         {

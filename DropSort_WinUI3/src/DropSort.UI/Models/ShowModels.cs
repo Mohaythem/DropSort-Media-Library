@@ -197,7 +197,8 @@ public sealed record EpisodeDisplayRecord(
     bool Watched,
     bool HasLocalFile,
     bool IsFileMissing,
-    EpisodeActionLabels Labels)
+    EpisodeActionLabels Labels,
+    bool StorageUnavailable = false)
 {
     /// <summary>
     /// The caution pill is for a registered file that is gone from disk. An episode that was never
@@ -205,6 +206,13 @@ public sealed record EpisodeDisplayRecord(
     /// </summary>
     public bool IsMissing => IsFileMissing;
     public bool CanMarkWatched => HasLocalFile && !Watched;
+
+    /// <summary>
+    /// File-open actions (Play, Open folder) are allowed only when the file is present and its storage
+    /// is reachable. A registered file on a disconnected drive stays PRESENT, so this also requires the
+    /// storage to be available. Mark Watched does not need the file and is not gated by this.
+    /// </summary>
+    public bool CanOpenFile => HasLocalFile && !StorageUnavailable;
 }
 
 /// <summary>Localized labels shared by every episode row, so templates never call the service.</summary>
@@ -214,7 +222,8 @@ public sealed record EpisodeActionLabels(
     string Missing,
     string Play,
     string OpenFolder,
-    string More);
+    string More,
+    string StorageUnavailable = "");
 
 public sealed record StatCardRecord(string Label, string Value);
 

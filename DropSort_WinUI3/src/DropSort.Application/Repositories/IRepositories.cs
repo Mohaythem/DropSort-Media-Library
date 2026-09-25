@@ -54,6 +54,47 @@ public interface IPersonalLibraryRepository
     WatchEvent DeleteWatchEvent(int eventId);
     IReadOnlyList<WatchEvent> GetWatchEvents(int movieId);
     IReadOnlyList<PersonalMovieSummary> ListMovies(PersonalLibrarySection section, int limit = 100, int offset = 0);
+
+    /// <summary>Every custom list, in creation order, each with its current member count (movies + shows).</summary>
+    IReadOnlyList<CustomListRecord> ListCustomLists();
+
+    /// <summary>
+    /// Creates a custom list and returns its stable id. Throws
+    /// <see cref="DropSort.Application.DuplicateCustomListNameException" /> when the trimmed name matches an
+    /// existing list case-insensitively.
+    /// </summary>
+    int CreateCustomList(string name, DateTimeOffset now);
+
+    /// <summary>
+    /// Renames a custom list. Identity and membership are unchanged. Throws
+    /// <see cref="DropSort.Application.DuplicateCustomListNameException" /> when another list already uses
+    /// the name.
+    /// </summary>
+    void RenameCustomList(int listId, string name, DateTimeOffset now);
+
+    /// <summary>Deletes a custom list and its membership rows. Media items and other lists are untouched.</summary>
+    void DeleteCustomList(int listId);
+
+    /// <summary>Adds a movie to a custom list. Idempotent: a movie already in the list is a no-op.</summary>
+    void AddMovieToCustomList(int listId, int movieId, DateTimeOffset now);
+
+    /// <summary>Removes a movie from a custom list. A movie not in the list is a no-op.</summary>
+    void RemoveMovieFromCustomList(int listId, int movieId);
+
+    /// <summary>The ids of the custom lists a movie currently belongs to.</summary>
+    IReadOnlySet<int> GetCustomListIdsForMovie(int movieId);
+
+    /// <summary>Adds a TV show to a custom list. Idempotent: a show already in the list is a no-op.</summary>
+    void AddShowToCustomList(int listId, int showId, DateTimeOffset now);
+
+    /// <summary>Removes a TV show from a custom list. A show not in the list is a no-op.</summary>
+    void RemoveShowFromCustomList(int listId, int showId);
+
+    /// <summary>The ids of the custom lists a TV show currently belongs to.</summary>
+    IReadOnlySet<int> GetCustomListIdsForShow(int showId);
+
+    /// <summary>The members of a custom list (movies and TV shows), newest membership first.</summary>
+    IReadOnlyList<CustomListMember> ListCustomListItems(int listId, int limit = 1000, int offset = 0);
 }
 
 public interface IWatchHistoryRepository

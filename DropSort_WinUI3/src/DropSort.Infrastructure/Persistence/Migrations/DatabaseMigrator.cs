@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 10;
+    public const int LatestVersion = 13;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -444,6 +444,122 @@ public class DatabaseMigrator
             CREATE INDEX idx_tv_show_aliases_show_id ON tv_show_aliases(show_id);
             INSERT INTO tv_show_aliases (show_id, alias_sort_title, created_at)
             SELECT id, sort_title, created_at FROM tv_shows;
+        ",
+        // 0011_custom_list_membership
+        // Makes the already-exposed custom list real: a movie can belong to a custom list. The list is
+        // identified by its stable slot key (the settings-stored custom list), not a catalog row, so
+        // renaming the list keeps its membership. A movie deleted from the catalog cascades out of every
+        // list; deleting a custom list removes only its rows here. Watchlist and Favorites are unchanged
+        // (they remain movie_personal_state).
+        @"
+            CREATE TABLE custom_list_movies (
+                id INTEGER PRIMARY KEY,
+                list_key TEXT NOT NULL,
+                movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+                added_at TEXT NOT NULL,
+                UNIQUE(list_key, movie_id)
+            );
+            CREATE INDEX idx_custom_list_movies_list ON custom_list_movies(list_key);
+        ",
+        // 0012_custom_list_definitions
+        // Promote custom lists from a single fixed settings slot to real, independently identified lists.
+        // Before this migration a custom list was only a display name in the UI settings row
+        // 'ui_custom_lists', and all membership shared one fixed key ('thrillers') in custom_list_movies,
+        // so only one list could ever hold movies. This migration makes each list a row in custom_lists
+        // with a stable id, and rekeys membership on that id in custom_list_members. The list name becomes
+        // display-only (a rename never changes identity or loses membership), and a movie can belong to
+        // any number of lists.
+        //
+        // Data preservation runs inside the same transaction as the backup-protected forward migration:
+        //   1. Every name stored in 'ui_custom_lists' (a JSON array in the settings table, which lives in
+        //      this same database) becomes one custom_lists row, in array order. Malformed settings JSON is
+        //      ignored (json_valid guard) so a bad settings value degrades to "no import" instead of failing
+        //      the migration.
+        //   2. If the previous single-slot membership had rows but no name was stored, one 'My List' row is
+        //      created so those movies are not lost.
+        //   3. The old fixed-slot ('thrillers') membership is moved onto the first list, preserving added_at.
+        // The obsolete custom_list_movies table is then dropped. The settings row is left untouched; the UI
+        // no longer reads it.
+        @"
+            PRAGMA defer_foreign_keys = ON;
+
+            CREATE TABLE custom_lists (
+                id INTEGER PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                CHECK (length(trim(display_name)) > 0)
+            );
+            CREATE INDEX idx_custom_lists_created ON custom_lists(created_at, id);
+
+            CREATE TABLE custom_list_members (
+                id INTEGER PRIMARY KEY,
+                list_id INTEGER NOT NULL REFERENCES custom_lists(id) ON DELETE CASCADE,
+                movie_id INTEGER NOT NULL REFERENCES movies(id) ON DELETE CASCADE,
+                added_at TEXT NOT NULL,
+                UNIQUE(list_id, movie_id)
+            );
+            CREATE INDEX idx_custom_list_members_list ON custom_list_members(list_id);
+            CREATE INDEX idx_custom_list_members_movie ON custom_list_members(movie_id);
+
+            INSERT INTO custom_lists (display_name, created_at)
+            SELECT trim(je.value), strftime('%Y-%m-%dT%H:%M:%fZ','now')
+              FROM settings s, json_each(s.value) je
+             WHERE s.key = 'ui_custom_lists'
+               AND json_valid(s.value)
+               AND json_type(s.value) = 'array'
+               AND je.type = 'text'
+               AND length(trim(je.value)) > 0
+             ORDER BY je.id;
+
+            INSERT INTO custom_lists (display_name, created_at)
+            SELECT 'My List', strftime('%Y-%m-%dT%H:%M:%fZ','now')
+             WHERE EXISTS (SELECT 1 FROM custom_list_movies)
+               AND NOT EXISTS (SELECT 1 FROM custom_lists);
+
+            INSERT INTO custom_list_members (list_id, movie_id, added_at)
+            SELECT (SELECT id FROM custom_lists ORDER BY id LIMIT 1), clm.movie_id, clm.added_at
+              FROM custom_list_movies clm
+             WHERE EXISTS (SELECT 1 FROM custom_lists);
+
+            DROP TABLE custom_list_movies;
+        ",
+        // 0013_custom_list_mixed_media
+        // Lets a custom list hold TV shows as well as movies. v12's custom_list_members kept a NOT NULL
+        // movie_id; this rebuilds it so a member is a movie OR a show, tagged by media_kind, with the two
+        // foreign keys mutually exclusive (a CHECK enforces exactly one). Existing v12 movie memberships
+        // are copied forward unchanged as MOVIE rows, preserving their ids and added_at. Per-kind
+        // uniqueness is enforced by two partial unique indexes (a plain UNIQUE over nullable columns would
+        // treat NULLs as distinct and let a show be added twice). Deleting a movie or a show still cascades
+        // its membership rows; deleting a list still cascades all of its rows.
+        @"
+            PRAGMA defer_foreign_keys = ON;
+
+            CREATE TABLE custom_list_members_mixed (
+                id INTEGER PRIMARY KEY,
+                list_id INTEGER NOT NULL REFERENCES custom_lists(id) ON DELETE CASCADE,
+                media_kind TEXT NOT NULL CHECK(media_kind IN ('MOVIE', 'SHOW')),
+                movie_id INTEGER REFERENCES movies(id) ON DELETE CASCADE,
+                show_id INTEGER REFERENCES tv_shows(id) ON DELETE CASCADE,
+                added_at TEXT NOT NULL,
+                CHECK (
+                    (media_kind = 'MOVIE' AND movie_id IS NOT NULL AND show_id IS NULL)
+                    OR (media_kind = 'SHOW' AND show_id IS NOT NULL AND movie_id IS NULL)
+                )
+            );
+
+            INSERT INTO custom_list_members_mixed (id, list_id, media_kind, movie_id, show_id, added_at)
+            SELECT id, list_id, 'MOVIE', movie_id, NULL, added_at FROM custom_list_members;
+
+            DROP TABLE custom_list_members;
+            ALTER TABLE custom_list_members_mixed RENAME TO custom_list_members;
+
+            CREATE INDEX idx_custom_list_members_list ON custom_list_members(list_id);
+            CREATE INDEX idx_custom_list_members_movie ON custom_list_members(movie_id);
+            CREATE INDEX idx_custom_list_members_show ON custom_list_members(show_id);
+            CREATE UNIQUE INDEX ux_custom_list_members_movie
+                ON custom_list_members(list_id, movie_id) WHERE movie_id IS NOT NULL;
+            CREATE UNIQUE INDEX ux_custom_list_members_show
+                ON custom_list_members(list_id, show_id) WHERE show_id IS NOT NULL;
         "
     };
 
@@ -511,7 +627,8 @@ public class DatabaseMigrator
         {
             "movies", "media_files", "metadata_cache", "file_operations", "watched_folders",
             "settings", "movie_personal_state", "watch_events",
-            "tv_shows", "tv_seasons", "tv_episodes", "episode_media_files", "tv_show_aliases"
+            "tv_shows", "tv_seasons", "tv_episodes", "episode_media_files", "tv_show_aliases",
+            "custom_lists", "custom_list_members"
         };
         var requiredIndexes = new[]
         {
@@ -519,7 +636,9 @@ public class DatabaseMigrator
             "idx_movie_personal_state_preference", "idx_movie_personal_state_watchlist",
             "idx_watch_events_movie_watched", "idx_watch_events_episode_watched", "idx_watch_events_recent",
             "idx_tv_shows_sort_title", "idx_tv_seasons_show_id", "idx_tv_episodes_season_id",
-            "idx_episode_media_files_episode_id", "idx_tv_show_aliases_show_id"
+            "idx_episode_media_files_episode_id", "idx_tv_show_aliases_show_id",
+            "idx_custom_lists_created", "idx_custom_list_members_list", "idx_custom_list_members_movie",
+            "idx_custom_list_members_show", "ux_custom_list_members_movie", "ux_custom_list_members_show"
         };
         foreach (var table in requiredTables) RequireSchemaObject(connection, "table", table);
         foreach (var index in requiredIndexes) RequireSchemaObject(connection, "index", index);

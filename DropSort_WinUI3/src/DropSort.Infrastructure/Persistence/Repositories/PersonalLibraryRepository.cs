@@ -218,6 +218,256 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         return result;
     }
 
+    public IReadOnlyList<CustomListRecord> ListCustomLists()
+    {
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var command = Command(connection, null, """
+            SELECT cl.id, cl.display_name, COUNT(m.id)
+              FROM custom_lists cl
+              LEFT JOIN custom_list_members m ON m.list_id = cl.id
+             GROUP BY cl.id, cl.display_name, cl.created_at
+             ORDER BY cl.created_at, cl.id;
+            """);
+        var result = new List<CustomListRecord>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            result.Add(new CustomListRecord(reader.GetInt32(0), reader.GetString(1), reader.GetInt32(2)));
+        return result;
+    }
+
+    public int CreateCustomList(string name, DateTimeOffset now)
+    {
+        var trimmed = ValidateListName(name);
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        RequireUniqueName(connection, transaction, trimmed, null);
+        using var command = Command(connection, transaction, """
+            INSERT INTO custom_lists (display_name, created_at) VALUES ($name, $now);
+            SELECT last_insert_rowid();
+            """);
+        command.Parameters.AddWithValue("$name", trimmed);
+        command.Parameters.AddWithValue("$now", now.ToString("O"));
+        var id = checked((int)(long)(command.ExecuteScalar() ?? throw new InvalidOperationException("List insert returned no ID.")));
+        transaction.Commit();
+        return id;
+    }
+
+    public void RenameCustomList(int listId, string name, DateTimeOffset now)
+    {
+        ValidateId(listId, nameof(listId));
+        var trimmed = ValidateListName(name);
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        RequireCustomList(connection, listId, transaction);
+        RequireUniqueName(connection, transaction, trimmed, listId);
+        using var command = Command(connection, transaction,
+            "UPDATE custom_lists SET display_name = $name WHERE id = $id;");
+        command.Parameters.AddWithValue("$name", trimmed);
+        command.Parameters.AddWithValue("$id", listId);
+        command.ExecuteNonQuery();
+        transaction.Commit();
+    }
+
+    public void DeleteCustomList(int listId)
+    {
+        ValidateId(listId, nameof(listId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
+        using var connection = SqliteConnections.Open(_connectionString);
+        // Membership rows cascade with the list (custom_list_members.list_id ... ON DELETE CASCADE).
+        using var command = Command(connection, null, "DELETE FROM custom_lists WHERE id = $id;");
+        command.Parameters.AddWithValue("$id", listId);
+        command.ExecuteNonQuery();
+    }
+
+    public void AddMovieToCustomList(int listId, int movieId, DateTimeOffset now)
+    {
+        ValidateId(listId, nameof(listId));
+        ValidateId(movieId, nameof(movieId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        RequireMovie(connection, movieId, transaction);
+        RequireCustomList(connection, listId, transaction);
+        // OR IGNORE makes the add idempotent against the per-list partial unique index on movie_id.
+        using var command = Command(connection, transaction, """
+            INSERT OR IGNORE INTO custom_list_members (list_id, media_kind, movie_id, added_at)
+            VALUES ($list, 'MOVIE', $movie, $now);
+            """);
+        command.Parameters.AddWithValue("$list", listId);
+        command.Parameters.AddWithValue("$movie", movieId);
+        command.Parameters.AddWithValue("$now", now.ToString("O"));
+        command.ExecuteNonQuery();
+        transaction.Commit();
+    }
+
+    public void RemoveMovieFromCustomList(int listId, int movieId)
+    {
+        ValidateId(listId, nameof(listId));
+        ValidateId(movieId, nameof(movieId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var command = Command(connection, null,
+            "DELETE FROM custom_list_members WHERE list_id = $list AND movie_id = $movie;");
+        command.Parameters.AddWithValue("$list", listId);
+        command.Parameters.AddWithValue("$movie", movieId);
+        command.ExecuteNonQuery();
+    }
+
+    public IReadOnlySet<int> GetCustomListIdsForMovie(int movieId)
+    {
+        ValidateId(movieId, nameof(movieId));
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var command = Command(connection, null,
+            "SELECT list_id FROM custom_list_members WHERE movie_id = $movie;");
+        command.Parameters.AddWithValue("$movie", movieId);
+        var ids = new HashSet<int>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) ids.Add(reader.GetInt32(0));
+        return ids;
+    }
+
+    public void AddShowToCustomList(int listId, int showId, DateTimeOffset now)
+    {
+        ValidateId(listId, nameof(listId));
+        ValidateId(showId, nameof(showId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        RequireShow(connection, showId, transaction);
+        RequireCustomList(connection, listId, transaction);
+        using var command = Command(connection, transaction, """
+            INSERT OR IGNORE INTO custom_list_members (list_id, media_kind, show_id, added_at)
+            VALUES ($list, 'SHOW', $show, $now);
+            """);
+        command.Parameters.AddWithValue("$list", listId);
+        command.Parameters.AddWithValue("$show", showId);
+        command.Parameters.AddWithValue("$now", now.ToString("O"));
+        command.ExecuteNonQuery();
+        transaction.Commit();
+    }
+
+    public void RemoveShowFromCustomList(int listId, int showId)
+    {
+        ValidateId(listId, nameof(listId));
+        ValidateId(showId, nameof(showId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var command = Command(connection, null,
+            "DELETE FROM custom_list_members WHERE list_id = $list AND show_id = $show;");
+        command.Parameters.AddWithValue("$list", listId);
+        command.Parameters.AddWithValue("$show", showId);
+        command.ExecuteNonQuery();
+    }
+
+    public IReadOnlySet<int> GetCustomListIdsForShow(int showId)
+    {
+        ValidateId(showId, nameof(showId));
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var command = Command(connection, null,
+            "SELECT list_id FROM custom_list_members WHERE show_id = $show;");
+        command.Parameters.AddWithValue("$show", showId);
+        var ids = new HashSet<int>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) ids.Add(reader.GetInt32(0));
+        return ids;
+    }
+
+    public IReadOnlyList<CustomListMember> ListCustomListItems(int listId, int limit = 1000, int offset = 0)
+    {
+        ValidateId(listId, nameof(listId));
+        if (limit <= 0) throw new ArgumentOutOfRangeException(nameof(limit));
+        if (offset < 0) throw new ArgumentOutOfRangeException(nameof(offset));
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT kind, id, title, year, poster, is_missing FROM (
+                SELECT 'MOVIE' AS kind, m.id AS id, m.title AS title, m.year AS year, m.poster_path AS poster,
+                       CASE WHEN EXISTS (SELECT 1 FROM media_files mf WHERE mf.movie_id = m.id AND mf.status = 'PRESENT')
+                            THEN 0 ELSE 1 END AS is_missing,
+                       clm.added_at AS added_at
+                  FROM custom_list_members clm
+                  JOIN movies m ON m.id = clm.movie_id
+                 WHERE clm.list_id = $list AND clm.media_kind = 'MOVIE'
+                UNION ALL
+                SELECT 'SHOW', s.id, s.title, s.year, s.poster_path,
+                       CASE WHEN EXISTS (
+                           SELECT 1 FROM episode_media_files emf
+                             JOIN media_files mf ON mf.id = emf.media_file_id
+                             JOIN tv_episodes e ON e.id = emf.episode_id
+                             JOIN tv_seasons se ON se.id = e.season_id
+                            WHERE se.show_id = s.id AND mf.status = 'PRESENT')
+                            THEN 0 ELSE 1 END,
+                       clm.added_at
+                  FROM custom_list_members clm
+                  JOIN tv_shows s ON s.id = clm.show_id
+                 WHERE clm.list_id = $list AND clm.media_kind = 'SHOW'
+            )
+             ORDER BY datetime(added_at) DESC, id DESC
+             LIMIT $limit OFFSET $offset;
+            """;
+        command.Parameters.AddWithValue("$list", listId);
+        command.Parameters.AddWithValue("$limit", limit);
+        command.Parameters.AddWithValue("$offset", offset);
+        var result = new List<CustomListMember>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            result.Add(new CustomListMember(
+                reader.GetString(0) == "SHOW" ? CustomListMediaKind.Show : CustomListMediaKind.Movie,
+                reader.GetInt32(1),
+                reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetInt32(3),
+                reader.IsDBNull(4) ? null : reader.GetString(4),
+                reader.GetInt32(5) != 0));
+        }
+        return result;
+    }
+
+    private static string ValidateListName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("A custom list name is required.", nameof(name));
+        return name.Trim();
+    }
+
+    /// <summary>
+    /// Rejects a display name that another custom list already uses. Identity stays the stable id; this
+    /// only keeps display names unambiguous. <paramref name="exceptListId" /> is the list being renamed
+    /// (excluded) or null when creating.
+    /// <para>
+    /// The comparison is done in .NET with <see cref="StringComparison.OrdinalIgnoreCase" /> after trimming,
+    /// not in SQL: SQLite's built-in lower()/upper() fold ASCII only, so two accented Latin names differing
+    /// only in case (for example "Épica" and "épica") would slip past a SQL comparison. OrdinalIgnoreCase is
+    /// culture-independent (no Turkish-I surprises) and folds the Unicode BMP case pairs this needs.
+    /// </para>
+    /// </summary>
+    private static void RequireUniqueName(SqliteConnection connection, SqliteTransaction? transaction, string trimmedName, int? exceptListId)
+    {
+        using var command = Command(connection, transaction, "SELECT id, display_name FROM custom_lists;");
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            if (exceptListId is int except && reader.GetInt32(0) == except) continue;
+            if (string.Equals(reader.GetString(1).Trim(), trimmedName, StringComparison.OrdinalIgnoreCase))
+                throw new DropSort.Application.DuplicateCustomListNameException(trimmedName);
+        }
+    }
+
+    private static void RequireShow(SqliteConnection connection, int showId, SqliteTransaction? transaction)
+    {
+        using var command = Command(connection, transaction, "SELECT 1 FROM tv_shows WHERE id = $show;");
+        command.Parameters.AddWithValue("$show", showId);
+        if (command.ExecuteScalar() is null) throw new KeyNotFoundException($"TV show {showId} was not found.");
+    }
+
+    private static void RequireCustomList(SqliteConnection connection, int listId, SqliteTransaction? transaction)
+    {
+        using var command = Command(connection, transaction, "SELECT 1 FROM custom_lists WHERE id = $id;");
+        command.Parameters.AddWithValue("$id", listId);
+        if (command.ExecuteScalar() is null) throw new KeyNotFoundException($"Custom list {listId} was not found.");
+    }
+
     public WatchHistoryEntry AddEpisodeWatchEvent(int episodeId, DateTimeOffset watchedAt, DateTimeOffset createdAt)
     {
         ValidateId(episodeId, nameof(episodeId));

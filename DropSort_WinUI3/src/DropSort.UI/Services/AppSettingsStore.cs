@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace DropSort.UI.Services;
 
 /// <summary>
@@ -15,7 +13,6 @@ internal static class AppSettingsStore
 {
     private const string MovieFolderKey = "ui_movie_folder";
     private const string ShowFolderKey = "ui_show_folder";
-    private const string CustomListsKey = "ui_custom_lists";
 
     /// <summary>The approved movies root: what Add Media scans and what Organize File moves into.</summary>
     public static string? MovieFolder
@@ -64,31 +61,6 @@ internal static class AppSettingsStore
         }
 
         return false;
-    }
-
-    /// <summary>The user's own lists on My Lists, in display order.</summary>
-    public static IReadOnlyList<string> CustomLists
-    {
-        get
-        {
-            var stored = Read(CustomListsKey);
-
-            if (string.IsNullOrWhiteSpace(stored))
-            {
-                return [];
-            }
-
-            try
-            {
-                return JsonSerializer.Deserialize<string[]>(stored) ?? [];
-            }
-            catch (JsonException)
-            {
-                return [];
-            }
-        }
-
-        set => Write(CustomListsKey, JsonSerializer.Serialize(value ?? []));
     }
 
     private static string? Read(string key)

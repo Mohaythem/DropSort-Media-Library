@@ -20,6 +20,13 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     private string _mediaType = "movies";
     private string _availability = "all";
     private string _sort = "added";
+
+    /// <summary>
+    /// The active sort direction. It is not a free-standing preference: changing the sort field resets it
+    /// to that field's natural default (newest first for Date added and Year, A-Z for Title), and the
+    /// direction button flips it until the field changes again.
+    /// </summary>
+    private bool _sortDescending = true;
     private string _query = string.Empty;
 
     /// <summary>The catalog rows for this visit, or null when they still have to be read.</summary>
@@ -98,6 +105,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
             "year" => LocalizationService.Text("Year"),
             _ => LocalizationService.Text("SortAdded"),
         };
+        UpdateSortDirectionVisuals();
 
         if (_state == LibraryViewState.Ready && !AppServices.IsAvailable)
         {
@@ -167,9 +175,17 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
 
         items = _sort switch
         {
-            "title" => items.OrderBy(movie => movie.Title, StringComparer.CurrentCultureIgnoreCase),
-            "year" => items.OrderByDescending(movie => movie.Year),
-            _ => items,
+            "title" => _sortDescending
+                ? items.OrderByDescending(movie => movie.Title, StringComparer.CurrentCultureIgnoreCase)
+                : items.OrderBy(movie => movie.Title, StringComparer.CurrentCultureIgnoreCase),
+            "year" => _sortDescending
+                ? items.OrderByDescending(movie => movie.Year)
+                : items.OrderBy(movie => movie.Year),
+            // "Date added": the catalog id is the monotonic registration order, so descending is newest
+            // first and ascending is oldest first.
+            _ => _sortDescending
+                ? items.OrderByDescending(movie => movie.Id)
+                : items.OrderBy(movie => movie.Id),
         };
 
         var result = items.ToArray();
@@ -246,9 +262,15 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
 
         items = _sort switch
         {
-            "title" => items.OrderBy(show => show.Title, StringComparer.CurrentCultureIgnoreCase),
-            "year" => items.OrderByDescending(show => show.Year),
-            _ => items,
+            "title" => _sortDescending
+                ? items.OrderByDescending(show => show.Title, StringComparer.CurrentCultureIgnoreCase)
+                : items.OrderBy(show => show.Title, StringComparer.CurrentCultureIgnoreCase),
+            "year" => _sortDescending
+                ? items.OrderByDescending(show => show.Year)
+                : items.OrderBy(show => show.Year),
+            _ => _sortDescending
+                ? items.OrderByDescending(show => show.Id)
+                : items.OrderBy(show => show.Id),
         };
 
         var result = items
@@ -317,8 +339,41 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         if (sender is RadioMenuFlyoutItem { Tag: string sort })
         {
             _sort = sort;
+            // Changing the field resets direction to that field's natural default: A-Z for Title,
+            // newest first for Date added and Year.
+            _sortDescending = DefaultDescendingFor(sort);
             Refresh();
         }
+    }
+
+    /// <summary>The natural starting direction for a sort field. Title reads A-Z; the rest read newest first.</summary>
+    private static bool DefaultDescendingFor(string sort) => sort != "title";
+
+    private void SortSplit_Click(SplitButton sender, SplitButtonClickEventArgs args)
+    {
+        // Pressing the split button's face reverses the current criterion's direction.
+        _sortDescending = !_sortDescending;
+        Refresh();
+    }
+
+    /// <summary>
+    /// Draws the sort control from state as one surface: the criterion label plus a direction chevron
+    /// (down for descending, up for ascending). The accessible name and tooltip state both the criterion
+    /// and the direction, so the arrow is not the only cue.
+    /// </summary>
+    private void UpdateSortDirectionVisuals()
+    {
+        SortDirectionGlyph.Glyph = _sortDescending ? "" : "";
+        var criterion = _sort switch
+        {
+            "title" => LocalizationService.Text("Title"),
+            "year" => LocalizationService.Text("Year"),
+            _ => LocalizationService.Text("SortAdded"),
+        };
+        var direction = LocalizationService.Text(_sortDescending ? "SortDescending" : "SortAscending");
+        var label = $"{criterion} · {direction}";
+        ToolTipService.SetToolTip(SortButton, label);
+        SortButton.SetValue(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty, label);
     }
 
     private void EmptyStateAction_Click(object sender, RoutedEventArgs e)

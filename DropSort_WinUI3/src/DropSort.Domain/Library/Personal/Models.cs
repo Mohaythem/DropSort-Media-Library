@@ -163,3 +163,30 @@ public record PersonalMovieSummary(
     bool Watchlisted,
     int WatchCount,
     DateTimeOffset? LastWatched);
+
+/// <summary>
+/// A user-created custom list. Identity is the stable <paramref name="Id" />; <paramref name="Name" /> is
+/// display-only, so a rename never changes identity or loses membership. <paramref name="ItemCount" /> is
+/// the number of members in the list, counting movies and TV shows together.
+/// </summary>
+public record CustomListRecord(int Id, string Name, int ItemCount);
+
+/// <summary>The kind of media a custom-list member is.</summary>
+public enum CustomListMediaKind
+{
+    Movie,
+    Show
+}
+
+/// <summary>
+/// One member of a custom list, movie or TV show, with just what a list card needs to render and to
+/// navigate. <paramref name="IsMissing" /> means no present local file (a movie with no present file, or a
+/// show with no present episode file).
+/// </summary>
+public record CustomListMember(
+    CustomListMediaKind Kind,
+    int Id,
+    string Title,
+    int? Year,
+    string? PosterReference,
+    bool IsMissing);

@@ -104,6 +104,55 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
         return _personal.ListMovies(section).Select(summary => MapToListItem(summary.Movie)).ToList();
     }
 
+    public IReadOnlyList<CustomList> ListCustomLists() =>
+        _personal.ListCustomLists().Select(list => new CustomList(list.Id, list.Name, list.ItemCount)).ToList();
+
+    public CustomList CreateCustomList(string name)
+    {
+        var id = _personal.CreateCustomList(name, _clock());
+        return new CustomList(id, name.Trim(), 0);
+    }
+
+    public void RenameCustomList(int listId, string name) => _personal.RenameCustomList(listId, name, _clock());
+
+    public void DeleteCustomList(int listId) => _personal.DeleteCustomList(listId);
+
+    public IReadOnlySet<int> AddMovieToCustomList(int listId, int movieId)
+    {
+        _personal.AddMovieToCustomList(listId, movieId, _clock());
+        return _personal.GetCustomListIdsForMovie(movieId);
+    }
+
+    public IReadOnlySet<int> RemoveMovieFromCustomList(int listId, int movieId)
+    {
+        _personal.RemoveMovieFromCustomList(listId, movieId);
+        return _personal.GetCustomListIdsForMovie(movieId);
+    }
+
+    public IReadOnlySet<int> GetCustomListIdsForMovie(int movieId) =>
+        _personal.GetCustomListIdsForMovie(movieId);
+
+    public IReadOnlySet<int> AddShowToCustomList(int listId, int showId)
+    {
+        _personal.AddShowToCustomList(listId, showId, _clock());
+        return _personal.GetCustomListIdsForShow(showId);
+    }
+
+    public IReadOnlySet<int> RemoveShowFromCustomList(int listId, int showId)
+    {
+        _personal.RemoveShowFromCustomList(listId, showId);
+        return _personal.GetCustomListIdsForShow(showId);
+    }
+
+    public IReadOnlySet<int> GetCustomListIdsForShow(int showId) =>
+        _personal.GetCustomListIdsForShow(showId);
+
+    public IReadOnlyList<CustomListItem> ListCustomListItems(int listId) =>
+        _personal.ListCustomListItems(listId)
+            .Select(member => new CustomListItem(
+                member.Kind, member.Id, member.Title, member.Year, member.PosterReference, member.IsMissing))
+            .ToList();
+
     private PersonalMovieSnapshot MapSnapshot(PersonalMovieState state) =>
         new PersonalMovieSnapshot(state.MovieId, state.Preference, state.IsWatchlisted, state.WatchCount, state.LastWatched);
 }

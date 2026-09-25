@@ -13,6 +13,25 @@ namespace DropSort.Application.Dto;
 
 public record MovieListItem(int Id, string Title, int? Year, string? PosterReference, bool IsMissing, bool HasPendingMetadata);
 
+/// <summary>
+/// A user-created custom list for the UI. Identity is the stable <paramref name="Id" />; the UI shows the
+/// <paramref name="Name" /> only and never the id. <paramref name="ItemCount" /> is the list's size,
+/// counting movies and TV shows together.
+/// </summary>
+public record CustomList(int Id, string Name, int ItemCount);
+
+/// <summary>
+/// One member of a custom list for the UI: a movie or a TV show, with what a card needs to render and the
+/// id to navigate. <paramref name="IsMissing" /> means no present local file.
+/// </summary>
+public record CustomListItem(
+    DropSort.Domain.Library.Personal.CustomListMediaKind Kind,
+    int Id,
+    string Title,
+    int? Year,
+    string? PosterReference,
+    bool IsMissing);
+
 public record MovieDetails(
     int Id, 
     string Title, 

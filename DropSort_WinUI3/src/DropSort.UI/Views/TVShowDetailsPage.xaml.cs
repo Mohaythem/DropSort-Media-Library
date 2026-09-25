@@ -98,6 +98,94 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
 
         SeasonsRepeater.ItemsSource = BuildSeasons(_show);
         UpdateMatchButtonVisuals();
+        ProbeEpisodeStorageAvailability(_show);
+    }
+
+    /// <summary>
+    /// Confirms off the UI thread which episode files sit on unreachable storage, probing each distinct
+    /// root once. Present files on an offline drive stay PRESENT in the catalog, so the rows are rebuilt
+    /// to show "storage unavailable" and to disable file-open actions (Mark Watched stays available). A
+    /// stale result for a show the page has navigated away from is ignored.
+    /// </summary>
+    private void ProbeEpisodeStorageAvailability(TVShowRecord show)
+    {
+        var paths = show.Seasons
+            .SelectMany(season => season.Episodes)
+            .Where(episode => episode.HasLocalFile && !string.IsNullOrWhiteSpace(episode.FilePath))
+            .Select(episode => episode.FilePath!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (paths.Length == 0) return;
+
+        var showId = show.Id;
+        _ = Task.Run(() =>
+        {
+            var unavailable = AppServices.UnavailableStoragePaths(paths);
+            if (unavailable.Count == 0) return;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_show.Id != showId) return;
+                SeasonsRepeater.ItemsSource = BuildSeasons(_show, unavailable);
+            });
+        });
+    }
+
+    /// <summary>
+    /// Builds the "Add to list" menu each time it opens, listing the user's custom lists only, each with a
+    /// check for this show's current membership. The list id is kept on the item and never shown. Toggling
+    /// adds or removes the show through the personal library by stable list id.
+    /// </summary>
+    private void AddToListFlyout_Opening(object sender, object e)
+    {
+        AddToListFlyout.Items.Clear();
+        if (_show.Id <= 0) return;
+
+        IReadOnlyList<DropSort.Application.Dto.CustomList> lists;
+        IReadOnlySet<int> memberIds;
+        try
+        {
+            lists = AppServices.Personal.ListCustomLists();
+            memberIds = AppServices.Personal.GetCustomListIdsForShow(_show.Id);
+        }
+        catch (Exception)
+        {
+            AddToListFlyout.Items.Add(new MenuFlyoutItem { Text = LocalizationService.Text("NoCustomLists"), IsEnabled = false });
+            return;
+        }
+
+        if (lists.Count == 0)
+        {
+            AddToListFlyout.Items.Add(new MenuFlyoutItem { Text = LocalizationService.Text("NoCustomLists"), IsEnabled = false });
+            return;
+        }
+
+        foreach (var list in lists)
+        {
+            var item = new ToggleMenuFlyoutItem { Text = list.Name, IsChecked = memberIds.Contains(list.Id), Tag = list.Id };
+            item.Click += ToggleCustomListFromMenu;
+            AddToListFlyout.Items.Add(item);
+        }
+    }
+
+    private void ToggleCustomListFromMenu(object sender, RoutedEventArgs e)
+    {
+        if (_show.Id <= 0 || sender is not ToggleMenuFlyoutItem { Tag: int listId }) return;
+        try
+        {
+            // Decide from stored membership, not the toggle's new visual state, so a stale menu is safe.
+            if (AppServices.Personal.GetCustomListIdsForShow(_show.Id).Contains(listId))
+            {
+                AppServices.Personal.RemoveShowFromCustomList(listId, _show.Id);
+            }
+            else
+            {
+                AppServices.Personal.AddShowToCustomList(listId, _show.Id);
+            }
+        }
+        catch (Exception error)
+        {
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+        }
     }
 
     private void UpdateBackLabel()
@@ -265,7 +353,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
     }
 
     /// <summary>The first season starts expanded, exactly like the design source.</summary>
-    private static IReadOnlyList<SeasonDisplayRecord> BuildSeasons(TVShowRecord show)
+    private static IReadOnlyList<SeasonDisplayRecord> BuildSeasons(TVShowRecord show, IReadOnlySet<string>? unavailablePaths = null)
     {
         var labels = new EpisodeActionLabels(
             LocalizationService.Text("Watched"),
@@ -273,7 +361,8 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
             LocalizationService.Text("Missing"),
             LocalizationService.Text("PlayEpisode"),
             LocalizationService.Text("OpenFolder"),
-            LocalizationService.Text("MoreOptions"));
+            LocalizationService.Text("MoreOptions"),
+            LocalizationService.Text("StorageUnavailable"));
 
         return
         [
@@ -297,7 +386,10 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
                         episode.Watched,
                         episode.HasLocalFile,
                         episode.IsFileMissing,
-                        labels)),
+                        labels,
+                        StorageUnavailable: episode.HasLocalFile
+                            && episode.FilePath is { Length: > 0 } path
+                            && unavailablePaths?.Contains(path) == true)),
                 ])),
         ];
     }

@@ -164,6 +164,23 @@
                                         <TextBlock x:Name="PlayText" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
+                                <DropDownButton
+                                    x:Name="AddToListButton"
+                                    Style="{StaticResource SubtleControlButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon
+                                            VerticalAlignment="Center"
+                                            FontSize="14"
+                                            Glyph="&#xE710;" />
+                                        <TextBlock x:Name="AddToListText" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout
+                                            x:Name="AddToListFlyout"
+                                            Opening="AddToListFlyout_Opening"
+                                            Placement="BottomEdgeAlignedLeft" />
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
                                 <Button
                                     x:Name="OpenFolderButton"
                                     Click="OpenFolderButton_Click"

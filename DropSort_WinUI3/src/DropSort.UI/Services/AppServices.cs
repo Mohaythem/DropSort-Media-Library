@@ -116,6 +116,61 @@ internal static class AppServices
     public static IReadOnlyList<MediaFile> MissingMediaFiles() => Require(_mediaFiles).ListMissing();
 
     /// <summary>
+    /// Whether the storage root that holds <paramref name="path" /> is currently reachable. A registered
+    /// file keeps its persisted PRESENT status while its drive is disconnected (the availability contract
+    /// never persists a false MISSING); the UI calls this off the UI thread to avoid presenting such a
+    /// file as affirmatively available. Returns true when the store is unavailable, so nothing is
+    /// downgraded before the library is ready.
+    /// </summary>
+    public static bool IsStorageAvailable(string path)
+    {
+        var inspector = _availabilityInspector;
+        return inspector is null || inspector.IsStorageAvailable(path);
+    }
+
+    /// <summary>
+    /// The subset of <paramref name="paths" /> whose storage root is currently unreachable. Availability
+    /// is probed once per distinct root, so many media files on one drive cost one probe. Safe to call
+    /// off the UI thread. Returns an empty set when the library is not ready, so nothing is downgraded
+    /// before startup completes. This is the shared availability-truth primitive for list surfaces.
+    /// </summary>
+    public static IReadOnlySet<string> UnavailableStoragePaths(IEnumerable<string> paths)
+    {
+        var unavailable = new HashSet<string>(StringComparer.Ordinal);
+        var inspector = _availabilityInspector;
+        if (inspector is null) return unavailable;
+
+        var rootAvailable = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        foreach (var path in paths)
+        {
+            if (string.IsNullOrWhiteSpace(path)) continue;
+            var root = StorageRootKey(path);
+            if (!rootAvailable.TryGetValue(root, out var available))
+            {
+                available = inspector.IsStorageAvailable(path);
+                rootAvailable[root] = available;
+            }
+
+            if (!available) unavailable.Add(path);
+        }
+
+        return unavailable;
+    }
+
+    private static string StorageRootKey(string path)
+    {
+        try
+        {
+            var root = System.IO.Path.GetPathRoot(System.IO.Path.GetFullPath(path));
+            return string.IsNullOrEmpty(root) ? path : root;
+        }
+        catch
+        {
+            return path;
+        }
+    }
+
+    /// <summary>
     /// The theme and language the user last chose, read back through the settings service so the shell
     /// starts where they left it. An unavailable store answers with the defaults.
     /// </summary>
@@ -195,6 +250,7 @@ internal static class AppServices
     private static TvLibraryService? _tv;
     private static SettingsRepository? _settingsRepository;
     private static IMediaFileRepository? _mediaFiles;
+    private static IAvailabilityInspector? _availabilityInspector;
     private static DiskPosterCache? _posterCache;
     private static TmdbClient? _tmdbClient;
     private static IMetadataProvider? _metadataProvider;
@@ -304,7 +360,8 @@ internal static class AppServices
                     tmdbClient,
                     new MediaDiscoveryService(),
                     matching: matching);
-                var reconciliation = new ReconciliationService(mediaFiles, new AvailabilityInspector(), movies);
+                var availabilityInspector = new AvailabilityInspector();
+                var reconciliation = new ReconciliationService(mediaFiles, availabilityInspector, movies);
                 var tv = new TvLibraryService(
                     new UnitOfWorkTvShowRepository(catalogFactory),
                     new UnitOfWorkTvSeasonRepository(catalogFactory),
@@ -315,6 +372,7 @@ internal static class AppServices
                 var organization = new OrganizationService(mediaFiles, coordinator);
 
                 _mediaFiles = mediaFiles;
+                _availabilityInspector = availabilityInspector;
                 _settingsRepository = settingsRepository;
                 _operationStore = operations;
                 _coordinator = coordinator;
@@ -387,6 +445,7 @@ internal static class AppServices
         _organization = null;
         _settingsRepository = null;
         _mediaFiles = null;
+        _availabilityInspector = null;
         _posterCache?.Dispose();
         _posterCache = null;
         _tmdbClient?.Dispose();

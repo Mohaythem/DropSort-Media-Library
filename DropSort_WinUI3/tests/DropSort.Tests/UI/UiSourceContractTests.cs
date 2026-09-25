@@ -664,7 +664,7 @@ public sealed class UiSourceContractTests
 
         Assert.Contains("if (_movies is not null)", library, StringComparison.Ordinal);
         Assert.Contains("_movies = null;", library, StringComparison.Ordinal);
-        Assert.Contains("_sectionMovies", lists, StringComparison.Ordinal);
+        Assert.Contains("_sectionItems", lists, StringComparison.Ordinal);
         Assert.Contains("private void Invalidate()", lists, StringComparison.Ordinal);
         Assert.Contains("_missing = MissingFiles();", check, StringComparison.Ordinal);
         Assert.DoesNotContain("foreach (var missing in MissingFiles())", check, StringComparison.Ordinal);

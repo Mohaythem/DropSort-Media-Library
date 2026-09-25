@@ -18,6 +18,17 @@
         SlateSurface), so it needs no code-resolved brush either.
     -->
     <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <!--
+            Esc is a shell-wide Back accelerator. It runs the same navigation as the visible Back
+            action (GoBack), so keyboard and pointer stay consistent. It only fires for Esc that
+            reaches the shell unhandled: an open dialog, flyout, menu or picker handles Esc itself, so
+            those keep their normal dismiss behavior and no page navigation is forced under them. On a
+            root page GoBack returns false, the accelerator leaves the key unhandled, and nothing closes
+            the window.
+        -->
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="Escape" Invoked="EscAccelerator_Invoked" />
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="48" />
             <RowDefinition Height="*" />
@@ -96,7 +107,7 @@
             IsTitleBarAutoPaddingEnabled="False"
             OpenPaneLength="272"
             PaneDisplayMode="Left"
-            SelectionChanged="ShellNavigation_SelectionChanged">
+            ItemInvoked="ShellNavigation_ItemInvoked">
 
             <NavigationView.Resources>
                 <!--

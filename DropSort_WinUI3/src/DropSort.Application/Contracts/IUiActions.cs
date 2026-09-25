@@ -34,6 +34,45 @@ public interface IPersonalLibraryUiActions
 
     PersonalMovieSnapshot RemoveWatchEvent(int eventId);
     IReadOnlyList<MovieListItem> ListPersonalMovies(PersonalLibrarySection section);
+
+    /// <summary>Every custom list, in creation order, each with its member count (movies + shows).</summary>
+    IReadOnlyList<CustomList> ListCustomLists();
+
+    /// <summary>
+    /// Creates a custom list and returns it (including its new stable id). Throws
+    /// <see cref="DuplicateCustomListNameException" /> when the trimmed name already exists (case-insensitive).
+    /// </summary>
+    CustomList CreateCustomList(string name);
+
+    /// <summary>
+    /// Renames a custom list. Identity and membership are unchanged. Throws
+    /// <see cref="DuplicateCustomListNameException" /> when another list already uses the name.
+    /// </summary>
+    void RenameCustomList(int listId, string name);
+
+    /// <summary>Deletes a custom list and its membership rows. Media items and other lists are untouched.</summary>
+    void DeleteCustomList(int listId);
+
+    /// <summary>Adds a movie to a custom list; idempotent. Returns the movie's list ids after.</summary>
+    IReadOnlySet<int> AddMovieToCustomList(int listId, int movieId);
+
+    /// <summary>Removes a movie from a custom list. Returns the movie's list ids after.</summary>
+    IReadOnlySet<int> RemoveMovieFromCustomList(int listId, int movieId);
+
+    /// <summary>The ids of the custom lists a movie belongs to (for showing membership in Movie Details).</summary>
+    IReadOnlySet<int> GetCustomListIdsForMovie(int movieId);
+
+    /// <summary>Adds a TV show to a custom list; idempotent. Returns the show's list ids after.</summary>
+    IReadOnlySet<int> AddShowToCustomList(int listId, int showId);
+
+    /// <summary>Removes a TV show from a custom list. Returns the show's list ids after.</summary>
+    IReadOnlySet<int> RemoveShowFromCustomList(int listId, int showId);
+
+    /// <summary>The ids of the custom lists a TV show belongs to (for showing membership in TV Details).</summary>
+    IReadOnlySet<int> GetCustomListIdsForShow(int showId);
+
+    /// <summary>The members of a custom list (movies and TV shows), newest membership first.</summary>
+    IReadOnlyList<CustomListItem> ListCustomListItems(int listId);
 }
 
 public interface IWatchHistoryUiActions

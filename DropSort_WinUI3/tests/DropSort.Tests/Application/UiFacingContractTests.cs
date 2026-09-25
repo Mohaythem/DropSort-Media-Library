@@ -194,5 +194,27 @@ public class UiFacingContractTests
             PersonalLibrarySection section,
             int limit = 100,
             int offset = 0) => [];
+
+        public void AddMovieToCustomList(int listId, int movieId, DateTimeOffset now) { }
+
+        public void RemoveMovieFromCustomList(int listId, int movieId) { }
+
+        public IReadOnlySet<int> GetCustomListIdsForMovie(int movieId) => new HashSet<int>();
+
+        public void AddShowToCustomList(int listId, int showId, DateTimeOffset now) { }
+
+        public void RemoveShowFromCustomList(int listId, int showId) { }
+
+        public IReadOnlySet<int> GetCustomListIdsForShow(int showId) => new HashSet<int>();
+
+        public IReadOnlyList<CustomListMember> ListCustomListItems(int listId, int limit = 1000, int offset = 0) => [];
+
+        public IReadOnlyList<CustomListRecord> ListCustomLists() => [];
+
+        public int CreateCustomList(string name, DateTimeOffset now) => 1;
+
+        public void RenameCustomList(int listId, string name, DateTimeOffset now) { }
+
+        public void DeleteCustomList(int listId) { }
     }
 }

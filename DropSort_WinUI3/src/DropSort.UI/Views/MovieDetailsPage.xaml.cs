@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using DropSort.Application.Contracts;
 using DropSort.Domain.Library.Personal;
 using DropSort.UI.Models;
@@ -33,6 +34,14 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
     /// <summary>True while a journalled move is running; the file actions stay locked until it ends.</summary>
     private bool _isOrganizing;
     private bool _isMatching;
+
+    /// <summary>
+    /// True when the registered file's storage root is currently unreachable. The row stays PRESENT in
+    /// the catalog (the availability contract never persists a false MISSING), so the page probes the
+    /// storage off the UI thread and, when it is offline, shows "storage unavailable" instead of
+    /// presenting the file as available and openable.
+    /// </summary>
+    private bool _storageUnavailable;
     private readonly PostHandoffRequestLifetime _metadataRequests = new();
     private readonly PostHandoffRequestLifetime _posterRequests = new();
 
@@ -94,6 +103,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         OverviewText.Visibility = hasOverview ? Visibility.Visible : Visibility.Collapsed;
 
         var hasFile = movie.HasLocalFile;
+        _storageUnavailable = false;
         FileNameText.Text = movie.FileName ?? string.Empty;
         FilePathText.Text = movie.FilePath ?? string.Empty;
         FileFactsText.Text = movie.FileFacts ?? string.Empty;
@@ -116,6 +126,32 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         MarkOnDateButton.IsEnabled = false;
         UpdatePosterVisuals();
         ApplyLocalization();
+        ProbeStorageAvailability(movie);
+    }
+
+    /// <summary>
+    /// Confirms off the UI thread whether the file's storage is reachable. When it is not, the page shows
+    /// "storage unavailable" and disables the actions that imply an openable file, rather than presenting
+    /// an offline-drive file as available. The catalog row is not changed. A stale result (the page moved
+    /// to another movie) is ignored.
+    /// </summary>
+    private void ProbeStorageAvailability(MovieRecord movie)
+    {
+        if (!movie.HasLocalFile || string.IsNullOrWhiteSpace(movie.FilePath)) return;
+        var path = movie.FilePath!;
+        _ = Task.Run(() =>
+        {
+            if (AppServices.IsStorageAvailable(path)) return;
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (!string.Equals(_movie.FilePath, path, StringComparison.Ordinal)) return;
+                _storageUnavailable = true;
+                PresentText.Text = LocalizationService.Text("StorageUnavailable");
+                PlayButton.IsEnabled = false;
+                OpenFolderButton.IsEnabled = false;
+                OrganizeButton.IsEnabled = false;
+            });
+        });
     }
 
     public void ApplyLocalization()
@@ -133,11 +169,12 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
 
         PlayText.Text = LocalizationService.Text("PlayMovie");
         OpenFolderText.Text = LocalizationService.Text("OpenFolder");
+        AddToListText.Text = LocalizationService.Text("AddToList");
         OrganizeText.Text = LocalizationService.Text("OrganizeFile");
         MoreButton.SetValue(AutomationProperties.NameProperty, LocalizationService.Text("FileDetails"));
         ToolTipService.SetToolTip(MoreButton, LocalizationService.Text("FileDetails"));
         FileDetailsTitleText.Text = LocalizationService.Text("MediaFile");
-        PresentText.Text = LocalizationService.Text("Present");
+        PresentText.Text = LocalizationService.Text(_storageUnavailable ? "StorageUnavailable" : "Present");
         NoFileText.Text = LocalizationService.Text("NoLocalFile");
         NoFileHelpText.Text = LocalizationService.Text("NoLocalFileHelp");
         OverviewTitleText.Text = LocalizationService.Text("Overview");
@@ -285,7 +322,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         OrganizeGlyph.Visibility = isOrganizing ? Visibility.Collapsed : Visibility.Visible;
         OrganizeText.Text = LocalizationService.Text(isOrganizing ? "Organizing" : "OrganizeFile");
 
-        var canAct = !isOrganizing && _movie.HasLocalFile;
+        var canAct = !isOrganizing && _movie.HasLocalFile && !_storageUnavailable;
         OrganizeButton.IsEnabled = canAct;
         PlayButton.IsEnabled = canAct;
         OpenFolderButton.IsEnabled = canAct;
@@ -387,6 +424,75 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         }
 
         UpdateWatchlistVisuals();
+    }
+
+    /// <summary>
+    /// Builds the "Add to list" menu each time it opens, so it reflects the current membership. It lists
+    /// the user's custom lists only (Watchlist and Favorites have their own controls and are not
+    /// duplicated here), each with a check for current membership. The list id is kept on the item and
+    /// never shown. Toggling persists through the personal library.
+    /// </summary>
+    private void AddToListFlyout_Opening(object sender, object e)
+    {
+        AddToListFlyout.Items.Clear();
+        if (_movie.Id <= 0) return;
+
+        IReadOnlyList<Application.Dto.CustomList> lists;
+        IReadOnlySet<int> memberIds;
+        try
+        {
+            lists = AppServices.Personal.ListCustomLists();
+            memberIds = AppServices.Personal.GetCustomListIdsForMovie(_movie.Id);
+        }
+        catch (Exception)
+        {
+            AddToListFlyout.Items.Add(DisabledItem(LocalizationService.Text("NoCustomLists")));
+            return;
+        }
+
+        if (lists.Count == 0)
+        {
+            AddToListFlyout.Items.Add(DisabledItem(LocalizationService.Text("NoCustomLists")));
+            return;
+        }
+
+        foreach (var list in lists)
+        {
+            var item = BuildListItem(list.Name, memberIds.Contains(list.Id), ToggleCustomListFromMenu);
+            item.Tag = list.Id;
+            AddToListFlyout.Items.Add(item);
+        }
+    }
+
+    private static MenuFlyoutItem DisabledItem(string text) => new() { Text = text, IsEnabled = false };
+
+    private static ToggleMenuFlyoutItem BuildListItem(string text, bool isChecked, RoutedEventHandler onClick)
+    {
+        var item = new ToggleMenuFlyoutItem { Text = text, IsChecked = isChecked };
+        item.Click += onClick;
+        return item;
+    }
+
+    private void ToggleCustomListFromMenu(object sender, RoutedEventArgs e)
+    {
+        if (_movie.Id <= 0 || sender is not ToggleMenuFlyoutItem { Tag: int listId }) return;
+        try
+        {
+            // Decide from the stored membership, not the toggle's new visual state, so a stale menu
+            // cannot double-add or wrongly remove.
+            if (AppServices.Personal.GetCustomListIdsForMovie(_movie.Id).Contains(listId))
+            {
+                AppServices.Personal.RemoveMovieFromCustomList(listId, _movie.Id);
+            }
+            else
+            {
+                AppServices.Personal.AddMovieToCustomList(listId, _movie.Id);
+            }
+        }
+        catch (Exception error)
+        {
+            ReportFailure(error);
+        }
     }
 
     private void MarkWatchedButton_Click(object sender, RoutedEventArgs e) => AddWatch(DateTimeOffset.Now);

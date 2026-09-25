@@ -144,10 +144,17 @@ public sealed record WatchHistoryDisplayRecord(WatchHistoryRecord Entry, string 
     public string Label => Entry.Label;
 }
 
-/// <summary>A movie rendered inside one of the My Lists collections.</summary>
+/// <summary>
+/// A media item rendered inside one of the My Lists collections. It is a movie or a TV show: system lists
+/// only ever hold movies, but a custom list can hold either, so the card exposes one set of
+/// poster/title/badge properties backed by whichever record it wraps.
+/// </summary>
 public sealed record ListMediaItem : INotifyPropertyChanged
 {
-    public MovieRecord Movie { get; }
+    public MovieRecord? Movie { get; }
+    public TVShowRecord? Show { get; }
+    private readonly ShowCardItem? _showCard;
+
     public bool ShowLocalBadge { get; }
     public bool IsLocal { get; }
     public string LocalBadgeText { get; }
@@ -164,21 +171,40 @@ public sealed record ListMediaItem : INotifyPropertyChanged
         ShowLocalBadge = showLocalBadge;
         IsLocal = isLocal;
         LocalBadgeText = localBadgeText;
-
-        Movie.PropertyChanged += (_, e) =>
-        {
-            if (e.PropertyName is nameof(MovieRecord.PosterSource) or nameof(MovieRecord.IsPosterMissing))
-            {
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(e.PropertyName));
-            }
-        };
+        movie.PropertyChanged += OnSourceChanged;
     }
 
-    public string Title => Movie.Title;
+    public ListMediaItem(
+        TVShowRecord show,
+        bool showLocalBadge,
+        bool isLocal,
+        string localBadgeText)
+    {
+        Show = show;
+        _showCard = new ShowCardItem(show, string.Empty);
+        ShowLocalBadge = showLocalBadge;
+        IsLocal = isLocal;
+        LocalBadgeText = localBadgeText;
+        _showCard.PropertyChanged += OnSourceChanged;
+    }
 
-    public ImageSource? PosterSource => Movie.PosterSource;
+    private void OnSourceChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is nameof(PosterSource) or nameof(IsPosterMissing))
+        {
+            PropertyChanged?.Invoke(this, e);
+        }
+    }
 
-    public bool IsPosterMissing => Movie.IsPosterMissing;
+    public bool IsShow => Show is not null;
+
+    public string Title => Movie?.Title ?? Show?.Title ?? string.Empty;
+
+    public int Year => Movie?.Year ?? Show?.Year ?? 0;
+
+    public ImageSource? PosterSource => Movie is not null ? Movie.PosterSource : _showCard?.PosterSource;
+
+    public bool IsPosterMissing => Movie is not null ? Movie.IsPosterMissing : (_showCard?.IsPosterMissing ?? true);
 
     public bool IsRemote => !IsLocal;
 

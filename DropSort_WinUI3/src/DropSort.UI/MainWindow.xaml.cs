@@ -6,6 +6,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using WinRT.Interop;
 
@@ -24,7 +25,6 @@ public sealed partial class MainWindow : Window
     private readonly TVShowDetailsPage _showDetailsPage = new();
     private string _detailsReturnDestination = "library";
     private AppWindow? _appWindow;
-    private bool _isNavigating;
     private Page? _currentPage;
 
     public MainWindow()
@@ -117,6 +117,7 @@ public sealed partial class MainWindow : Window
         _libraryPage.MovieSelected += OpenMovie;
         _libraryPage.ShowSelected += OpenShow;
         _myListsPage.MovieSelected += OpenMovie;
+        _myListsPage.ShowSelected += OpenShow;
         _movieDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
         _showDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
         _settingsPage.OperationsLogRequested += (_, _) => Navigate("operations");
@@ -165,11 +166,49 @@ public sealed partial class MainWindow : Window
         _ => "library",
     };
 
-    private void ShellNavigation_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    /// <summary>
+    /// Sidebar navigation is driven by ItemInvoked, not SelectionChanged: SelectionChanged does not fire
+    /// when the user clicks the item that is already selected, which is exactly the case when a detail
+    /// page keeps its origin section (Home / Library / My Lists) highlighted. ItemInvoked fires on every
+    /// click, so pressing Home from a movie or show always navigates to Home.
+    /// </summary>
+    private void ShellNavigation_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
     {
-        if (!_isNavigating && args.SelectedItemContainer?.Tag is string destination)
+        if (args.InvokedItemContainer?.Tag is string destination)
         {
             Navigate(destination);
+        }
+    }
+
+    /// <summary>
+    /// Esc is the keyboard Back. It runs the same navigation as the visible Back action for the current
+    /// inner page, and returns false on a root page so the key is left unhandled (the window never
+    /// closes on Esc). Transient controls (dialogs, flyouts, menus, pickers) handle Esc themselves and
+    /// this accelerator is not invoked while one of them owns the key.
+    /// </summary>
+    private void EscAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        args.Handled = GoBack();
+    }
+
+    /// <summary>
+    /// The single Back rule shared by the visible Back button and Esc: a detail page returns to the
+    /// section it was opened from, the operations log returns to Settings, and a root page has no back
+    /// destination (returns false).
+    /// </summary>
+    private bool GoBack()
+    {
+        switch (_currentPage)
+        {
+            case MovieDetailsPage:
+            case TVShowDetailsPage:
+                Navigate(_detailsReturnDestination);
+                return true;
+            case OperationsLogPage:
+                Navigate("settings");
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -224,9 +263,9 @@ public sealed partial class MainWindow : Window
             };
         }
 
-        _isNavigating = true;
+        // Keep the sidebar highlight in sync with the shown page. Setting SelectedItem
+        // programmatically does not raise ItemInvoked, so this never re-enters navigation.
         ShellNavigation.SelectedItem = selected;
-        _isNavigating = false;
 
         if (page is IActivatableView activatable)
         {

@@ -136,9 +136,8 @@
                                         <TextBlock x:Name="PlayNextText" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button
+                                <DropDownButton
                                     x:Name="AddToListButton"
-                                    IsEnabled="False"
                                     Style="{StaticResource SubtleControlButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <FontIcon
@@ -147,7 +146,13 @@
                                             Glyph="&#xE710;" />
                                         <TextBlock x:Name="AddToListText" VerticalAlignment="Center" />
                                     </StackPanel>
-                                </Button>
+                                    <DropDownButton.Flyout>
+                                        <MenuFlyout
+                                            x:Name="AddToListFlyout"
+                                            Opening="AddToListFlyout_Opening"
+                                            Placement="BottomEdgeAlignedLeft" />
+                                    </DropDownButton.Flyout>
+                                </DropDownButton>
                                 <Button
                                     x:Name="MatchButton"
                                     Click="MatchButton_Click"
@@ -357,6 +362,20 @@
                                                                             Text="{x:Bind Labels.Missing}" />
                                                                     </StackPanel>
                                                                 </Border>
+                                                                <Border Style="{StaticResource StatusPillStyle}" Visibility="{x:Bind StorageUnavailable}">
+                                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                                        <FontIcon
+                                                                            VerticalAlignment="Center"
+                                                                            FontSize="12"
+                                                                            Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                                            Glyph="&#xEA6A;" />
+                                                                        <TextBlock
+                                                                            VerticalAlignment="Center"
+                                                                            Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                                                                            Style="{StaticResource CaptionTextBlockStyle}"
+                                                                            Text="{x:Bind Labels.StorageUnavailable}" />
+                                                                    </StackPanel>
+                                                                </Border>
                                                             </StackPanel>
                                                             <StackPanel
                                                                 Grid.Column="3"
@@ -375,7 +394,7 @@
                                                                 <Button
                                                                     AutomationProperties.Name="{x:Bind Labels.Play}"
                                                                     Click="EpisodePlay_Click"
-                                                                    IsEnabled="{x:Bind HasLocalFile}"
+                                                                    IsEnabled="{x:Bind CanOpenFile}"
                                                                     Style="{StaticResource SubtleIconActionButtonStyle}"
                                                                     Tag="{x:Bind}"
                                                                     ToolTipService.ToolTip="{x:Bind Labels.Play}">
@@ -384,7 +403,7 @@
                                                                 <Button
                                                                     AutomationProperties.Name="{x:Bind Labels.OpenFolder}"
                                                                     Click="EpisodeOpenFolder_Click"
-                                                                    IsEnabled="{x:Bind HasLocalFile}"
+                                                                    IsEnabled="{x:Bind CanOpenFile}"
                                                                     Style="{StaticResource SubtleIconActionButtonStyle}"
                                                                     Tag="{x:Bind}"
                                                                     ToolTipService.ToolTip="{x:Bind Labels.OpenFolder}">

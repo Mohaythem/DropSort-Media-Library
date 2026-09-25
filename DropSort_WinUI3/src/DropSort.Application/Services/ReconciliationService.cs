@@ -36,6 +36,7 @@ public sealed class ReconciliationService : IReconciliationUiActions
         var checkedCount = 0;
         var missingCount = 0;
         var errors = 0;
+        var storageUnavailableCount = 0;
 
         // Evaluate storage availability once per distinct root, not once per file. A disconnected drive
         // with thousands of files is then a single cheap probe, and no file on it is inspected or written.
@@ -57,8 +58,10 @@ public sealed class ReconciliationService : IReconciliationUiActions
             {
                 // Storage unavailable: not deleted media. Do not mark missing and do not rewrite the
                 // path. The registration and its last-known state are preserved; reconnecting restores
-                // availability on the next pass without re-registration.
-                progress?.Invoke(new LibraryReconciliationProgress(checkedCount, missingCount, 0, errors, file.CurrentPath));
+                // availability on the next pass without re-registration. It is reported separately so a
+                // completed check never implies an offline drive's files are available.
+                storageUnavailableCount++;
+                progress?.Invoke(new LibraryReconciliationProgress(checkedCount, missingCount, 0, errors, file.CurrentPath, storageUnavailableCount));
                 continue;
             }
 
@@ -82,15 +85,19 @@ public sealed class ReconciliationService : IReconciliationUiActions
                         file.Source,
                         _clock()));
             }
+            else if (inspection.Status == AvailabilityInspectionStatus.StorageUnavailable)
+            {
+                // A root that became unreachable between the batch probe and the per-file inspection.
+                storageUnavailableCount++;
+            }
             else
             {
-                // StorageUnavailable (a root that became unreachable between the batch probe and the
-                // per-file inspection) or Error. Both are non-destructive: leave the registration as is.
+                // Error: inspection failed for an access/I/O reason. Non-destructive: leave the row as is.
                 errors++;
             }
-            progress?.Invoke(new LibraryReconciliationProgress(checkedCount, missingCount, 0, errors, file.CurrentPath));
+            progress?.Invoke(new LibraryReconciliationProgress(checkedCount, missingCount, 0, errors, file.CurrentPath, storageUnavailableCount));
         }
-        return new LibraryReconciliationProgress(checkedCount, missingCount, 0, errors, null);
+        return new LibraryReconciliationProgress(checkedCount, missingCount, 0, errors, null, storageUnavailableCount);
     }
 
     /// <summary>The storage root used to share one availability probe across every file on it.</summary>

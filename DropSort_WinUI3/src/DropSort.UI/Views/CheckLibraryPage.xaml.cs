@@ -124,14 +124,30 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         var passed = Math.Max(0, total - attention);
 
         SummaryHeadingText.Text = LocalizationService.Text("CheckComplete");
-        SummaryHelpText.Text = attention == 0
-            ? LocalizationService.Text("CheckHealthyHelp")
-            : LocalizationService.Format("CheckIssuesFormat", attention, total)
-                + " "
-                + LocalizationService.Format(
-                    "FilesCheckedFormat",
-                    result.FileProgress.CheckedFiles,
-                    result.FileProgress.MissingFiles);
+        // Storage that could not be reached is reported explicitly. A scan that skipped an unavailable
+        // root must never read as "everything is available".
+        var storageUnavailable = result.FileProgress.StorageUnavailableFiles;
+        string help;
+        if (attention == 0 && storageUnavailable == 0)
+        {
+            help = LocalizationService.Text("CheckHealthyHelp");
+        }
+        else
+        {
+            help = attention == 0
+                ? LocalizationService.Format(
+                    "FilesCheckedFormat", result.FileProgress.CheckedFiles, result.FileProgress.MissingFiles)
+                : LocalizationService.Format("CheckIssuesFormat", attention, total)
+                    + " "
+                    + LocalizationService.Format(
+                        "FilesCheckedFormat", result.FileProgress.CheckedFiles, result.FileProgress.MissingFiles);
+            if (storageUnavailable > 0)
+            {
+                help += " " + LocalizationService.Format("FilesStorageUnavailableFormat", storageUnavailable);
+            }
+        }
+
+        SummaryHelpText.Text = help;
         PassedValueText.Text = LocalizationService.Number(passed);
         AttentionValueText.Text = LocalizationService.Number(attention);
         TotalValueText.Text = LocalizationService.Number(total);
