@@ -50,7 +50,7 @@ internal static class Seed
             pExt.Value = "m" + i;
             pTitle.Value = i % 250 == 0 ? longTitle(i) : title(i);
             pYear.Value = 1970 + rng.Next(56);
-            pOv.Value = i % 5 == 0 ? "" : "Synthetic overview for QA item " + i;
+            pOv.Value = i % 5 == 0 ? DBNull.Value : (object)("Synthetic overview for QA item " + i); // NULL, never '' (domain: overview must be null or non-empty)
             pPoster.Value = i % 7 == 0 ? DBNull.Value : (object)("/qa/poster_" + (i % 400) + ".jpg"); // ~1/7 missing poster
             pDa.Value = Ts(added);
             pCa.Value = Ts(added);

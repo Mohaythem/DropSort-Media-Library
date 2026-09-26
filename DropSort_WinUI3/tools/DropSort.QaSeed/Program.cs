@@ -1,5 +1,8 @@
 using System.Globalization;
+using System.Linq;
+using DropSort.Application.Services;
 using DropSort.Infrastructure.Persistence.Migrations;
+using DropSort.Infrastructure.Persistence.Repositories;
 using DropSort.QaSeed;
 using Microsoft.Data.Sqlite;
 
@@ -19,6 +22,30 @@ if (args.Length >= 2 && args[0] == "verify")
     Console.WriteLine("bad_member_rows=" + Scalar("SELECT COUNT(*) FROM custom_list_members WHERE NOT ((media_kind='MOVIE' AND movie_id IS NOT NULL AND show_id IS NULL) OR (media_kind='SHOW' AND show_id IS NOT NULL AND movie_id IS NULL));"));
     Console.WriteLine("orphan_members=" + Scalar("SELECT COUNT(*) FROM custom_list_members m LEFT JOIN custom_lists l ON l.id=m.list_id WHERE l.id IS NULL;"));
     return 0;
+}
+
+// Runs the REAL catalog read path (same repositories/queries the app's LibraryService uses) against a QA DB.
+if (args.Length >= 2 && args[0] == "libcheck")
+{
+    var p = Path.GetFullPath(args[1]);
+    var lcs = "Data Source=" + p + ";Pooling=False";
+    var factory = new CatalogUnitOfWorkFactory(lcs);
+    var ok = true;
+    try
+    {
+        using var uow = factory.Begin();
+        var movies = uow.Movies.ListAll();
+        Console.WriteLine("Movies.ListAll=" + movies.Count);
+        foreach (var m in movies.Take(3)) Console.WriteLine("  movie #" + m.Id + " " + m.Title);
+        var shows = uow.TvShows.ListAll();
+        Console.WriteLine("TvShows.ListAll=" + shows.Count);
+        foreach (var s in shows.Take(3)) Console.WriteLine("  show #" + s.Id + " " + s.Title);
+        if (movies.Count == 0) { Console.WriteLine("FAIL: Movies.ListAll returned 0"); ok = false; }
+        if (shows.Count == 0) { Console.WriteLine("FAIL: TvShows.ListAll returned 0"); ok = false; }
+    }
+    catch (Exception ex) { Console.WriteLine("read path THREW: " + ex.GetType().Name + ": " + ex.Message); ok = false; }
+    Console.WriteLine(ok ? "libcheck=PASS" : "libcheck=FAIL");
+    return ok ? 0 : 1;
 }
 
 if (args.Length < 3)
