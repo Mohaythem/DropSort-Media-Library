@@ -61,8 +61,10 @@ internal static class AppServices
 
     private static string ResolveDataFolder()
     {
-#if DEBUG
-        // Explicit isolated smoke-test profile; never enabled in Release builds.
+        // Opt-in data-root override for QA, scale testing and support of the installed Release build.
+        // It is inert unless DROPSORT_TEST_DATA_ROOT is set to an absolute path, and it never changes the
+        // default per-user location. It lets an installed build run against an isolated, disposable data
+        // profile without touching the user's real %LOCALAPPDATA%\DropSort library.
         var testRoot = Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT");
         if (!string.IsNullOrWhiteSpace(testRoot))
         {
@@ -70,7 +72,7 @@ internal static class AppServices
                 throw new InvalidOperationException("The test data root must be an absolute path.");
             return Path.GetFullPath(testRoot);
         }
-#endif
+
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DropSort");
     }
 
