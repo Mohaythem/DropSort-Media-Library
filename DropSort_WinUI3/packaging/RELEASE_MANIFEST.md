@@ -9,9 +9,9 @@
 ## Artifact
 - **Filename:** `DropSortSetup.exe`
 - **Path:** `artifacts/release/0.9.0-preview/DropSortSetup.exe` (gitignored; not committed)
-- **Size:** 34,696,148 bytes (~33.1 MiB)
-- **SHA-256:** `A783B0DFC871E2DCE56F610D6CC8E669F0D322BC2DD7991334E525BAE002650D`
-- **Build date:** 2026-09-25
+- **Size:** 34,715,016 bytes (~33.1 MiB)
+- **SHA-256:** `4E87498A949A3C91E1AF12F4615CE661E93ED608768B93D272E0FC11FEE2FD9B`
+- **Build date:** 2026-09-25 (rebuilt after adding the opt-in `DROPSORT_TEST_DATA_ROOT` data-root override used for Golden Journeys + Scale QA; override is inert unless the env var is set)
 - **Signing:** **Unsigned.** No code-signing credentials were available. The installer is not signed and is not claimed to be signed; Windows SmartScreen reputation / Authenticode signing is a remaining release concern.
 
 ## Build
