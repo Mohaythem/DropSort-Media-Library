@@ -2,6 +2,36 @@
 
 Date: 2026-09-25 · Branch: `codex` · Installed build tested (not Debug).
 
+## Correction (2026-09-26): empty Library root cause + fix
+An earlier version of this report presented startup timing and raw DB integrity as scale evidence. That
+was **not** proof of a populated, Library-visible dataset. When the installed app was pointed at the
+seeded 10K root, the Library was **empty**.
+
+- **Root cause (Case B — data did not satisfy the read contract):** the QA seeder inserted `overview = ''`
+  (empty string) for ~1/5 of movies. The production read path maps every `movies` row through the `Movie`
+  domain type, which requires `overview` to be **null or non-empty**. `Movies.ListAll()` therefore threw
+  `ArgumentException: overview must be null or a non-empty string`; `LibraryService.ListMovies()` propagated
+  it and `LibraryPage` fell into its catch, so the grid showed nothing. Raw SQL counts were non-zero the
+  whole time — the rows existed but were not read-path-visible. Normal DropSort import stores NULL, never ''.
+- **Fix:** the seeder now inserts `NULL` (never `''`) for absent overview, matching real application data.
+  No production code changed. Schema stays v13.
+- **New verification:** `DropSort.QaSeed libcheck <db>` runs the real catalog read path
+  (`CatalogUnitOfWorkFactory` → `Movies.ListAll()` / `TvShows.ListAll()` — the same repositories/queries the
+  app's `LibraryService`/`TvLibraryService` use) and **fails (exit 1)** on a throw or zero rows.
+
+Read-path results after the fix (real production query + domain mapping):
+| Scale | Movies.ListAll | TvShows.ListAll | libcheck |
+|---|---|---|---|
+| 1K | 1000 | 120 | PASS |
+| 5K | 5000 | 600 | PASS |
+| 10K | 10000 | 1200 | PASS |
+
+Installed app relaunched at 1K and 10K after the fix: window shown, process alive (WorkingSet ~214 / ~246 MB).
+The three "Executed results" tables below (startup, memory, raw integrity) remain accurate for what they
+measure — **process startup against an isolated DB** and **raw DB integrity** — but only the read-path table
+above and the human GUI checklist constitute populated-Library evidence.
+
+
 ## Scope note (honest)
 This agent environment cannot drive or observe the WinUI GUI (scroll smoothness, felt search latency,
 artwork rendering, memory-under-scroll, click-through journeys). Per the agreed approach ("env-var data
