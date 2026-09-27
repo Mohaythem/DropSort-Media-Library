@@ -9,9 +9,9 @@
 ## Artifact
 - **Filename:** `DropSortSetup.exe`
 - **Path:** `artifacts/release/0.9.0-preview/DropSortSetup.exe` (gitignored; not committed)
-- **Size:** 34,722,663 bytes (~33.1 MiB)
-- **SHA-256:** `3166F0775A74BEB6C12DE3B2B971AADE627E707590AC3545F0B9FB519520B8DD`
-- **Build date:** 2026-09-26 (rebuilt after the grid full-width fix: card cell width matched to the card footprint so an extra column fills the previously wasted right region. Earlier preview builds are superseded.)
+- **Size:** 34,718,349 bytes (~33.11 MiB)
+- **SHA-256:** `D14B1F98A024B59A25D7D7506E580A48E46BB302FA695C96CE62F451F92CA430`
+- **Build date:** 2026-09-27 (rebuilt from the current accepted `codex` state at commit c36fac9 — no code change; clean Release Restore→Build, installer rebuilt and locally install/launch verified. Earlier preview builds are superseded.)
 - **Signing:** **Unsigned.** No code-signing credentials were available. The installer is not signed and is not claimed to be signed; Windows SmartScreen reputation / Authenticode signing is a remaining release concern.
 
 ## Build
