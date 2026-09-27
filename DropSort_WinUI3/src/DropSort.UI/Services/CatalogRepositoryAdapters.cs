@@ -82,6 +82,8 @@ internal sealed class UnitOfWorkMediaFileRepository(ICatalogUnitOfWorkFactory fa
 
     public IReadOnlyList<MediaFile> ListMissing() => Read(files => files.ListMissing());
 
+    public IReadOnlySet<int> ListMovieIdsWithPresentFile() => Read(files => files.ListMovieIdsWithPresentFile());
+
     public MediaFile Add(VerifiedMediaFileFacts facts, int? movieId = null) =>
         Write(files => files.Add(facts, movieId));
 

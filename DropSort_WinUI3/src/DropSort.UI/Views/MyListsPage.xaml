@@ -16,8 +16,21 @@
     xmlns:controls="using:DropSort.UI.Controls"
     Background="Transparent">
 
-    <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}">
-        <StackPanel Spacing="20">
+    <!--
+        The card grid owns its own scroll so its ItemsWrapGrid virtualizes; nesting a GridView in the page
+        ScrollViewer realizes every card at once. Header, tabs and the active-list action row sit in a
+        fixed Auto row; the grid fills the * row and scrolls internally.
+    -->
+    <Grid Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel
+            Grid.Row="0"
+            Padding="32,32,32,0"
+            Spacing="20">
             <!--
                 Page header command bar: the title and list count on the leading edge, and one aligned
                 command group (Search this list, New List) on the trailing edge, so the controls read as
@@ -139,71 +152,74 @@
             </StackPanel>
 
             <!--  Active list: name + item count, with the user-list only actions on the far side.  -->
-            <StackPanel Spacing="16">
-                <Grid ColumnSpacing="12">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+            <Grid ColumnSpacing="12" Margin="0,4,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-                    <StackPanel VerticalAlignment="Center" Spacing="2">
-                        <TextBlock
-                            x:Name="ListNameText"
-                            Style="{StaticResource SubtitleTextBlockStyle}"
-                            TextTrimming="CharacterEllipsis" />
-                        <TextBlock x:Name="ListCountText" Style="{StaticResource SecondaryCaptionTextStyle}" />
-                    </StackPanel>
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock
+                        x:Name="ListNameText"
+                        Style="{StaticResource SubtitleTextBlockStyle}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ListCountText" Style="{StaticResource SecondaryCaptionTextStyle}" />
+                </StackPanel>
 
-                    <StackPanel
-                        Grid.Column="1"
-                        VerticalAlignment="Center"
-                        Orientation="Horizontal"
-                        Spacing="8">
-                        <Button
-                            x:Name="AddMoviesButton"
-                            Click="AddMoviesButton_Click"
-                            Style="{StaticResource SubtleControlButtonStyle}">
-                            <StackPanel Orientation="Horizontal" Spacing="8">
-                                <FontIcon
-                                    FontFamily="{StaticResource SymbolThemeFontFamily}"
-                                    FontSize="14"
-                                    Glyph="&#xE710;" />
-                                <TextBlock x:Name="AddMoviesButtonText" />
-                            </StackPanel>
-                        </Button>
-                        <Button
-                            x:Name="RenameListButton"
-                            Click="RenameListButton_Click"
-                            Style="{StaticResource SubtleControlButtonStyle}" />
-                        <Button
-                            x:Name="DeleteListButton"
-                            Click="DeleteListButton_Click"
-                            Style="{StaticResource SubtleControlButtonStyle}" />
-                    </StackPanel>
-                </Grid>
-
-                <controls:EmptyStateCard
-                    x:Name="EmptyState"
-                    ActionClick="EmptyStateAction_Click"
-                    Glyph="&#xE728;"
-                    Visibility="Collapsed" />
-
-                <GridView
-                    x:Name="ListGrid"
-                    ItemClick="ListGrid_ItemClick"
-                    ItemTemplate="{StaticResource ListMovieCardTemplate}"
-                    RightTapped="ListGrid_RightTapped"
-                    Style="{StaticResource MediaGridViewStyle}">
-                    <GridView.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <ItemsWrapGrid
-                                ItemHeight="{StaticResource MediaCardItemHeight}"
-                                ItemWidth="{StaticResource MediaCardItemWidth}"
-                                Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </GridView.ItemsPanel>
-                </GridView>
-            </StackPanel>
+                <StackPanel
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Button
+                        x:Name="AddMoviesButton"
+                        Click="AddMoviesButton_Click"
+                        Style="{StaticResource SubtleControlButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon
+                                FontFamily="{StaticResource SymbolThemeFontFamily}"
+                                FontSize="14"
+                                Glyph="&#xE710;" />
+                            <TextBlock x:Name="AddMoviesButtonText" />
+                        </StackPanel>
+                    </Button>
+                    <Button
+                        x:Name="RenameListButton"
+                        Click="RenameListButton_Click"
+                        Style="{StaticResource SubtleControlButtonStyle}" />
+                    <Button
+                        x:Name="DeleteListButton"
+                        Click="DeleteListButton_Click"
+                        Style="{StaticResource SubtleControlButtonStyle}" />
+                </StackPanel>
+            </Grid>
         </StackPanel>
-    </ScrollViewer>
+
+        <Grid Grid.Row="1">
+            <controls:EmptyStateCard
+                x:Name="EmptyState"
+                Margin="32,12,32,0"
+                VerticalAlignment="Top"
+                ActionClick="EmptyStateAction_Click"
+                Glyph="&#xE728;"
+                Visibility="Collapsed" />
+
+            <GridView
+                x:Name="ListGrid"
+                Padding="32,12,32,48"
+                ItemClick="ListGrid_ItemClick"
+                ItemTemplate="{StaticResource ListMovieCardTemplate}"
+                RightTapped="ListGrid_RightTapped"
+                Style="{StaticResource MediaGridViewStyle}">
+                <GridView.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid
+                            ItemHeight="{StaticResource MediaCardItemHeight}"
+                            ItemWidth="{StaticResource MediaCardItemWidth}"
+                            Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </GridView.ItemsPanel>
+            </GridView>
+        </Grid>
+    </Grid>
 </Page>

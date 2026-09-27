@@ -307,6 +307,18 @@ public sealed class MediaFileRepository : IMediaFileRepository
         return ReadMany(command);
     }
 
+    // One query for the whole grid instead of a per-movie GetByMovieId. Library only needs to know which
+    // movies have at least one PRESENT file; this replaces the ListMovies N+1 (10K write-gated immediate
+    // transactions) with a single read.
+    public IReadOnlySet<int> ListMovieIdsWithPresentFile()
+    {
+        using var command = Command("SELECT DISTINCT movie_id FROM media_files WHERE status = 'PRESENT' AND movie_id IS NOT NULL;");
+        using var reader = command.ExecuteReader();
+        var ids = new HashSet<int>();
+        while (reader.Read()) ids.Add(reader.GetInt32(0));
+        return ids;
+    }
+
     public MediaFile LinkToMovie(int id, int movieId)
     {
         using var command = Command("UPDATE media_files SET movie_id = $movie WHERE id = $id AND (movie_id IS NULL OR movie_id = $movie);");

@@ -5,9 +5,22 @@
     xmlns:controls="using:DropSort.UI.Controls"
     Background="Transparent">
 
-    <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}">
-        <!--  The library grid is full-bleed, so this page intentionally has no content MaxWidth.  -->
-        <StackPanel Spacing="20">
+    <!--
+        The library grid must own its own scroll so its ItemsWrapGrid virtualizes. A GridView nested in a
+        page ScrollViewer is given unbounded height and realizes every item (all 10K cards at once), which
+        was a primary cause of the large-library hang. The header and tabs sit in a fixed Auto row; the
+        grids fill the * row and scroll internally.
+    -->
+    <Grid Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel
+            Grid.Row="0"
+            Padding="32,32,32,0"
+            Spacing="20">
             <!--
                 Page header command bar: the title and result count on the leading edge, and one
                 aligned command group (Search, Sort, Filter) on the trailing edge, so the controls read
@@ -155,15 +168,20 @@
                 Glyph="&#xEA39;"
                 IsActionVisible="True"
                 Visibility="Collapsed" />
+        </StackPanel>
 
+        <Grid Grid.Row="1">
             <controls:EmptyStateCard
                 x:Name="EmptyState"
+                Margin="32,12,32,0"
+                VerticalAlignment="Top"
                 ActionClick="EmptyStateAction_Click"
                 Glyph="&#xE721;"
                 Visibility="Collapsed" />
 
             <GridView
                 x:Name="MoviesGrid"
+                Padding="32,12,32,48"
                 ItemClick="MoviesGrid_ItemClick"
                 ItemTemplate="{StaticResource MovieCardTemplate}"
                 Style="{StaticResource MediaGridViewStyle}">
@@ -179,6 +197,7 @@
 
             <GridView
                 x:Name="ShowsGrid"
+                Padding="32,12,32,48"
                 ItemClick="ShowsGrid_ItemClick"
                 ItemTemplate="{StaticResource ShowCardTemplate}"
                 Style="{StaticResource MediaGridViewStyle}"
@@ -192,6 +211,6 @@
                     </ItemsPanelTemplate>
                 </GridView.ItemsPanel>
             </GridView>
-        </StackPanel>
-    </ScrollViewer>
+        </Grid>
+    </Grid>
 </Page>

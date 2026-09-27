@@ -30,7 +30,10 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
 
     public IReadOnlyList<MovieListItem> ListMovies()
     {
-        return _movies.ListAll().Select(MapToListItem).ToList();
+        // One presence query for the whole grid instead of a per-movie GetByMovieId (the ListMovies N+1
+        // that blocked the UI thread for ~38s at 10K).
+        var moviesWithFile = _mediaFiles.ListMovieIdsWithPresentFile();
+        return _movies.ListAll().Select(movie => ToListItem(movie, moviesWithFile.Contains(movie.Id))).ToList();
     }
 
     public MovieListItem GetMovieItem(int movieId)
@@ -48,14 +51,15 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
             movie.Genres, movie.RuntimeMinutes, movie.Rating, movie.PosterReference, files);
     }
 
-    private MovieListItem MapToListItem(Movie movie)
+    private MovieListItem MapToListItem(Movie movie) =>
+        ToListItem(movie, _mediaFiles.GetByMovieId(movie.Id).Any(f => f.Status == MediaFileStatus.Present));
+
+    private static MovieListItem ToListItem(Movie movie, bool hasPresentFile)
     {
-        var files = _mediaFiles.GetByMovieId(movie.Id);
-        bool isMissing = files.Count == 0 || files.All(f => f.Status == MediaFileStatus.Missing);
         bool pending = movie.MetadataStatus is MetadataStatus.Pending
             or MetadataStatus.NeedsMatch
             or MetadataStatus.Failed;
-        return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, isMissing, pending);
+        return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, !hasPresentFile, pending);
     }
 
     public PersonalMovieSnapshot GetPersonalSnapshot(int movieId)
@@ -101,7 +105,10 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
 
     public IReadOnlyList<MovieListItem> ListPersonalMovies(PersonalLibrarySection section)
     {
-        return _personal.ListMovies(section).Select(summary => MapToListItem(summary.Movie)).ToList();
+        // The summary already carries file counts, so map from it instead of a per-movie GetByMovieId.
+        return _personal.ListMovies(section)
+            .Select(summary => ToListItem(summary.Movie, summary.MediaFileCount > summary.MissingFileCount))
+            .ToList();
     }
 
     public IReadOnlyList<CustomList> ListCustomLists() =>

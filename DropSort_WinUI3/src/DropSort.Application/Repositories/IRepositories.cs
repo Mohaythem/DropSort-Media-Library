@@ -25,6 +25,12 @@ public interface IMediaFileRepository
     IReadOnlyList<MediaFile> GetByMovieId(int movieId);
     IReadOnlyList<MediaFile> ListAll();
     IReadOnlyList<MediaFile> ListMissing();
+
+    /// <summary>
+    /// The ids of movies that have at least one PRESENT media file, in a single query. Library uses this
+    /// to compute the "no local file" state for the whole grid without a per-movie query.
+    /// </summary>
+    IReadOnlySet<int> ListMovieIdsWithPresentFile();
     MediaFile Add(VerifiedMediaFileFacts facts, int? movieId = null);
     MediaFile LinkToMovie(int id, int movieId);
     MediaFile RefreshVerifiedFacts(int id, VerifiedMediaFileFacts facts);
