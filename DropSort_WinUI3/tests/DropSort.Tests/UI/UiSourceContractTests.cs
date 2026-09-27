@@ -49,13 +49,26 @@ public sealed class UiSourceContractTests
     [Fact]
     public void Every_page_hosts_its_content_in_the_shared_scroll_shell()
     {
+        // The collection/grid pages are the exception: their virtualizing GridView must own its own
+        // scroll (a GridView nested in the page ScrollViewer realizes every card and does not virtualize,
+        // which was the large-library hang). They use a fixed header row + a scrolling grid row instead.
+        var gridPages = new[] { "LibraryPage.xaml", "MyListsPage.xaml" };
         foreach (var page in AllPages)
         {
             var xaml = Read("Views", page);
-            Assert.Contains(
-                "<ScrollViewer x:Name=\"Root\" Style=\"{StaticResource PageScrollViewerStyle}\">",
-                xaml,
-                StringComparison.Ordinal);
+            if (gridPages.Contains(page))
+            {
+                Assert.DoesNotContain("x:Name=\"Root\" Style=\"{StaticResource PageScrollViewerStyle}\"", xaml, StringComparison.Ordinal);
+                Assert.Contains("<Grid.RowDefinitions>", xaml, StringComparison.Ordinal);
+                Assert.Contains("<GridView", xaml, StringComparison.Ordinal);
+            }
+            else
+            {
+                Assert.Contains(
+                    "<ScrollViewer x:Name=\"Root\" Style=\"{StaticResource PageScrollViewerStyle}\">",
+                    xaml,
+                    StringComparison.Ordinal);
+            }
         }
     }
 

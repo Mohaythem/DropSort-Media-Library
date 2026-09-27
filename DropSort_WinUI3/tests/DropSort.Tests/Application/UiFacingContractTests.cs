@@ -92,6 +92,9 @@ public class UiFacingContractTests
 
         public IReadOnlyList<MediaFile> ListMissing() => [];
 
+        public IReadOnlySet<int> ListMovieIdsWithPresentFile() =>
+            new HashSet<int>(files.Where(f => f.Status == MediaFileStatus.Present && f.MovieId is not null).Select(f => f.MovieId!.Value));
+
         public MediaFile Add(VerifiedMediaFileFacts facts, int? movieId = null) => throw new NotSupportedException();
 
         public MediaFile LinkToMovie(int id, int movieId) => throw new NotSupportedException();
@@ -118,6 +121,8 @@ public class UiFacingContractTests
         public IReadOnlyList<MediaFile> ListAll() => [];
 
         public IReadOnlyList<MediaFile> ListMissing() => [];
+
+        public IReadOnlySet<int> ListMovieIdsWithPresentFile() => new HashSet<int>();
 
         public MediaFile Add(VerifiedMediaFileFacts facts, int? movieId = null) => throw new NotSupportedException();
 

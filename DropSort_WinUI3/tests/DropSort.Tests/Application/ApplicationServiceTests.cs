@@ -90,6 +90,8 @@ public class ApplicationServiceTests
         }
         public IReadOnlyList<MediaFile> ListAll() => new List<MediaFile>(Storage.Values);
         public IReadOnlyList<MediaFile> ListMissing() => new List<MediaFile>();
+        public IReadOnlySet<int> ListMovieIdsWithPresentFile() =>
+            new HashSet<int>(Storage.Values.Where(f => f.Status == MediaFileStatus.Present && f.MovieId is not null).Select(f => f.MovieId!.Value));
         public MediaFile LinkToMovie(int id, int movieId) => Storage[id];
         public MediaFile RefreshVerifiedFacts(int id, VerifiedMediaFileFacts facts) => Storage[id];
         public MediaFile MarkMissing(int id, DateTimeOffset observedAt) => Storage[id];
