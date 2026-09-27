@@ -38,7 +38,7 @@
     <x:Double x:Key="MediaCardPosterWidth">180</x:Double>
     <x:Double x:Key="MediaCardPosterHeight">270</x:Double>
     <x:Double x:Key="MediaCardTitleHeight">40</x:Double>
-    <x:Double x:Key="MediaCardItemWidth">200</x:Double>
+    <x:Double x:Key="MediaCardItemWidth">192</x:Double>
     <x:Double x:Key="MediaCardItemHeight">346</x:Double>
     <x:Double x:Key="ShowCardItemHeight">364</x:Double>
     <x:Double x:Key="DetailsPosterWidth">180</x:Double>

@@ -303,7 +303,13 @@
         keyboard focus rectangle is still drawn by the system.
     -->
     <Style x:Key="MediaGridViewItemStyle" TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
-        <Setter Property="Margin" Value="0,0,8,16" />
+        <!--
+            The item footprint equals MediaCardItemWidth (192): poster 180 + 2 epx border each side +
+            4 epx padding each side. The inter-card gap is the padding + border (12 epx); there is no
+            extra horizontal item margin, so the wrap panel does not reserve a wider cell than the card
+            needs and can fit one more column on wide viewports instead of leaving a card-sized gap.
+        -->
+        <Setter Property="Margin" Value="0,0,0,16" />
         <Setter Property="Padding" Value="4" />
         <Setter Property="MinWidth" Value="0" />
         <Setter Property="MinHeight" Value="0" />
