@@ -147,10 +147,39 @@ Crash-safe journaled restore + user-facing restore workflow; backup ACL/privacy;
 real removable-drive verification; Home/Recently-Watched stale availability hints; large-library GUI
 scroll/latency/memory verification; clean-machine/installed-app verification; code signing (unsigned).
 
+## Large-library performance blocker + fix (2026-09-26)
+Manual test at 10K exposed a severe blocker: the Library took ~1 hour to become usable and opening a
+card then hung. (The earlier "~0.7–1.2 s to MainWindowHandle" numbers are **process/window-start timing
+only** — a window appeared; the populated Library had not finished loading and was not interactive.)
+
+**Two independent root causes, both measured/proved from source:**
+1. **N+1 write-gated transactions in `LibraryService.ListMovies()`.** `MapToListItem` called
+   `IMediaFileRepository.GetByMovieId(id)` per movie, and each `factory.Begin()` opens a connection and a
+   write-gated IMMEDIATE transaction. Measured on the UI thread: **1K ≈ 2.0 s, 5K ≈ 16.7 s, 10K ≈ 34 s**
+   (`Movies.ListAll` + N+1). Fix: one bulk `ListMovieIdsWithPresentFile()` query — **10K: 34,079 ms → 8 ms**.
+   `ListPersonalMovies` now maps from the summary's own file counts (no per-item query).
+2. **Broken GridView virtualization.** `LibraryPage`/`MyListsPage` nested the virtualizing `GridView`
+   inside the page `ScrollViewer`, which gives it unbounded height and realizes **every** card (all 10K)
+   plus fires 10K `MovieRecord.PosterSource` getters. Fix: the grid now owns its scroll (fixed header
+   `Auto` row + grid `*` row); `ItemsWrapGrid` virtualizes, so only visible cards realize.
+
+Both were separate causes. Card/Details hang was a consequence of the same load: the UI thread and thread
+pool were saturated (34 s query block + 10K container builds + 10K poster tasks), so any subsequent
+navigation waited behind it. No exception/crash in the mapper — pure saturation.
+
+**Installed Release after the fix, 10K QA profile:** window ~2.0 s; WorkingSet **227 MB flat**; total CPU
+**2.1 s and unchanged from t=3s to t=23s** (work finishes in ~3 s, then idle). Before: ~1 hour + hang.
+A flat ~227 MB working set (same as a tiny library) is strong evidence only visible cards are realized.
+
+**Regression cover:** `LibraryScaleContractTests` asserts `ListMovies()` performs one bulk presence query
+and zero per-movie `GetByMovieId` calls; `UiSourceContractTests` asserts the grid pages own their scroll
+(no page `ScrollViewer` wrapping the grid). Full suite **382 / 382**.
+
 ## Release Candidate gate
-**NOT READY FOR RELEASE CANDIDATE.** No defect blocker was found in the executed scope, and backend +
-startup + DB-integrity scale evidence is green at 1K/5K/10K. The gate is held only because required
-verification is not yet executed: the interactive Golden Journeys, GUI scroll/latency/memory at scale,
-physical removable-drive, clean-machine install, and code signing. Complete the manual GUI checklist and
-the hardware/clean-machine items, then re-decide.
+**NOT READY FOR RELEASE CANDIDATE.** The large-library performance blocker (one-hour load + Details hang)
+is fixed and re-verified on the installed Release build (10K settles in ~3 s, ~227 MB, idle), but the gate
+stays held pending human GUI confirmation of the populated 10K Library (scroll feel, search, open Details,
+My Lists) and the still-open items: physical removable-drive, UNC/network, clean-machine install, and code
+signing. Re-decide after the human 10K GUI pass.
+
 

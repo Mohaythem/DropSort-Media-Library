@@ -9,9 +9,9 @@
 ## Artifact
 - **Filename:** `DropSortSetup.exe`
 - **Path:** `artifacts/release/0.9.0-preview/DropSortSetup.exe` (gitignored; not committed)
-- **Size:** 34,715,016 bytes (~33.1 MiB)
-- **SHA-256:** `4E87498A949A3C91E1AF12F4615CE661E93ED608768B93D272E0FC11FEE2FD9B`
-- **Build date:** 2026-09-25 (rebuilt after adding the opt-in `DROPSORT_TEST_DATA_ROOT` data-root override used for Golden Journeys + Scale QA; override is inert unless the env var is set)
+- **Size:** 34,716,160 bytes (~33.1 MiB)
+- **SHA-256:** `F158D1C035BC073DD86E7E858E5DBD131530ACFF43193D046856757ABAF44E5B`
+- **Build date:** 2026-09-26 (rebuilt after the large-library performance fix: bulk Library presence query + GridView virtualization. Earlier preview builds are superseded.)
 - **Signing:** **Unsigned.** No code-signing credentials were available. The installer is not signed and is not claimed to be signed; Windows SmartScreen reputation / Authenticode signing is a remaining release concern.
 
 ## Build
