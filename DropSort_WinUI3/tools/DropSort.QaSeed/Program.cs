@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using DropSort.Application.Services;
@@ -46,6 +47,27 @@ if (args.Length >= 2 && args[0] == "libcheck")
     catch (Exception ex) { Console.WriteLine("read path THREW: " + ex.GetType().Name + ": " + ex.Message); ok = false; }
     Console.WriteLine(ok ? "libcheck=PASS" : "libcheck=FAIL");
     return ok ? 0 : 1;
+}
+
+// Times the current Library data pipeline: the single ListAll vs the per-movie GetByMovieId N+1 that
+// LibraryService.MapToListItem performs (each opens its own write-gated immediate transaction).
+if (args.Length >= 2 && args[0] == "timeload")
+{
+    var p = Path.GetFullPath(args[1]);
+    var f = new CatalogUnitOfWorkFactory("Data Source=" + p + ";Pooling=False");
+    var sw = Stopwatch.StartNew();
+    List<int> ids;
+    using (var uow = f.Begin()) ids = uow.Movies.ListAll().Select(x => x.Id).ToList();
+    Console.WriteLine($"Movies.ListAll: {ids.Count} in {sw.ElapsedMilliseconds} ms");
+    sw.Restart();
+    var files = 0;
+    foreach (var id in ids) { using var uow = f.Begin(); files += uow.MediaFiles.GetByMovieId(id).Count; }
+    Console.WriteLine($"OLD N+1 GetByMovieId x{ids.Count}: {sw.ElapsedMilliseconds} ms ({files} file rows)");
+    sw.Restart();
+    int present;
+    using (var uow = f.Begin()) present = uow.MediaFiles.ListMovieIdsWithPresentFile().Count;
+    Console.WriteLine($"NEW bulk ListMovieIdsWithPresentFile: {present} present-movies in {sw.ElapsedMilliseconds} ms");
+    return 0;
 }
 
 if (args.Length < 3)
