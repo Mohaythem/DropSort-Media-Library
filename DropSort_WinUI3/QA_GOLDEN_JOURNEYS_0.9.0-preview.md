@@ -222,10 +222,53 @@ unchanged). Installed Release 10K: window ~1.5 s, WorkingSet **239 MB flat**, CP
 performance class; virtualization intact. Card size did **not** change; only the inter-card gap tightened
 20→12 epx. Full suite **385 / 385**. Final visual width confirmation is the user's pending GUI check.
 
-**NOT READY FOR RELEASE CANDIDATE.** The large-library performance blocker (one-hour load + Details hang)
-is fixed and re-verified on the installed Release build (10K settles in ~3 s, ~227 MB, idle), but the gate
-stays held pending human GUI confirmation of the populated 10K Library (scroll feel, search, open Details,
-My Lists) and the still-open items: physical removable-drive, UNC/network, clean-machine install, and code
-signing. Re-decide after the human 10K GUI pass.
+## Release Hardening + RC gate (2026-09-26)
+Executed against the accepted `0.9.0-preview` installed build (SHA-256 `3166F077…`, 34,722,663 bytes),
+schema v13, suite 385/385.
+
+- **Restore crash-safety (Phase 4/5): not a shipping risk — restore is unreachable.** `RestoreFromBackup`
+  has no production/UI/startup caller (only `DatabaseSafetyBackupTests`), so an interrupted restore cannot
+  occur in the field. The primitive itself preserves the current DB with a WAL-safe `.pre-restore` snapshot,
+  stages `.restore-incoming`, swaps with an atomic same-volume `File.Replace`, validates, and rolls back on
+  exception — so the target is always atomically old-or-new. It is **not** a fully journaled restore with
+  startup reconciliation; that plus the user-facing restore workflow remain a documented deferred pre-1.0
+  item. No implementation change made (implementing a state machine for unreachable code would be
+  gold-plating).
+- **Backup privacy/ACL (Phase 6): OK.** Backups live in `%LOCALAPPDATA%\DropSort\backups`. The code sets no
+  ACLs, so the folder inherits the per-user `%LOCALAPPDATA%` permissions — same isolation as the database
+  itself; not made more permissive. No unsafe permission change; no elevation. A dedicated owner-only ACL
+  remains an optional future hardening.
+- **UNC/network (Phase 3): code-audited, physical NOT EXECUTED.** The Library load path performs no
+  filesystem probing (fixed with the bulk presence query); availability is probed off the UI thread, once
+  per distinct storage root (`AppServices.UnavailableStoragePaths`/`IsStorageAvailable`). Play/Open Folder
+  do a single `File.Exists` on click (bounded). No safe UNC share available → real slow/dead-share behaviour
+  `NOT EXECUTED`.
+- **Removable drive (Phase 2): NOT EXECUTED** — no physical removable drive attached. Present/Missing/
+  StorageUnavailable semantics are covered by the automated suite and the earlier Drive-Aware pass; the
+  physical connect/eject/reconnect sequence needs the user's hardware.
+- **Clean-machine (Phase 8): NOT EXECUTED** — no VM/Windows Sandbox/second machine available (Sandbox not
+  installed). Installed-artifact independence is otherwise evidenced: the installed app runs from
+  `%LOCALAPPDATA%\Programs\DropSort` self-contained (Phase 10), 10K smoke path confirms it.
+- **Code signing (Phase 9): UNSIGNED — production code signing pending.** No certificate available. The
+  Setup EXE and app EXE would receive Authenticode signatures (with timestamping) as a post-build step;
+  until then Windows SmartScreen will warn on first run. External/distribution item, not a code defect.
+- **Installer lifecycle (Phase 7):** fresh install, existing-data preservation, uninstall and reinstall were
+  verified earlier this session on this machine; true cross-version upgrade `NOT YET AVAILABLE TO TEST` (no
+  prior released version); the fixed Inno `AppId` structurally supports future in-place upgrade.
+- **DB integrity (Phase 11) + 10K smoke (Phase 12):** 10K QA DB after all tests: `integrity_check=ok`,
+  v13, 0 FK violations, 0 duplicate/bad/orphan members. Installed 10K smoke: window ~1.5 s, ~239 MB flat,
+  CPU idle after ~3 s, running from the installed path — no regression.
+
+**RC gate: NOT READY FOR RELEASE CANDIDATE.** No reachable technical BLOCKER or HIGH product defect was
+found. The gate is held only by verifications that require resources not available here, kept explicitly
+separate from product defects:
+- removable-drive physical test — `NOT EXECUTED` (needs hardware);
+- clean-machine install — `NOT EXECUTED` (needs a VM/Sandbox/second PC);
+- UNC/slow-share behaviour — `NOT EXECUTED` (needs a network share);
+- code signing — `UNSIGNED, pending certificate` (distribution item);
+- human visual confirmation of the accepted Library GUI at 10K.
+
+No RC artifact was built and no version was bumped (still `0.9.0-preview`), per the gate-first rule.
+
 
 
