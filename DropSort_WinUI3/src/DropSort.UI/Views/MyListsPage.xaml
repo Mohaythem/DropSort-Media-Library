@@ -207,6 +207,9 @@
             <GridView
                 x:Name="ListGrid"
                 Padding="32,12,32,48"
+                HorizontalAlignment="Stretch"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                ScrollViewer.VerticalScrollMode="Enabled"
                 ItemClick="ListGrid_ItemClick"
                 ItemTemplate="{StaticResource ListMovieCardTemplate}"
                 RightTapped="ListGrid_RightTapped"

@@ -182,6 +182,9 @@
             <GridView
                 x:Name="MoviesGrid"
                 Padding="32,12,32,48"
+                HorizontalAlignment="Stretch"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                ScrollViewer.VerticalScrollMode="Enabled"
                 ItemClick="MoviesGrid_ItemClick"
                 ItemTemplate="{StaticResource MovieCardTemplate}"
                 Style="{StaticResource MediaGridViewStyle}">
@@ -198,6 +201,9 @@
             <GridView
                 x:Name="ShowsGrid"
                 Padding="32,12,32,48"
+                HorizontalAlignment="Stretch"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                ScrollViewer.VerticalScrollMode="Enabled"
                 ItemClick="ShowsGrid_ItemClick"
                 ItemTemplate="{StaticResource ShowCardTemplate}"
                 Style="{StaticResource MediaGridViewStyle}"
