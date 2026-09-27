@@ -175,7 +175,32 @@ A flat ~227 MB working set (same as a tiny library) is strong evidence only visi
 and zero per-movie `GetByMovieId` calls; `UiSourceContractTests` asserts the grid pages own their scroll
 (no page `ScrollViewer` wrapping the grid). Full suite **382 / 382**.
 
-## Release Candidate gate
+## Library interaction cleanup (2026-09-26)
+The first human 10K GUI pass (after the performance fix) found four Library issues; all addressed here.
+
+1. **Could not scroll vertically (blocker).** The shared `MediaGridViewStyle` sets the GridView's
+   `ScrollViewer.VerticalScrollMode=Disabled` — correct when the grid lived inside the page ScrollViewer,
+   wrong once the grid became the scroll owner. The grid had a bounded viewport (so it still virtualized)
+   but scrolling was off, clipping everything past the first screen. Fix: the Library/My Lists GridViews
+   override `VerticalScrollMode=Enabled` + `VerticalScrollBarVisibility=Auto` (wheel, touchpad, scrollbar,
+   keyboard, and focus-scrolls-into-view all work; virtualization unchanged).
+2. **Grid did not use full width.** Same disabled-scroll/measurement state left the grid narrow. Fix: the
+   GridViews set `HorizontalAlignment=Stretch`; `ItemsWrapGrid` (fixed 200-epx cells, 2:3 posters) now
+   reflows columns across the page width. No fixed Width/MaxWidth; no horizontal scroll.
+3. **Visible "Esc" badge.** The shell-wide Escape `KeyboardAccelerator` surfaced its accelerator
+   tooltip/badge during focus. Fix: `RootGrid.KeyboardAcceleratorPlacementMode="Hidden"` — the shortcut
+   still works, no badge.
+4. **Tab focused off-screen / decorative elements.** The card templates already contain only decorative
+   non-focusable elements (Border/Image/FontIcon/TextBlock), so each GridView item is one focus unit; the
+   symptom was focus moving to items that could not scroll into view (a consequence of #1). Enabling grid
+   scroll makes the focused item scroll into view. Contract test locks the "one focus unit per card" rule.
+
+**Re-verified, installed Release, 10K:** window ~1.6 s; WorkingSet **241 MB flat**; CPU **2.2 s, unchanged
+t=3s→t=15s** — same performance class as the perf-fix build, so virtualization is intact. Scroll ownership
+is the GridView's own ScrollViewer (not a page ScrollViewer). Full suite **385 / 385**. Visual confirmation
+of scroll feel, column reflow, no-Esc-badge and one-stop-per-card focus is the user's pending GUI check.
+
+
 **NOT READY FOR RELEASE CANDIDATE.** The large-library performance blocker (one-hour load + Details hang)
 is fixed and re-verified on the installed Release build (10K settles in ~3 s, ~227 MB, idle), but the gate
 stays held pending human GUI confirmation of the populated 10K Library (scroll feel, search, open Details,

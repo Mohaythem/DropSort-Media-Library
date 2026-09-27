@@ -198,6 +198,38 @@ public sealed class UxCorrectivePassContractTests
         Assert.Contains("args.Handled = GoBack();", code);
     }
 
+    [Fact]
+    public void Library_and_my_lists_grids_own_a_working_vertical_scroll_and_stretch_full_width()
+    {
+        foreach (var page in new[] { "LibraryPage.xaml", "MyListsPage.xaml" })
+        {
+            var xaml = File.ReadAllText(Path.Combine(UiRoot, "Views", page));
+            // The grid owns scrolling (fixes the clipped 10K library) while staying virtualized...
+            Assert.Contains("ScrollViewer.VerticalScrollMode=\"Enabled\"", xaml);
+            // ...and is not wrapped in the page ScrollViewer that would defeat virtualization.
+            Assert.DoesNotContain("x:Name=\"Root\" Style=\"{StaticResource PageScrollViewerStyle}\"", xaml);
+            Assert.Contains("HorizontalAlignment=\"Stretch\"", xaml);   // uses the full page width
+        }
+    }
+
+    [Fact]
+    public void Escape_accelerator_is_silent_no_visible_badge()
+    {
+        var xaml = File.ReadAllText(Path.Combine(UiRoot, "MainWindow.xaml"));
+        Assert.Contains("KeyboardAcceleratorPlacementMode=\"Hidden\"", xaml); // no floating "Esc" label
+        Assert.Contains("<KeyboardAccelerator Key=\"Escape\"", xaml);         // shortcut itself stays
+    }
+
+    [Fact]
+    public void Media_card_templates_are_single_focus_units()
+    {
+        var templates = File.ReadAllText(Path.Combine(UiRoot, "Resources", "Templates.xaml"));
+        // Card internals are decorative (Border/Image/FontIcon/TextBlock) - no nested interactive controls
+        // or forced tab stops - so each GridView item is one keyboard-selectable unit.
+        Assert.DoesNotContain("<Button", templates);
+        Assert.DoesNotContain("IsTabStop=\"True\"", templates);
+    }
+
     private static int CountOccurrences(string text, string token)
     {
         var count = 0;

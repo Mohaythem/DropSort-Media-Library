@@ -9,9 +9,9 @@
 ## Artifact
 - **Filename:** `DropSortSetup.exe`
 - **Path:** `artifacts/release/0.9.0-preview/DropSortSetup.exe` (gitignored; not committed)
-- **Size:** 34,716,160 bytes (~33.1 MiB)
-- **SHA-256:** `F158D1C035BC073DD86E7E858E5DBD131530ACFF43193D046856757ABAF44E5B`
-- **Build date:** 2026-09-26 (rebuilt after the large-library performance fix: bulk Library presence query + GridView virtualization. Earlier preview builds are superseded.)
+- **Size:** 34,702,210 bytes (~33.1 MiB)
+- **SHA-256:** `1F704998917BFC06F6501D10551401030AD1110DB29EC597EF9EBDF5EF8A2AB3`
+- **Build date:** 2026-09-26 (rebuilt after the Library interaction cleanup: grid vertical scroll + full-width stretch, and hidden Esc accelerator badge. Earlier preview builds are superseded.)
 - **Signing:** **Unsigned.** No code-signing credentials were available. The installer is not signed and is not claimed to be signed; Windows SmartScreen reputation / Authenticode signing is a remaining release concern.
 
 ## Build
