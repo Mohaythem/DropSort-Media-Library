@@ -201,6 +201,27 @@ is the GridView's own ScrollViewer (not a page ScrollViewer). Full suite **385 /
 of scroll feel, column reflow, no-Esc-badge and one-stop-per-card focus is the user's pending GUI check.
 
 
+## Grid right-side dead region (2026-09-26)
+Follow-up manual finding: the Library grid left a right-side blank region about one card wide.
+
+**Measured (instrumented the real visual tree, then removed the instrumentation):** at a 1611 epx grid
+viewport the ItemsWrapGrid was 1547 epx wide (viewport − 64 epx page padding) with `ItemWidth=200`, giving
+**7 columns** (1400 epx) and a 147 epx remainder. The card cell (`MediaCardItemWidth=200`) equalled the
+full card footprint (poster 180 + 2 epx border ×2 + 4 epx padding ×2 + 8 epx item margin), so the leftover
+was a genuine sub-cell remainder — dumped on the right and, with the 32 epx right page padding, reading as
+~one missing card.
+
+**Fix (poster geometry unchanged):** drop the 8 epx horizontal item margin (`Margin 0,0,8,16 → 0,0,0,16`)
+and set the cell to the resulting footprint (`MediaCardItemWidth 200 → 192`). Poster stays 180×270 (2:3);
+inter-card gap becomes padding+border (12 epx, was 20 epx). No `MaxWidth`, no `MaximumRowsOrColumns`,
+GridView still `HorizontalAlignment=Stretch` and still the scroll owner.
+
+**Re-measured after the fix, same 1611 viewport:** `ItemWidth=192` → **8 columns** (1536 epx), remainder
+11 epx — the extra card fills the region. Columns still follow width (5 at the ~1071 default viewport,
+unchanged). Installed Release 10K: window ~1.5 s, WorkingSet **239 MB flat**, CPU idle after ~3 s — same
+performance class; virtualization intact. Card size did **not** change; only the inter-card gap tightened
+20→12 epx. Full suite **385 / 385**. Final visual width confirmation is the user's pending GUI check.
+
 **NOT READY FOR RELEASE CANDIDATE.** The large-library performance blocker (one-hour load + Details hang)
 is fixed and re-verified on the installed Release build (10K settles in ~3 s, ~227 MB, idle), but the gate
 stays held pending human GUI confirmation of the populated 10K Library (scroll feel, search, open Details,

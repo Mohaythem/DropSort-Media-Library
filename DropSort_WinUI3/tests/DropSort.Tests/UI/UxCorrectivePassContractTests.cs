@@ -209,6 +209,8 @@ public sealed class UxCorrectivePassContractTests
             // ...and is not wrapped in the page ScrollViewer that would defeat virtualization.
             Assert.DoesNotContain("x:Name=\"Root\" Style=\"{StaticResource PageScrollViewerStyle}\"", xaml);
             Assert.Contains("HorizontalAlignment=\"Stretch\"", xaml);   // uses the full page width
+            Assert.DoesNotContain("MaximumRowsOrColumns", xaml);        // no column cap
+            Assert.DoesNotContain("MaxWidth=\"", xaml);                 // no fixed content width cap
         }
     }
 
