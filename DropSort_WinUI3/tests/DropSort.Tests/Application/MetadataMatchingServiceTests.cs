@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using DropSort.Application.External;
@@ -57,11 +58,19 @@ public class MetadataMatchingServiceTests
         }
 
         public Movie? GetById(int id) => Storage.GetValueOrDefault(id);
-        public Movie? GetByExternalId(string provider, string externalId) => null;
+        public Movie? GetByExternalId(string provider, string externalId) =>
+            Storage.Values.FirstOrDefault(movie =>
+                string.Equals(movie.Provider, provider, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(movie.ExternalId, externalId, StringComparison.OrdinalIgnoreCase));
         public IReadOnlyList<Movie> ListAll() => new List<Movie>(Storage.Values);
         public IReadOnlyList<Movie> ListPage(int afterId, int limit) => ListAll();
         public int CountAll() => Storage.Count;
         public void Delete(int id) => Storage.Remove(id);
+        public void SetReviewMatch(int id, bool value)
+        {
+            if (Storage.TryGetValue(id, out var m))
+                Storage[id] = new Movie(m.Id, m.Data, m.DateAdded, m.CreatedAt, m.UpdatedAt, value);
+        }
     }
 
     private sealed class MockMetadataProvider : IMetadataProvider
@@ -335,6 +344,75 @@ public class MetadataMatchingServiceTests
         Assert.Single(posterService.CachedRequests);
         Assert.Equal("TMDB", posterService.CachedRequests[0].Provider);
         Assert.Equal("/inception_poster.jpg", posterService.CachedRequests[0].Reference);
+    }
+
+    [Fact]
+    public async Task MetadataMatchingService_MatchMovieAsync_StaleCandidateWithNoProviderRecord_FailsSafelyWithoutWriting()
+    {
+        // A stale/invalid candidate whose TMDB record no longer resolves must not attach wrong metadata or
+        // leave a half-written movie: the provider fetch returns null, the match throws NotFound, and the
+        // movie stays in its clean Pending state with no provider identity and no commit.
+        var uow = new FakeUnitOfWork();
+        var now = DateTimeOffset.UtcNow;
+        var existingMovie = uow.MoviesRepo.Create(
+            new MovieCatalogData(null, null, "Ghost", null, 2010, null, ImmutableArray<string>.Empty, null, null, null, MetadataStatus.Pending),
+            now);
+
+        var provider = new MockMetadataProvider { MovieToReturn = null }; // stale id resolves to nothing
+        var service = new MetadataMatchingService(uow, provider, new MockPosterService(), () => now);
+        var candidate = new MovieCandidate("TMDB", "does-not-exist", "Ghost", null, 2010, null, null, null);
+
+        var error = await Assert.ThrowsAsync<MetadataServiceException>(
+            () => service.MatchMovieAsync(existingMovie.Id, candidate));
+        Assert.Equal(MetadataFailureKind.NotFound, error.Kind);
+
+        var after = uow.MoviesRepo.GetById(existingMovie.Id)!;
+        Assert.Equal(MetadataStatus.Pending, after.MetadataStatus); // unchanged; no wrong metadata attached
+        Assert.Null(after.Provider);
+        Assert.Null(after.ExternalId);
+        Assert.False(uow.Committed);
+    }
+
+    [Fact]
+    public async Task MetadataMatchingService_MatchMovieAsync_IdentityConflict_PreservesOfflineMovieState()
+    {
+        var uow = new FakeUnitOfWork();
+        var now = DateTimeOffset.UtcNow;
+        var owner = uow.MoviesRepo.Create(
+            new MovieCatalogData("TMDB", "27205", "Inception", "Inception", 2010,
+                "Owner overview", ImmutableArray.Create("Sci-Fi"), 148, 8.8, "/owner.jpg"),
+            now);
+        var offlineMovie = uow.MoviesRepo.Create(
+            new MovieCatalogData(null, null, "Inception local copy", null, 2010, null,
+                ImmutableArray<string>.Empty, null, null, null, MetadataStatus.Pending),
+            now);
+
+        var provider = new MockMetadataProvider
+        {
+            MovieToReturn = new MovieMetadata(
+                "TMDB", "27205", "Inception", "Inception", 2010, "Provider overview",
+                ImmutableArray.Create("Sci-Fi"), 148, 8.8, "/provider.jpg")
+        };
+        var service = new MetadataMatchingService(uow, provider, clock: () => now);
+
+        var error = await Assert.ThrowsAsync<MetadataServiceException>(() =>
+            service.MatchMovieAsync(
+                offlineMovie.Id,
+                new MovieCandidate("TMDB", "27205", "Inception", null, 2010, null, null, "/provider.jpg")));
+
+        Assert.Equal(MetadataFailureKind.IdentityConflict, error.Kind);
+        Assert.Equal(2, uow.MoviesRepo.CountAll());
+        var preservedOfflineMovie = uow.MoviesRepo.GetById(offlineMovie.Id);
+        Assert.NotNull(preservedOfflineMovie);
+        Assert.Null(preservedOfflineMovie!.Provider);
+        Assert.Null(preservedOfflineMovie.ExternalId);
+        Assert.Equal("Inception local copy", preservedOfflineMovie.Title);
+        Assert.Equal(MetadataStatus.Pending, preservedOfflineMovie.MetadataStatus);
+        var preservedOwner = uow.MoviesRepo.GetById(owner.Id);
+        Assert.NotNull(preservedOwner);
+        Assert.Equal("27205", preservedOwner!.ExternalId);
+        Assert.Equal("Owner overview", preservedOwner.Overview);
+        Assert.False(uow.Committed);
     }
 
     [Fact]

@@ -39,7 +39,8 @@ public static class DatabaseSafetyBackup
     /// a partial file, so the source is left untouched.
     /// </summary>
     public static string CreateVerifiedBackup(
-        SqliteConnection source, string connectionString, int sourceVersion, string label)
+        SqliteConnection source, string connectionString, int sourceVersion, string label,
+        bool pruneOldBackups = true)
     {
         var backupDirectory = BackupDirectoryFor(connectionString);
         var backupPath = string.Empty;
@@ -81,9 +82,19 @@ public static class DatabaseSafetyBackup
         }
 
         // Prune only after the new backup is verified, and never touch it, so retention can never delete
-        // the only valid copy or a just-created replacement.
-        PruneOldBackups(backupDirectory, keep: backupPath);
+        // the only valid copy or a just-created replacement. Migration callers defer pruning until the
+        // complete upgrade commits, so repeated failed retries retain the last clean recovery point.
+        if (pruneOldBackups)
+            PruneOldBackups(backupDirectory, keep: backupPath);
         return backupPath;
+    }
+
+    /// <summary>Prunes migration backups after the protected upgrade has committed successfully.</summary>
+    internal static void PruneAfterSuccessfulMigration(string backupPath)
+    {
+        var directory = Path.GetDirectoryName(Path.GetFullPath(backupPath));
+        if (!string.IsNullOrWhiteSpace(directory))
+            PruneOldBackups(directory, keep: backupPath);
     }
 
     /// <summary>

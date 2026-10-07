@@ -3,13 +3,29 @@ using DropSort.Application.External;
 using DropSort.Domain.Media.Discovery;
 using DropSort.Domain.Media.Parser;
 using DropSort.FileSystem.Safety;
+using DropSort.FileSystem.Inspection;
 
 namespace DropSort.FileSystem.Discovery;
 
 public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
 {
+    private readonly NetworkReadGuard _networkReads;
+    private readonly Func<string, IEnumerable<string>> _enumerateEntries;
+    private readonly Func<string, FileAttributes> _getAttributes;
     private static readonly HashSet<string> MediaExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".mkv", ".mp4", ".avi", ".mov", ".m4v", ".wmv" };
+
+    public MediaDiscoveryService(NetworkReadGuard? networkReads = null)
+        : this(networkReads, Directory.EnumerateFileSystemEntries, File.GetAttributes) { }
+
+    internal MediaDiscoveryService(NetworkReadGuard? networkReads,
+        Func<string, IEnumerable<string>> enumerateEntries,
+        Func<string, FileAttributes> getAttributes)
+    {
+        _networkReads = networkReads ?? NetworkReadGuard.Shared;
+        _enumerateEntries = enumerateEntries;
+        _getAttributes = getAttributes;
+    }
 
     public IReadOnlyList<DiscoveredMedia> Discover(
         string rootPath,
@@ -20,8 +36,24 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         if (string.IsNullOrWhiteSpace(rootPath) || !Path.IsPathFullyQualified(rootPath))
             throw new ArgumentException("Discovery root must be absolute.", nameof(rootPath));
         var root = Path.GetFullPath(rootPath);
-        PathPolicy.AssertNoReparseComponents(root);
-        if (!Directory.Exists(root)) throw new DirectoryNotFoundException(root);
+        bool rootReady;
+        try
+        {
+            rootReady = _networkReads.Execute(root, () =>
+            {
+                PathPolicy.AssertNoReparseComponents(root);
+                var attributes = _getAttributes(root);
+                if ((attributes & FileAttributes.Directory) == 0) throw new DirectoryNotFoundException(root);
+                return true;
+            }, () => false, isCancelled);
+        }
+        catch (Exception error) when (NetworkReadGuard.IsNetworkPath(root)
+            && error is IOException or UnauthorizedAccessException)
+        {
+            return [DiscoveredMedia.Error(root, new DiscoveryIssue(DiscoveryErrorCode.StorageUnavailable, "Storage is unavailable."))];
+        }
+        if (!rootReady)
+            return [DiscoveredMedia.Error(root, new DiscoveryIssue(DiscoveryErrorCode.StorageUnavailable, "Storage is unavailable."))];
 
         var files = new List<string>();
         var results = new List<DiscoveredMedia>();
@@ -33,12 +65,45 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
             var directory = pending.Pop();
             try
             {
-                foreach (var entry in Directory.EnumerateFileSystemEntries(directory))
+                var abandoned = 0;
+                DirectorySnapshot? snapshot;
+                try
                 {
-                    if ((File.GetAttributes(entry) & FileAttributes.ReparsePoint) != 0) continue;
-                    if (Directory.Exists(entry))
+                    snapshot = _networkReads.Execute<DirectorySnapshot?>(directory, () => ReadDirectorySnapshot(directory, _enumerateEntries, _getAttributes, () =>
+                        Volatile.Read(ref abandoned) != 0 || isCancelled?.Invoke() == true),
+                        () => { Volatile.Write(ref abandoned, 1); return null; }, isCancelled);
+                }
+                catch
+                {
+                    Volatile.Write(ref abandoned, 1);
+                    throw;
+                }
+                if (snapshot is null)
+                {
+                    if (NetworkReadGuard.IsNetworkPath(root))
                     {
-                        if (recursive) pending.Push(entry);
+                        results.Add(DiscoveredMedia.Error(directory, new DiscoveryIssue(DiscoveryErrorCode.StorageUnavailable, "Storage is unavailable.")));
+                        return results;
+                    }
+                    results.Add(DiscoveredMedia.Error(directory, new DiscoveryIssue(DiscoveryErrorCode.DirectoryReadFailed, "Storage is unavailable.")));
+                    continue;
+                }
+                foreach (var issue in snapshot.Issues)
+                    results.Add(DiscoveredMedia.Error(issue.Path, new DiscoveryIssue(issue.Code, issue.Message)));
+                if (snapshot.FatalIssue is not null)
+                {
+                    results.Add(DiscoveredMedia.Error(directory, new DiscoveryIssue(
+                        NetworkReadGuard.IsNetworkPath(root) ? DiscoveryErrorCode.StorageUnavailable : DiscoveryErrorCode.DirectoryReadFailed,
+                        snapshot.FatalIssue.Message)));
+                    if (NetworkReadGuard.IsNetworkPath(root)) pending.Clear();
+                }
+                foreach (var item in snapshot.Items)
+                {
+                    var entry = item.Path;
+                    if ((item.Attributes & FileAttributes.ReparsePoint) != 0) continue;
+                    if ((item.Attributes & FileAttributes.Directory) != 0)
+                    {
+                        if (recursive && !(snapshot.FatalIssue is not null && NetworkReadGuard.IsNetworkPath(root))) pending.Push(entry);
                     }
                     else if (MediaExtensions.Contains(Path.GetExtension(entry))) files.Add(entry);
                 }
@@ -51,6 +116,11 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
             }
             catch (IOException exception)
             {
+                if (NetworkReadGuard.IsNetworkPath(root))
+                {
+                    results.Add(DiscoveredMedia.Error(directory, new DiscoveryIssue(DiscoveryErrorCode.StorageUnavailable, "Storage is unavailable.")));
+                    return results;
+                }
                 results.Add(DiscoveredMedia.Error(
                     directory,
                     new DiscoveryIssue(DiscoveryErrorCode.DirectoryReadFailed, exception.Message)));
@@ -63,6 +133,25 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
             if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
             try
             {
+                var fileSize = _networkReads.Execute(file, () =>
+                {
+                    var attributes = _getAttributes(file);
+                    if ((attributes & FileAttributes.Directory) != 0) throw new FileNotFoundException(file);
+                    return new FileInfo(file).Length;
+                }, () => (long?)null, isCancelled);
+                if (fileSize is null)
+                {
+                    if (NetworkReadGuard.IsNetworkPath(root))
+                    {
+                        results.Add(DiscoveredMedia.Error(file, new DiscoveryIssue(DiscoveryErrorCode.StorageUnavailable, "Storage is unavailable.")));
+                        return results;
+                    }
+                    results.Add(DiscoveredMedia.Error(file, new DiscoveryIssue(DiscoveryErrorCode.StatFailed, "Storage is unavailable.")));
+                    processed++;
+                    progress?.Invoke(files.Count, processed, Path.GetDirectoryName(file));
+                    continue;
+                }
+                if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
                 var parsed = Parse(file);
 
                 // A multi-episode or range marker is TV, but not a single episode the registration path
@@ -81,10 +170,23 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
                             MediaType.TvEpisode => DiscoveryClassification.TvEpisodeSkipped,
                             _ => DiscoveryClassification.UnknownMedia
                         };
-                results.Add(new DiscoveredMedia(file, new FileInfo(file).Length, parsed, classification, null));
+                results.Add(new DiscoveredMedia(file, fileSize.Value, parsed, classification, null));
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
+                if (NetworkReadGuard.IsNetworkPath(root))
+                {
+                    var rootStillAvailable = _networkReads.Execute(root, () =>
+                    {
+                        try { return (_getAttributes(Path.GetPathRoot(root)!) & FileAttributes.Directory) != 0; }
+                        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return false; }
+                    }, () => false, isCancelled);
+                    if (!rootStillAvailable)
+                    {
+                        results.Add(DiscoveredMedia.Error(file, new DiscoveryIssue(DiscoveryErrorCode.StorageUnavailable, "Storage is unavailable.")));
+                        return results;
+                    }
+                }
                 results.Add(DiscoveredMedia.Error(
                     file,
                     new DiscoveryIssue(DiscoveryErrorCode.StatFailed, exception.Message)));
@@ -95,16 +197,102 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         return results;
     }
 
-    private static ParsedMedia Parse(string path)
+    private static DirectorySnapshot ReadDirectorySnapshot(string directory,
+        Func<string, IEnumerable<string>> enumerateEntries,
+        Func<string, FileAttributes> getAttributes,
+        Func<bool> isAbandoned)
     {
-        var original = Path.GetFileName(path);
+        var entries = new List<(string Path, FileAttributes Attributes)>();
+        var issues = new List<DirectoryIssue>();
+        // Enumeration failure itself is handled by the caller. A child that disappears while the
+        // snapshot is being materialized is isolated so healthy siblings remain discoverable.
+        try
+        {
+            foreach (var entry in enumerateEntries(directory))
+            {
+                if (isAbandoned()) throw new OperationCanceledException();
+                try
+                {
+                    entries.Add((entry, getAttributes(entry)));
+                }
+                catch (UnauthorizedAccessException exception)
+                {
+                    issues.Add(new DirectoryIssue(entry, DiscoveryErrorCode.PermissionDenied, exception.Message));
+                }
+                catch (IOException exception)
+                {
+                    issues.Add(new DirectoryIssue(entry, DiscoveryErrorCode.Disappeared, exception.Message));
+                }
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return new DirectorySnapshot(entries.ToArray(), issues, exception);
+        }
+        return new DirectorySnapshot(entries.ToArray(), issues, null);
+    }
+
+    private sealed record DirectorySnapshot(
+        (string Path, FileAttributes Attributes)[] Entries,
+        IReadOnlyList<DirectoryIssue> Issues,
+        Exception? FatalIssue)
+    {
+        public IReadOnlyList<(string Path, FileAttributes Attributes)> Items => Entries;
+        public IEnumerator<(string Path, FileAttributes Attributes)> GetEnumerator() => ((IEnumerable<(string Path, FileAttributes Attributes)>)Entries).GetEnumerator();
+    }
+
+    private sealed record DirectoryIssue(string Path, DiscoveryErrorCode Code, string Message);
+
+    /// <summary>
+    /// Best-effort season/episode inference for a known file name, used by manual repair (Add / Move to
+    /// series). It reuses the discovery parser — SxxEyy, 1x02, "Episode N", "الحلقة N", Arabic-Indic digits —
+    /// and, for a name that is only a base title plus a trailing number ("الرجل العناب 29") that the parser
+    /// leaves as a movie, treats it as a flat single-season show (season 1 + that number). Returns null when
+    /// nothing can be inferred confidently (a plain or year-only movie name), so the caller asks the user.
+    /// Read-only: it never scans or touches disk, and creates no second, divergent parser.
+    /// </summary>
+    public static (int Season, int Episode)? InferSeasonEpisode(string? fileNameOrPath)
+    {
+        if (string.IsNullOrWhiteSpace(fileNameOrPath))
+        {
+            return null;
+        }
+
+        var parsed = Parse(fileNameOrPath);
+        if (parsed.MediaType == MediaType.TvEpisode
+            && parsed.SeasonNumber is int season
+            && parsed.EpisodeNumber is int episode)
+        {
+            return (season, episode);
+        }
+
+        if (DropSort.Application.Services.TvSeriesGrouping.TryDeriveEpisode(
+                Path.GetFileNameWithoutExtension(fileNameOrPath), out _, out var trailingEpisode))
+        {
+            return (1, trailingEpisode);
+        }
+
+        return null;
+    }
+
+    private static ParsedMedia Parse(string path)
+    {        var original = Path.GetFileName(path);
         var stem = Path.GetFileNameWithoutExtension(path);
 
         // Two episode forms are recognized, both anchored so they cannot match part of a longer number:
         // S01E02 and 1x02. The show name is whatever precedes the marker; nothing after it is ever read
         // as a title, and no other numbering convention is guessed at.
+        // Episode markers, in priority order. SxxExx and 1x02 carry an explicit season. A word marker —
+        // "Episode 3", "Ep.3", or the Arabic "الحلقة ٣" (ASCII or Arabic-Indic digits) — carries only an
+        // episode number, so it is read as a flat single-season show (season 1). Season 0 is never invented
+        // here; it is reserved for real TMDB Specials.
         var episodeMatch = EpisodePattern().Match(stem);
-        var marker = episodeMatch.Success ? episodeMatch : AlternateEpisodePattern().Match(stem);
+        var altMatch = AlternateEpisodePattern().Match(stem);
+        var wordMatch = WordEpisodePattern().Match(stem);
+        var marker = episodeMatch.Success ? episodeMatch
+            : altMatch.Success ? altMatch
+            : wordMatch.Success ? wordMatch
+            : Match.Empty;
         var isEpisode = marker.Success;
         var yearMatch = YearPattern().Match(stem);
         int? year = yearMatch.Success ? int.Parse(yearMatch.Value, System.Globalization.CultureInfo.InvariantCulture) : null;
@@ -141,7 +329,9 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         // stays null: the file is then an episode the parser could not resolve, not a show named after
         // its own file name.
         var showPart = CleanReleaseTitle(stem[..marker.Index]);
-        var numbers = ReadEpisodeNumbers(marker);
+        var numbers = episodeMatch.Success || altMatch.Success
+            ? ReadEpisodeNumbers(marker)
+            : ReadWordEpisodeNumber(marker);
 
         return new ParsedMedia(
             original,
@@ -172,6 +362,50 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         }
 
         return season is < 0 or > 999 || episode is < 0 or > 999 ? null : (season, episode);
+    }
+
+    /// <summary>
+    /// The episode a word marker ("Episode 3", "Ep.3", "الحلقة ٣") claims. It carries no season, so a flat
+    /// single-season show is assumed (season 1) — never season 0, which is reserved for real TMDB Specials.
+    /// Arabic-Indic digits are folded to ASCII before parsing; an out-of-range number is a refusal.
+    /// </summary>
+    private static (int Season, int Episode)? ReadWordEpisodeNumber(Match marker)
+    {
+        var culture = System.Globalization.CultureInfo.InvariantCulture;
+        var styles = System.Globalization.NumberStyles.None;
+        var episodeText = FoldDigits(marker.Groups["episode"].Value);
+
+        if (!int.TryParse(episodeText, styles, culture, out var episode) || episode is < 0 or > 999)
+        {
+            return null;
+        }
+
+        return (1, episode);
+    }
+
+    /// <summary>Folds Arabic-Indic (٠-٩) and extended Arabic-Indic (۰-۹) digits to their ASCII value.</summary>
+    private static string FoldDigits(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return value;
+        }
+
+        var chars = value.ToCharArray();
+        for (var i = 0; i < chars.Length; i++)
+        {
+            var c = chars[i];
+            if (c is >= '٠' and <= '٩')
+            {
+                chars[i] = (char)('0' + (c - '٠'));
+            }
+            else if (c is >= '۰' and <= '۹')
+            {
+                chars[i] = (char)('0' + (c - '۰'));
+            }
+        }
+
+        return new string(chars);
     }
 
     private static string? FirstMatch(Regex pattern, string value)
@@ -219,6 +453,15 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
     /// </summary>
     [GeneratedRegex(@"(?i)(?<![\dx])(?<season>\d{1,3})x(?<episode>\d{1,3})(?![\dx])")]
     private static partial Regex AlternateEpisodePattern();
+
+    /// <summary>
+    /// A word-form episode marker with no season: English "Episode 3" / "Ep 3" (any separator or none) and
+    /// the Arabic "الحلقة ٣" / "حلقة 3" (teh-marbuta or heh spelling). The episode number may be ASCII or
+    /// Arabic-Indic digits. Series named this way are flat single-season shows, so the caller assigns
+    /// season 1. The trailing guard stops it from reading only part of a longer number.
+    /// </summary>
+    [GeneratedRegex(@"(?i)(?:\bepisode|\bep|(?:ال)?حلق[ةه])[\s._\-:]*(?<episode>[0-9٠-٩۰-۹]{1,3})(?![0-9٠-٩۰-۹])")]
+    private static partial Regex WordEpisodePattern();
 
     [GeneratedRegex(@"(?<!\d)(?:19|20)\d{2}(?!\d)")]
     private static partial Regex YearPattern();

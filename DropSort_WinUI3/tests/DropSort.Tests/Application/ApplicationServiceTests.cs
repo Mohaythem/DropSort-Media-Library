@@ -60,6 +60,7 @@ public class ApplicationServiceTests
         public IReadOnlyList<Movie> ListPage(int a, int l) => ListAll();
         public int CountAll() => Storage.Count;
         public void Delete(int id) => Storage.Remove(id);
+        public void SetReviewMatch(int id, bool value) { }
     }
 
     private class FakeMediaFileRepo : IMediaFileRepository
@@ -92,6 +93,8 @@ public class ApplicationServiceTests
         public IReadOnlyList<MediaFile> ListMissing() => new List<MediaFile>();
         public IReadOnlySet<int> ListMovieIdsWithPresentFile() =>
             new HashSet<int>(Storage.Values.Where(f => f.Status == MediaFileStatus.Present && f.MovieId is not null).Select(f => f.MovieId!.Value));
+        public IReadOnlyDictionary<int, int> CountFilesByMovie() =>
+            Storage.Values.Where(f => f.MovieId is not null).GroupBy(f => f.MovieId!.Value).ToDictionary(g => g.Key, g => g.Count());
         public MediaFile LinkToMovie(int id, int movieId) => Storage[id];
         public MediaFile RefreshVerifiedFacts(int id, VerifiedMediaFileFacts facts) => Storage[id];
         public MediaFile MarkMissing(int id, DateTimeOffset observedAt) => Storage[id];

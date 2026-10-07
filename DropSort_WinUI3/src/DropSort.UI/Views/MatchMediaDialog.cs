@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 using System.Threading.Tasks;
+using DropSort.Application.Metadata;
 using DropSort.Domain.Metadata.Contracts;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
@@ -21,11 +22,16 @@ public sealed class MatchMediaDialog : ContentDialog
     private readonly ProgressRing _progressRing;
     private readonly TextBlock _statusText;
     private readonly StackPanel _statusPanel;
+    private readonly TextBox _urlBox;
+    private readonly TextBlock _urlStatus;
 
     private readonly bool _isMovie;
+    private readonly string _initialTitle;
+    private readonly int? _initialYear;
     private CancellationTokenSource? _searchCts;
     private bool _closed;
     private bool _isSearching;
+    private bool _hasSearched;
 
     public MovieCandidate? SelectedMovieCandidate { get; private set; }
     public TvCandidate? SelectedTvCandidate { get; private set; }
@@ -33,6 +39,8 @@ public sealed class MatchMediaDialog : ContentDialog
     private MatchMediaDialog(bool isMovie, string initialTitle, int? initialYear)
     {
         _isMovie = isMovie;
+        _initialTitle = initialTitle ?? string.Empty;
+        _initialYear = initialYear.HasValue && initialYear.Value > 0 ? initialYear : null;
 
         Title = LocalizationService.Text("MatchWithTmdb");
         PrimaryButtonText = LocalizationService.Text("ApplyMatch");
@@ -48,7 +56,9 @@ public sealed class MatchMediaDialog : ContentDialog
             Width = 460
         };
 
-        // Search inputs row
+        // Manual search row. Candidates are generated automatically for the detected title/year on open,
+        // but the user can edit Title + Year and search again — essential when the automatic lookup finds
+        // nothing. The results (not this row) take focus after each search, so the caret never sits here.
         var searchGrid = new Grid { ColumnSpacing = 8 };
         searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         searchGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
@@ -57,7 +67,7 @@ public sealed class MatchMediaDialog : ContentDialog
         _titleBox = new TextBox
         {
             PlaceholderText = LocalizationService.Text("Title"),
-            Text = initialTitle ?? string.Empty
+            Text = _initialTitle,
         };
         _titleBox.KeyDown += OnInputKeyDown;
         Grid.SetColumn(_titleBox, 0);
@@ -65,7 +75,7 @@ public sealed class MatchMediaDialog : ContentDialog
         _yearBox = new TextBox
         {
             PlaceholderText = LocalizationService.Text("Year"),
-            Text = initialYear.HasValue && initialYear.Value > 0 ? initialYear.Value.ToString(CultureInfo.InvariantCulture) : string.Empty
+            Text = _initialYear is int iy ? iy.ToString(CultureInfo.InvariantCulture) : string.Empty,
         };
         _yearBox.KeyDown += OnInputKeyDown;
         Grid.SetColumn(_yearBox, 1);
@@ -73,7 +83,7 @@ public sealed class MatchMediaDialog : ContentDialog
         _searchButton = new Button
         {
             Content = LocalizationService.Text("SearchTmdb"),
-            Style = (Style)Microsoft.UI.Xaml.Application.Current.Resources["AccentControlButtonStyle"]
+            Style = (Style)Microsoft.UI.Xaml.Application.Current.Resources["AccentControlButtonStyle"],
         };
         _searchButton.Click += async (_, _) => await PerformSearchAsync();
         Grid.SetColumn(_searchButton, 2);
@@ -110,11 +120,38 @@ public sealed class MatchMediaDialog : ContentDialog
         _candidateList = new ListView
         {
             SelectionMode = ListViewSelectionMode.Single,
-            MaxHeight = 280,
+            MaxHeight = 320,
             MinHeight = 120
         };
         _candidateList.SelectionChanged += OnCandidateSelectionChanged;
         contentStack.Children.Add(_candidateList);
+
+        // Manual "Paste TMDB URL" fallback. A themoviedb.org movie/show link is an explicit identity, so it
+        // needs no scoring and no Review Match: it applies directly through the normal match path. The link
+        // must match this dialog's media type; a wrong or malformed link is reported cleanly.
+        var urlGrid = new Grid { ColumnSpacing = 8 };
+        urlGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        urlGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _urlBox = new TextBox { PlaceholderText = LocalizationService.Text("PasteTmdbUrlPlaceholder") };
+        _urlBox.KeyDown += (_, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter) { e.Handled = true; OnUseLinkClick(); }
+        };
+        Grid.SetColumn(_urlBox, 0);
+        var urlButton = new Button { Content = LocalizationService.Text("UseTmdbLink") };
+        urlButton.Click += (_, _) => OnUseLinkClick();
+        Grid.SetColumn(urlButton, 1);
+        urlGrid.Children.Add(_urlBox);
+        urlGrid.Children.Add(urlButton);
+        contentStack.Children.Add(urlGrid);
+
+        _urlStatus = new TextBlock
+        {
+            Visibility = Visibility.Collapsed,
+            TextWrapping = TextWrapping.Wrap,
+            Style = (Style)Microsoft.UI.Xaml.Application.Current.Resources["SecondaryBodyTextStyle"],
+        };
+        contentStack.Children.Add(_urlStatus);
 
         Content = contentStack;
         PrimaryButtonClick += OnPrimaryButtonClick;
@@ -127,8 +164,10 @@ public sealed class MatchMediaDialog : ContentDialog
         };
         Opened += async (_, _) =>
         {
-            if (!string.IsNullOrWhiteSpace(_titleBox.Text))
+            // Generate the automatic candidates for the detected title on open; the user can then refine.
+            if (!_hasSearched && !string.IsNullOrWhiteSpace(_titleBox.Text))
             {
+                _hasSearched = true;
                 await PerformSearchAsync();
             }
         };
@@ -146,6 +185,50 @@ public sealed class MatchMediaDialog : ContentDialog
     private void OnCandidateSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         IsPrimaryButtonEnabled = _candidateList.SelectedItem != null;
+    }
+
+    /// <summary>
+    /// Turns a pasted themoviedb.org link into the chosen candidate. The link's media type must match this
+    /// dialog (movie vs show); the candidate carries only Provider + ExternalId, which is all the apply path
+    /// needs (it fetches full metadata from the id). Apply Match then commits it — no scoring, no Review Match.
+    /// </summary>
+    private void OnUseLinkClick()
+    {
+        if (!TmdbUrl.TryParse(_urlBox.Text, out var kind, out var externalId))
+        {
+            ShowUrlStatus(LocalizationService.Text("TmdbLinkInvalid"));
+            return;
+        }
+
+        if ((kind == TmdbUrlKind.Movie) != _isMovie)
+        {
+            ShowUrlStatus(LocalizationService.Text("TmdbLinkWrongType"));
+            return;
+        }
+
+        var displayTitle = _initialTitle.Length > 0 ? _initialTitle : $"TMDB #{externalId}";
+        if (_isMovie)
+        {
+            SelectedTvCandidate = null;
+            SelectedMovieCandidate = new MovieCandidate("TMDB", externalId, displayTitle, null, _initialYear, null, null, null);
+        }
+        else
+        {
+            SelectedMovieCandidate = null;
+            SelectedTvCandidate = new TvCandidate("TMDB", externalId, displayTitle, null, _initialYear, null, null, null, null);
+        }
+
+        // A link identity overrides any list pick; clearing the selection also disables the primary button,
+        // so re-enable it explicitly afterwards.
+        _candidateList.SelectedItem = null;
+        IsPrimaryButtonEnabled = true;
+        ShowUrlStatus(LocalizationService.Text("TmdbLinkReady"));
+    }
+
+    private void ShowUrlStatus(string message)
+    {
+        _urlStatus.Text = message;
+        _urlStatus.Visibility = Visibility.Visible;
     }
 
     private void OnPrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
@@ -173,11 +256,11 @@ public sealed class MatchMediaDialog : ContentDialog
         int? year = int.TryParse(_yearBox.Text.Trim(), out var parsedYear) && parsedYear > 0 ? parsedYear : null;
 
         _isSearching = true;
+        _searchButton.IsEnabled = false;
         _searchCts?.Cancel();
         _searchCts?.Dispose();
         _searchCts = new CancellationTokenSource();
         var cancellationToken = _searchCts.Token;
-        _searchButton.IsEnabled = false;
         _candidateList.Items.Clear();
         IsPrimaryButtonEnabled = false;
 
@@ -274,6 +357,14 @@ public sealed class MatchMediaDialog : ContentDialog
             {
                 _isSearching = false;
                 _searchButton.IsEnabled = true;
+
+                // Focus the results (never the search box), so choosing a match is the next keyboard step
+                // and the Search field never silently reclaims the caret. Pre-select the top candidate.
+                if (_candidateList.Items.Count > 0)
+                {
+                    _candidateList.SelectedIndex = 0;
+                    _candidateList.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+                }
             }
         }
     }

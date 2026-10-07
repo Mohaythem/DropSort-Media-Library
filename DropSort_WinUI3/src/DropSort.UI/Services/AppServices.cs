@@ -89,6 +89,11 @@ internal static class AppServices
     /// <summary>The TV catalog: the shows grid, one show's hierarchy, and an episode's files.</summary>
     public static ITvLibraryUiActions Tv => Require(_tv);
 
+    /// <summary>Manual catalog repair: move a movie into a series, or remove an item (file kept on disk).</summary>
+    public static ILibraryRepairUiActions Repair => Require(_repair);
+
+    public static MediaFileActions MediaFileActions => new(Require(_availabilityInspector));
+
     public static IOperationHistoryUiActions History => Require(_history);
 
     public static ISettingsUiActions Settings => Require(_settings);
@@ -124,10 +129,16 @@ internal static class AppServices
     /// file as affirmatively available. Returns true when the store is unavailable, so nothing is
     /// downgraded before the library is ready.
     /// </summary>
-    public static bool IsStorageAvailable(string path)
+    public static (int Season, int Episode)? InferSeasonEpisode(string? fileNameOrPath) =>
+        MediaDiscoveryService.InferSeasonEpisode(fileNameOrPath);
+
+    public static bool IsStorageAvailable(string path, CancellationToken token = default)
     {
+        token.ThrowIfCancellationRequested();
         var inspector = _availabilityInspector;
-        return inspector is null || inspector.IsStorageAvailable(path);
+        var available = inspector is null || inspector.IsStorageAvailable(path);
+        token.ThrowIfCancellationRequested();
+        return available;
     }
 
     /// <summary>
@@ -136,7 +147,7 @@ internal static class AppServices
     /// off the UI thread. Returns an empty set when the library is not ready, so nothing is downgraded
     /// before startup completes. This is the shared availability-truth primitive for list surfaces.
     /// </summary>
-    public static IReadOnlySet<string> UnavailableStoragePaths(IEnumerable<string> paths)
+    public static IReadOnlySet<string> UnavailableStoragePaths(IEnumerable<string> paths, CancellationToken token = default)
     {
         var unavailable = new HashSet<string>(StringComparer.Ordinal);
         var inspector = _availabilityInspector;
@@ -145,11 +156,13 @@ internal static class AppServices
         var rootAvailable = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in paths)
         {
+            token.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(path)) continue;
             var root = StorageRootKey(path);
             if (!rootAvailable.TryGetValue(root, out var available))
             {
                 available = inspector.IsStorageAvailable(path);
+                token.ThrowIfCancellationRequested();
                 rootAvailable[root] = available;
             }
 
@@ -257,6 +270,7 @@ internal static class AppServices
     private static TmdbClient? _tmdbClient;
     private static IMetadataProvider? _metadataProvider;
     private static MetadataMatchingService? _matching;
+    private static ILibraryRepairUiActions? _repair;
 
     /// <summary>
     /// The two objects that own a resource rather than a connection string: the journal store holds a
@@ -368,10 +382,12 @@ internal static class AppServices
                     new UnitOfWorkTvShowRepository(catalogFactory),
                     new UnitOfWorkTvSeasonRepository(catalogFactory),
                     new UnitOfWorkTvEpisodeRepository(catalogFactory),
-                    personal);
+                    personal,
+                    tmdbClient);
                 var watchHistory = new WatchHistoryService(personal);
                 var history = new OperationHistoryService(operations, coordinator, mediaFiles, movies);
                 var organization = new OrganizationService(mediaFiles, coordinator);
+                var repair = new LibraryRepairService(catalogFactory);
 
                 _mediaFiles = mediaFiles;
                 _availabilityInspector = availabilityInspector;
@@ -391,6 +407,7 @@ internal static class AppServices
                 _tmdbClient = tmdbClient;
                 _metadataProvider = tmdbClient;
                 _matching = matching;
+                _repair = repair;
 
                 InitializationError = null;
                 _initialized = true;
@@ -454,6 +471,7 @@ internal static class AppServices
         _tmdbClient = null;
         _metadataProvider = null;
         _matching = null;
+        _repair = null;
         _operationStore = null;
         _coordinator = null;
     }
@@ -472,16 +490,20 @@ internal static class AppServices
             try
             {
                 var movieFolder = settings.Get("ui_movie_folder");
-                if (!string.IsNullOrEmpty(movieFolder) && Directory.Exists(movieFolder))
+                if (!string.IsNullOrEmpty(movieFolder) && !NetworkReadGuard.IsNetworkPath(movieFolder) && Directory.Exists(movieFolder))
                     approvedRoots.Add(movieFolder);
                 var showFolder = settings.Get("ui_show_folder");
-                if (!string.IsNullOrEmpty(showFolder) && Directory.Exists(showFolder))
+                if (!string.IsNullOrEmpty(showFolder) && !NetworkReadGuard.IsNetworkPath(showFolder) && Directory.Exists(showFolder))
                     approvedRoots.Add(showFolder);
             }
             catch { }
 
             foreach (var op in nonterminal)
             {
+                // Startup runs on the UI thread. Keep network journals pending for explicit recovery;
+                // never start a potentially blocked network mutation while initializing the shell.
+                if (NetworkReadGuard.IsNetworkPath(op.Source) || NetworkReadGuard.IsNetworkPath(op.Destination))
+                    continue;
                 try
                 {
                     var opRoots = new HashSet<string>(approvedRoots, StringComparer.OrdinalIgnoreCase);
@@ -509,18 +531,22 @@ internal static class AppServices
     /// <summary>
     /// Detects stale .dropsort-*.tmp files across approved directories without automatic deletion.
     /// </summary>
-    public static IReadOnlyList<DropSort.Domain.Core.Operations.StaleTempFileInfo> DetectStaleTempFiles(IEnumerable<string>? extraRoots = null)
+    public static IReadOnlyList<DropSort.Domain.Core.Operations.StaleTempFileInfo> DetectStaleTempFiles(IEnumerable<string>? extraRoots = null, CancellationToken token = default)
     {
         var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { DataFolder };
         try
         {
             if (_settingsRepository is not null)
             {
+                var configured = _settingsRepository.Get("ui_media_folders");
+                if (configured is not null)
+                    foreach (var configuredRoot in configured.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        roots.Add(configuredRoot);
                 var movieFolder = _settingsRepository.Get("ui_movie_folder");
-                if (!string.IsNullOrEmpty(movieFolder) && Directory.Exists(movieFolder))
+                if (!string.IsNullOrEmpty(movieFolder))
                     roots.Add(movieFolder);
                 var showFolder = _settingsRepository.Get("ui_show_folder");
-                if (!string.IsNullOrEmpty(showFolder) && Directory.Exists(showFolder))
+                if (!string.IsNullOrEmpty(showFolder))
                     roots.Add(showFolder);
             }
         }
@@ -529,10 +555,10 @@ internal static class AppServices
         {
             foreach (var root in extraRoots)
             {
-                if (Directory.Exists(root)) roots.Add(root);
+                if (!string.IsNullOrWhiteSpace(root)) roots.Add(root);
             }
         }
-        return DropSort.FileSystem.Inspection.CrashTempFileInspector.FindStaleTempFiles(roots);
+        return DropSort.FileSystem.Inspection.CrashTempFileInspector.FindStaleTempFiles(roots, () => token.IsCancellationRequested);
     }
 
     private static T Require<T>(T? service)

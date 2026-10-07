@@ -40,7 +40,8 @@ public enum DiscoveryErrorCode
     StatFailed,
     LinkSkipped,
     LoopSkipped,
-    ParseFailed
+    ParseFailed,
+    StorageUnavailable
 }
 
 public record DiscoveryProgress(int TotalFiles, int ProcessedFiles, int Errors, string? CurrentPath);

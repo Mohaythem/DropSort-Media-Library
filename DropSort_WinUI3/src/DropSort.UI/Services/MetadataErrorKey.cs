@@ -28,6 +28,7 @@ public static class MetadataErrorKey
         MetadataFailureKind.NotFound => "MetadataNotFoundError",
         MetadataFailureKind.IncompleteMetadata => "MetadataIncompleteError",
         MetadataFailureKind.StaleRequest => "MetadataStaleRequestError",
+        MetadataFailureKind.IdentityConflict => "MetadataIdentityConflictError",
         _ => "MetadataUnexpectedError",
     };
 }

@@ -6,6 +6,61 @@
     xmlns:models="using:DropSort.UI.Models"
     Background="Transparent">
 
+    <Page.Resources>
+        <!--
+            A column header that reads as part of the table header row, not a separate filled button:
+            transparent in every state (so it shows the header-row background), no fill on hover/press,
+            and only a subtle heavier stroke outlines the cell on hover/active. The content fills the
+            whole cell so the entire column header is clickable; the header lays out its own text (left)
+            and sort arrow (far right).
+        -->
+        <Style x:Key="TableHeaderSortButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4,0,4,0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="UseSystemFocusVisuals" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver">
+                                        <VisualState.Setters>
+                                            <Setter Target="Root.BorderBrush" Value="{ThemeResource ControlStrongStrokeColorDefaultBrush}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <VisualState.Setters>
+                                            <Setter Target="Root.BorderBrush" Value="{ThemeResource ControlStrongStrokeColorDefaultBrush}" />
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled" />
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <ContentPresenter
+                                Padding="{TemplateBinding Padding}"
+                                HorizontalContentAlignment="Stretch"
+                                VerticalContentAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
+
     <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}">
         <Grid>
             <Grid.ColumnDefinitions>
@@ -84,6 +139,10 @@
                                 Click="SelectAllButton_Click"
                                 Style="{StaticResource SubtleControlButtonStyle}" />
                             <Button
+                                x:Name="SelectReadyButton"
+                                Click="SelectReadyButton_Click"
+                                Style="{StaticResource SubtleControlButtonStyle}" />
+                            <Button
                                 x:Name="DeselectAllButton"
                                 Click="DeselectAllButton_Click"
                                 Style="{StaticResource SubtleControlButtonStyle}" />
@@ -93,6 +152,17 @@
                                 Style="{StaticResource AccentControlButtonStyle}" />
                         </StackPanel>
                     </Grid>
+
+                    <InfoBar
+                        x:Name="SeriesSuggestionBar"
+                        IsClosable="True"
+                        IsOpen="False"
+                        Severity="Informational"
+                        Visibility="Collapsed">
+                        <InfoBar.ActionButton>
+                            <Button x:Name="TreatAllAsTvButton" Click="TreatAllAsTv_Click" />
+                        </InfoBar.ActionButton>
+                    </InfoBar>
 
                     <Border Style="{StaticResource ListSurfaceBorderStyle}">
                         <StackPanel>
@@ -107,11 +177,50 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock x:Name="ColumnSelectText" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
-                                <TextBlock x:Name="ColumnTypeText" Grid.Column="1" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
-                                <TextBlock x:Name="ColumnTitleText" Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <Button
+                                    x:Name="SortTypeButton"
+                                    Grid.Column="1"
+                                    Click="SortType_Click"
+                                    Style="{StaticResource TableHeaderSortButtonStyle}">
+                                    <Grid ColumnSpacing="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="ColumnTypeText" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                        <FontIcon x:Name="SortTypeIndicator" Grid.Column="1" FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="10" Visibility="Collapsed" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Button>
+                                <Button
+                                    x:Name="SortTitleButton"
+                                    Grid.Column="2"
+                                    Click="SortTitle_Click"
+                                    Style="{StaticResource TableHeaderSortButtonStyle}">
+                                    <Grid ColumnSpacing="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="ColumnTitleText" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                        <FontIcon x:Name="SortTitleIndicator" Grid.Column="1" FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="10" Visibility="Collapsed" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Button>
                                 <TextBlock x:Name="ColumnPreviewText" Grid.Column="3" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
                                 <TextBlock x:Name="ColumnDetailsText" Grid.Column="4" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
-                                <TextBlock x:Name="ColumnStatusText" Grid.Column="5" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                <Button
+                                    x:Name="SortStatusButton"
+                                    Grid.Column="5"
+                                    Click="SortStatus_Click"
+                                    Style="{StaticResource TableHeaderSortButtonStyle}">
+                                    <Grid ColumnSpacing="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock x:Name="ColumnStatusText" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                        <FontIcon x:Name="SortStatusIndicator" Grid.Column="1" FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="10" Visibility="Collapsed" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Button>
                                 <TextBlock x:Name="ColumnActionText" Grid.Column="6" VerticalAlignment="Center" Style="{StaticResource TertiaryCaptionTextStyle}" />
                             </Grid>
                             <Border Style="{StaticResource HairlineDividerStyle}" />
@@ -198,39 +307,19 @@
                                                         Visibility="{x:Bind RetryVisibility, Mode=OneWay}"
                                                         AutomationProperties.Name="{x:Bind RetryLabel, Mode=OneWay}"
                                                         Style="{StaticResource TextActionButtonStyle}" />
+                                                    <Button
+                                                        Content="{x:Bind OverrideTypeLabel, Mode=OneWay}"
+                                                        Tag="{x:Bind}"
+                                                        Click="OverrideType_Click"
+                                                        Visibility="{x:Bind OverrideTypeVisibility, Mode=OneWay}"
+                                                        AutomationProperties.Name="{x:Bind OverrideTypeLabel, Mode=OneWay}"
+                                                        Style="{StaticResource TextActionButtonStyle}" />
                                                 </StackPanel>
                                             </Grid>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>
-                        </StackPanel>
-                    </Border>
-
-                    <Border x:Name="SearchTmdbCard" Style="{StaticResource CardBorderStyle}">
-                        <StackPanel Spacing="16">
-                            <StackPanel Spacing="4">
-                                <TextBlock x:Name="SearchTmdbHeadingText" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <TextBlock
-                                    x:Name="SearchTmdbHelpText"
-                                    Style="{StaticResource SecondaryBodyTextStyle}"
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-                            <Grid ColumnSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <AutoSuggestBox
-                                    x:Name="TmdbSearchBox"
-                                    QueryIcon="Find"
-                                    Style="{StaticResource PageSearchBoxStyle}" />
-                                <Button
-                                    x:Name="TmdbSearchButton"
-                                    Grid.Column="1"
-                                    Click="TmdbSearchButton_Click"
-                                    Style="{StaticResource SubtleControlButtonStyle}" />
-                            </Grid>
                         </StackPanel>
                     </Border>
                 </StackPanel>

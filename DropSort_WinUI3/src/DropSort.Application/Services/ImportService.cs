@@ -101,13 +101,24 @@ public class ImportService : IImportUiActions
                         Failure: SafeMetadataFailure(MetadataFailureKind.InvalidResponse),
                         MetadataFailureKind: MetadataFailureKind.InvalidResponse);
                 }
+                var previewStatus = PreviewStatusFor(decision.Status, decision.Confidence, decision.Candidate is not null);
+                var previewCandidate = decision.Candidate;
+                var previewMatchStatus = decision.Status;
+                if (previewStatus != ImportItemStatus.Matched
+                    && SoleCredibleFallback(decision, item.ParsedMedia.Title!, item.ParsedMedia.Year) is { } fallback)
+                {
+                    // Exactly one credible sole result below 0.75 (e.g. "Dune Part One" -> "Dune 2021"):
+                    // surface it as ready to add and persist a Review Match rather than block for review.
+                    previewStatus = ImportItemStatus.Matched;
+                    previewCandidate = fallback;
+                    previewMatchStatus = MatchStatus.ReviewRequired;
+                }
                 return new ImportMetadataPreview(
-                    decision.Status == MatchStatus.Matched ? ImportItemStatus.Matched
-                        : decision.Status == MatchStatus.ReviewRequired ? ImportItemStatus.NeedsMatch
-                        : ImportItemStatus.NoMatchFound,
-                    decision.Status,
-                    MovieCandidate: decision.Candidate,
-                    Failure: decision.Status == MatchStatus.NoMatch ? "No safe metadata match was found." : null);
+                    previewStatus,
+                    previewMatchStatus,
+                    MovieCandidate: previewCandidate,
+                    Failure: previewStatus == ImportItemStatus.Matched ? null
+                        : decision.Status == MatchStatus.NoMatch ? "No safe metadata match was found." : null);
             }
 
             var tvDecision = await _matching.SearchTvCandidatesAsync(
@@ -121,9 +132,7 @@ public class ImportService : IImportUiActions
                     MetadataFailureKind: MetadataFailureKind.InvalidResponse);
             }
             return new ImportMetadataPreview(
-                tvDecision.Status == MatchStatus.Matched ? ImportItemStatus.Matched
-                    : tvDecision.Status == MatchStatus.ReviewRequired ? ImportItemStatus.NeedsMatch
-                    : ImportItemStatus.NoMatchFound,
+                PreviewStatusFor(tvDecision.Status, tvDecision.Confidence, tvDecision.Candidate is not null),
                 tvDecision.Status,
                 TvCandidate: tvDecision.Candidate,
                 Failure: tvDecision.Status == MatchStatus.NoMatch ? "No safe metadata match was found." : null);
@@ -161,15 +170,21 @@ public class ImportService : IImportUiActions
 
     public async Task<ImportBatchResult> ImportSelectedAsync(
         IReadOnlyList<ImportSelection> selections,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Action<ImportProgress>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(selections);
         var results = new List<ImportItemResult>(selections.Count);
         var moviesPending = new List<MovieImportWork>();
         var tvShows = new Dictionary<int, TvImportGroup>();
 
+        var processed = 0;
         foreach (var selection in selections)
         {
+            // Real processed/total progress for the bulk-add UI, reported as each selected item is
+            // registered locally. This is the dominant per-item work in a large batch.
+            progress?.Invoke(new ImportProgress(processed, selections.Count));
+            processed++;
             ArgumentNullException.ThrowIfNull(selection);
             var item = selection.Item;
             if (item.FileSize is not long size || item.ParsedMedia is null)
@@ -335,6 +350,10 @@ public class ImportService : IImportUiActions
             }
         }
 
+        // All selected items have been registered locally; report the final count so the UI shows the
+        // completed total before the (fast, staged-preview) metadata phase runs.
+        progress?.Invoke(new ImportProgress(selections.Count, selections.Count));
+
         // Apply staged TV terminal states only after every episode in a grouped show is registered.
         // Updating the show inside the registration loop would change its metadata status before a
         // later episode's optimistic match can use the original expected status. This also runs when
@@ -368,16 +387,50 @@ public class ImportService : IImportUiActions
                 try
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    var decision = pending.StagedPreview?.MovieCandidate is not null
-                        ? new MatchDecision(MatchStatus.Matched, pending.StagedPreview.MovieCandidate, 1.0,
+                    // A staged candidate already passed the shared eligibility rule during the review pass,
+                    // so it is applied without a second search. Preserve its MatchStatus: a manual or clear
+                    // 0.80+ match stays Matched (no Review Match), while a 0.75-0.80 acceptance stays
+                    // ReviewRequired so the persisted Review Match flag is set below.
+                    var staged = pending.StagedPreview;
+                    var decision = staged?.MovieCandidate is not null
+                        ? new MatchDecision(
+                            staged.MatchStatus ?? MatchStatus.Matched,
+                            staged.MovieCandidate,
+                            staged.MatchStatus == MatchStatus.ReviewRequired ? MetadataScorer.BulkAcceptThreshold : 1.0,
                             System.Collections.Immutable.ImmutableArray<MatchReason>.Empty,
                             System.Collections.Immutable.ImmutableArray<CandidateScore>.Empty)
                         : await _matching.SearchMovieCandidatesAsync(pending.Title, pending.Year, cancellationToken);
-                    if (decision.Status == MatchStatus.Matched)
+
+                    // Shared eligibility, plus a guarded sole-result fallback: exactly one credible
+                    // candidate below 0.75 (e.g. "Dune Part One" -> "Dune 2021") is accepted as a review
+                    // match instead of being routed to manual review. Popularity/closeness never rescues;
+                    // a competitor, a conflicting year or an unrelated title keeps it Needs Review.
+                    var accept = ShouldBulkAccept(decision.Status, decision.Confidence);
+                    var reviewMatch = decision.Status == MatchStatus.ReviewRequired;
+                    var acceptCandidate = decision.Candidate;
+                    if (!accept && staged?.MovieCandidate is null
+                        && SoleCredibleFallback(decision, pending.Title, pending.Year) is { } fallback)
                     {
-                        if (decision.Candidate is null)
+                        accept = true;
+                        reviewMatch = true;
+                        acceptCandidate = fallback;
+                    }
+
+                    if (accept)
+                    {
+                        if (acceptCandidate is null)
                         {
                             throw new MetadataServiceException(MetadataFailureKind.InvalidResponse);
+                        }
+
+                        // Duplicate-identity guard: if another movie already owns this TMDB identity, the
+                        // file is the same logical movie in a different folder. Attach it to the existing
+                        // movie as another media file and drop the just-created empty movie, instead of
+                        // creating a second card (and colliding on UNIQUE(provider, external_id)). Root/scan
+                        // order therefore cannot decide which copy "wins" or owns the metadata.
+                        if (TryAssociateWithExistingMovie(pending, acceptCandidate, results))
+                        {
+                            continue;
                         }
 
                         results[pending.ResultIndex] = results[pending.ResultIndex] with
@@ -387,9 +440,10 @@ public class ImportService : IImportUiActions
                         };
                         await _matching.MatchMovieAsync(
                             pending.MovieId,
-                            decision.Candidate,
+                            acceptCandidate,
                             cancellationToken,
-                            pending.ExpectedMetadataStatus);
+                            pending.ExpectedMetadataStatus,
+                            reviewMatch: reviewMatch);
                         results[pending.ResultIndex] = results[pending.ResultIndex] with
                         {
                             AutoMatched = pending.StagedPreview?.IsManual != true,
@@ -527,7 +581,7 @@ public class ImportService : IImportUiActions
                             System.Collections.Immutable.ImmutableArray<MatchReason>.Empty,
                             System.Collections.Immutable.ImmutableArray<TvCandidateScore>.Empty)
                         : await _matching.SearchTvCandidatesAsync(pending.Show.Title, pending.Year, cancellationToken);
-                    if (decision.Status == MatchStatus.Matched)
+                    if (ShouldBulkAccept(decision.Status, decision.Confidence))
                     {
                         if (decision.Candidate is null)
                         {
@@ -612,6 +666,50 @@ public class ImportService : IImportUiActions
         return new ImportBatchResult(results);
     }
 
+    /// <summary>
+    /// The single Add Media eligibility rule, shared by every surface so they agree end to end: the review
+    /// preview (which drives the displayed status, "Select ready to add", and the per-item metadata gate)
+    /// and the bulk-add metadata application. A user-initiated import accepts the top candidate now instead
+    /// of routing it to manual review when there is a clear 0.80+ winner, or any 0.75-0.80 best candidate —
+    /// including a close/ambiguous tie, because the scorer already ranks the tied group by TMDB popularity,
+    /// so the top candidate is the most-popular of equally-strong options. Popularity only breaks ties
+    /// between strong candidates; it never rescues a below-0.75 match.
+    /// </summary>
+    private static bool ShouldBulkAccept(MatchStatus status, double confidence) =>
+        status == MatchStatus.Matched
+        || (status == MatchStatus.ReviewRequired && confidence >= MetadataScorer.BulkAcceptThreshold);
+
+    /// <summary>
+    /// The Add Media review status for a scored decision, derived from the same <see cref="ShouldBulkAccept" />
+    /// rule. A bulk-acceptable candidate is surfaced as <see cref="ImportItemStatus.Matched" /> so it is
+    /// offered as "ready to add" and reaches the metadata-application gate; the preview still carries the
+    /// original <see cref="MatchStatus" />, so a 0.75-0.80 acceptance is later persisted with a Review Match
+    /// flag. A below-0.75 review candidate stays <see cref="ImportItemStatus.NeedsMatch" /> for the user.
+    /// </summary>
+    private static ImportItemStatus PreviewStatusFor(MatchStatus status, double confidence, bool hasCandidate) =>
+        hasCandidate && ShouldBulkAccept(status, confidence) ? ImportItemStatus.Matched
+        : status == MatchStatus.ReviewRequired ? ImportItemStatus.NeedsMatch
+        : ImportItemStatus.NoMatchFound;
+
+    /// <summary>
+    /// The single credible sole candidate to accept as a review match when a user-initiated Add has a
+    /// below-0.75 decision, or null. It requires EXACTLY ONE candidate (no competitor) and delegates the
+    /// title/year corroboration to <see cref="MetadataScorer.IsCorroboratedSoleCandidate" />, so a
+    /// conflicting year or an unrelated title never qualifies. The caller persists the Review Match flag.
+    /// </summary>
+    private static MovieCandidate? SoleCredibleFallback(MatchDecision decision, string title, int? year)
+    {
+        if (decision.RankedCandidates.Length != 1)
+        {
+            return null;
+        }
+
+        var only = decision.RankedCandidates[0].Candidate;
+        return MetadataScorer.IsCorroboratedSoleCandidate(title, year, only.Title, only.OriginalTitle, only.Year)
+            ? only
+            : null;
+    }
+
     private static bool IsBestEffortMetadataFailure(Exception error) =>
         error is not OutOfMemoryException and not StackOverflowException and not AccessViolationException;
 
@@ -691,6 +789,52 @@ public class ImportService : IImportUiActions
 
     private bool TrySetMovieStatus(MovieImportWork pending, MetadataStatus status) =>
         TrySetMovieStatus(pending.MovieId, status, pending.ExpectedMetadataStatus);
+
+    /// <summary>
+    /// If a different movie already owns the confidently matched TMDB identity, attach this import's
+    /// file(s) to that existing movie and delete the just-created placeholder movie, so the same movie in
+    /// two folders becomes one Movie with multiple media files — never a second empty card. Returns true
+    /// when the association happened. The existing movie keeps its single metadata record, poster, watch
+    /// state and list membership: those are never touched, so they survive the association. The
+    /// placeholder movie was created moments earlier in this batch and carries no user state, so removing
+    /// it loses nothing. Only a confident (Matched) identity reaches here; uncertain matches never merge.
+    /// </summary>
+    private bool TryAssociateWithExistingMovie(MovieImportWork pending, MovieCandidate candidate, List<ImportItemResult> results)
+    {
+        if (string.IsNullOrWhiteSpace(candidate.Provider) || string.IsNullOrWhiteSpace(candidate.ExternalId))
+        {
+            return false;
+        }
+
+        using var uow = _uowFactory.Begin();
+        var existing = uow.Movies.GetByExternalId(candidate.Provider, candidate.ExternalId);
+        if (existing is null || existing.Id == pending.MovieId)
+        {
+            return false;
+        }
+
+        // Move every media file of the placeholder movie onto the existing logical movie. LinkToMovie
+        // only re-points an unlinked file, so first delete the placeholder movie — media_files.movie_id is
+        // ON DELETE SET NULL, which orphans (never deletes) its files — then link each orphaned file to the
+        // existing movie. Each file stays a distinct media-file row (different paths/extensions remain
+        // separate versions); only its owning movie changes. All of this is one transaction.
+        var fileIds = uow.MediaFiles.GetByMovieId(pending.MovieId).Select(file => file.Id).ToList();
+        uow.Movies.Delete(pending.MovieId);
+        foreach (var fileId in fileIds)
+        {
+            uow.MediaFiles.LinkToMovie(fileId, existing.Id);
+        }
+        uow.Commit();
+
+        results[pending.ResultIndex] = results[pending.ResultIndex] with
+        {
+            MatchStatus = MatchStatus.Matched,
+            AutoMatched = pending.StagedPreview?.IsManual != true,
+            Status = ImportItemStatus.Matched,
+            Registered = true
+        };
+        return true;
+    }
 
     private bool TrySetTvStatus(int showId, MetadataStatus status, MetadataStatus expectedStatus)
     {

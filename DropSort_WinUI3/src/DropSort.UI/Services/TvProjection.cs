@@ -70,7 +70,7 @@ internal static class TvProjection
                 : string.Empty,
             Watched: episode.Watched,
             HasLocalFile: episode.Availability == EpisodeAvailability.Present,
-            IsFileMissing: episode.Availability == EpisodeAvailability.Missing,
+            IsFileMissing: episode.Availability is EpisodeAvailability.Missing or EpisodeAvailability.NoFile || episode.Id == 0,
             FilePath: file?.CurrentPath);
     }
 }

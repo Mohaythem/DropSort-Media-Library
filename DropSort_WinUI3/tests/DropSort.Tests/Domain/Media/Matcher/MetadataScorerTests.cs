@@ -230,4 +230,80 @@ public class MetadataScorerTests
         Assert.Equal("high", decision.RankedCandidates[0].Candidate.ExternalId);
         Assert.Equal(MatchStatus.ReviewRequired, decision.Status);
     }
+
+    // --- Arabic normalization and matching -------------------------------------------------------
+    // Arabic titles vary in orthography: optional diacritics, teh-marbuta vs heh, alef-maqsura vs yeh,
+    // the several alef forms, decorative tatweel, and Arabic-Indic digits. Normalization must fold all of
+    // these so the same title matches regardless of how it is spelled.
+
+    [Theory]
+    [InlineData("مُحَمَّد", "محمد")]                 // harakat and shadda are dropped
+    [InlineData("الرسالة", "الرساله")]              // teh marbuta -> heh
+    [InlineData("ليلى", "ليلي")]                    // alef maqsura -> yeh
+    [InlineData("الــفيلم", "الفيلم")]              // tatweel (kashida) removed
+    [InlineData("الأسد", "الاسد")]                  // alef-with-hamza -> bare alef
+    [InlineData("إسلام", "اسلام")]                  // alef-with-hamza-below -> bare alef
+    [InlineData("الفيلم ٢٠٢١", "الفيلم 2021")]      // Arabic-Indic digits -> ASCII
+    public void NormalizeTitle_FoldsArabicOrthographicVariants(string input, string expected)
+    {
+        var result = MetadataScorer.NormalizeTitle(input);
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void NormalizeTitle_TreatsTehMarbutaAndHehSpellingsAsEqual()
+    {
+        // The whole point of the fold: two writers spell one title differently, one comparison key.
+        Assert.Equal(
+            MetadataScorer.NormalizeTitle("الرسالة"),
+            MetadataScorer.NormalizeTitle("الرساله"));
+    }
+
+    [Fact]
+    public void Score_ArabicTitle_MatchesDespiteTehMarbutaSpelling()
+    {
+        // Query ends in teh marbuta, the provider candidate in heh; the fold makes them one title.
+        var candidates = new[]
+        {
+            new MovieCandidate("tmdb", "777", "الرساله", null, 1976, "سيرة", 7.9, "/p.jpg")
+        };
+
+        var decision = MetadataScorer.Score("الرسالة", 1976, candidates);
+
+        Assert.Equal(MatchStatus.Matched, decision.Status);
+        Assert.Equal("777", decision.Candidate!.ExternalId);
+        Assert.Contains(MatchReason.TitleExact, decision.Reasons);
+        Assert.Contains(MatchReason.YearExact, decision.Reasons);
+    }
+
+    [Fact]
+    public void Score_ArabicQuery_MatchesEnglishCandidateThroughArabicOriginalTitle()
+    {
+        // TMDB localizes the display title to English but keeps the Arabic original title. An Arabic
+        // query must still match through the original title.
+        var candidates = new[]
+        {
+            new MovieCandidate("tmdb", "9", "The Message", "الرسالة", 1976, "biography", 7.9, "/p.jpg")
+        };
+
+        var decision = MetadataScorer.Score("الرساله", 1976, candidates);
+
+        Assert.Equal(MatchStatus.Matched, decision.Status);
+        Assert.Contains(MatchReason.OriginalTitleExact, decision.RankedCandidates[0].MatchReasons);
+    }
+
+    [Fact]
+    public void Score_ArabicTitle_MatchesDespiteAlefMaqsuraSpelling()
+    {
+        // Query uses yeh, candidate uses alef maqsura; both fold to yeh.
+        var candidates = new[]
+        {
+            new MovieCandidate("tmdb", "5", "مصطفى", null, 2016, "دراما", 6.4, "/p.jpg")
+        };
+
+        var decision = MetadataScorer.Score("مصطفي", 2016, candidates);
+
+        Assert.Equal(MatchStatus.Matched, decision.Status);
+        Assert.Equal("5", decision.Candidate!.ExternalId);
+    }
 }

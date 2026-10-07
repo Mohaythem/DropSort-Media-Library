@@ -284,6 +284,48 @@
                                                         Style="{StaticResource TertiaryCaptionTextStyle}"
                                                         TextWrapping="Wrap" />
                                                 </StackPanel>
+                                                <!--
+                                                    Every associated local file (all versions/copies of the
+                                                    same movie), shown only when there is more than one.
+                                                -->
+                                                <StackPanel x:Name="AllFilesPanel" Spacing="6" Visibility="Collapsed">
+                                                    <TextBlock
+                                                        x:Name="AllFilesHeadingText"
+                                                        Style="{StaticResource TertiaryCaptionTextStyle}" />
+                                                    <ItemsRepeater x:Name="MediaFilesRepeater">
+                                                        <ItemsRepeater.Layout>
+                                                            <StackLayout Spacing="8" />
+                                                        </ItemsRepeater.Layout>
+                                                        <ItemsRepeater.ItemTemplate>
+                                                            <DataTemplate x:DataType="models:MovieFileRecord">
+                                                                <Border Style="{StaticResource CardBorderStyle}" Padding="12,8,12,8">
+                                                                    <StackPanel Spacing="2">
+                                                                        <Grid ColumnSpacing="8">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*" />
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock
+                                                                                Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                                                Text="{x:Bind FileName}"
+                                                                                TextTrimming="CharacterEllipsis" />
+                                                                            <TextBlock
+                                                                                Grid.Column="1"
+                                                                                VerticalAlignment="Center"
+                                                                                Style="{StaticResource TertiaryCaptionTextStyle}"
+                                                                                Text="{x:Bind Availability}" />
+                                                                        </Grid>
+                                                                        <TextBlock
+                                                                            IsTextSelectionEnabled="True"
+                                                                            Style="{StaticResource SecondaryCaptionTextStyle}"
+                                                                            Text="{x:Bind FilePath}"
+                                                                            TextWrapping="Wrap" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsRepeater.ItemTemplate>
+                                                    </ItemsRepeater>
+                                                </StackPanel>
                                                 <StackPanel
                                                     x:Name="NoFilePanel"
                                                     Spacing="4"
@@ -296,6 +338,22 @@
                                                         x:Name="NoFileHelpText"
                                                         Style="{StaticResource SecondaryCaptionTextStyle}"
                                                         TextWrapping="Wrap" />
+                                                </StackPanel>
+                                                <!--  Manual repair actions, independent of the automatic classifier.  -->
+                                                <Border Style="{StaticResource HairlineDividerStyle}" />
+                                                <StackPanel Spacing="4">
+                                                    <Button
+                                                        x:Name="MoveToSeriesButton"
+                                                        HorizontalAlignment="Stretch"
+                                                        HorizontalContentAlignment="Left"
+                                                        Click="MoveToSeriesButton_Click"
+                                                        Style="{StaticResource TextActionButtonStyle}" />
+                                                    <Button
+                                                        x:Name="RemoveFromLibraryButton"
+                                                        HorizontalAlignment="Stretch"
+                                                        HorizontalContentAlignment="Left"
+                                                        Click="RemoveFromLibraryButton_Click"
+                                                        Style="{StaticResource TextActionButtonStyle}" />
                                                 </StackPanel>
                                             </StackPanel>
                                         </Flyout>

@@ -21,22 +21,34 @@ namespace DropSort.UI.Views;
 /// continue to report local availability, while Play remains separate from the explicit watch action.
 /// </para>
 /// </summary>
-public sealed partial class TVShowDetailsPage : Page, ILocalizableView
+public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactivatableView
 {
     private TVShowRecord _show = new(0, string.Empty, 0, [], string.Empty, []);
     private string _returnDestination = "library";
     private bool _isMatching;
     private readonly PostHandoffRequestLifetime _metadataRequests = new();
     private readonly PostHandoffRequestLifetime _posterRequests = new();
+    private readonly PostHandoffRequestLifetime _enrichmentRequests = new();
+    private readonly PostHandoffRequestLifetime _availabilityRequests = new();
+    private readonly PostHandoffRequestLifetime _actionRequests = new();
 
     public TVShowDetailsPage()
     {
         InitializeComponent();
-        Unloaded += (_, _) => { _metadataRequests.Cancel(); _posterRequests.Cancel(); };
+        Unloaded += (_, _) => Deactivate();
         SetShow(_show);
     }
 
     public event EventHandler? BackRequested;
+
+    public void Deactivate()
+    {
+        _metadataRequests.Cancel();
+        _posterRequests.Cancel();
+        _enrichmentRequests.Cancel();
+        _availabilityRequests.Cancel();
+        _actionRequests.Cancel();
+    }
 
     public void SetReturnDestination(string destination)
     {
@@ -50,6 +62,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         try
         {
             SetShow(TvProjection.ToDetails(AppServices.Tv.GetShowDetails(showId)));
+            BeginSeasonEnrichment(showId);
         }
         catch (Exception error)
         {
@@ -62,6 +75,9 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
     {
         _metadataRequests.Cancel();
         _posterRequests.Cancel();
+        _enrichmentRequests.Cancel();
+        _availabilityRequests.Cancel();
+        _actionRequests.Cancel();
         SetMatchingState(false);
         _show = show;
         ShowTitleText.Text = show.Title;
@@ -118,16 +134,69 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         if (paths.Length == 0) return;
 
         var showId = show.Id;
+        var request = _availabilityRequests.Begin();
         _ = Task.Run(() =>
         {
-            var unavailable = AppServices.UnavailableStoragePaths(paths);
+            IReadOnlySet<string> unavailable;
+            try
+            {
+                unavailable = AppServices.UnavailableStoragePaths(paths, request.Token);
+            }
+            catch (OperationCanceledException) { return; }
             if (unavailable.Count == 0) return;
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (_show.Id != showId) return;
+                if (!request.IsCurrent || _show.Id != showId) return;
                 SeasonsRepeater.ItemsSource = BuildSeasons(_show, unavailable);
             });
+        }, request.Token);
+    }
+
+    /// <summary>
+    /// Enriches the already-rendered local hierarchy with provider-confirmed season/episode data, off the UI
+    /// thread. The page stays fully usable while this runs, and it is never required for the page to open. A
+    /// result is applied only while it is still the current request for the same show, so navigating away or
+    /// reloading can never let a stale provider response update the wrong page. Provider slowness, offline
+    /// state, timeout, or failure returns nothing and the local representation is kept.
+    /// </summary>
+    private void BeginSeasonEnrichment(int showId)
+    {
+        if (showId <= 0) return;
+        var request = _enrichmentRequests.Begin();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var enriched = await AppServices.Tv.GetShowDetailsEnrichedAsync(showId, request.Token);
+                if (enriched is null || !request.IsCurrent) return;
+                var record = TvProjection.ToDetails(enriched);
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    if (request.IsCurrent && _show.Id == showId)
+                    {
+                        ApplyEnrichedShow(record);
+                    }
+                });
+            }
+            catch
+            {
+                // Keep the local representation: provider work must never disturb an open page.
+            }
         });
+    }
+
+    /// <summary>
+    /// Applies a provider-enriched hierarchy to the open page: the seasons/episodes, the on-disk progress
+    /// figure, and the Play-next state are refreshed from it. Title, overview, poster, and matching state are
+    /// unchanged because enrichment reads the same show row. It never cancels in-flight requests.
+    /// </summary>
+    private void ApplyEnrichedShow(TVShowRecord enriched)
+    {
+        _show = enriched;
+        ProgressValueText.Text = _show.ProgressLine;
+        PlayNextButton.IsEnabled = _show.NextPlayableEpisode is not null;
+        SeasonsRepeater.ItemsSource = BuildSeasons(_show);
+        ProbeEpisodeStorageAvailability(_show);
     }
 
     /// <summary>
@@ -201,19 +270,19 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
     private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Plays the first episode of the show that has a file on disk.</summary>
-    private void PlayNextButton_Click(object sender, RoutedEventArgs e)
+    private async void PlayNextButton_Click(object sender, RoutedEventArgs e)
     {
         if (_show.NextPlayableEpisode is { } selection)
         {
-            PlayEpisode(selection.Episode);
+            await PlayEpisodeAsync(selection.Episode);
         }
     }
 
-    private void EpisodePlay_Click(object sender, RoutedEventArgs e)
+    private async void EpisodePlay_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: EpisodeDisplayRecord row })
         {
-            PlayEpisode(FindEpisode(row));
+            await PlayEpisodeAsync(FindEpisode(row));
         }
     }
 
@@ -221,7 +290,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
     {
         if (sender is not Button { Tag: EpisodeDisplayRecord row }) return;
         var episode = FindEpisode(row);
-        if (episode is null || episode.Watched) return;
+        if (episode is null || episode.Watched || !episode.HasLocalFile || episode.Id <= 0) return;
         try
         {
             AppServices.WatchHistory.RecordEpisodeWatch(episode.Id);
@@ -233,7 +302,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         }
     }
 
-    private void EpisodeOpenFolder_Click(object sender, RoutedEventArgs e)
+    private async void EpisodeOpenFolder_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: EpisodeDisplayRecord row })
         {
@@ -242,24 +311,24 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
 
         var episode = FindEpisode(row);
 
-        if (episode?.FilePath is not { Length: > 0 } path || !File.Exists(path))
+        if (episode?.FilePath is not { Length: > 0 } path)
         {
             ReportMissingFile();
             return;
         }
 
+        var request = _actionRequests.Begin();
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe")
-            {
-                // Quoted so a path with spaces stays one argument.
-                Arguments = "/select,\"" + path + "\"",
-                UseShellExecute = true,
-            })?.Dispose();
+            var result = await AppServices.MediaFileActions.OpenContainingFolderAsync(path, request.Token);
+            if (!request.IsCurrent) return;
+            await PresentActionResultAsync(result.Status);
         }
+        catch (OperationCanceledException) { }
         catch (Exception error)
         {
-            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+            if (request.IsCurrent)
+                _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 
@@ -297,24 +366,40 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
         _ = ShowMessageAsync(LocalizationService.Text("MediaFile"), body);
     }
 
-    private void PlayEpisode(EpisodeRecord? episode)
+    private async Task PlayEpisodeAsync(EpisodeRecord? episode)
     {
-        if (episode?.FilePath is not { Length: > 0 } path || !File.Exists(path))
+        if (episode?.FilePath is not { Length: > 0 } path)
         {
             ReportMissingFile();
             return;
         }
 
+        var request = _actionRequests.Begin();
         try
         {
-            System.Diagnostics.Process.Start(
-                new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true })?.Dispose();
+            var result = await AppServices.MediaFileActions.OpenFileAsync(path, request.Token);
+            if (!request.IsCurrent) return;
+            await PresentActionResultAsync(result.Status);
         }
+        catch (OperationCanceledException) { }
         catch (Exception error)
         {
-            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+            if (request.IsCurrent)
+                _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
+
+    private Task PresentActionResultAsync(DropSort.Domain.Library.Availability.AvailabilityInspectionStatus status) =>
+        status switch
+        {
+            DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.Missing =>
+                ShowMessageAsync(LocalizationService.Text("NoLocalFile"), LocalizationService.Text("NoLocalFileHelp")),
+            DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.StorageUnavailable =>
+                ShowMessageAsync(LocalizationService.Text("Failed"), LocalizationService.Text("StorageUnavailable")),
+            DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.Error =>
+                ShowMessageAsync(LocalizationService.Text("Failed"), LocalizationService.Text("Failed")),
+            _ => Task.CompletedTask,
+        };
 
     /// <summary>Resolves a row back to the loaded episode by its catalog id.</summary>
     private EpisodeRecord? FindEpisode(EpisodeDisplayRecord row) => _show.Seasons
@@ -366,11 +451,15 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView
 
         return
         [
-            .. show.Seasons.Select((season, index) => new SeasonDisplayRecord(
+            // A real TMDB Specials season (0) with no local files is noise in a local library, so it is
+            // hidden here; a Specials that actually has files on disk (present or missing) still shows.
+            .. show.Seasons
+                .Where(season => season.Number != 0 || season.LocalCount > 0 || season.MissingCount > 0)
+                .Select((season, index) => new SeasonDisplayRecord(
                 show.Id,
                 season.Number,
                 ShowFormatting.SeasonArtLabel(season.Number),
-                LocalizationService.Format("SeasonFormat", season.Number),
+                ShowFormatting.SeasonLabel(season.Number),
                 SeasonMeta(season),
                 season.Episodes.Count == 0 ? 0 : 100.0 * season.LocalCount / season.Episodes.Count,
                 index == 0,

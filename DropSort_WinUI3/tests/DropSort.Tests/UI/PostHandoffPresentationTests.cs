@@ -60,7 +60,7 @@ public sealed class PostHandoffPresentationTests
         relink = relink[..relink.IndexOf("private async void IssueAction_Click", StringComparison.Ordinal)];
         Assert.Contains("LocalizationService.Text(\"RelinkFailedHelp\")", relink);
         Assert.DoesNotContain("error.Message", relink);
-        Assert.Contains("AppServices.DetectStaleTempFiles()", check);
+        Assert.Contains("AppServices.DetectStaleTempFiles(", check);
         Assert.Contains("_staleTemps.Select(file => file.FilePath)", check);
         Assert.DoesNotContain("File.Delete", check);
         Assert.DoesNotContain("Directory.Delete", check);

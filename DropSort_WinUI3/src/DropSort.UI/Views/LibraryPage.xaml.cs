@@ -82,6 +82,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         SortAddedItem.Text = LocalizationService.Text("SortAdded");
         SortTitleItem.Text = LocalizationService.Text("Title");
         SortYearItem.Text = LocalizationService.Text("Year");
+        SortMetadataItem.Text = LocalizationService.Text("MetadataStatus");
         LoadingText.Text = LocalizationService.Text("LoadingLibrary");
         ErrorState.Title = LocalizationService.Text("LibraryError");
         ErrorState.Message = LocalizationService.Text("LibraryErrorHelp");
@@ -103,6 +104,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         {
             "title" => LocalizationService.Text("Title"),
             "year" => LocalizationService.Text("Year"),
+            "metadata" => LocalizationService.Text("MetadataStatus"),
             _ => LocalizationService.Text("SortAdded"),
         };
         UpdateSortDirectionVisuals();
@@ -173,20 +175,36 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
             })
             .Where(MatchesMovie);
 
-        items = _sort switch
+        // "Metadata Status" is an explicit sort: its direction chooses whether clean or problematic items
+        // lead (ascending = confirmed → review → none; descending = none → review → confirmed for cleanup).
+        if (_sort == "metadata")
         {
-            "title" => _sortDescending
-                ? items.OrderByDescending(movie => movie.Title, StringComparer.CurrentCultureIgnoreCase)
-                : items.OrderBy(movie => movie.Title, StringComparer.CurrentCultureIgnoreCase),
-            "year" => _sortDescending
-                ? items.OrderByDescending(movie => movie.Year)
-                : items.OrderBy(movie => movie.Year),
-            // "Date added": the catalog id is the monotonic registration order, so descending is newest
-            // first and ascending is oldest first.
-            _ => _sortDescending
-                ? items.OrderByDescending(movie => movie.Id)
-                : items.OrderBy(movie => movie.Id),
-        };
+            var byMeta = _sortDescending
+                ? items.OrderByDescending(movie => movie.MetadataGroupRank)
+                : items.OrderBy(movie => movie.MetadataGroupRank);
+            items = byMeta.ThenBy(movie => movie.Title, StringComparer.CurrentCultureIgnoreCase);
+        }
+        else
+        {
+            // Every other sort is metadata-first: confirmed metadata, then Review Match, then no metadata,
+            // so blank fallback cards never break up rows of posters. The chosen criterion orders WITHIN
+            // each metadata group (secondary), honouring its own direction.
+            var grouped = items.OrderBy(movie => movie.MetadataGroupRank);
+            items = _sort switch
+            {
+                "title" => _sortDescending
+                    ? grouped.ThenByDescending(movie => movie.Title, StringComparer.CurrentCultureIgnoreCase)
+                    : grouped.ThenBy(movie => movie.Title, StringComparer.CurrentCultureIgnoreCase),
+                "year" => _sortDescending
+                    ? grouped.ThenByDescending(movie => movie.Year)
+                    : grouped.ThenBy(movie => movie.Year),
+                // "Date added": the catalog id is the monotonic registration order, so descending is newest
+                // first and ascending is oldest first.
+                _ => _sortDescending
+                    ? grouped.ThenByDescending(movie => movie.Id)
+                    : grouped.ThenBy(movie => movie.Id),
+            };
+        }
 
         var result = items.ToArray();
         MoviesGrid.ItemsSource = result;
@@ -346,8 +364,9 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         }
     }
 
-    /// <summary>The natural starting direction for a sort field. Title reads A-Z; the rest read newest first.</summary>
-    private static bool DefaultDescendingFor(string sort) => sort != "title";
+    /// <summary>The natural starting direction for a sort field. Title reads A-Z and Metadata Status leads
+    /// with confirmed items; the rest read newest first.</summary>
+    private static bool DefaultDescendingFor(string sort) => sort is not ("title" or "metadata");
 
     private void SortSplit_Click(SplitButton sender, SplitButtonClickEventArgs args)
     {
@@ -368,6 +387,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         {
             "title" => LocalizationService.Text("Title"),
             "year" => LocalizationService.Text("Year"),
+            "metadata" => LocalizationService.Text("MetadataStatus"),
             _ => LocalizationService.Text("SortAdded"),
         };
         var direction = LocalizationService.Text(_sortDescending ? "SortDescending" : "SortAscending");

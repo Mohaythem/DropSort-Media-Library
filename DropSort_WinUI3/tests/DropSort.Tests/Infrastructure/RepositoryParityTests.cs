@@ -145,6 +145,56 @@ public sealed class RepositoryParityTests : IDisposable
         Assert.Null(store.GetById(plan.OperationId)!.MediaFileId);
     }
 
+    [Fact]
+    public void ClearCatalogInvalidatesPersistedMetadataCache()
+    {
+        // A library reset must drop cached TMDB payloads so stale metadata cannot reappear later while
+        // matching/selecting media after the reset.
+        SeedMovie("cached");
+        using (var connection = Open())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                "INSERT INTO metadata_cache (provider, cache_key, payload, fetched_at) VALUES ('tmdb', 'search:ghost', '{\"stale\":true}', $now);";
+            command.Parameters.AddWithValue("$now", Now.ToString("o"));
+            command.ExecuteNonQuery();
+        }
+
+        var counts = new LibraryMaintenanceRepository(_connectionString).ClearCatalog();
+
+        Assert.True(counts.MetadataEntries >= 1);
+        using var check = Open();
+        using var countCommand = check.CreateCommand();
+        countCommand.CommandText = "SELECT COUNT(*) FROM metadata_cache;";
+        Assert.Equal(0, Convert.ToInt32(countCommand.ExecuteScalar()));
+    }
+
+    [Fact]
+    public void ReviewMatchFlag_PersistsAndSurvivesMetadataUpdate()
+    {
+        var id = SeedMovie("rm");
+        using (var uow = new CatalogUnitOfWork(_connectionString))
+        {
+            uow.Movies.SetReviewMatch(id, true);
+            uow.Commit();
+        }
+        using (var uow = new CatalogUnitOfWork(_connectionString))
+        {
+            Assert.True(uow.Movies.GetById(id)!.ReviewMatch);
+            // A metadata write must not silently reset the flag (it is not part of the metadata columns).
+            uow.Movies.UpdateMetadata(id, uow.Movies.GetById(id)!.Data, Now);
+            uow.Commit();
+        }
+        using (var uow = new CatalogUnitOfWork(_connectionString))
+        {
+            Assert.True(uow.Movies.GetById(id)!.ReviewMatch);
+            uow.Movies.SetReviewMatch(id, false);
+            uow.Commit();
+        }
+        using var check = new CatalogUnitOfWork(_connectionString);
+        Assert.False(check.Movies.GetById(id)!.ReviewMatch);
+    }
+
     private int SeedMovie(string externalId)
     {
         using var unit = new CatalogUnitOfWork(_connectionString);

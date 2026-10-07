@@ -93,6 +93,11 @@
                                     Click="SortItem_Click"
                                     GroupName="LibrarySort"
                                     Tag="year" />
+                                <RadioMenuFlyoutItem
+                                    x:Name="SortMetadataItem"
+                                    Click="SortItem_Click"
+                                    GroupName="LibrarySort"
+                                    Tag="metadata" />
                             </MenuFlyout>
                         </SplitButton.Flyout>
                     </SplitButton>

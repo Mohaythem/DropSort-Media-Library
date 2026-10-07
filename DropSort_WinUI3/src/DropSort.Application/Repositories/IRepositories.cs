@@ -15,6 +15,9 @@ public interface IMovieRepository
     int CountAll();
     Movie Create(MovieCatalogData data, DateTimeOffset now);
     Movie UpdateMetadata(int id, MovieCatalogData data, DateTimeOffset now);
+
+    /// <summary>Sets the persisted "review match recommended" flag without touching metadata or timestamps.</summary>
+    void SetReviewMatch(int id, bool value);
     void Delete(int id);
 }
 
@@ -31,6 +34,12 @@ public interface IMediaFileRepository
     /// to compute the "no local file" state for the whole grid without a per-movie query.
     /// </summary>
     IReadOnlySet<int> ListMovieIdsWithPresentFile();
+
+    /// <summary>
+    /// How many media files each movie owns, in one query, so the Library grid can show a multi-file
+    /// indicator without a per-movie lookup (avoids the ListMovies N+1). Movies with no files are absent.
+    /// </summary>
+    IReadOnlyDictionary<int, int> CountFilesByMovie();
     MediaFile Add(VerifiedMediaFileFacts facts, int? movieId = null);
     MediaFile LinkToMovie(int id, int movieId);
     MediaFile RefreshVerifiedFacts(int id, VerifiedMediaFileFacts facts);

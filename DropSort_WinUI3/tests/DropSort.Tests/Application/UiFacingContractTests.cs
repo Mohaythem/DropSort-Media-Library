@@ -95,6 +95,9 @@ public class UiFacingContractTests
         public IReadOnlySet<int> ListMovieIdsWithPresentFile() =>
             new HashSet<int>(files.Where(f => f.Status == MediaFileStatus.Present && f.MovieId is not null).Select(f => f.MovieId!.Value));
 
+        public IReadOnlyDictionary<int, int> CountFilesByMovie() =>
+            files.Where(f => f.MovieId is not null).GroupBy(f => f.MovieId!.Value).ToDictionary(g => g.Key, g => g.Count());
+
         public MediaFile Add(VerifiedMediaFileFacts facts, int? movieId = null) => throw new NotSupportedException();
 
         public MediaFile LinkToMovie(int id, int movieId) => throw new NotSupportedException();
@@ -123,6 +126,8 @@ public class UiFacingContractTests
         public IReadOnlyList<MediaFile> ListMissing() => [];
 
         public IReadOnlySet<int> ListMovieIdsWithPresentFile() => new HashSet<int>();
+
+        public IReadOnlyDictionary<int, int> CountFilesByMovie() => new Dictionary<int, int>();
 
         public MediaFile Add(VerifiedMediaFileFacts facts, int? movieId = null) => throw new NotSupportedException();
 
@@ -154,6 +159,7 @@ public class UiFacingContractTests
         public Movie Create(MovieCatalogData data, DateTimeOffset now) => throw new NotSupportedException();
 
         public Movie UpdateMetadata(int id, MovieCatalogData data, DateTimeOffset now) => throw new NotSupportedException();
+        public void SetReviewMatch(int id, bool value) { }
 
         public void Delete(int id)
         {

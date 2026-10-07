@@ -11,7 +11,7 @@ using DropSort.Domain.Library.Personal;
 
 namespace DropSort.Application.Dto;
 
-public record MovieListItem(int Id, string Title, int? Year, string? PosterReference, bool IsMissing, bool HasPendingMetadata);
+public record MovieListItem(int Id, string Title, int? Year, string? PosterReference, bool IsMissing, bool HasPendingMetadata, int FileCount = 1, bool ReviewMatch = false);
 
 /// <summary>
 /// A user-created custom list for the UI. Identity is the stable <paramref name="Id" />; the UI shows the
@@ -33,18 +33,22 @@ public record CustomListItem(
     bool IsMissing);
 
 public record MovieDetails(
-    int Id, 
-    string Title, 
-    string? OriginalTitle, 
-    int? Year, 
-    string? Overview, 
-    IReadOnlyList<string> Genres, 
-    int? RuntimeMinutes, 
-    double? Rating, 
-    string? PosterReference, 
-    IReadOnlyList<MediaFile> MediaFiles);
+    int Id,
+    string Title,
+    string? OriginalTitle,
+    int? Year,
+    string? Overview,
+    IReadOnlyList<string> Genres,
+    int? RuntimeMinutes,
+    double? Rating,
+    string? PosterReference,
+    IReadOnlyList<MediaFile> MediaFiles,
+    bool ReviewMatch = false);
 
 public record MovieFileIngestionResult(Movie Movie, MediaFile MediaFile, bool AlreadyRegistered = false);
+
+/// <summary>The outcome of a manual "Add / Move to series" repair, for the UI to navigate to the show.</summary>
+public record MoveToSeriesResult(int ShowId, int SeasonNumber, int EpisodeNumber);
 
 public record ConfirmMovieImportCommand(
     string FilePath,
@@ -82,6 +86,13 @@ public record ImportMetadataPreview(
     bool IsManual = false);
 
 public record ImportSelection(DiscoveredMedia Item, ImportMetadataPreview? MetadataPreview = null);
+
+/// <summary>
+/// Progress of a running bulk add: <paramref name="Processed" /> local registrations completed out of
+/// <paramref name="Total" /> selected items. Reported from the registration loop so the UI can show real
+/// processed/total counts (never a fake bar).
+/// </summary>
+public record ImportProgress(int Processed, int Total);
 
 /// <summary>The outcome for one selected item. Registration and enrichment are reported separately.</summary>
 public record ImportItemResult(

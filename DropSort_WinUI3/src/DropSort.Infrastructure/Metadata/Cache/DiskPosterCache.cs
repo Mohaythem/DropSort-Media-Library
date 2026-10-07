@@ -228,6 +228,9 @@ public sealed class DiskPosterCache : IPosterService, IPosterCacheMaintenance, I
 
     public int Clear()
     {
+        // Drop the in-memory in-flight map so a poster requested again after a library reset re-downloads
+        // fresh, instead of resolving to a completed task that points at a now-deleted cache file.
+        _inFlight.Clear();
         try
         {
             if (!Directory.Exists(_cacheDirectory))

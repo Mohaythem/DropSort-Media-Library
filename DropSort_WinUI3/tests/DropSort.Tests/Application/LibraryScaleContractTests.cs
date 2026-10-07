@@ -49,6 +49,7 @@ public class LibraryScaleContractTests
         public int CountAll() => count;
         public Movie Create(MovieCatalogData data, DateTimeOffset now) => throw new NotSupportedException();
         public Movie UpdateMetadata(int id, MovieCatalogData data, DateTimeOffset now) => throw new NotSupportedException();
+        public void SetReviewMatch(int id, bool value) { }
         public void Delete(int id) { }
     }
 
@@ -63,6 +64,8 @@ public class LibraryScaleContractTests
             BulkPresenceCalls++;
             return _present;
         }
+
+        public IReadOnlyDictionary<int, int> CountFilesByMovie() => new Dictionary<int, int>();
 
         public IReadOnlyList<MediaFile> GetByMovieId(int movieId)
         {

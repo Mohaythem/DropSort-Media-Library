@@ -12,7 +12,7 @@ public static class CrashTempFileInspector
     /// directories. DropSort NEVER automatically deletes these files on startup or scan;
     /// they are reported so that explicit approval or review can occur.
     /// </summary>
-    public static IReadOnlyList<StaleTempFileInfo> FindStaleTempFiles(IEnumerable<string> directoryRoots)
+    public static IReadOnlyList<StaleTempFileInfo> FindStaleTempFiles(IEnumerable<string> directoryRoots, Func<bool>? isCancelled = null)
     {
         ArgumentNullException.ThrowIfNull(directoryRoots);
         var results = new List<StaleTempFileInfo>();
@@ -20,7 +20,21 @@ public static class CrashTempFileInspector
 
         foreach (var root in directoryRoots)
         {
-            if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root)) continue;
+            if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
+            if (string.IsNullOrWhiteSpace(root)) continue;
+
+            if (NetworkReadGuard.IsNetworkPath(root))
+            {
+                // Read-only diagnostics must not hold up a library check on an unavailable share.
+                var abandoned = 0;
+                var networkFiles = NetworkReadGuard.Shared.Execute<IReadOnlyList<StaleTempFileInfo>>(
+                    root, () => ReadNetworkTemps(root, () => Volatile.Read(ref abandoned) != 0 || isCancelled?.Invoke() == true),
+                    () => { Volatile.Write(ref abandoned, 1); return []; }, isCancelled);
+                foreach (var file in networkFiles)
+                    if (seenPaths.Add(file.FilePath)) results.Add(file);
+                continue;
+            }
+            if (!Directory.Exists(root)) continue;
 
             try
             {
@@ -34,6 +48,7 @@ public static class CrashTempFileInspector
 
                 foreach (var file in files)
                 {
+                    if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
                     if (!seenPaths.Add(file.FullName)) continue;
                     results.Add(new StaleTempFileInfo(
                         file.FullName,
@@ -49,5 +64,20 @@ public static class CrashTempFileInspector
         }
 
         return results;
+    }
+
+    private static IReadOnlyList<StaleTempFileInfo> ReadNetworkTemps(string root, Func<bool> isAbandoned)
+    {
+        try
+        {
+            return new DirectoryInfo(root).EnumerateFiles(TempFilePattern, new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                AttributesToSkip = FileAttributes.ReparsePoint
+            }).TakeWhile(_ => !isAbandoned())
+                .Select(file => new StaleTempFileInfo(file.FullName, file.Name, file.Length, file.LastWriteTimeUtc)).ToList();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return []; }
     }
 }

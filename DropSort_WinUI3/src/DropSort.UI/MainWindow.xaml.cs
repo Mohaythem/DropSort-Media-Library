@@ -119,7 +119,9 @@ public sealed partial class MainWindow : Window
         _myListsPage.MovieSelected += OpenMovie;
         _myListsPage.ShowSelected += OpenShow;
         _movieDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
+        _movieDetailsPage.ShowRequested += OpenShowById;
         _showDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
+        _checkLibraryPage.MovieReviewRequested += OpenMovieForReview;
         _settingsPage.OperationsLogRequested += (_, _) => Navigate("operations");
         _settingsPage.LibraryDataChanged += (_, _) =>
         {
@@ -157,6 +159,29 @@ public sealed partial class MainWindow : Window
         _showDetailsPage.SetReturnDestination(_detailsReturnDestination);
         _showDetailsPage.LoadShow(show.Id);
         Navigate("show");
+    }
+
+    /// <summary>
+    /// Opens a show by id after a manual "Move to series" repair. Back returns to wherever the movie was
+    /// opened from, since that is the return destination already in effect.
+    /// </summary>
+    private void OpenShowById(object? sender, int showId)
+    {
+        _showDetailsPage.SetReturnDestination(_detailsReturnDestination);
+        _showDetailsPage.LoadShow(showId);
+        Navigate("show");
+    }
+
+    /// <summary>
+    /// Opens a movie's details from a Check Library metadata-issue row so the user can review and rematch
+    /// its metadata. Back returns to Check Library, since that is where the review was started.
+    /// </summary>
+    private void OpenMovieForReview(object? sender, int movieId)
+    {
+        _detailsReturnDestination = "check";
+        _movieDetailsPage.SetReturnDestination("check");
+        _movieDetailsPage.LoadMovie(movieId);
+        Navigate("details");
     }
 
     private string ReturnDestinationFor(object? sender) => sender switch
@@ -259,6 +284,7 @@ public sealed partial class MainWindow : Window
             {
                 "home" => HomeNavItem,
                 "lists" => MyListsNavItem,
+                "check" => CheckLibraryNavItem,
                 _ => LibraryNavItem,
             };
         }

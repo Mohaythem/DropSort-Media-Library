@@ -22,12 +22,68 @@
                 Style="{StaticResource PosterSurfaceStyle}">
                 <Grid>
                     <Image Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="UniformToFill" />
-                    <FontIcon
-                        FontFamily="{StaticResource SymbolThemeFontFamily}"
-                        FontSize="40"
-                        Foreground="{ThemeResource PosterGlyphForegroundBrush}"
-                        Glyph="&#xE714;"
-                        Visibility="{x:Bind IsPosterMissing, Mode=OneWay}" />
+                    <!--
+                        Graceful fallback when there is no poster/metadata: an inset, bordered panel that
+                        shows the title clearly inside the poster area. The margin keeps the border off the
+                        card edges; theme brushes keep it readable in light and dark. Not an error state.
+                    -->
+                    <Border
+                        Margin="12"
+                        Background="{ThemeResource LayerFillColorAltBrush}"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{ThemeResource ControlCornerRadius}"
+                        Padding="12"
+                        Visibility="{x:Bind IsPosterMissing, Mode=OneWay}">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MaxLines="4"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Style="{StaticResource BodyStrongTextBlockStyle}"
+                            Text="{x:Bind Title}"
+                            TextAlignment="Center"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="Wrap" />
+                    </Border>
+                    <!--
+                        Subtle multi-file badge: shown only when the movie owns more than one local file
+                        (multiple versions/copies). The per-file detail lives in Movie Details.
+                    -->
+                    <Border
+                        Margin="8"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Background="{ThemeResource LayerFillColorAltBrush}"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{ThemeResource ControlCornerRadius}"
+                        Padding="8,2,8,2"
+                        Visibility="{x:Bind MultiFileBadgeVisibility, Mode=OneWay}">
+                        <TextBlock
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Text="{x:Bind MultiFileBadgeText, Mode=OneWay}" />
+                    </Border>
+                    <!--
+                        "Review match" badge: metadata is present but was auto-picked from a close match, so
+                        a glance is recommended. Distinct from a no-metadata card.
+                    -->
+                    <Border
+                        Margin="8"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Background="{ThemeResource LayerFillColorAltBrush}"
+                        BorderBrush="{ThemeResource SystemFillColorCautionBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{ThemeResource ControlCornerRadius}"
+                        Padding="8,2,8,2"
+                        Visibility="{x:Bind ReviewMatchBadgeVisibility, Mode=OneWay}">
+                        <TextBlock
+                            Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                            Style="{StaticResource CaptionTextBlockStyle}"
+                            Text="{x:Bind ReviewMatchLabel, Mode=OneWay}" />
+                    </Border>
                 </Grid>
             </Border>
             <TextBlock
@@ -83,12 +139,26 @@
                 Style="{StaticResource PosterSurfaceStyle}">
                 <Grid>
                     <Image Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="UniformToFill" />
-                    <FontIcon
-                        FontFamily="{StaticResource SymbolThemeFontFamily}"
-                        FontSize="40"
-                        Foreground="{ThemeResource PosterGlyphForegroundBrush}"
-                        Glyph="&#xE714;"
-                        Visibility="{x:Bind IsPosterMissing, Mode=OneWay}" />
+                    <!-- Graceful no-poster fallback: inset bordered title panel (see MovieCardTemplate). -->
+                    <Border
+                        Margin="12"
+                        Background="{ThemeResource LayerFillColorAltBrush}"
+                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{ThemeResource ControlCornerRadius}"
+                        Padding="12"
+                        Visibility="{x:Bind IsPosterMissing, Mode=OneWay}">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MaxLines="4"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Style="{StaticResource BodyStrongTextBlockStyle}"
+                            Text="{x:Bind Title}"
+                            TextAlignment="Center"
+                            TextTrimming="CharacterEllipsis"
+                            TextWrapping="Wrap" />
+                    </Border>
                     <Border
                         MinHeight="20"
                         Margin="8"

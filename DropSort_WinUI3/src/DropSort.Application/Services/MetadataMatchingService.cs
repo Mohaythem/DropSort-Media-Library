@@ -79,7 +79,8 @@ public sealed class MetadataMatchingService
         int movieId,
         MovieCandidate candidate,
         CancellationToken ct = default,
-        MetadataStatus? expectedMetadataStatus = null)
+        MetadataStatus? expectedMetadataStatus = null,
+        bool reviewMatch = false)
     {
         ArgumentNullException.ThrowIfNull(candidate);
 
@@ -97,6 +98,19 @@ public sealed class MetadataMatchingService
         {
             throw new MetadataServiceException(MetadataFailureKind.StaleRequest);
         }
+
+        // Identity collision: another movie already owns this provider identity.
+        if (!string.IsNullOrWhiteSpace(candidate.Provider) && !string.IsNullOrWhiteSpace(candidate.ExternalId))
+        {
+            var owner = uow.Movies.GetByExternalId(candidate.Provider, candidate.ExternalId);
+            if (owner is not null && owner.Id != movieId)
+            {
+                // Never delete or merge the source movie here. Its local files and catalog state can
+                // carry preferences, watchlist/custom-list membership, or history that must survive a
+                // conflicting manual match. Let the caller resolve the duplicate explicitly.
+                throw new MetadataServiceException(MetadataFailureKind.IdentityConflict);
+            }
+        }
         ct.ThrowIfCancellationRequested();
 
         var now = _clock();
@@ -104,18 +118,22 @@ public sealed class MetadataMatchingService
             provider: candidate.Provider,
             externalId: candidate.ExternalId,
             title: metadata.Title,
-            originalTitle: metadata.OriginalTitle,
+            originalTitle: NullIfBlank(metadata.OriginalTitle),
             year: metadata.Year,
-            overview: metadata.Overview,
+            overview: NullIfBlank(metadata.Overview),
             genres: metadata.Genres,
             runtimeMinutes: metadata.RuntimeMinutes,
             rating: metadata.Rating,
-            posterReference: metadata.PosterReference,
+            posterReference: NullIfBlank(metadata.PosterReference),
             metadataStatus: MetadataStatus.Ready,
-            backdropReference: metadata.BackdropReference,
-            tagline: metadata.Tagline);
+            backdropReference: NullIfBlank(metadata.BackdropReference),
+            tagline: NullIfBlank(metadata.Tagline));
 
-        var updatedMovie = uow.Movies.UpdateMetadata(movieId, updatedCatalogData, now);
+        uow.Movies.UpdateMetadata(movieId, updatedCatalogData, now);
+        // A definitive match clears the review flag; an auto-picked close/ambiguous match sets it so the
+        // library can recommend a glance while still showing the metadata.
+        uow.Movies.SetReviewMatch(movieId, reviewMatch);
+        var updatedMovie = uow.Movies.GetById(movieId)!;
 
         ct.ThrowIfCancellationRequested();
         uow.Commit();
@@ -179,16 +197,16 @@ public sealed class MetadataMatchingService
             provider: provider,
             externalId: externalId,
             title: metadata.Title,
-            originalTitle: metadata.OriginalTitle,
+            originalTitle: NullIfBlank(metadata.OriginalTitle),
             year: metadata.Year,
-            overview: metadata.Overview,
+            overview: NullIfBlank(metadata.Overview),
             genres: metadata.Genres,
             runtimeMinutes: metadata.RuntimeMinutes,
             rating: metadata.Rating,
-            posterReference: metadata.PosterReference,
+            posterReference: NullIfBlank(metadata.PosterReference),
             metadataStatus: MetadataStatus.Ready,
-            backdropReference: metadata.BackdropReference,
-            tagline: metadata.Tagline);
+            backdropReference: NullIfBlank(metadata.BackdropReference),
+            tagline: NullIfBlank(metadata.Tagline));
 
         var updatedMovie = uow.Movies.UpdateMetadata(movieId, updatedCatalogData, now);
 
@@ -395,6 +413,15 @@ public sealed class MetadataMatchingService
         MetadataStatus? expectedMetadataStatus)
     {
         var detailedSeasons = new List<TvSeasonMetadata>();
+        // A null per-season fetch is only fatal on a TRUE rematch: an existing show that already carries a
+        // real provider identity being re-pointed at a DIFFERENT one, where a half-fetched response could
+        // strand the show between two identities. A FIRST manual match (the local show has no identity yet)
+        // and a same-identity refresh must tolerate a season whose episodes cannot be fetched — real TMDB
+        // returns seasons without inline episodes, so each season is fetched individually and any single
+        // 404 (Specials/Season 0 especially) would otherwise abort the whole match. On tolerance the
+        // show-level season stub is stored, so the show and every fetchable season still match.
+        var isRematchOfExistingIdentity =
+            !string.IsNullOrWhiteSpace(snapshot.Provider) && !IsSameIdentity(snapshot, provider, externalId);
         if (fetchEpisodes && !showMetadata.Seasons.IsDefaultOrEmpty)
         {
             foreach (var season in showMetadata.Seasons)
@@ -402,7 +429,7 @@ public sealed class MetadataMatchingService
                 if (season.Episodes.IsDefaultOrEmpty)
                 {
                     var fetchedSeason = await _metadataProvider.GetTvSeasonAsync(externalId, season.SeasonNumber, ct);
-                    if (fetchedSeason is null && !IsSameIdentity(snapshot, provider, externalId))
+                    if (fetchedSeason is null && isRematchOfExistingIdentity)
                     {
                         throw new MetadataServiceException(MetadataFailureKind.IncompleteMetadata);
                     }
@@ -426,6 +453,19 @@ public sealed class MetadataMatchingService
             throw new MetadataServiceException(MetadataFailureKind.StaleRequest);
         }
 
+        // Identity-collision guard: if a DIFFERENT show already owns this provider identity, refuse the
+        // match before any write. Otherwise the UNIQUE(provider, external_id) constraint would throw
+        // mid-transaction; catching it here keeps both shows untouched (no partial write) and lets the UI
+        // surface a clear conflict/review state instead of a raw database error.
+        if (!string.IsNullOrWhiteSpace(provider) && !string.IsNullOrWhiteSpace(externalId))
+        {
+            var owner = uow.TvShows.GetByExternalId(provider, externalId);
+            if (owner is not null && owner.Id != showId)
+            {
+                throw new MetadataServiceException(MetadataFailureKind.IdentityConflict);
+            }
+        }
+
         ct.ThrowIfCancellationRequested();
 
         var now = _clock();
@@ -433,15 +473,15 @@ public sealed class MetadataMatchingService
             provider: provider,
             externalId: externalId,
             title: showMetadata.Title,
-            originalTitle: showMetadata.OriginalTitle,
+            originalTitle: NullIfBlank(showMetadata.OriginalTitle),
             year: showMetadata.FirstAirYear,
-            overview: showMetadata.Overview,
+            overview: NullIfBlank(showMetadata.Overview),
             genres: showMetadata.Genres,
-            posterReference: showMetadata.PosterReference,
+            posterReference: NullIfBlank(showMetadata.PosterReference),
             metadataStatus: MetadataStatus.Ready,
             rating: showMetadata.Rating,
-            backdropReference: showMetadata.BackdropReference,
-            tagline: showMetadata.Tagline);
+            backdropReference: NullIfBlank(showMetadata.BackdropReference),
+            tagline: NullIfBlank(showMetadata.Tagline));
 
         var updatedShow = uow.TvShows.UpdateMetadata(showId, updatedCatalogData, now);
 
@@ -452,15 +492,15 @@ public sealed class MetadataMatchingService
             {
                 returnedSeasonNumbers.Add(season.SeasonNumber);
                 var dbSeason = uow.TvSeasons.GetByNumber(showId, season.SeasonNumber)
-                    ?? uow.TvSeasons.Create(showId, season.SeasonNumber, season.Title, season.Overview, now);
+                    ?? uow.TvSeasons.Create(showId, season.SeasonNumber, NullIfBlank(season.Title), NullIfBlank(season.Overview), now);
 
                 dbSeason = uow.TvSeasons.UpdateMetadata(
                     dbSeason.Id,
-                    season.Title,
-                    season.Overview,
-                    season.PosterReference,
-                    season.AirDate,
-                    season.ExternalId,
+                    NullIfBlank(season.Title),
+                    NullIfBlank(season.Overview),
+                    NullIfBlank(season.PosterReference),
+                    NullIfBlank(season.AirDate),
+                    NullIfBlank(season.ExternalId),
                     now);
 
                 if (!season.Episodes.IsDefaultOrEmpty)
@@ -472,13 +512,13 @@ public sealed class MetadataMatchingService
                         {
                             uow.TvEpisodes.UpdateMetadata(
                                 dbEpisode.Id,
-                                episode.Title,
-                                episode.Overview,
+                                NullIfBlank(episode.Title),
+                                NullIfBlank(episode.Overview),
                                 episode.RuntimeMinutes,
-                                episode.AirDate,
+                                NullIfBlank(episode.AirDate),
                                 episode.Rating,
-                                episode.StillReference,
-                                episode.ExternalId,
+                                NullIfBlank(episode.StillReference),
+                                NullIfBlank(episode.ExternalId),
                                 now);
                         }
                     }
@@ -580,6 +620,14 @@ public sealed class MetadataMatchingService
 
     private static void ClearEpisodeMetadata(ICatalogUnitOfWork uow, TvEpisode episode, DateTimeOffset now) =>
         uow.TvEpisodes.UpdateMetadata(episode.Id, null, null, null, null, null, null, null, now);
+
+    /// <summary>
+    /// Normalizes an optional provider string to null when it is blank. TMDB returns "" (not null) for an
+    /// absent overview, original title, tagline, poster/backdrop path, season/episode name, air date, etc.,
+    /// and the catalog's domain records reject an empty-but-non-null string — so writing "" straight through
+    /// threw and failed the whole match. Folding "" to null keeps "absent" meaning absent.
+    /// </summary>
+    private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value;
 
     private sealed record TvShowSnapshot(
         string? Provider,

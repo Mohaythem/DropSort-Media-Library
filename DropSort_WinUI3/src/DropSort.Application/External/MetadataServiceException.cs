@@ -12,7 +12,11 @@ public enum MetadataFailureKind
     InvalidResponse,
     NotFound,
     IncompleteMetadata,
-    StaleRequest
+    StaleRequest,
+
+    /// <summary>The chosen provider identity is already owned by a different local Show/Movie. The match is
+    /// refused before any write so neither record is left half-updated; the user resolves the conflict.</summary>
+    IdentityConflict
 }
 
 /// <summary>Never carries credentials, request URLs, response bodies, or transport exceptions.</summary>

@@ -31,9 +31,12 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
     public IReadOnlyList<MovieListItem> ListMovies()
     {
         // One presence query for the whole grid instead of a per-movie GetByMovieId (the ListMovies N+1
-        // that blocked the UI thread for ~38s at 10K).
+        // that blocked the UI thread for ~38s at 10K). One file-count query serves the multi-file badge.
         var moviesWithFile = _mediaFiles.ListMovieIdsWithPresentFile();
-        return _movies.ListAll().Select(movie => ToListItem(movie, moviesWithFile.Contains(movie.Id))).ToList();
+        var fileCounts = _mediaFiles.CountFilesByMovie();
+        return _movies.ListAll()
+            .Select(movie => ToListItem(movie, moviesWithFile.Contains(movie.Id), fileCounts.GetValueOrDefault(movie.Id, 0)))
+            .ToList();
     }
 
     public MovieListItem GetMovieItem(int movieId)
@@ -48,18 +51,21 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
         var files = _mediaFiles.GetByMovieId(movieId);
         return new MovieDetails(
             movie.Id, movie.Title, movie.OriginalTitle, movie.Year, movie.Overview,
-            movie.Genres, movie.RuntimeMinutes, movie.Rating, movie.PosterReference, files);
+            movie.Genres, movie.RuntimeMinutes, movie.Rating, movie.PosterReference, files, movie.ReviewMatch);
     }
 
-    private MovieListItem MapToListItem(Movie movie) =>
-        ToListItem(movie, _mediaFiles.GetByMovieId(movie.Id).Any(f => f.Status == MediaFileStatus.Present));
+    private MovieListItem MapToListItem(Movie movie)
+    {
+        var files = _mediaFiles.GetByMovieId(movie.Id);
+        return ToListItem(movie, files.Any(f => f.Status == MediaFileStatus.Present), files.Count);
+    }
 
-    private static MovieListItem ToListItem(Movie movie, bool hasPresentFile)
+    private static MovieListItem ToListItem(Movie movie, bool hasPresentFile, int fileCount)
     {
         bool pending = movie.MetadataStatus is MetadataStatus.Pending
             or MetadataStatus.NeedsMatch
             or MetadataStatus.Failed;
-        return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, !hasPresentFile, pending);
+        return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, !hasPresentFile, pending, fileCount, movie.ReviewMatch);
     }
 
     public PersonalMovieSnapshot GetPersonalSnapshot(int movieId)
@@ -107,7 +113,7 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
     {
         // The summary already carries file counts, so map from it instead of a per-movie GetByMovieId.
         return _personal.ListMovies(section)
-            .Select(summary => ToListItem(summary.Movie, summary.MediaFileCount > summary.MissingFileCount))
+            .Select(summary => ToListItem(summary.Movie, summary.MediaFileCount > summary.MissingFileCount, summary.MediaFileCount))
             .ToList();
     }
 

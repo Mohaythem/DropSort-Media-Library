@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -20,7 +19,7 @@ namespace DropSort.UI.Views;
 /// watch history go through <see cref="IPersonalLibraryUiActions" />, so the buttons persist and the
 /// page always redraws from what was actually stored.
 /// </summary>
-public sealed partial class MovieDetailsPage : Page, ILocalizableView
+public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactivatableView
 {
     /// <summary>Shown before the first real load: the page is parented at startup, before any click.</summary>
     private static readonly MovieRecord Placeholder = new(0, string.Empty, 0, string.Empty, 0, [], string.Empty);
@@ -44,17 +43,30 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
     private bool _storageUnavailable;
     private readonly PostHandoffRequestLifetime _metadataRequests = new();
     private readonly PostHandoffRequestLifetime _posterRequests = new();
+    private readonly PostHandoffRequestLifetime _availabilityRequests = new();
+    private readonly PostHandoffRequestLifetime _actionRequests = new();
 
     public MovieDetailsPage()
     {
         InitializeComponent();
         HistoryRepeater.ItemsSource = _history;
         WatchedDatePicker.MaxDate = DateTimeOffset.Now;
-        Unloaded += (_, _) => { _metadataRequests.Cancel(); _posterRequests.Cancel(); };
+        Unloaded += (_, _) => Deactivate();
         SetMovie(_movie);
     }
 
     public event EventHandler? BackRequested;
+
+    public void Deactivate()
+    {
+        _metadataRequests.Cancel();
+        _posterRequests.Cancel();
+        _availabilityRequests.Cancel();
+        _actionRequests.Cancel();
+    }
+
+    /// <summary>Raised after a manual "Move to series" so the shell can open the target show.</summary>
+    public event EventHandler<int>? ShowRequested;
 
     public void SetReturnDestination(string destination)
     {
@@ -86,6 +98,8 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
     {
         _metadataRequests.Cancel();
         _posterRequests.Cancel();
+        _availabilityRequests.Cancel();
+        _actionRequests.Cancel();
         SetMatchingState(false);
         _movie = movie;
         _preference = movie.Preference;
@@ -111,6 +125,10 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         FilePresentPanel.Visibility = hasFile ? Visibility.Visible : Visibility.Collapsed;
         NoFilePanel.Visibility = hasFile ? Visibility.Collapsed : Visibility.Visible;
         PresentPill.Visibility = hasFile ? Visibility.Visible : Visibility.Collapsed;
+        // List every associated local file when the movie has more than one (multiple versions/copies).
+        MediaFilesRepeater.ItemsSource = movie.Files;
+        AllFilesPanel.Visibility = movie.MultiFileListVisibility;
+        AllFilesHeadingText.Text = LocalizationService.Format("FilesCountFormat", movie.FileCount);
         PlayButton.IsEnabled = hasFile && !_isOrganizing;
         OpenFolderButton.IsEnabled = hasFile && !_isOrganizing;
         OrganizeButton.IsEnabled = hasFile && !_isOrganizing;
@@ -139,12 +157,18 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
     {
         if (!movie.HasLocalFile || string.IsNullOrWhiteSpace(movie.FilePath)) return;
         var path = movie.FilePath!;
+        var request = _availabilityRequests.Begin();
         _ = Task.Run(() =>
         {
-            if (AppServices.IsStorageAvailable(path)) return;
+            try
+            {
+                if (AppServices.IsStorageAvailable(path, request.Token)) return;
+            }
+            catch (OperationCanceledException) { return; }
             DispatcherQueue.TryEnqueue(() =>
             {
-                if (!string.Equals(_movie.FilePath, path, StringComparison.Ordinal)) return;
+                if (!request.IsCurrent || _movie.Id != movie.Id
+                    || !string.Equals(_movie.FilePath, path, StringComparison.Ordinal)) return;
                 _storageUnavailable = true;
                 PresentText.Text = LocalizationService.Text("StorageUnavailable");
                 PlayButton.IsEnabled = false;
@@ -171,6 +195,8 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
         OpenFolderText.Text = LocalizationService.Text("OpenFolder");
         AddToListText.Text = LocalizationService.Text("AddToList");
         OrganizeText.Text = LocalizationService.Text("OrganizeFile");
+        MoveToSeriesButton.Content = LocalizationService.Text("AddOrMoveToSeries");
+        RemoveFromLibraryButton.Content = LocalizationService.Text("RemoveFromLibrary");
         MoreButton.SetValue(AutomationProperties.NameProperty, LocalizationService.Text("FileDetails"));
         ToolTipService.SetToolTip(MoreButton, LocalizationService.Text("FileDetails"));
         FileDetailsTitleText.Text = LocalizationService.Text("MediaFile");
@@ -206,47 +232,62 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
     /// Hands the file to whatever the user has registered for it. ShellExecute is the only way to
     /// honour the user's default player, and UseShellExecute is required for that.
     /// </summary>
-    private void PlayButton_Click(object sender, RoutedEventArgs e)
+    private async void PlayButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!File.Exists(_movie.FilePath))
+        if (string.IsNullOrWhiteSpace(_movie.FilePath))
         {
             ReportMissingFile();
             return;
         }
 
+        var request = _actionRequests.Begin();
         try
         {
-            Process.Start(new ProcessStartInfo(_movie.FilePath!) { UseShellExecute = true })?.Dispose();
+            var result = await AppServices.MediaFileActions.OpenFileAsync(_movie.FilePath, request.Token);
+            if (!request.IsCurrent) return;
+            await PresentActionResultAsync(result.Status);
         }
+        catch (OperationCanceledException) { }
         catch (Exception error)
         {
-            ReportFailure(error);
+            if (request.IsCurrent) ReportFailure(error);
         }
     }
 
     /// <summary>Opens the containing folder with the file selected, which is what the design implies.</summary>
-    private void OpenFolderButton_Click(object sender, RoutedEventArgs e)
+    private async void OpenFolderButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!File.Exists(_movie.FilePath))
+        if (string.IsNullOrWhiteSpace(_movie.FilePath))
         {
             ReportMissingFile();
             return;
         }
 
+        var request = _actionRequests.Begin();
         try
         {
-            Process.Start(new ProcessStartInfo("explorer.exe")
-            {
-                // The argument is quoted so a path with spaces stays one argument.
-                Arguments = "/select,\"" + _movie.FilePath + "\"",
-                UseShellExecute = true,
-            })?.Dispose();
+            var result = await AppServices.MediaFileActions.OpenContainingFolderAsync(_movie.FilePath, request.Token);
+            if (!request.IsCurrent) return;
+            await PresentActionResultAsync(result.Status);
         }
+        catch (OperationCanceledException) { }
         catch (Exception error)
         {
-            ReportFailure(error);
+            if (request.IsCurrent) ReportFailure(error);
         }
     }
+
+    private Task PresentActionResultAsync(DropSort.Domain.Library.Availability.AvailabilityInspectionStatus status) =>
+        status switch
+        {
+            DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.Missing =>
+                ShowMessageAsync(LocalizationService.Text("NoLocalFile"), LocalizationService.Text("NoLocalFileHelp")),
+            DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.StorageUnavailable =>
+                ShowMessageAsync(LocalizationService.Text("Failed"), LocalizationService.Text("StorageUnavailable")),
+            DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.Error =>
+                ShowMessageAsync(LocalizationService.Text("Failed"), LocalizationService.Text("Failed")),
+            _ => Task.CompletedTask,
+        };
 
     /// <summary>
     /// Organizing moves the file into the approved movies root through the journalled coordinator.
@@ -822,8 +863,11 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
             SetMatchingState(true);
             try
             {
-                await Task.Run(() => AppServices.Matching.MatchMovieAsync(movieId, candidate, request.Token));
-                if (request.IsCurrent) { SetMatchingState(false); LoadMovie(movieId); }
+                // The service returns the canonical movie: normally this same movie, but if this was an
+                // unmatched duplicate whose chosen identity is already owned, it is merged into the owner
+                // and that owner is returned — so load whatever id came back, not the original.
+                var canonical = await Task.Run(() => AppServices.Matching.MatchMovieAsync(movieId, candidate, request.Token));
+                if (request.IsCurrent) { SetMatchingState(false); LoadMovie(canonical.Id); }
             }
             catch (Exception error)
             {
@@ -833,6 +877,102 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView
             {
                 if (request.IsCurrent) SetMatchingState(false);
             }
+        }
+    }
+
+    /// <summary>
+    /// Manual repair: moves this movie's file(s) into an existing series as an episode. Season/episode are
+    /// inferred from the file name when possible and confirmed by the user. On success the movie is gone,
+    /// so the page navigates to the target show.
+    /// </summary>
+    private async void MoveToSeriesButton_Click(object sender, RoutedEventArgs e)
+    {
+        MoreButton.Flyout?.Hide();
+        if (_movie.Id <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var shows = AppServices.Tv.ListShows();
+            if (shows.Count == 0)
+            {
+                await ShowMessageAsync(
+                    LocalizationService.Text("AddOrMoveToSeries"),
+                    LocalizationService.Text("NoSeriesInLibrary"));
+                return;
+            }
+
+            int? inferredSeason = null;
+            int? inferredEpisode = null;
+            // Infer from the ORIGINAL local filename (never the cleaned movie title), reusing the discovery
+            // parser so SxxEyy / 1x02 / "Episode N" / "الحلقة N" / Arabic-Indic digits are all understood.
+            var fileName = !string.IsNullOrWhiteSpace(_movie.FileName)
+                ? _movie.FileName
+                : _movie.FilePath is { Length: > 0 } filePath ? Path.GetFileName(filePath) : null;
+            if (AppServices.InferSeasonEpisode(fileName) is var inferred && inferred is { } se)
+            {
+                inferredSeason = se.Season;
+                inferredEpisode = se.Episode;
+            }
+
+            var choice = await MoveToSeriesDialog.ShowAsync(this, shows, inferredSeason, inferredEpisode);
+            if (choice is not { } target)
+            {
+                return;
+            }
+
+            var movieId = _movie.Id;
+            var result = await Task.Run(() =>
+                AppServices.Repair.MoveMovieToSeries(movieId, target.ShowId, target.Season, target.Episode));
+
+            ShowRequested?.Invoke(this, result.ShowId);
+        }
+        catch (Exception error)
+        {
+            ReportFailure(error);
+        }
+    }
+
+    /// <summary>
+    /// Manual repair: removes this movie from the catalog only. The file on disk is never deleted. On
+    /// success the page leaves, since the movie no longer exists.
+    /// </summary>
+    private async void RemoveFromLibraryButton_Click(object sender, RoutedEventArgs e)
+    {
+        MoreButton.Flyout?.Hide();
+        if (_movie.Id <= 0)
+        {
+            return;
+        }
+
+        var confirm = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.ElementTheme,
+            FlowDirection = LocalizationService.FlowDirection,
+            Title = LocalizationService.Text("RemoveFromLibrary"),
+            Content = LocalizationService.Text("RemoveFromLibraryConfirm"),
+            PrimaryButtonText = LocalizationService.Text("RemoveFromLibrary"),
+            CloseButtonText = LocalizationService.Text("Cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+
+        if (await ContentDialogCoordinator.ShowAsync(confirm) != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        try
+        {
+            var movieId = _movie.Id;
+            await Task.Run(() => AppServices.Repair.RemoveMovieFromLibrary(movieId));
+            BackRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception error)
+        {
+            ReportFailure(error);
         }
     }
 }

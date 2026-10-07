@@ -9,6 +9,16 @@ using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace DropSort.UI.Models;
 
+/// <summary>One associated local file shown in the Movie Details media-files list.</summary>
+public sealed record MovieFileRecord(string FileName, string FilePath, string Extension, string Availability);
+
+/// <summary>One configured media root in Settings, with its per-row Replace / Remove actions.</summary>
+public sealed record MediaFolderRow(string Path)
+{
+    public string ReplaceLabel => LocalizationService.Text("ReplaceFolder");
+    public string RemoveLabel => LocalizationService.Text("RemoveFolder");
+}
+
 public sealed record MovieRecord(
     int Id,
     string Title,
@@ -26,9 +36,46 @@ public sealed record MovieRecord(
     string? FileFacts = null,
     IReadOnlyList<WatchHistoryRecord>? WatchHistory = null,
     int? MediaFileId = null,
-    string? PosterReference = null) : INotifyPropertyChanged
+    string? PosterReference = null,
+    int FileCount = 1,
+    IReadOnlyList<MovieFileRecord>? MediaFiles = null,
+    bool ReviewMatch = false,
+    bool HasPendingMetadata = false) : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>
+    /// A subtle "N files" badge shown on the card only when a movie owns more than one local file
+    /// (multiple versions/copies). The full per-file detail lives in Movie Details, so the card stays
+    /// uncluttered.
+    /// </summary>
+    public bool HasMultipleFiles => FileCount > 1;
+
+    public Visibility MultiFileBadgeVisibility => FileCount > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+    public string MultiFileBadgeText => LocalizationService.Format("FilesCountFormat", FileCount);
+
+    /// <summary>Every local file associated with this movie, for the Movie Details media-files list.</summary>
+    public IReadOnlyList<MovieFileRecord> Files => MediaFiles ?? [];
+
+    public bool HasMultipleFilesListed => (MediaFiles?.Count ?? 0) > 1;
+
+    public Visibility MultiFileListVisibility => (MediaFiles?.Count ?? 0) > 1 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// "Review match" indicator: the movie carries metadata that was auto-picked from a close match, so a
+    /// glance is recommended. It is NOT "missing metadata" — the poster/details are present and usable.
+    /// </summary>
+    public Visibility ReviewMatchBadgeVisibility => ReviewMatch ? Visibility.Visible : Visibility.Collapsed;
+
+    public string ReviewMatchLabel => LocalizationService.Text("ReviewMatch");
+
+    /// <summary>
+    /// Metadata grouping rank for the metadata-first Library order: 0 = confirmed metadata, 1 = metadata
+    /// present but Review Match recommended, 2 = no usable metadata. Keeps blank fallback cards out of the
+    /// poster rows by default while the user's chosen criterion orders within each group.
+    /// </summary>
+    public int MetadataGroupRank => HasPendingMetadata ? 2 : ReviewMatch ? 1 : 0;
 
     private ImageSource? _posterSource;
     private bool _posterRequested;
@@ -255,14 +302,18 @@ public sealed record LibraryIssueRecord(string Item, string Issue);
 /// <summary>
 /// One row in the Check Library issue list. <paramref name="MediaFileId" /> is the registered file the
 /// row is about, so the row action resolves the exact record instead of matching on a file name that
-/// two folders can share; a metadata row has no file and leaves it null.
+/// two folders can share; a metadata row has no file and leaves it null. <paramref name="MovieId" /> is
+/// set only on a metadata-review row and identifies the movie whose metadata the Review action opens; a
+/// missing-file row leaves it null. The two id kinds are mutually exclusive: a row is either about a
+/// missing file (MediaFileId) or about a movie's metadata (MovieId).
 /// </summary>
 public sealed record LibraryIssueDisplayRecord(
     string Item,
     string Issue,
     string ActionLabel,
     int? MediaFileId = null,
-    string? RelinkLabel = null)
+    string? RelinkLabel = null,
+    int? MovieId = null)
 {
     public bool HasMediaFile => MediaFileId.HasValue;
     public Visibility HasMediaFileVisibility => MediaFileId.HasValue ? Visibility.Visible : Visibility.Collapsed;

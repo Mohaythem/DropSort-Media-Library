@@ -48,6 +48,12 @@ internal sealed class UnitOfWorkMovieRepository(ICatalogUnitOfWorkFactory factor
     public Movie UpdateMetadata(int id, MovieCatalogData data, DateTimeOffset now) =>
         Write(movies => movies.UpdateMetadata(id, data, now));
 
+    public void SetReviewMatch(int id, bool value) => Write<object?>(movies =>
+    {
+        movies.SetReviewMatch(id, value);
+        return null;
+    });
+
     public void Delete(int id) => Write<object?>(movies =>
     {
         movies.Delete(id);
@@ -83,6 +89,8 @@ internal sealed class UnitOfWorkMediaFileRepository(ICatalogUnitOfWorkFactory fa
     public IReadOnlyList<MediaFile> ListMissing() => Read(files => files.ListMissing());
 
     public IReadOnlySet<int> ListMovieIdsWithPresentFile() => Read(files => files.ListMovieIdsWithPresentFile());
+
+    public IReadOnlyDictionary<int, int> CountFilesByMovie() => Read(files => files.CountFilesByMovie());
 
     public MediaFile Add(VerifiedMediaFileFacts facts, int? movieId = null) =>
         Write(files => files.Add(facts, movieId));

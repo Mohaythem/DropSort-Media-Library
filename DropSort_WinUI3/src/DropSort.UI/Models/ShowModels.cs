@@ -213,6 +213,12 @@ public sealed record EpisodeDisplayRecord(
     /// storage to be available. Mark Watched does not need the file and is not gated by this.
     /// </summary>
     public bool CanOpenFile => HasLocalFile && !StorageUnavailable;
+
+    /// <summary>Missing/placeholder episodes have no local-file actions exposed.</summary>
+    public bool HasActions => HasLocalFile;
+
+    /// <summary>Missing rows are quieter than owned episodes.</summary>
+    public double RowOpacity => HasLocalFile ? 1.0 : 0.8;
 }
 
 /// <summary>Localized labels shared by every episode row, so templates never call the service.</summary>
@@ -386,8 +392,15 @@ internal sealed class ArtworkLoader
 
 public static class ShowFormatting
 {
+    /// <summary>Season 0 is the TMDB Specials slot; its tile reads "SP" rather than "S00".</summary>
     public static string SeasonArtLabel(int number) =>
-        "S" + number.ToString("00", CultureInfo.InvariantCulture);
+        number == 0 ? "SP" : "S" + number.ToString("00", CultureInfo.InvariantCulture);
+
+    /// <summary>The season header: a real season 0 reads as the localized "Specials", not "Season 0".</summary>
+    public static string SeasonLabel(int number) =>
+        number == 0
+            ? LocalizationService.Text("Specials")
+            : LocalizationService.Format("SeasonFormat", number);
 
     public static string EpisodeThumbnailLabel(int number) =>
         "E" + number.ToString("00", CultureInfo.InvariantCulture);

@@ -161,7 +161,7 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView
             case WatchEventMediaKind.Episode when item.SeasonNumber is int season && item.EpisodeNumber is int episode:
                 return LocalizationService.Format(
                     "HistoryShowContextFormat",
-                    LocalizationService.Format("SeasonFormat", season),
+                    ShowFormatting.SeasonLabel(season),
                     season,
                     episode);
 

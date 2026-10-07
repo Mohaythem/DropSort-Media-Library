@@ -1,3 +1,4 @@
+using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -64,7 +65,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         LibraryHeadingText.Text = LocalizationService.Text("LibrarySection");
         MediaFoldersLabelText.Text = LocalizationService.Text("MediaFolders");
         MediaFoldersHelpText.Text = LocalizationService.Text("MediaFoldersHelp");
-        ManageMediaFolderButton.Content = LocalizationService.Text("Manage");
+        AddMediaFolderButton.Content = LocalizationService.Text("AddFolder");
         StorageAdvancedHeadingText.Text = LocalizationService.Text("StorageAdvanced");
         DataFolderLabelText.Text = LocalizationService.Text("LibraryDataFolder");
         DataFolderHelpText.Text = LocalizationService.Text("LibraryDataFolderHelp");
@@ -80,14 +81,6 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         ClearTokenButton.Content = LocalizationService.Text("Clear");
         TestConnectionButton.Content = LocalizationService.Text("TestConnection");
         SetupGuideButton.Content = LocalizationService.Text("SetupGuide");
-
-        LibraryDataHeadingText.Text = LocalizationService.Text("LibraryData");
-        ExportLabelText.Text = LocalizationService.Text("ExportData");
-        ExportHelpText.Text = LocalizationService.Text("ExportHelp");
-        ExportButton.Content = LocalizationService.Text("Export");
-        ImportLabelText.Text = LocalizationService.Text("ImportData");
-        ImportHelpText.Text = LocalizationService.Text("ImportHelp");
-        ImportButton.Content = LocalizationService.Text("Import");
 
         HistoryHeadingText.Text = LocalizationService.Text("HistoryRecovery");
         ViewLogLabelText.Text = LocalizationService.Text("OperationsLog");
@@ -179,23 +172,19 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     /// <summary>
     /// Picks a media root without asking the user to classify it as movie or TV content.
     /// </summary>
-    private async void ManageMediaFolder_Click(object sender, RoutedEventArgs e)
+    /// <summary>Add another media root. Adding never replaces or removes an existing root.</summary>
+    private async void AddMediaFolder_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            var picker = new Windows.Storage.Pickers.FolderPicker();
-            picker.FileTypeFilter.Add("*");
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindow.WindowHandle);
-
-            if (await picker.PickSingleFolderAsync() is not Windows.Storage.StorageFolder folder)
+            if (await PickFolderAsync() is not { } path)
             {
                 return;
             }
 
-            if (!AppSettingsStore.TryAddMediaFolder(folder.Path))
+            if (!AppSettingsStore.AddMediaFolder(path))
             {
-                await ShowMessageAsync(LocalizationService.Text("MediaFolders"), LocalizationService.Text("MediaFoldersLimitHelp"));
-                return;
+                await ShowMessageAsync(LocalizationService.Text("MediaFolders"), LocalizationService.Text("FolderAlreadyAdded"));
             }
 
             RefreshFolders();
@@ -206,13 +195,73 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         }
     }
 
-    /// <summary>Shows the configured roots, or the help text when none is set yet.</summary>
+    /// <summary>Replace the selected root with a newly picked one, in place. Never treated as an add.</summary>
+    private async void ReplaceMediaFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string oldPath })
+        {
+            return;
+        }
+
+        try
+        {
+            if (await PickFolderAsync() is not { } newPath)
+            {
+                return;
+            }
+
+            if (!AppSettingsStore.ReplaceMediaFolder(oldPath, newPath))
+            {
+                await ShowMessageAsync(LocalizationService.Text("MediaFolders"), LocalizationService.Text("FolderAlreadyAdded"));
+            }
+
+            RefreshFolders();
+        }
+        catch (Exception error)
+        {
+            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+        }
+    }
+
+    /// <summary>
+    /// Remove the selected root from the configuration. This only edits settings; the media files on that
+    /// folder are never moved or deleted, and library/watch/list state is untouched.
+    /// </summary>
+    private async void RemoveMediaFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string path })
+        {
+            return;
+        }
+
+        var confirmed = await ConfirmAsync(
+            LocalizationService.Text("RemoveFolder"),
+            LocalizationService.Format("RemoveFolderConfirm", path));
+        if (!confirmed)
+        {
+            return;
+        }
+
+        AppSettingsStore.RemoveMediaFolder(path);
+        RefreshFolders();
+    }
+
+    private static async Task<string?> PickFolderAsync()
+    {
+        var picker = new Windows.Storage.Pickers.FolderPicker();
+        picker.FileTypeFilter.Add("*");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindow.WindowHandle);
+        var folder = await picker.PickSingleFolderAsync();
+        return folder?.Path;
+    }
+
+    /// <summary>Shows the configured roots (each with Replace / Remove), or the empty help when none is set.</summary>
     private void RefreshFolders()
     {
         var folders = AppSettingsStore.ConfiguredMediaFolders;
-        MediaFoldersPathText.Text = folders.Count == 0
-            ? LocalizationService.Text("MediaFoldersNone")
-            : string.Join(Environment.NewLine, folders);
+        MediaFoldersRepeater.ItemsSource = folders.Select(path => new MediaFolderRow(path)).ToList();
+        MediaFoldersEmptyText.Text = LocalizationService.Text("MediaFoldersNone");
+        MediaFoldersEmptyText.Visibility = folders.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Opening the data folder is fully implemented through the shell launcher.</summary>
@@ -290,18 +339,6 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
 
     private void SetupGuideButton_Click(object sender, RoutedEventArgs e) =>
         _ = Launcher.LaunchUriAsync(new Uri("https://developer.themoviedb.org/docs/authentication-application"));
-
-    /// <summary>
-    /// Exporting and importing a library snapshot has no application contract in this build, so both
-    /// say so rather than writing a file that would not be a real snapshot.
-    /// </summary>
-    private async void ExportButton_Click(object sender, RoutedEventArgs e) => await ShowMessageAsync(
-        LocalizationService.Text("ExportData"),
-        LocalizationService.Text("SnapshotUnsupportedHelp"));
-
-    private async void ImportButton_Click(object sender, RoutedEventArgs e) => await ShowMessageAsync(
-        LocalizationService.Text("ImportData"),
-        LocalizationService.Text("SnapshotUnsupportedHelp"));
 
     private void ViewLogButton_Click(object sender, RoutedEventArgs e) =>
         OperationsLogRequested?.Invoke(this, EventArgs.Empty);

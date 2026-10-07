@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 13;
+    public const int LatestVersion = 14;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -383,11 +383,8 @@ public class DatabaseMigrator
         // poster_reference columns. Because the migrator never re-runs a version it has already
         // stamped, those installs are permanently stuck on the old watch_events shape, and every
         // write (Mark Watched) fails with 'table watch_events has no column named poster_reference'.
-        // Rebuild the table from the columns that exist in BOTH shapes so the schema is normalised
-        // regardless of which 0008 the database was migrated under. Pre-existing rows keep their data;
-        // the two artwork columns are left NULL for legacy rows (read paths already tolerate NULL) and
-        // are populated normally for events written after this migration. Fresh v8 databases have no
-        // watch_events rows yet when this runs, so no data is lost by copying only the shared columns.
+        // Rebuild both shapes, preserving artwork columns when present and using NULL only when a
+        // historical v8 database lacks those columns. GetMigrationScript resolves the projection.
         @"
             PRAGMA defer_foreign_keys = ON;
             CREATE TABLE watch_events_reconciled (
@@ -413,10 +410,10 @@ public class DatabaseMigrator
             INSERT INTO watch_events_reconciled
                 (id, media_kind, movie_id, episode_id, watched_at, created_at, title_snapshot,
                  year_snapshot, show_title_snapshot, season_number_snapshot, episode_number_snapshot,
-                 artwork_reference)
+                 artwork_reference, backdrop_reference, poster_reference)
             SELECT id, media_kind, movie_id, episode_id, watched_at, created_at, title_snapshot,
                    year_snapshot, show_title_snapshot, season_number_snapshot, episode_number_snapshot,
-                   artwork_reference
+                   artwork_reference, __V8_BACKDROP__, __V8_POSTER__
               FROM watch_events;
             DROP TABLE watch_events;
             ALTER TABLE watch_events_reconciled RENAME TO watch_events;
@@ -560,6 +557,12 @@ public class DatabaseMigrator
                 ON custom_list_members(list_id, movie_id) WHERE movie_id IS NOT NULL;
             CREATE UNIQUE INDEX ux_custom_list_members_show
                 ON custom_list_members(list_id, show_id) WHERE show_id IS NOT NULL;
+        ",
+        // v14: a persisted "review match recommended" flag. A movie can carry confident metadata yet still
+        // want a human glance (e.g. it was auto-picked from a close popularity tie-break). Additive column,
+        // default 0; no table rebuild, so the metadata_status CHECK is untouched.
+        @"
+            ALTER TABLE movies ADD COLUMN review_match INTEGER NOT NULL DEFAULT 0;
         "
     };
 
@@ -567,23 +570,36 @@ public class DatabaseMigrator
     {
         if (targetVersion < 0 || targetVersion > MigrationScripts.Count)
             throw new ArgumentOutOfRangeException(nameof(targetVersion));
+
+        using var writeGate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = new SqliteConnection(_connectionString);
         connection.Open();
+
+        // Read and reject the version before changing any connection or database pragmas. A version-0
+        // database with user tables is an unknown schema, not a new DropSort database; adopting it would
+        // make an unsupported database look successfully migrated.
+        var currentVersion = ReadIntPragma(connection, "user_version");
+        if (currentVersion < 0)
+            throw new InvalidOperationException($"Database schema version {currentVersion} is invalid.");
+        if (currentVersion > MigrationScripts.Count)
+            throw new InvalidOperationException($"Database schema version {currentVersion} is newer than this build.");
+        if (currentVersion == 0 && HasUserSchemaObjects(connection))
+            throw new InvalidOperationException("A non-empty database with schema version 0 is not a supported DropSort schema.");
+
+        EnsureForeignKeyIntegrity(connection, null, "Existing database");
         ExecutePragma(connection, "foreign_keys", "ON");
         ExecutePragma(connection, "journal_mode", "WAL");
         ExecutePragma(connection, "synchronous", "FULL");
 
-        var currentVersion = ReadIntPragma(connection, "user_version");
-        if (currentVersion > MigrationScripts.Count)
-            throw new InvalidOperationException($"Database schema version {currentVersion} is newer than this build.");
-
         // Protect an existing database before a forward migration. A brand-new database (version 0) has
         // no data to protect, so no backup is taken. If the required backup cannot be created or
         // verified, this throws and no migration runs: the database is left untouched (fail closed).
+        string? verifiedBackupPath = null;
         if (currentVersion > 0 && currentVersion < targetVersion)
         {
-            DatabaseSafetyBackup.CreateVerifiedBackup(
-                connection, _connectionString, currentVersion, $"migrate-to-v{targetVersion}");
+            verifiedBackupPath = DatabaseSafetyBackup.CreateVerifiedBackup(
+                connection, _connectionString, currentVersion, $"migrate-to-v{targetVersion}",
+                pruneOldBackups: false);
         }
 
         for (var i = currentVersion; i < targetVersion; i++)
@@ -595,16 +611,17 @@ public class DatabaseMigrator
                 using var tx = connection.BeginTransaction(deferred: false);
                 using var cmd = connection.CreateCommand();
                 cmd.Transaction = tx;
-                cmd.CommandText = MigrationScripts[i];
+                cmd.CommandText = GetMigrationScript(i, connection, tx);
                 cmd.ExecuteNonQuery();
+
+                // Validate the complete current schema while the final migration is still rollbackable.
+                // This prevents a bad final schema from being stamped as successfully migrated.
+                if (i + 1 == LatestVersion && targetVersion == LatestVersion)
+                    ValidateSchema(connection, tx);
+
                 cmd.CommandText = $"PRAGMA user_version = {i + 1};";
                 cmd.ExecuteNonQuery();
-                cmd.CommandText = "PRAGMA foreign_key_check;";
-                using (var violations = cmd.ExecuteReader())
-                {
-                    if (violations.Read())
-                        throw new SqliteException($"Migration {i + 1} introduced a foreign-key violation.", 19);
-                }
+                EnsureForeignKeyIntegrity(connection, tx, $"Migration {i + 1}");
                 tx.Commit();
             }
             finally
@@ -619,9 +636,11 @@ public class DatabaseMigrator
         }
 
         if (targetVersion == LatestVersion) ValidateSchema(connection);
+        if (verifiedBackupPath is not null)
+            DatabaseSafetyBackup.PruneAfterSuccessfulMigration(verifiedBackupPath);
     }
 
-    private static void ValidateSchema(SqliteConnection connection)
+    private static void ValidateSchema(SqliteConnection connection, SqliteTransaction? transaction = null)
     {
         var requiredTables = new[]
         {
@@ -640,24 +659,24 @@ public class DatabaseMigrator
             "idx_custom_lists_created", "idx_custom_list_members_list", "idx_custom_list_members_movie",
             "idx_custom_list_members_show", "ux_custom_list_members_movie", "ux_custom_list_members_show"
         };
-        foreach (var table in requiredTables) RequireSchemaObject(connection, "table", table);
-        foreach (var index in requiredIndexes) RequireSchemaObject(connection, "index", index);
+        foreach (var table in requiredTables) RequireSchemaObject(connection, "table", table, transaction);
+        foreach (var index in requiredIndexes) RequireSchemaObject(connection, "index", index, transaction);
         // Column-level guard: user_version alone cannot detect a table left on an older shape by a
         // migration script that was edited after it had already been stamped (the drift that made
         // Mark Watched fail with 'no column named poster_reference'). Assert the columns the write
         // paths depend on actually exist so any future drift fails startup loudly instead of being
         // masked behind a generic runtime error dialog.
-        RequireTableColumns(connection, "watch_events",
+        RequireTableColumns(connection, "watch_events", transaction,
             "artwork_reference", "backdrop_reference", "poster_reference");
-        using var command = connection.CreateCommand();
-        command.CommandText = "PRAGMA foreign_key_check;";
-        using var reader = command.ExecuteReader();
-        if (reader.Read()) throw new InvalidOperationException("Database schema contains foreign-key violations.");
+        RequireTableColumns(connection, "movies", transaction, "review_match");
+        EnsureForeignKeyIntegrity(connection, transaction, "Database schema");
     }
 
-    private static void RequireSchemaObject(SqliteConnection connection, string type, string name)
+    private static void RequireSchemaObject(
+        SqliteConnection connection, string type, string name, SqliteTransaction? transaction = null)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = $type AND name = $name;";
         command.Parameters.AddWithValue("$type", type);
         command.Parameters.AddWithValue("$name", name);
@@ -665,11 +684,13 @@ public class DatabaseMigrator
             throw new InvalidOperationException($"Required SQLite {type} '{name}' is missing.");
     }
 
-    private static void RequireTableColumns(SqliteConnection connection, string table, params string[] columns)
+    private static void RequireTableColumns(
+        SqliteConnection connection, string table, SqliteTransaction? transaction, params string[] columns)
     {
         var present = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         using (var command = connection.CreateCommand())
         {
+            command.Transaction = transaction;
             command.CommandText = $"PRAGMA table_info({table});";
             using var reader = command.ExecuteReader();
             while (reader.Read()) present.Add(reader.GetString(1));
@@ -685,6 +706,51 @@ public class DatabaseMigrator
         using var command = connection.CreateCommand();
         command.CommandText = $"PRAGMA {name};";
         return Convert.ToInt32(command.ExecuteScalar());
+    }
+
+    private static bool HasUserSchemaObjects(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type IN ('table', 'index', 'trigger', 'view') AND name NOT GLOB 'sqlite_*');";
+        return Convert.ToInt32(command.ExecuteScalar()) == 1;
+    }
+
+    private static void EnsureForeignKeyIntegrity(
+        SqliteConnection connection, SqliteTransaction? transaction, string context)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "PRAGMA foreign_key_check;";
+        using var reader = command.ExecuteReader();
+        if (reader.Read())
+            throw new InvalidOperationException($"{context} contains foreign-key violations.");
+    }
+
+    private static string GetMigrationScript(int index, SqliteConnection connection, SqliteTransaction transaction)
+    {
+        if (index != 8) return MigrationScripts[index];
+
+        // Historical v8 databases have two shapes. v9 must carry forward artwork values when those columns
+        // are present, while still accepting the legacy shape where they were absent.
+        var backdrop = HasTableColumn(connection, "watch_events", "backdrop_reference", transaction)
+            ? "backdrop_reference" : "NULL";
+        var poster = HasTableColumn(connection, "watch_events", "poster_reference", transaction)
+            ? "poster_reference" : "NULL";
+        return MigrationScripts[index]
+            .Replace("__V8_BACKDROP__", backdrop)
+            .Replace("__V8_POSTER__", poster);
+    }
+
+    private static bool HasTableColumn(
+        SqliteConnection connection, string table, string column, SqliteTransaction? transaction = null)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = $"PRAGMA table_info({table});";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+            if (string.Equals(reader.GetString(1), column, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
     }
 
     private static void ExecutePragma(SqliteConnection connection, string name, string value)

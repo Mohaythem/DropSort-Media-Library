@@ -38,7 +38,7 @@ public sealed class Phase3UiSourceContractTests
         var xaml = File.ReadAllText(Path.Combine(Root, "Views", "TVShowDetailsPage.xaml"));
         Assert.Contains("EpisodeMarkWatched_Click", xaml);
         Assert.Contains("RecordEpisodeWatch", page);
-        var playStart = page.IndexOf("private void PlayEpisode", StringComparison.Ordinal);
+        var playStart = page.IndexOf("private async Task PlayEpisodeAsync", StringComparison.Ordinal);
         Assert.True(playStart >= 0);
         Assert.DoesNotContain("RecordEpisodeWatch", page[playStart..]);
     }

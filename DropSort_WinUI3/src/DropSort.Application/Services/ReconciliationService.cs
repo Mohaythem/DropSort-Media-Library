@@ -42,7 +42,7 @@ public sealed class ReconciliationService : IReconciliationUiActions
         // with thousands of files is then a single cheap probe, and no file on it is inspected or written.
         var rootAvailable = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var file in files)
+        foreach (var file in files.OrderBy(file => IsNetworkPath(file.CurrentPath)))
         {
             if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
             checkedCount++;
@@ -52,6 +52,7 @@ public sealed class ReconciliationService : IReconciliationUiActions
             {
                 available = _inspector.IsStorageAvailable(file.CurrentPath);
                 rootAvailable[rootKey] = available;
+                if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
             }
 
             if (!available)
@@ -66,6 +67,7 @@ public sealed class ReconciliationService : IReconciliationUiActions
             }
 
             var inspection = _inspector.Inspect(file.CurrentPath);
+            if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
             if (inspection.Status == AvailabilityInspectionStatus.Missing)
             {
                 missingCount++;
@@ -89,6 +91,7 @@ public sealed class ReconciliationService : IReconciliationUiActions
             {
                 // A root that became unreachable between the batch probe and the per-file inspection.
                 storageUnavailableCount++;
+                rootAvailable[rootKey] = false;
             }
             else
             {
@@ -114,8 +117,16 @@ public sealed class ReconciliationService : IReconciliationUiActions
         }
     }
 
-    public RelinkPreview PrepareMediaRelink(int mediaFileId, string candidatePath)
+    private static bool IsNetworkPath(string path) =>
+        (path.StartsWith(@"\\", StringComparison.Ordinal) && !path.StartsWith(@"\\?\", StringComparison.Ordinal)) ||
+        path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase);
+
+    public RelinkPreview PrepareMediaRelink(int mediaFileId, string candidatePath) =>
+        PrepareMediaRelink(mediaFileId, candidatePath, () => false);
+
+    public RelinkPreview PrepareMediaRelink(int mediaFileId, string candidatePath, Func<bool> isCancelled)
     {
+        if (isCancelled()) throw new OperationCanceledException();
         var media = _mediaFiles.GetById(mediaFileId) ?? throw new KeyNotFoundException($"Media file {mediaFileId} was not found.");
         if (media.Status != MediaFileStatus.Missing)
             throw new InvalidOperationException("Only a missing media file can be relinked.");
@@ -123,6 +134,7 @@ public sealed class ReconciliationService : IReconciliationUiActions
             throw new ArgumentException("Candidate path must be absolute.", nameof(candidatePath));
         var canonical = Path.GetFullPath(candidatePath);
         var inspection = _inspector.Inspect(canonical);
+        if (isCancelled()) throw new OperationCanceledException();
         if (inspection.Status != AvailabilityInspectionStatus.Present)
             throw new InvalidOperationException("Candidate file does not exist or is not accessible.");
         if (inspection.Size != media.FileSize)
@@ -135,8 +147,11 @@ public sealed class ReconciliationService : IReconciliationUiActions
         return new RelinkPreview(previewId, media.Id, canonical, true);
     }
 
-    public RelinkResult ConfirmMediaRelink(string previewId)
+    public RelinkResult ConfirmMediaRelink(string previewId) => ConfirmMediaRelink(previewId, () => false);
+
+    public RelinkResult ConfirmMediaRelink(string previewId, Func<bool> isCancelled)
     {
+        if (isCancelled()) throw new OperationCanceledException();
         if (!_relinks.TryRemove(previewId, out var prepared))
             throw new KeyNotFoundException("Relink preview is no longer available.");
         var current = _mediaFiles.GetById(prepared.MediaFileId) ?? throw new KeyNotFoundException("Media file was removed.");
@@ -144,6 +159,7 @@ public sealed class ReconciliationService : IReconciliationUiActions
             !StringComparer.OrdinalIgnoreCase.Equals(Path.GetFullPath(current.CurrentPath), prepared.ExpectedPath))
             throw new InvalidOperationException("Media record changed after relink preview.");
         var inspection = _inspector.Inspect(prepared.CandidatePath);
+        if (isCancelled()) throw new OperationCanceledException();
         if (inspection.Status != AvailabilityInspectionStatus.Present || inspection.Size != prepared.FileSize)
             throw new InvalidOperationException("Candidate file changed after relink preview.");
         var updated = _mediaFiles.Relink(

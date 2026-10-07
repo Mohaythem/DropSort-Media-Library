@@ -77,7 +77,7 @@ public sealed class CatalogUnitOfWorkFactory : ICatalogUnitOfWorkFactory
 
 public sealed class MovieRepository : IMovieRepository
 {
-    private const string Columns = "id, provider, external_id, title, original_title, year, overview, runtime_minutes, rating, poster_path, date_added, created_at, updated_at, genres, metadata_status, backdrop_path, tagline";
+    private const string Columns = "id, provider, external_id, title, original_title, year, overview, runtime_minutes, rating, poster_path, date_added, created_at, updated_at, genres, metadata_status, backdrop_path, tagline, review_match";
     private readonly SqliteConnection _connection;
     private readonly SqliteTransaction? _transaction;
 
@@ -172,6 +172,16 @@ public sealed class MovieRepository : IMovieRepository
         if (command.ExecuteNonQuery() != 1) throw new KeyNotFoundException($"Movie {id} was not found.");
     }
 
+    public void SetReviewMatch(int id, bool value)
+    {
+        // Only the flag changes; updated_at is left alone so this never disturbs a match's optimistic
+        // concurrency snapshot.
+        using var command = Command("UPDATE movies SET review_match = $v WHERE id = $id;");
+        command.Parameters.AddWithValue("$v", value ? 1 : 0);
+        command.Parameters.AddWithValue("$id", id);
+        command.ExecuteNonQuery();
+    }
+
     private SqliteCommand Command(string sql)
     {
         var command = _connection.CreateCommand();
@@ -236,7 +246,8 @@ public sealed class MovieRepository : IMovieRepository
             data,
             ParseTimestamp(reader.GetString(10)),
             ParseTimestamp(reader.GetString(11)),
-            ParseTimestamp(reader.GetString(12)));
+            ParseTimestamp(reader.GetString(12)),
+            reviewMatch: !reader.IsDBNull(17) && reader.GetInt32(17) != 0);
     }
 
     internal static DateTimeOffset ParseTimestamp(string value) =>
@@ -317,6 +328,15 @@ public sealed class MediaFileRepository : IMediaFileRepository
         var ids = new HashSet<int>();
         while (reader.Read()) ids.Add(reader.GetInt32(0));
         return ids;
+    }
+
+    public IReadOnlyDictionary<int, int> CountFilesByMovie()
+    {
+        using var command = Command("SELECT movie_id, COUNT(*) FROM media_files WHERE movie_id IS NOT NULL GROUP BY movie_id;");
+        using var reader = command.ExecuteReader();
+        var counts = new Dictionary<int, int>();
+        while (reader.Read()) counts[reader.GetInt32(0)] = reader.GetInt32(1);
+        return counts;
     }
 
     public MediaFile LinkToMovie(int id, int movieId)

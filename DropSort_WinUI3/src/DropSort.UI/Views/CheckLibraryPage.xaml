@@ -183,7 +183,7 @@
                                                     x:Name="IssueActionButton"
                                                     Click="IssueAction_Click"
                                                     Content="{x:Bind ActionLabel}"
-                                                    Tag="{x:Bind MediaFileId}"
+                                                    Tag="{x:Bind}"
                                                     Style="{StaticResource SubtleControlButtonStyle}" />
                                             </StackPanel>
                                         </Grid>

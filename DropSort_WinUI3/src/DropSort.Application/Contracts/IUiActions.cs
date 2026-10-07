@@ -17,6 +17,27 @@ public interface ILibraryUiActions
     MovieDetails GetMovieDetails(int movieId);
 }
 
+/// <summary>
+/// Manual catalog repair, independent of the automatic classifier: move a movie's file(s) into an existing
+/// TV show as an episode, or remove a catalog item without touching the file on disk.
+/// </summary>
+public interface ILibraryRepairUiActions
+{
+    /// <summary>
+    /// Moves a movie's local file(s) into an existing TV show as one episode. The season and episode are
+    /// created only if missing; the movie is then removed. Atomic: the media files are preserved and
+    /// re-linked, no duplicate show/season/episode is created, and unrelated shows/episodes are untouched.
+    /// Returns the target show id for navigation.
+    /// </summary>
+    MoveToSeriesResult MoveMovieToSeries(int movieId, int showId, int seasonNumber, int episodeNumber);
+
+    /// <summary>
+    /// Removes a movie and its media-file registrations from the catalog only. No file on disk is deleted,
+    /// and unrelated items are untouched.
+    /// </summary>
+    void RemoveMovieFromLibrary(int movieId);
+}
+
 public interface IPersonalLibraryUiActions
 {
     PersonalMovieSnapshot GetPersonalSnapshot(int movieId);
@@ -117,7 +138,8 @@ public interface IImportUiActions
     MovieFileIngestionResult EnrichMovieImport(ConfirmMovieImportCommand command, MovieFileIngestionResult registration);
     Task<ImportBatchResult> ImportSelectedAsync(
         IReadOnlyList<ImportSelection> selections,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Action<ImportProgress>? progress = null);
     ManualMovieSearchResult ManualMovieSearch(string title, string? year = null);
 
     /// <summary>
@@ -135,6 +157,17 @@ public interface ITvLibraryUiActions
     IReadOnlyList<TvShowListItem> ListShows();
 
     TvShowDetails GetShowDetails(int showId);
+
+    /// <summary>
+    /// Provider-confirmed season/episode enrichment, fetched asynchronously so it never blocks opening a
+    /// show. Returns the enriched hierarchy when at least one season was confirmed by the metadata provider,
+    /// or null when the show is unmatched, no provider is configured, or every provider request failed,
+    /// timed out, or returned nothing. The local hierarchy from <see cref="GetShowDetails" /> is always the
+    /// baseline; enrichment never writes catalog state, never changes local ownership, and never invents a
+    /// media file. The default implementation performs no enrichment.
+    /// </summary>
+    Task<TvShowDetails?> GetShowDetailsEnrichedAsync(int showId, CancellationToken cancellationToken = default)
+        => Task.FromResult<TvShowDetails?>(null);
 
     /// <summary>The registered files of one episode, for Play and Open Folder.</summary>
     IReadOnlyList<DropSort.Domain.Library.Movies.MediaFile> ListEpisodeFiles(int episodeId);
@@ -193,6 +226,16 @@ public interface IReconciliationUiActions
         
     RelinkPreview PrepareMediaRelink(int mediaFileId, string candidatePath);
     RelinkResult ConfirmMediaRelink(string previewId);
+    RelinkPreview PrepareMediaRelink(int mediaFileId, string candidatePath, Func<bool> isCancelled)
+    {
+        if (isCancelled()) throw new OperationCanceledException();
+        return PrepareMediaRelink(mediaFileId, candidatePath);
+    }
+    RelinkResult ConfirmMediaRelink(string previewId, Func<bool> isCancelled)
+    {
+        if (isCancelled()) throw new OperationCanceledException();
+        return ConfirmMediaRelink(previewId);
+    }
     void DiscardMediaRelinkPreview(string previewId);
     
     LibraryHealthProgress CheckLibrary(

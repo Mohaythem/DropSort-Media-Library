@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using DropSort.Application.Dto;
+using DropSort.Application.Services;
 using DropSort.Domain.Media.Discovery;
 using DropSort.Domain.Media.Matcher;
 using DropSort.Domain.Metadata.Contracts;
@@ -32,6 +33,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private AddMediaScanState _state = AddMediaScanState.Idle;
     private IReadOnlyList<DiscoveredMedia> _detected = [];
     private readonly ObservableCollection<DetectedMediaDisplayRecord> _rows = [];
+    private IReadOnlyList<TvSeriesSuggestion> _seriesSuggestions = [];
     private bool _isScanning;
     private bool _isAdding;
     private bool _isReviewingMetadata;
@@ -39,6 +41,24 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private long _metadataVersion;
     private CancellationTokenSource? _metadataCancellation;
     private readonly Dictionary<DetectedMediaDisplayRecord, CancellationTokenSource> _retryCancellations = [];
+
+    // Real processed/total counts for the two long-running phases, so the status line shows honest
+    // progress instead of a fake bar. Matching counts the review pass; adding counts the bulk registration.
+    private int _matchProcessed;
+    private int _matchTotal;
+    private int _addProcessed;
+    private int _addTotal;
+
+    // The last completed add, kept only to render the transient "Done" phase line until the next action.
+    private bool _addCompleted;
+    private int _lastAddedCount;
+    private int _lastAttentionCount;
+
+    // Visual-only column sort. Clicking a header sorts the rows; it never changes selection, match state,
+    // or the catalog. None means the natural discovery order.
+    private enum SortColumn { None, Title, Type, Status }
+    private SortColumn _sortColumn = SortColumn.None;
+    private bool _sortDescending;
 
     /// <summary>
     /// Cancellation for the running scan. A CancellationTokenSource is the safe way to hand a stop
@@ -84,6 +104,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         CancelButton.Content = LocalizationService.Text("CancelReview");
         ResultsHeadingText.Text = LocalizationService.Text("ReviewMedia");
         SelectAllButton.Content = LocalizationService.Text("SelectAll");
+        SelectReadyButton.Content = LocalizationService.Text("SelectReady");
         DeselectAllButton.Content = LocalizationService.Text("DeselectAll");
         ColumnSelectText.Text = LocalizationService.Text("Select");
         ColumnTypeText.Text = LocalizationService.Text("MediaType");
@@ -92,16 +113,13 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         ColumnDetailsText.Text = LocalizationService.Text("Details");
         ColumnStatusText.Text = LocalizationService.Text("Status");
         ColumnActionText.Text = LocalizationService.Text("Action");
-        SearchTmdbHeadingText.Text = LocalizationService.Text("SearchTmdbHeading");
-        SearchTmdbHelpText.Text = LocalizationService.Text("SearchTmdbHelp");
-        TmdbSearchBox.PlaceholderText = LocalizationService.Text("SearchTmdbPlaceholder");
-        TmdbSearchButton.Content = LocalizationService.Text("Search");
         EmptyState.Title = LocalizationService.Text("NothingDetected");
         EmptyState.Message = LocalizationService.Text("NothingDetectedHelp");
         foreach (var row in _rows)
         {
             row.RefreshLocalization();
         }
+        UpdateSeriesSuggestion();
         Refresh();
     }
 
@@ -132,13 +150,56 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
         var selectable = _rows.Count(row => row.CanAdd);
         var selected = _rows.Count(row => row.CanAdd && row.IsSelected);
-        ResultsCountText.Text = LocalizationService.Format("ItemsFoundFormat", _rows.Count)
-            + " · " + LocalizationService.Format("SelectedItemsFormat", selected);
-        var metadataPending = _rows.Any(row => row.CanAdd && row.Status == ImportItemStatus.Matching);
-        AddSelectedButton.IsEnabled = selected > 0 && !_isAdding && !_isReviewingMetadata && !metadataPending;
+
+        // The status line names the current phase (Matching / Ready / Adding / Done) with real counts, so
+        // the user always knows whether item counts are still changing in the background.
+        ResultsCountText.Text = CurrentPhaseStatus(selected);
+
+        // While matching is still running the counts are not final, so every control whose meaning
+        // depends on the final matched set is disabled until the review pass completes (Ready).
+        var matching = _isReviewingMetadata;
+        var busy = _isAdding || matching;
+        AddSelectedButton.IsEnabled = selected > 0 && !busy;
         AddSelectedButton.Content = LocalizationService.Format("AddSelectedFormat", selected);
-        SelectAllButton.IsEnabled = selectable > 0 && !_isAdding;
-        DeselectAllButton.IsEnabled = selected > 0 && !_isAdding;
+        SelectAllButton.IsEnabled = selectable > 0 && !busy;
+        var ready = _rows.Count(row => row.IsReadyToAdd);
+        SelectReadyButton.IsEnabled = ready > 0 && !busy;
+        DeselectAllButton.IsEnabled = selected > 0 && !busy;
+
+        // Header sorting is disabled while adding (rows are being removed) but allowed while matching:
+        // sorting is visual only and never touches match state.
+        var canSort = !_isAdding;
+        SortTitleButton.IsEnabled = canSort;
+        SortTypeButton.IsEnabled = canSort;
+        SortStatusButton.IsEnabled = canSort;
+    }
+
+    /// <summary>
+    /// The phase-aware status line: Matching / Ready / Adding / Done with real processed-of-total counts.
+    /// Scanning has its own progress panel, so it is not represented here.
+    /// </summary>
+    private string CurrentPhaseStatus(int selected)
+    {
+        if (_isReviewingMetadata)
+        {
+            return LocalizationService.Format("MatchingProgressFormat", _matchProcessed, _matchTotal);
+        }
+
+        if (_isAdding)
+        {
+            return LocalizationService.Format("AddingProgressFormat", _addProcessed, _addTotal);
+        }
+
+        if (_addCompleted)
+        {
+            return LocalizationService.Format("ImportDoneFormat", _lastAddedCount, _lastAttentionCount);
+        }
+
+        // Ready: matching has settled and the counts are final.
+        return LocalizationService.Format(
+            "ReadyPhaseFormat",
+            LocalizationService.Format("ItemsFoundFormat", _rows.Count),
+            LocalizationService.Format("SelectedItemsFormat", selected));
     }
 
     private void SetDetected(IReadOnlyList<DiscoveredMedia> items)
@@ -156,14 +217,151 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             row.PropertyChanged += SelectionChanged;
             _rows.Add(row);
         }
+
+        // A fresh detection set starts in the natural discovery order and clears the transient "Done"
+        // line from a previous add.
+        _sortColumn = SortColumn.None;
+        _sortDescending = false;
+        _addCompleted = false;
+        UpdateSortIndicators();
+        UpdateSeriesSuggestion();
+    }
+
+    /// <summary>
+    /// Recomputes the probable-TV-series suggestion from the current detection set and drives the banner.
+    /// The grouping is a suggestion only: the user chooses "Treat all as TV" or dismisses it.
+    /// </summary>
+    private void UpdateSeriesSuggestion()
+    {
+        _seriesSuggestions = _detected.Count == 0
+            ? []
+            : TvSeriesGrouping.Detect(_detected);
+
+        var fileCount = _seriesSuggestions.Sum(suggestion => suggestion.FileCount);
+        var hasSuggestion = fileCount > 0;
+        SeriesSuggestionBar.Title = LocalizationService.Text("PossibleTvSeriesTitle");
+        SeriesSuggestionBar.Message = LocalizationService.Format("PossibleTvSeriesFormat", fileCount);
+        TreatAllAsTvButton.Content = LocalizationService.Text("TreatAllAsTv");
+        SeriesSuggestionBar.IsOpen = hasSuggestion;
+        SeriesSuggestionBar.Visibility = hasSuggestion ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Applies every probable-series group as TV episodes (season 1) and re-runs the review.</summary>
+    private void TreatAllAsTv_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isAdding || _seriesSuggestions.Count == 0)
+        {
+            return;
+        }
+
+        var replacements = new Dictionary<string, DiscoveredMedia>(StringComparer.OrdinalIgnoreCase);
+        foreach (var suggestion in _seriesSuggestions)
+        {
+            foreach (var guess in suggestion.Episodes)
+            {
+                replacements[guess.Item.Path] =
+                    TvSeriesGrouping.AsTvEpisode(guess.Item, suggestion.BaseTitle, season: 1, guess.Episode);
+            }
+        }
+
+        ReclassifyRows(replacements);
+    }
+
+    /// <summary>Flips one row between Movie and TV episode, then re-runs the review for the new type.</summary>
+    private void OverrideType_Click(object sender, RoutedEventArgs e)
+    {
+        var row = RowFromSender(sender);
+        if (row is null || _isAdding || !row.CanOverrideType)
+        {
+            return;
+        }
+
+        var item = row.Item;
+        DiscoveredMedia replacement;
+        if (item.Classification == DiscoveryClassification.MovieCandidate)
+        {
+            var parsedTitle = item.ParsedMedia?.Title;
+            if (!TvSeriesGrouping.TryDeriveEpisode(parsedTitle ?? string.Empty, out var baseTitle, out var episode))
+            {
+                // No trailing number to read: keep the whole title as the show name and default to episode 1.
+                baseTitle = string.IsNullOrWhiteSpace(parsedTitle)
+                    ? Path.GetFileNameWithoutExtension(item.Path)
+                    : parsedTitle!;
+                episode = 1;
+            }
+
+            replacement = TvSeriesGrouping.AsTvEpisode(item, baseTitle, season: 1, episode);
+        }
+        else
+        {
+            replacement = TvSeriesGrouping.AsMovie(item);
+        }
+
+        ReclassifyRows(new Dictionary<string, DiscoveredMedia>(StringComparer.OrdinalIgnoreCase)
+        {
+            [item.Path] = replacement,
+        });
+    }
+
+    /// <summary>
+    /// Replaces the given rows (by path) with reclassified discovered items, preserving the order and the
+    /// other rows, then recomputes the suggestion and re-runs the metadata review so the new types are
+    /// matched against the right catalog (movie vs TV). Selection subscriptions are moved to the new rows.
+    /// </summary>
+    private void ReclassifyRows(IReadOnlyDictionary<string, DiscoveredMedia> replacements)
+    {
+        if (replacements.Count == 0)
+        {
+            return;
+        }
+
+        for (var index = 0; index < _rows.Count; index++)
+        {
+            if (!replacements.TryGetValue(_rows[index].Item.Path, out var newItem))
+            {
+                continue;
+            }
+
+            _rows[index].PropertyChanged -= SelectionChanged;
+            var replacement = new DetectedMediaDisplayRecord(newItem);
+            replacement.PropertyChanged += SelectionChanged;
+            _rows[index] = replacement;
+        }
+
+        _detected = _rows.Select(row => row.Item).ToList();
+        UpdateSeriesSuggestion();
+        BeginMetadataReview();
+        Refresh();
     }
 
     private void SelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(DetectedMediaDisplayRecord.IsSelected))
         {
+            // Any selection change means the user is acting on the queue again, so leave the "Done" line.
+            _addCompleted = false;
             Refresh();
         }
+    }
+
+    /// <summary>Removes the given paths from the active queue, unsubscribing so no handler leaks.</summary>
+    private void RemoveRows(ISet<string> paths)
+    {
+        if (paths.Count == 0)
+        {
+            return;
+        }
+
+        for (var index = _rows.Count - 1; index >= 0; index--)
+        {
+            if (paths.Contains(_rows[index].Item.Path))
+            {
+                _rows[index].PropertyChanged -= SelectionChanged;
+                _rows.RemoveAt(index);
+            }
+        }
+
+        _detected = _rows.Select(row => row.Item).ToList();
     }
 
     private void SelectAllButton_Click(object sender, RoutedEventArgs e)
@@ -175,6 +373,21 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         Refresh();
     }
 
+    /// <summary>
+    /// Replaces the current selection with only the rows that are safe to add immediately: a confident
+    /// match or the clean initial state. The selection is cleared first, so pressing this after "Select
+    /// all" leaves needs-review / no-match / metadata-failure / already-in-library rows unselected without
+    /// the user having to press "Deselect all" first.
+    /// </summary>
+    private void SelectReadyButton_Click(object sender, RoutedEventArgs e)
+    {
+        foreach (var row in _rows)
+        {
+            row.IsSelected = row.IsReadyToAdd;
+        }
+        Refresh();
+    }
+
     private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
     {
         foreach (var row in _rows)
@@ -182,6 +395,88 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             row.IsSelected = false;
         }
         Refresh();
+    }
+
+    private void SortType_Click(object sender, RoutedEventArgs e) => ToggleSort(SortColumn.Type);
+
+    private void SortTitle_Click(object sender, RoutedEventArgs e) => ToggleSort(SortColumn.Title);
+
+    private void SortStatus_Click(object sender, RoutedEventArgs e) => ToggleSort(SortColumn.Status);
+
+    /// <summary>
+    /// Sets the sort column, or flips direction when the same header is clicked again, then re-orders the
+    /// visible rows. Sorting is visual only.
+    /// </summary>
+    private void ToggleSort(SortColumn column)
+    {
+        if (_sortColumn == column)
+        {
+            _sortDescending = !_sortDescending;
+        }
+        else
+        {
+            _sortColumn = column;
+            _sortDescending = false;
+        }
+
+        ApplySort();
+        UpdateSortIndicators();
+    }
+
+    /// <summary>
+    /// Reorders the visible rows only. The same row instances are moved in place, so selection, match
+    /// status, staged previews and their change subscriptions are all preserved; nothing is re-fetched,
+    /// matching is not restarted, and the catalog is never touched.
+    /// </summary>
+    private void ApplySort()
+    {
+        if (_sortColumn == SortColumn.None || _rows.Count < 2)
+        {
+            return;
+        }
+
+        IEnumerable<DetectedMediaDisplayRecord> ordered = _sortColumn switch
+        {
+            SortColumn.Title => _rows.OrderBy(r => r.Title, StringComparer.CurrentCultureIgnoreCase),
+            SortColumn.Type => _rows
+                .OrderBy(r => (int)r.Item.Classification)
+                .ThenBy(r => r.Title, StringComparer.CurrentCultureIgnoreCase),
+            SortColumn.Status => _rows
+                .OrderBy(r => (int)r.Status)
+                .ThenBy(r => r.Title, StringComparer.CurrentCultureIgnoreCase),
+            _ => _rows,
+        };
+
+        var sorted = (_sortDescending ? ordered.Reverse() : ordered).ToList();
+        for (var targetIndex = 0; targetIndex < sorted.Count; targetIndex++)
+        {
+            var current = _rows.IndexOf(sorted[targetIndex]);
+            if (current != targetIndex)
+            {
+                _rows.Move(current, targetIndex);
+            }
+        }
+    }
+
+    private void UpdateSortIndicators()
+    {
+        SetSortIndicator(SortTitleIndicator, SortColumn.Title);
+        SetSortIndicator(SortTypeIndicator, SortColumn.Type);
+        SetSortIndicator(SortStatusIndicator, SortColumn.Status);
+    }
+
+    private void SetSortIndicator(FontIcon indicator, SortColumn column)
+    {
+        if (_sortColumn == column)
+        {
+            // ChevronUp for ascending, ChevronDown for descending (Segoe Fluent Icons).
+            indicator.Glyph = _sortDescending ? "" : "";
+            indicator.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            indicator.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
@@ -453,11 +748,15 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     private async Task ReviewMetadataAsync(long version, CancellationTokenSource cancellation)
     {
+        var candidates = _rows.Where(row => row.CanAdd).ToArray();
+        _matchTotal = candidates.Length;
+        _matchProcessed = 0;
+        Refresh();
         try
         {
             // Keep provider calls sequential during review. This avoids turning a large scan into a
             // burst that trips TMDB rate limits while still keeping the UI responsive via async I/O.
-            foreach (var row in _rows.Where(row => row.CanAdd).ToArray())
+            foreach (var row in candidates)
             {
                 cancellation.Token.ThrowIfCancellationRequested();
 
@@ -481,6 +780,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                     row.SetMetadataPreview(new ImportMetadataPreview(
                         ImportItemStatus.MetadataError,
                         Failure: MetadataErrorText.For(error)));
+                    _matchProcessed++;
                     Refresh();
                     continue;
                 }
@@ -488,6 +788,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 if (isRegistered)
                 {
                     row.SetAlreadyInLibrary();
+                    _matchProcessed++;
                     Refresh();
                     continue;
                 }
@@ -495,6 +796,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 row.SetMetadataReviewing();
                 Refresh();
                 await ReviewMetadataRowAsync(row, cancellation.Token);
+                _matchProcessed++;
+                Refresh();
             }
         }
         catch (OperationCanceledException)
@@ -507,6 +810,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             {
                 _isReviewingMetadata = false;
                 _metadataCancellation = null;
+                // Matching has settled (Ready). Re-apply any active sort once so a Status/Type sort the
+                // user chose reflects the final states, without rows jumping on every row update.
+                ApplySort();
                 Refresh();
             }
 
@@ -690,6 +996,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         }
 
         _isAdding = true;
+        _addCompleted = false;
+        _addProcessed = 0;
+        _addTotal = selections.Length;
         // Freeze the entire review while the captured selection is being processed. Otherwise an
         // unsubmitted checkbox change would make the visible count disagree with the operation in
         // flight, even though the application correctly uses the immutable captured selection.
@@ -703,7 +1012,18 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
         try
         {
-            result = await Task.Run(() => AppServices.Import.ImportSelectedAsync(selections));
+            result = await Task.Run(() => AppServices.Import.ImportSelectedAsync(
+                selections,
+                progress: update => DispatcherQueue.TryEnqueue(() =>
+                {
+                    // Real processed/total from the registration loop; keep the status line honest.
+                    _addProcessed = update.Processed;
+                    _addTotal = update.Total;
+                    if (_isAdding)
+                    {
+                        Refresh();
+                    }
+                })));
         }
         catch (Exception error)
         {
@@ -725,12 +1045,32 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             }
         }
 
+        var addedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var item in result.Items)
         {
             var row = _rows.FirstOrDefault(candidate =>
                 string.Equals(candidate.Item.Path, item.Path, StringComparison.OrdinalIgnoreCase));
-            row?.SetImportStatus(item.Status);
+            if (row is null)
+            {
+                continue;
+            }
+
+            row.SetImportStatus(item.Status);
+            if (item.Registered)
+            {
+                addedPaths.Add(item.Path);
+            }
         }
+
+        // Successfully registered rows leave the active queue so it answers "what still needs my
+        // attention?": failed/unresolved rows, and rows the user did not select, stay visible.
+        RemoveRows(addedPaths);
+
+        // Enter the transient "Done" phase: the status line reports what was added and what still needs
+        // attention until the user acts again.
+        _addCompleted = true;
+        _lastAddedCount = result.AddedCount;
+        _lastAttentionCount = result.NeedsAttentionCount;
 
         MediaRegistered?.Invoke(this, EventArgs.Empty);
         Refresh();
@@ -769,8 +1109,14 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             LocalizationService.Text("AddMedia"),
             string.Join(Environment.NewLine, summaryLines));
 
-        SetDetected([]);
-        _state = AddMediaScanState.Idle;
+        // Only the successfully added rows have been removed. If the whole queue is now empty the page
+        // returns to its idle state; otherwise the remaining items (failures / not-yet-resolved) stay on
+        // screen so the user can act on them without reopening.
+        if (_rows.Count == 0)
+        {
+            _state = AddMediaScanState.Idle;
+        }
+
         Refresh();
     }
 
@@ -789,7 +1135,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         foreach (var directory in paths
             .Select(Path.GetDirectoryName)
             .Where(directory => !string.IsNullOrEmpty(directory))
-            .Distinct(StringComparer.OrdinalIgnoreCase))
+              .Distinct(StringComparer.OrdinalIgnoreCase)
+              .OrderBy(directory => DropSort.FileSystem.Inspection.NetworkReadGuard.IsNetworkPath(directory!)))
         {
             if (isCancelled?.Invoke() == true)
             {
@@ -800,52 +1147,11 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 directory!,
                 recursive: false,
                 isCancelled: isCancelled);
-            results.AddRange(found.Items.Where(item => wanted.Contains(item.Path)));
+            results.AddRange(found.Items.Where(item => wanted.Contains(item.Path)
+                || item.Classification == DiscoveryClassification.Error));
         }
 
         return results;
-    }
-
-    /// <summary>
-    /// Runs the real manual lookup. Without a configured TMDB token the provider has no candidates to
-    /// return, and the flow reports that instead of pretending to have searched.
-    /// </summary>
-    private async void TmdbSearchButton_Click(object sender, RoutedEventArgs e)
-    {
-        var title = TmdbSearchBox.Text?.Trim();
-
-        if (string.IsNullOrWhiteSpace(title))
-        {
-            return;
-        }
-
-        try
-        {
-            if (!AppServices.Settings.IsTmdbConfigured())
-            {
-                await ShowMessageAsync(
-                    LocalizationService.Text("SearchTmdbHeading"),
-                    LocalizationService.Text("TmdbNotConfiguredHelp"));
-                return;
-            }
-
-            // Use the same selectable, ranked result surface as per-row Match Metadata. The global
-            // card has no library row to mutate, so Apply confirms the chosen result and reports it
-            // without inventing a registration side effect.
-            var selected = await MatchMediaDialog.ShowForMovieAsync(this, title, null);
-            if (selected is not null)
-            {
-                await ShowMessageAsync(
-                    LocalizationService.Text("SearchTmdbHeading"),
-                    LocalizationService.Format(
-                        "MatchSelectedFormat",
-                        selected.Title + (selected.Year is null ? string.Empty : $" ({selected.Year})")));
-            }
-        }
-        catch (Exception error)
-        {
-            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
-        }
     }
 
     /// <summary>One themed message surface for this page; a dialog lives outside the content root.</summary>

@@ -25,7 +25,7 @@ public enum LibraryCheckState
 /// between files. Nothing starts it but this page: there is no scan at startup.
 /// </para>
 /// </summary>
-public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivatableView
+public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivatableView, IDeactivatableView
 {
     private LibraryCheckState _state = LibraryCheckState.Idle;
     private LibraryHealthProgress? _result;
@@ -50,16 +50,36 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     /// signal to a worker thread; a plain bool field is not guaranteed to be observed there.
     /// </summary>
     private CancellationTokenSource? _cancellation;
+    private long _checkGeneration;
+    private readonly PostHandoffRequestLifetime _relinkRequests = new();
+    private readonly PostHandoffRequestLifetime _actionRequests = new();
 
     public CheckLibraryPage()
     {
         this.InitializeComponent();
-        Unloaded += (_, _) => _cancellation?.Cancel();
+        Unloaded += (_, _) => Deactivate();
         ApplyLocalization();
     }
 
+    /// <summary>
+    /// Raised when the user presses Review on a metadata-issue row. The argument is the movie id whose
+    /// metadata needs attention; the shell opens that movie's details, which is where a movie's metadata
+    /// is reviewed and rematched. Nothing on this page can change a movie's metadata directly.
+    /// </summary>
+    public event EventHandler<int>? MovieReviewRequested;
+
     /// <summary>Navigating here must not start a check; only the button does.</summary>
     public void Activate() => Refresh();
+
+    public void Deactivate()
+    {
+        _checkGeneration++;
+        _cancellation?.Cancel();
+        _relinkRequests.Cancel();
+        _actionRequests.Cancel();
+        if (_state == LibraryCheckState.Checking) _state = LibraryCheckState.Cancelled;
+        CheckProgressBar.IsIndeterminate = false;
+    }
 
     public void ApplyLocalization()
     {
@@ -238,7 +258,8 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
             rows.Add(new LibraryIssueDisplayRecord(
                 item.Title,
                 LocalizationService.Text("IssueMetadataReview"),
-                LocalizationService.Text("Review")));
+                LocalizationService.Text("Review"),
+                MovieId: item.MovieId));
         }
 
         return rows;
@@ -263,6 +284,10 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     /// <summary>Runs the pass on a worker thread; the UI thread only draws progress.</summary>
     private async void RunCheckButton_Click(object sender, RoutedEventArgs e)
     {
+        _checkGeneration++;
+        var generation = _checkGeneration;
+        _relinkRequests.Cancel();
+        _cancellation?.Cancel();
         _cancellation?.Dispose();
         _cancellation = new CancellationTokenSource();
         var token = _cancellation.Token;
@@ -280,11 +305,18 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         try
         {
             var result = await Task.Run(() => AppServices.Reconciliation.CheckLibrary(
-                progress: update => DispatcherQueue.TryEnqueue(() => ReportProgress(update)),
+                progress: update =>
+                {
+                    if (!IsCurrentCheck(generation, token)) return;
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (IsCurrentCheck(generation, token)) ReportProgress(update);
+                    });
+                },
                 isCancelled: () => token.IsCancellationRequested));
 
             token.ThrowIfCancellationRequested();
-            _staleTemps = await Task.Run(() => AppServices.DetectStaleTempFiles(), token);
+            _staleTemps = await Task.Run(() => AppServices.DetectStaleTempFiles(token: token), token);
             token.ThrowIfCancellationRequested();
             _result = result;
             _missing = MissingFiles();
@@ -296,19 +328,36 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         }
         catch (OperationCanceledException)
         {
-            _state = LibraryCheckState.Cancelled;
+            if (IsCurrentRun(generation, token))
+            {
+                _state = LibraryCheckState.Cancelled;
+                CheckProgressBar.IsIndeterminate = false;
+                Refresh();
+            }
         }
         catch (Exception error)
         {
-            _failure = MetadataErrorText.For(error);
-            _state = LibraryCheckState.Failed;
+            if (IsCurrentRun(generation, token))
+            {
+                _failure = MetadataErrorText.For(error);
+                _state = LibraryCheckState.Failed;
+            }
         }
         finally
         {
-            CheckProgressBar.IsIndeterminate = false;
-            Refresh();
+            if (IsCurrentRun(generation, token))
+            {
+                CheckProgressBar.IsIndeterminate = false;
+                Refresh();
+            }
         }
     }
+
+    private bool IsCurrentCheck(long generation, CancellationToken token) =>
+        generation == _checkGeneration && _cancellation?.Token == token && !token.IsCancellationRequested;
+
+    private bool IsCurrentRun(long generation, CancellationToken token) =>
+        generation == _checkGeneration && _cancellation?.Token == token;
 
     private void ReportProgress(LibraryHealthProgress update) =>
         CheckProgressText.Text = LocalizationService.Format(
@@ -334,6 +383,8 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
             return;
         }
 
+        var request = _relinkRequests.Begin();
+        DropSort.Application.Dto.RelinkPreview? preview = null;
         try
         {
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
@@ -341,7 +392,7 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
             WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindow.WindowHandle);
 
             var picked = await picker.PickSingleFileAsync();
-            if (picked is null)
+            if (picked is null || !request.IsCurrent)
             {
                 return;
             }
@@ -349,7 +400,16 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
             var candidatePath = picked.Path;
 
             // 1. Validate candidate before mutation
-            var preview = AppServices.Reconciliation.PrepareMediaRelink(mediaFileId, candidatePath);
+            var prepared = await Task.Run(
+                () => AppServices.Reconciliation.PrepareMediaRelink(mediaFileId, candidatePath,
+                    () => request.Token.IsCancellationRequested), request.Token);
+            preview = prepared;
+            if (!request.IsCurrent)
+            {
+                AppServices.Reconciliation.DiscardMediaRelinkPreview(prepared.PreviewId);
+                preview = null;
+                return;
+            }
 
             // 2. Show confirmation dialog
             var message = LocalizationService.Format(
@@ -371,14 +431,19 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
             };
 
             var dialogResult = await ContentDialogCoordinator.ShowAsync(dialog);
-            if (dialogResult != ContentDialogResult.Primary)
+            if (dialogResult != ContentDialogResult.Primary || !request.IsCurrent)
             {
-                AppServices.Reconciliation.DiscardMediaRelinkPreview(preview.PreviewId);
+                AppServices.Reconciliation.DiscardMediaRelinkPreview(prepared.PreviewId);
+                preview = null;
                 return;
             }
 
             // 3. Confirm relink (updates SQLite record, does not move/delete candidate file)
-            AppServices.Reconciliation.ConfirmMediaRelink(preview.PreviewId);
+            await Task.Run(
+                () => AppServices.Reconciliation.ConfirmMediaRelink(prepared.PreviewId,
+                    () => request.Token.IsCancellationRequested), request.Token);
+            preview = null;
+            if (!request.IsCurrent) return;
 
             // 4. Immediate UI update
             _missing = _missing.Where(file => file.Id != mediaFileId).ToList();
@@ -390,23 +455,48 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
                 LocalizationService.Text("Success"),
                 LocalizationService.Text("RelinkSuccess"));
         }
+        catch (OperationCanceledException) { }
         catch (Exception)
         {
-            await ShowMessageAsync(
-                LocalizationService.Text("Failed"),
-                LocalizationService.Text("RelinkFailedHelp"));
+            if (request.IsCurrent)
+            {
+                await ShowMessageAsync(
+                    LocalizationService.Text("Failed"),
+                    LocalizationService.Text("RelinkFailedHelp"));
+            }
+        }
+        finally
+        {
+            if (preview is not null)
+            {
+                AppServices.Reconciliation.DiscardMediaRelinkPreview(preview.PreviewId);
+            }
         }
     }
 
     /// <summary>
-    /// The row action opens the folder a missing file used to live in, which is the one thing that can
-    /// be done about it without a relink candidate. The button carries the media-file id, so the record
-    /// is resolved exactly even when two missing files share a name. Metadata rows have no file and no
-    /// id, so they only state the issue.
+    /// The row action button. A metadata-issue row opens the movie's details so the user can review and
+    /// rematch its metadata, which is the one place a movie's metadata can be changed. A missing-file row
+    /// instead opens the folder the file used to live in, which is the one thing that can be done about it
+    /// without a relink candidate. The button carries its whole record, so the id kind that is present
+    /// decides the action and two missing files that share a name are still told apart by media-file id.
     /// </summary>
     private async void IssueAction_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: int mediaFileId })
+        if (sender is not Button { Tag: LibraryIssueDisplayRecord record })
+        {
+            return;
+        }
+
+        // Metadata review: hand the movie id to the shell, which navigates to the movie's details.
+        if (record.MovieId is int movieId)
+        {
+            MovieReviewRequested?.Invoke(this, movieId);
+            return;
+        }
+
+        // Missing file: open the folder it used to live in, resolved by media-file id.
+        if (record.MediaFileId is not int mediaFileId)
         {
             return;
         }
@@ -420,22 +510,35 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
 
         var folder = Path.GetDirectoryName(missing.CurrentPath);
 
-        if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+        if (string.IsNullOrEmpty(folder))
         {
             await ShowMessageAsync(LocalizationService.Text("IssuesHeading"), missing.CurrentPath);
             return;
         }
 
+        var request = _actionRequests.Begin();
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(folder)
+            var result = await AppServices.MediaFileActions.OpenFolderAsync(folder, request.Token);
+            if (!request.IsCurrent) return;
+            switch (result.Status)
             {
-                UseShellExecute = true,
-            })?.Dispose();
+                case DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.Missing:
+                    await ShowMessageAsync(LocalizationService.Text("IssuesHeading"), missing.CurrentPath);
+                    break;
+                case DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.StorageUnavailable:
+                    await ShowMessageAsync(LocalizationService.Text("Failed"), LocalizationService.Text("StorageUnavailable"));
+                    break;
+                case DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.Error:
+                    await ShowMessageAsync(LocalizationService.Text("Failed"), LocalizationService.Text("Failed"));
+                    break;
+            }
         }
+        catch (OperationCanceledException) { }
         catch (Exception error)
         {
-            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+            if (request.IsCurrent)
+                await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
     }
 

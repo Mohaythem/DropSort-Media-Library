@@ -15,6 +15,14 @@ public static class MetadataScorer
     public const double AmbiguityScoreThreshold = 0.65;
     public const double AmbiguityScoreDelta = 0.15;
 
+    /// <summary>
+    /// Confidence at or above which a user-initiated bulk import accepts the top candidate without a
+    /// separate manual Review Match. It is below <see cref="AutoMatchThreshold" /> on purpose: unattended
+    /// scoring still needs 0.80 to call something a clear winner, but once the user has pressed Add the
+    /// 0.75–0.80 band is confident enough to accept rather than re-prompt. Ambiguous ties never qualify.
+    /// </summary>
+    public const double BulkAcceptThreshold = 0.75;
+
     public static string NormalizeTitle(string? input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -24,12 +32,24 @@ public static class MetadataScorer
 
         var decomposed = input.Normalize(NormalizationForm.FormD);
         var sb = new StringBuilder(decomposed.Length);
-        foreach (var c in decomposed)
+        foreach (var raw in decomposed)
         {
-            if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark)
+            if (CharUnicodeInfo.GetUnicodeCategory(raw) == UnicodeCategory.NonSpacingMark)
+            {
+                // Combining marks - Latin accents and Arabic harakat/shadda/tanwin alike - carry no
+                // identity for matching and are dropped. FormD has already split the hamza-carrying
+                // alef/waw/yeh forms into a base letter plus the mark removed here.
+                continue;
+            }
+
+            // Tatweel (kashida) only stretches a letter for justification; it must not make two
+            // spellings of the same Arabic title differ.
+            if (raw == 'ـ')
             {
                 continue;
             }
+
+            var c = FoldArabic(raw);
 
             if (char.IsLetterOrDigit(c))
             {
@@ -44,6 +64,23 @@ public static class MetadataScorer
         var parts = sb.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries);
         return string.Join(" ", parts);
     }
+
+    /// <summary>
+    /// Folds the Arabic letters that spell the same word differently so a title matches regardless of the
+    /// writer's orthographic choice: alef-wasla to bare alef, alef-maqsura to yeh, teh-marbuta to heh, and
+    /// Arabic-Indic digits to their ASCII value. FormD decomposition already reduces the hamza-carrying
+    /// alef/waw/yeh forms, so only the letters that have no canonical decomposition are handled here.
+    /// Non-Arabic characters are returned unchanged, so Latin titles are unaffected.
+    /// </summary>
+    private static char FoldArabic(char c) => c switch
+    {
+        'ٱ' => 'ا',                                        // alef wasla -> alef
+        'ى' => 'ي',                                        // alef maqsura -> yeh
+        'ة' => 'ه',                                        // teh marbuta -> heh
+        >= '٠' and <= '٩' => (char)('0' + (c - '٠')), // Arabic-Indic digits 0-9
+        >= '۰' and <= '۹' => (char)('0' + (c - '۰')), // extended Arabic-Indic digits 0-9
+        _ => c,
+    };
 
     public static double WordOverlap(string s1, string s2)
     {
@@ -108,6 +145,82 @@ public static class MetadataScorer
         double overlap = WordOverlap(queryNormalized, candidateNormalized);
         double lev = LevenshteinRatio(queryNormalized, candidateNormalized);
         return (overlap + lev) / 2.0;
+    }
+
+    /// <summary>
+    /// Words that mark a trailing subtitle/part, which explains why a query title is longer than the base
+    /// title a provider returns ("Dune Part One" vs "Dune").
+    /// </summary>
+    private static readonly HashSet<string> SubtitleMarkers =
+        new(StringComparer.Ordinal) { "part", "pt", "chapter", "chapters", "vol", "volume" };
+
+    /// <summary>
+    /// Whether a single below-threshold candidate is credible enough for a user-initiated Add to accept it
+    /// as a review match. It is deliberately narrow, so it corroborates rather than guesses: the candidate
+    /// title (or its original title) must be the LEADING part of the query title — the query is the base
+    /// title plus a trailing subtitle/part — the year must not conflict, and acceptance still requires
+    /// either an exact year match or an explicit part/subtitle marker in the tail. A conflicting year or an
+    /// unrelated title never qualifies. The caller applies "exactly one candidate" (no competitor) and the
+    /// persisted Review Match flag; this method judges only the title/year corroboration.
+    /// </summary>
+    public static bool IsCorroboratedSoleCandidate(
+        string queryTitle,
+        int? queryYear,
+        string candidateTitle,
+        string? candidateOriginalTitle,
+        int? candidateYear)
+    {
+        var queryTokens = NormalizeTitle(queryTitle).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (queryTokens.Length == 0)
+        {
+            return false;
+        }
+
+        // A conflicting year disqualifies; a matching or absent year is acceptable.
+        if (queryYear.HasValue && candidateYear.HasValue && queryYear.Value != candidateYear.Value)
+        {
+            return false;
+        }
+
+        var yearExact = queryYear.HasValue && candidateYear.HasValue && queryYear.Value == candidateYear.Value;
+
+        foreach (var title in new[] { candidateTitle, candidateOriginalTitle })
+        {
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                continue;
+            }
+
+            var candidateTokens = NormalizeTitle(title).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (candidateTokens.Length == 0 || candidateTokens.Length >= queryTokens.Length)
+            {
+                continue;
+            }
+
+            var isLeadingBase = true;
+            for (var i = 0; i < candidateTokens.Length; i++)
+            {
+                if (!string.Equals(candidateTokens[i], queryTokens[i], StringComparison.Ordinal))
+                {
+                    isLeadingBase = false;
+                    break;
+                }
+            }
+
+            if (!isLeadingBase)
+            {
+                continue;
+            }
+
+            // The candidate is the base title. Accept when the year matches exactly, or when the extra
+            // tail is an explicit part/subtitle marker that explains the longer query title.
+            if (yearExact || queryTokens.Skip(candidateTokens.Length).Any(SubtitleMarkers.Contains))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public static MatchDecision Score(string queryTitle, int? queryYear, IEnumerable<MovieCandidate>? candidates)

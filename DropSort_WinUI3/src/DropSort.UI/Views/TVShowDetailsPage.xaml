@@ -298,6 +298,7 @@
                                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                                         BorderThickness="1"
                                                         CornerRadius="{ThemeResource ControlCornerRadius}"
+                                                        Opacity="{x:Bind RowOpacity}"
                                                         Padding="12,8,12,8">
                                                         <Grid MinHeight="52" ColumnSpacing="12">
                                                             <Grid.ColumnDefinitions>
@@ -381,7 +382,8 @@
                                                                 Grid.Column="3"
                                                                 Orientation="Horizontal"
                                                                 Spacing="4"
-                                                                VerticalAlignment="Center">
+                                                                VerticalAlignment="Center"
+                                                                Visibility="{x:Bind HasActions}">
                                                                 <Button
                                                                     AutomationProperties.Name="{x:Bind Labels.MarkWatched}"
                                                                     Click="EpisodeMarkWatched_Click"

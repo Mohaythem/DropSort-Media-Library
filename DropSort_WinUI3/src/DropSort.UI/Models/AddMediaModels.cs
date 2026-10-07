@@ -36,6 +36,15 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
     /// </summary>
     public bool CanAdd => CanSelect && _status != ImportItemStatus.AlreadyInLibrary;
 
+    /// <summary>
+    /// True when the row can be added immediately without any review: a selectable, not-already-in-library
+    /// item whose metadata state is either the clean initial state or a confident match. Needs-review,
+    /// no-match, metadata-failure and already-in-library rows are deliberately excluded, so
+    /// "Select ready to add" never picks up an item that still needs the user's attention.
+    /// </summary>
+    public bool IsReadyToAdd => CanAdd
+        && _status is ImportItemStatus.ReadyToAdd or ImportItemStatus.Matched;
+
     public bool IsSelected
     {
         get => _isSelected;
@@ -138,6 +147,21 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
 
     public string RetryLabel => LocalizationService.Text("Retry");
 
+    /// <summary>
+    /// Whether the user may flip this row between Movie and TV. Only the two registerable candidate kinds
+    /// can be overridden; unresolved / error / already-in-library rows cannot.
+    /// </summary>
+    public bool CanOverrideType => Item.Classification is
+        DiscoveryClassification.MovieCandidate or DiscoveryClassification.TvEpisodeCandidate;
+
+    public Visibility OverrideTypeVisibility =>
+        CanOverrideType && _status != ImportItemStatus.AlreadyInLibrary ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Offers the opposite classification: a movie can be treated as TV, and a TV episode as a movie.</summary>
+    public string OverrideTypeLabel => Item.Classification == DiscoveryClassification.MovieCandidate
+        ? LocalizationService.Text("TreatAsTv")
+        : LocalizationService.Text("TreatAsMovie");
+
     public void SetImporting(bool importing)
     {
         if (_isImporting == importing)
@@ -160,6 +184,7 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Status)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanAdd)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsReadyToAdd)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelectionEnabled)));
         RaiseMetadataProperties();
     }
@@ -212,7 +237,8 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
         {
             nameof(MetadataPreview), nameof(PreviewTitle), nameof(PreviewYear), nameof(PreviewDetails),
             nameof(ManualMatchVisibility), nameof(RetryVisibility), nameof(PreviewVisibility),
-            nameof(ManualMatchLabel), nameof(RetryLabel), nameof(AutomationName)
+            nameof(ManualMatchLabel), nameof(RetryLabel), nameof(AutomationName),
+            nameof(OverrideTypeVisibility), nameof(OverrideTypeLabel)
         })
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -271,7 +297,9 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
         }
     }
 
-    public string StatusLabel => CanSelect
+    public string StatusLabel => Item.Issue?.Code == DiscoveryErrorCode.StorageUnavailable
+        ? LocalizationService.Text("StorageUnavailable")
+        : CanSelect
         ? _status switch
         {
             ImportItemStatus.ReadyToAdd => LocalizationService.Text("ReadyToAdd"),

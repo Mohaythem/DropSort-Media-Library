@@ -27,7 +27,10 @@ internal static class LibraryProjection
         [],
         string.Empty,
         HasLocalFile: !item.IsMissing,
-        PosterReference: item.PosterReference);
+        PosterReference: item.PosterReference,
+        FileCount: item.FileCount,
+        ReviewMatch: item.ReviewMatch,
+        HasPendingMetadata: item.HasPendingMetadata);
 
     /// <summary>
     /// The details hero, file block, personal state and watch history for one movie. The watch
@@ -42,6 +45,15 @@ internal static class LibraryProjection
         var file = details.MediaFiles
             .OrderByDescending(candidate => candidate.Status == MediaFileStatus.Present)
             .FirstOrDefault();
+
+        // Every associated local file, so Movie Details can list all versions/copies of one movie.
+        var mediaFiles = details.MediaFiles
+            .Select(f => new MovieFileRecord(
+                Path.GetFileName(f.CurrentPath),
+                f.CurrentPath,
+                string.IsNullOrWhiteSpace(f.Extension) ? Path.GetExtension(f.CurrentPath) : f.Extension!,
+                LocalizationService.Text(f.Status == MediaFileStatus.Present ? "Present" : "Missing")))
+            .ToList();
 
         return new MovieRecord(
             details.Id,
@@ -62,7 +74,10 @@ internal static class LibraryProjection
             FileFacts: file is null ? null : FileFacts(file),
             MediaFileId: file?.Id,
             WatchHistory: ToWatchHistory(watchEvents),
-            PosterReference: details.PosterReference);
+            PosterReference: details.PosterReference,
+            FileCount: details.MediaFiles.Count,
+            MediaFiles: mediaFiles,
+            ReviewMatch: details.ReviewMatch);
     }
 
     /// <summary>

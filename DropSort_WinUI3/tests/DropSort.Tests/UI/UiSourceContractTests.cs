@@ -604,7 +604,9 @@ public sealed class UiSourceContractTests
         Assert.DoesNotContain("<TextBox", row, StringComparison.Ordinal);
         Assert.DoesNotContain("IsReadOnly=", row, StringComparison.Ordinal);
         Assert.Equal(6, Occurrences(row, "IsTextSelectionEnabled=\"True\""));
-        Assert.Contains("TmdbSearchButton", xaml, StringComparison.Ordinal);
+        // The redundant standalone "Search TMDB" card was removed; manual search now lives in the
+        // Match with TMDB dialog reached from a row's manual-match action.
+        Assert.DoesNotContain("TmdbSearchButton", xaml, StringComparison.Ordinal);
         Assert.Contains("ManualMatch_Click", row, StringComparison.Ordinal);
     }
 
@@ -620,7 +622,8 @@ public sealed class UiSourceContractTests
         Assert.Contains("MatchConfidenceFormat", dialog, StringComparison.Ordinal);
         Assert.Contains("TmdbPopularityFormat", dialog, StringComparison.Ordinal);
         Assert.Contains("CachedPosterPath", dialog, StringComparison.Ordinal);
-        Assert.Contains("MatchMediaDialog.ShowForMovieAsync(this, title, null)", addMedia, StringComparison.Ordinal);
+        // The manual-match surface is reached per row (detected title + year), not from a standalone card.
+        Assert.Contains("MatchMediaDialog.ShowForMovieAsync(this, row.Title, year)", addMedia, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -647,21 +650,46 @@ public sealed class UiSourceContractTests
     }
 
     [Fact]
-    public void Settings_use_one_media_folder_concept_and_keep_storage_advanced()
+    public void Settings_media_folders_support_add_replace_remove_without_a_two_slot_limit()
     {
         var store = Read("Services", "AppSettingsStore.cs");
         var xaml = Read("Views", "SettingsPage.xaml");
         var code = Read("Views", "SettingsPage.xaml.cs");
 
+        // A real list of roots with explicit Add / Replace / Remove, not the old fixed movie/show slots.
         Assert.Contains("ConfiguredMediaFolders", store, StringComparison.Ordinal);
         Assert.Contains("Distinct(StringComparer.OrdinalIgnoreCase)", store, StringComparison.Ordinal);
-        Assert.Contains("TryAddMediaFolder", store, StringComparison.Ordinal);
+        Assert.Contains("public static bool AddMediaFolder(", store, StringComparison.Ordinal);
+        Assert.Contains("public static bool ReplaceMediaFolder(", store, StringComparison.Ordinal);
+        Assert.Contains("public static bool RemoveMediaFolder(", store, StringComparison.Ordinal);
+        // The old two-slot limit and its "no additional folder could be stored" behaviour are gone.
+        Assert.DoesNotContain("TryAddMediaFolder", store, StringComparison.Ordinal);
+
         Assert.Contains("MediaFoldersLabelText", xaml, StringComparison.Ordinal);
         Assert.Contains("StorageAdvancedHeadingText", xaml, StringComparison.Ordinal);
-        Assert.Contains("ManageMediaFolder_Click", code, StringComparison.Ordinal);
+        Assert.Contains("AddMediaFolder_Click", code, StringComparison.Ordinal);
+        Assert.Contains("ReplaceMediaFolder_Click", code, StringComparison.Ordinal);
+        Assert.Contains("RemoveMediaFolder_Click", code, StringComparison.Ordinal);
         Assert.DoesNotContain("MovieFoldersLabelText", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("TvFoldersLabelText", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("ManageFolders_Click", code, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Settings_no_longer_expose_import_or_export_data()
+    {
+        // The non-functional Import/Export Data stubs are removed; the real backup/restore internals stay.
+        var xaml = Read("Views", "SettingsPage.xaml");
+        var code = Read("Views", "SettingsPage.xaml.cs");
+        Assert.DoesNotContain("ExportButton", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ImportButton", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExportButton_Click", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("ImportButton_Click", code, StringComparison.Ordinal);
+
+        // Backup/restore infrastructure is untouched and still wired to migrations and clear-catalog.
+        var migrator = Read("../DropSort.Infrastructure/Persistence/Migrations/DatabaseMigrator.cs");
+        var maintenance = Read("../DropSort.Infrastructure/Persistence/Repositories/MaintenanceRepository.cs");
+        Assert.Contains("DatabaseSafetyBackup", migrator, StringComparison.Ordinal);
+        Assert.Contains("DatabaseSafetyBackup.CreateVerifiedBackup", maintenance, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -720,6 +748,22 @@ public sealed class UiSourceContractTests
         Assert.Contains("EpisodeMarkWatched_Click", tvDetails, StringComparison.Ordinal);
         Assert.Contains("AppServices.WatchHistory.RecordEpisodeWatch(episode.Id)", tvDetails, StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{x:Bind CanMarkWatched}\"", tvXaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Tv_missing_episodes_render_quieter_and_hide_local_file_actions()
+    {
+        var models = Read("Models", "ShowModels.cs");
+        var projection = Read("Services", "TvProjection.cs");
+        var tvDetails = Read("Views", "TVShowDetailsPage.xaml.cs");
+        var tvXaml = Read("Views", "TVShowDetailsPage.xaml");
+
+        Assert.Contains("public bool HasActions => HasLocalFile;", models, StringComparison.Ordinal);
+        Assert.Contains("public double RowOpacity => HasLocalFile ? 1.0 : 0.8;", models, StringComparison.Ordinal);
+        Assert.Contains("episode.Availability is EpisodeAvailability.Missing or EpisodeAvailability.NoFile || episode.Id == 0", projection, StringComparison.Ordinal);
+        Assert.Contains("Opacity=\"{x:Bind RowOpacity}\"", tvXaml, StringComparison.Ordinal);
+        Assert.Contains("Visibility=\"{x:Bind HasActions}\"", tvXaml, StringComparison.Ordinal);
+        Assert.Contains("episode.Id <= 0", tvDetails, StringComparison.Ordinal);
     }
 
     private static IEnumerable<string> EnumerateUiSource() =>
