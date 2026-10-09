@@ -237,7 +237,7 @@ public sealed class DatabaseMigrationHardeningTests : IDisposable
         using var restored = new SqliteConnection(restoredConnection);
         restored.Open();
         Assert.Equal("Retry Fixture", Scalar(restored, "SELECT title FROM movies WHERE id=77"));
-        Assert.Equal(14L, Scalar(restored, "PRAGMA user_version"));
+        Assert.Equal(15L, Scalar(restored, "PRAGMA user_version"));
     }
 
     [Fact]

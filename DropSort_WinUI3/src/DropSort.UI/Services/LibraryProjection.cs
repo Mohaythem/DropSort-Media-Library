@@ -30,7 +30,9 @@ internal static class LibraryProjection
         PosterReference: item.PosterReference,
         FileCount: item.FileCount,
         ReviewMatch: item.ReviewMatch,
-        HasPendingMetadata: item.HasPendingMetadata);
+        HasPendingMetadata: item.HasPendingMetadata,
+        DateAdded: item.DateAdded,
+        LastOpenedAt: item.LastOpenedAt);
 
     /// <summary>
     /// The details hero, file block, personal state and watch history for one movie. The watch

@@ -182,7 +182,7 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         command.CommandText = $"""
             SELECT m.id, m.provider, m.external_id, m.title, m.original_title, m.year, m.overview,
                    m.runtime_minutes, m.rating, m.poster_path, m.date_added, m.created_at, m.updated_at,
-                   m.genres, m.metadata_status,
+                   m.genres, m.metadata_status, m.backdrop_path, m.tagline, m.review_match, m.last_opened_at,
                    COUNT(DISTINCT mf.id),
                    COALESCE(SUM(CASE WHEN mf.status = 'MISSING' THEN 1 ELSE 0 END), 0),
                    ps.preference,
@@ -208,12 +208,12 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         {
             result.Add(new PersonalMovieSummary(
                 MovieRepository.Map(reader),
-                reader.GetInt32(15),
-                reader.GetInt32(16),
-                ParsePreference(reader.GetString(17)),
-                reader.GetInt32(18) != 0,
-                reader.GetInt32(19),
-                reader.IsDBNull(20) ? null : MovieRepository.ParseTimestamp(reader.GetString(20))));
+                 reader.GetInt32(19),
+                 reader.GetInt32(20),
+                 ParsePreference(reader.GetString(21)),
+                 reader.GetInt32(22) != 0,
+                 reader.GetInt32(23),
+                 reader.IsDBNull(24) ? null : MovieRepository.ParseTimestamp(reader.GetString(24))));
         }
         return result;
     }

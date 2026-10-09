@@ -43,6 +43,16 @@ internal sealed class FakeTvShowRepo : ITvShowRepository
 
     public int CountAll() => _shows.Count;
 
+    public void RecordOpened(int id, DateTimeOffset openedAt)
+    {
+        var index = _shows.FindIndex(show => show.Id == id);
+        if (index >= 0)
+        {
+            var show = _shows[index];
+            _shows[index] = new TvShow(show.Id, show.Data, show.DateAdded, show.CreatedAt, show.UpdatedAt, openedAt);
+        }
+    }
+
     public TvShow Create(TvShowCatalogData data, DateTimeOffset now)
     {
         if (GetBySortTitle(data.SortTitle) is not null)

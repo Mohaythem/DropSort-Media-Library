@@ -78,14 +78,18 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     /// Loads one movie from the catalog. Called on every navigation, so re-entering the page always
     /// shows the stored state rather than whatever the previous visit left behind.
     /// </summary>
+    public bool IsLoadedSuccessfully { get; private set; }
+
     public void LoadMovie(int movieId)
     {
+        IsLoadedSuccessfully = false;
         try
         {
             SetMovie(LibraryProjection.ToDetails(
                 AppServices.Library.GetMovieDetails(movieId),
                 AppServices.Personal.GetPersonalSnapshot(movieId),
                 AppServices.Personal.ListWatchEvents(movieId)));
+            IsLoadedSuccessfully = true;
         }
         catch (Exception error)
         {

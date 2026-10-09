@@ -34,7 +34,10 @@ internal static class TvProjection
             item.EpisodeCount,
             item.EpisodesWithLocalFile,
             item.MissingEpisodeCount),
-        PosterReference: item.PosterReference);
+        PosterReference: item.PosterReference,
+        MetadataStatus: item.MetadataStatus,
+        DateAdded: item.DateAdded,
+        LastOpenedAt: item.LastOpenedAt);
 
     /// <summary>The full hierarchy of one show: seasons in order, each with its episodes in order.</summary>
     public static TVShowRecord ToDetails(TvShowDetails details) => new(

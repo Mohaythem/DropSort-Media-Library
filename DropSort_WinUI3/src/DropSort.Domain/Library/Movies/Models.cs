@@ -135,6 +135,7 @@ public record Movie
     public int Id { get; }
     public MovieCatalogData Data { get; }
     public DateTimeOffset DateAdded { get; }
+    public DateTimeOffset? LastOpenedAt { get; }
     public DateTimeOffset CreatedAt { get; }
     public DateTimeOffset UpdatedAt { get; }
 
@@ -146,13 +147,14 @@ public record Movie
     /// </summary>
     public bool ReviewMatch { get; }
 
-    public Movie(int id, MovieCatalogData data, DateTimeOffset dateAdded, DateTimeOffset createdAt, DateTimeOffset updatedAt, bool reviewMatch = false)
+    public Movie(int id, MovieCatalogData data, DateTimeOffset dateAdded, DateTimeOffset createdAt, DateTimeOffset updatedAt, bool reviewMatch = false, DateTimeOffset? lastOpenedAt = null)
     {
         if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id), "id must be a positive integer");
 
         Id = id;
         Data = data ?? throw new ArgumentNullException(nameof(data));
         DateAdded = dateAdded;
+        LastOpenedAt = lastOpenedAt;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
         ReviewMatch = reviewMatch;

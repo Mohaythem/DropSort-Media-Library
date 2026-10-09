@@ -29,6 +29,8 @@ public interface ITvShowRepository
     /// </summary>
     void RegisterAlias(int showId, string aliasSortTitle, DateTimeOffset now);
 
+    void RecordOpened(int id, DateTimeOffset openedAt);
+
     TvShow? GetByExternalId(string provider, string externalId);
 
     IReadOnlyList<TvShow> ListAll();

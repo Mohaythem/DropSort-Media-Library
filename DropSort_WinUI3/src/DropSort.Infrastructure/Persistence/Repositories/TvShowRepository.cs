@@ -17,7 +17,7 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
 {
     private const string Columns =
         "id, provider, external_id, title, sort_title, original_title, year, overview, genres, "
-        + "poster_path, metadata_status, date_added, created_at, updated_at, backdrop_path, rating, tagline";
+        + "poster_path, metadata_status, date_added, created_at, updated_at, backdrop_path, rating, tagline, last_opened_at";
 
     public TvShow? GetById(int id)
     {
@@ -83,6 +83,15 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
         command.Parameters.AddWithValue("$alias", normalized);
         command.Parameters.AddWithValue("$now", now.ToString("O"));
         command.ExecuteNonQuery();
+    }
+
+    public void RecordOpened(int id, DateTimeOffset openedAt)
+    {
+        if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
+        using var command = Command("UPDATE tv_shows SET last_opened_at = $openedAt WHERE id = $id;");
+        command.Parameters.AddWithValue("$openedAt", openedAt.ToUniversalTime().ToString("O"));
+        command.Parameters.AddWithValue("$id", id);
+        if (command.ExecuteNonQuery() != 1) throw new KeyNotFoundException($"TV show {id} was not found.");
     }
 
     public IReadOnlyList<TvShow> ListAll()
@@ -211,5 +220,6 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
             tagline: reader.IsDBNull(16) ? null : reader.GetString(16)),
         MovieRepository.ParseTimestamp(reader.GetString(11)),
         MovieRepository.ParseTimestamp(reader.GetString(12)),
-        MovieRepository.ParseTimestamp(reader.GetString(13)));
+        MovieRepository.ParseTimestamp(reader.GetString(13)),
+        reader.IsDBNull(17) ? null : MovieRepository.ParseTimestamp(reader.GetString(17)));
 }

@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 14;
+    public const int LatestVersion = 15;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -563,6 +563,12 @@ public class DatabaseMigrator
         // default 0; no table rebuild, so the metadata_status CHECK is untouched.
         @"
             ALTER TABLE movies ADD COLUMN review_match INTEGER NOT NULL DEFAULT 0;
+        ",
+        // v15: persist the last time a movie or show was opened in the UI. Additive nullable columns;
+        // existing date-added and metadata timestamps are unchanged.
+        @"
+            ALTER TABLE movies ADD COLUMN last_opened_at TEXT NULL;
+            ALTER TABLE tv_shows ADD COLUMN last_opened_at TEXT NULL;
         "
     };
 
@@ -616,8 +622,10 @@ public class DatabaseMigrator
 
                 // Validate the complete current schema while the final migration is still rollbackable.
                 // This prevents a bad final schema from being stamped as successfully migrated.
-                if (i + 1 == LatestVersion && targetVersion == LatestVersion)
-                    ValidateSchema(connection, tx);
+                // Keep the v14 validation gate before its commit as well as validating v15.
+                // Adding a migration must not weaken the prior rollback boundary on a corrupt schema.
+                if (i + 1 >= 14 && targetVersion == LatestVersion)
+                    ValidateSchema(connection, tx, includeActivity: i + 1 >= 15);
 
                 cmd.CommandText = $"PRAGMA user_version = {i + 1};";
                 cmd.ExecuteNonQuery();
@@ -640,7 +648,7 @@ public class DatabaseMigrator
             DatabaseSafetyBackup.PruneAfterSuccessfulMigration(verifiedBackupPath);
     }
 
-    private static void ValidateSchema(SqliteConnection connection, SqliteTransaction? transaction = null)
+    private static void ValidateSchema(SqliteConnection connection, SqliteTransaction? transaction = null, bool includeActivity = true)
     {
         var requiredTables = new[]
         {
@@ -669,6 +677,11 @@ public class DatabaseMigrator
         RequireTableColumns(connection, "watch_events", transaction,
             "artwork_reference", "backdrop_reference", "poster_reference");
         RequireTableColumns(connection, "movies", transaction, "review_match");
+        if (includeActivity)
+        {
+            RequireTableColumns(connection, "movies", transaction, "last_opened_at");
+            RequireTableColumns(connection, "tv_shows", transaction, "last_opened_at");
+        }
         EnsureForeignKeyIntegrity(connection, transaction, "Database schema");
     }
 

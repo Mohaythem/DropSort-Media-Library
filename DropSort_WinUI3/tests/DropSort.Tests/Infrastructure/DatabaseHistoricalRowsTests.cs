@@ -61,7 +61,7 @@ public sealed class DatabaseHistoricalRowsTests : IDisposable
         using var after = Open();
         foreach (var (table, snapshot) in snapshots)
             Assert.Equal(snapshot.Rows, Rows(after, $"SELECT {snapshot.Columns} FROM {table} ORDER BY 1"));
-        Assert.Equal(14L, Scalar(after, "PRAGMA user_version"));
+        Assert.Equal(15L, Scalar(after, "PRAGMA user_version"));
         Assert.Equal(version == 14 ? 1L : 0L, Scalar(after, "SELECT review_match FROM movies WHERE id=10"));
         Assert.Equal("ok", Scalar(after, "PRAGMA integrity_check"));
         Assert.Empty(Rows(after, "PRAGMA foreign_key_check"));

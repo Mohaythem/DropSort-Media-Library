@@ -54,6 +54,13 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
             movie.Genres, movie.RuntimeMinutes, movie.Rating, movie.PosterReference, files, movie.ReviewMatch);
     }
 
+    public DateTimeOffset RecordMovieOpened(int movieId)
+    {
+        var openedAt = _clock().ToUniversalTime();
+        _movies.RecordOpened(movieId, openedAt);
+        return openedAt;
+    }
+
     private MovieListItem MapToListItem(Movie movie)
     {
         var files = _mediaFiles.GetByMovieId(movie.Id);
@@ -65,7 +72,7 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
         bool pending = movie.MetadataStatus is MetadataStatus.Pending
             or MetadataStatus.NeedsMatch
             or MetadataStatus.Failed;
-        return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, !hasPresentFile, pending, fileCount, movie.ReviewMatch);
+        return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, !hasPresentFile, pending, fileCount, movie.ReviewMatch, movie.DateAdded, movie.LastOpenedAt);
     }
 
     public PersonalMovieSnapshot GetPersonalSnapshot(int movieId)

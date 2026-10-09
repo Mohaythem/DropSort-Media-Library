@@ -47,6 +47,7 @@ public class LibraryScaleContractTests
         public IReadOnlyList<Movie> ListAll() => Enumerable.Range(1, count).Select(MakeMovie).ToList();
         public IReadOnlyList<Movie> ListPage(int afterId, int limit) => ListAll();
         public int CountAll() => count;
+        public void RecordOpened(int id, DateTimeOffset openedAt) { }
         public Movie Create(MovieCatalogData data, DateTimeOffset now) => throw new NotSupportedException();
         public Movie UpdateMetadata(int id, MovieCatalogData data, DateTimeOffset now) => throw new NotSupportedException();
         public void SetReviewMatch(int id, bool value) { }

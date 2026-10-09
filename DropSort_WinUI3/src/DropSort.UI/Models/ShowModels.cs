@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using DropSort.Domain.Library.Movies;
 using DropSort.Domain.Library.Personal;
 using DropSort.UI.Services;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
@@ -62,8 +63,14 @@ public sealed record TVShowRecord(
     ShowCounts? Counts = null,
     string? PosterReference = null,
     string? ExternalId = null,
-    MetadataStatus MetadataStatus = MetadataStatus.Pending)
+    MetadataStatus MetadataStatus = MetadataStatus.Pending,
+    DateTimeOffset DateAdded = default,
+    DateTimeOffset? LastOpenedAt = null)
 {
+    public DateTimeOffset? LastOpenedAt { get; private set; } = LastOpenedAt;
+
+    internal void RecordOpened(DateTimeOffset openedAt) => LastOpenedAt = openedAt;
+
     public int SeasonCount => Counts?.Seasons ?? Seasons.Count;
 
     public int EpisodeCount => Counts?.Episodes ?? Seasons.Sum(season => season.Episodes.Count);
@@ -121,6 +128,17 @@ public sealed record ShowCardItem(TVShowRecord Show, string SecondaryLine) : INo
     private bool _posterRequested;
 
     public string Title => Show.Title;
+
+    public string YearText => Show.Year > 0 ? LocalizationService.Number(Show.Year) : string.Empty;
+
+    public Visibility YearVisibility => Show.Year > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public string SeasonLine => Show.SeasonCount == 1
+        ? LocalizationService.Format("SeasonCountFormat", Show.SeasonCount)
+        : LocalizationService.Format("SeasonsCountFormat", Show.SeasonCount);
+
+    public string LocalEpisodesLine => LocalizationService.Format(
+        "HorizontalEpisodesOnDiskFormat", Show.LocalEpisodeCount, Show.EpisodeCount);
 
     /// <summary>Show artwork, null until a backend supplies it. See MovieRecord.PosterSource.</summary>
     public ImageSource? PosterSource

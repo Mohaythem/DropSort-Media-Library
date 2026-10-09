@@ -13,13 +13,14 @@ using DropSort.Domain.Metadata.Contracts;
 
 namespace DropSort.Infrastructure.Metadata.Tmdb;
 
-public sealed class TmdbClient : IMetadataProvider, IDisposable
+public sealed class TmdbClient : IMetadataProvider, ITmdbCredentialValidator, IDisposable
 {
     private readonly Func<string?> _tokenProvider;
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
     private readonly string _baseUrl;
     private readonly string _imageBaseUrl;
+    private readonly Action<string, bool>? _authenticationResult;
 
     public string ProviderName => "TMDB";
 
@@ -29,11 +30,13 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
         Func<string?> tokenProvider,
         HttpClient? httpClient = null,
         string baseUrl = "https://api.themoviedb.org/",
-        string imageBaseUrl = "https://image.tmdb.org/t/p/")
+        string imageBaseUrl = "https://image.tmdb.org/t/p/",
+        Action<string, bool>? authenticationResult = null)
     {
         _tokenProvider = tokenProvider ?? throw new ArgumentNullException(nameof(tokenProvider));
         _baseUrl = baseUrl ?? "https://api.themoviedb.org/";
         _imageBaseUrl = imageBaseUrl ?? "https://image.tmdb.org/t/p/";
+        _authenticationResult = authenticationResult;
 
         if (httpClient == null)
         {
@@ -55,6 +58,9 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
             // Ignore if timeout cannot be changed on shared client
         }
     }
+
+    public Task<ConnectionTestResult> ValidateCredentialAsync(string credential, CancellationToken cancellationToken = default) =>
+        TestConnectionAsync(credential, cancellationToken);
 
     public async Task<ConnectionTestResult> TestConnectionAsync(CancellationToken cancellationToken = default)
     {
@@ -94,6 +100,19 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
         {
             return new ConnectionTestResult(false, "TMDB connection failed.", null, ex.Kind);
         }
+    }
+
+    private async Task<ConnectionTestResult> TestConnectionAsync(string candidate, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(candidate)) return new(false, "TMDB is not configured.", null, MetadataFailureKind.NotConfigured);
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken); cts.CancelAfter(TimeSpan.FromSeconds(10));
+            using var response = await SendWithRetryAsync(HttpMethod.Get, "3/authentication", cts.Token, candidate.Trim(), false);
+            return response.IsSuccessStatusCode ? new(true, "Successfully connected to TMDB.", 200) : new(false, "TMDB connection failed.", (int)response.StatusCode, FailureKindForStatus(response.StatusCode));
+        }
+        catch (HttpRequestException) { return new(false, "Cannot reach TMDB.", null, MetadataFailureKind.Network); }
+        catch (OperationCanceledException) { if (cancellationToken.IsCancellationRequested) throw; return new(false, "TMDB request timed out.", null, MetadataFailureKind.Timeout); }
     }
 
     public async Task<IReadOnlyList<MovieCandidate>> SearchMoviesAsync(MovieSearchQuery query, CancellationToken cancellationToken = default)
@@ -585,10 +604,16 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
         _ => MetadataFailureKind.Api
     };
 
-    private async Task<HttpResponseMessage> SendWithRetryAsync(HttpMethod method, string relativePath, CancellationToken cancellationToken)
+    private async Task<HttpResponseMessage> SendWithRetryAsync(HttpMethod method, string relativePath, CancellationToken cancellationToken, string? tokenOverride = null, bool reportAuthentication = true)
     {
-        var request = CreateRequest(method, relativePath);
+        var token = tokenOverride ?? _tokenProvider()?.Trim();
+        using var request = CreateRequest(method, relativePath, token);
         var response = await _httpClient.SendAsync(request, cancellationToken);
+        if (reportAuthentication && token is not null)
+        {
+            if ((int)response.StatusCode is 401 or 403) _authenticationResult?.Invoke(token, false);
+            else if ((int)response.StatusCode is >= 200 and < 300) _authenticationResult?.Invoke(token, true);
+        }
 
         if (response.StatusCode == HttpStatusCode.TooManyRequests)
         {
@@ -618,16 +643,21 @@ public sealed class TmdbClient : IMetadataProvider, IDisposable
                 await Task.Delay(delay, cancellationToken);
             }
 
-            using var retryRequest = CreateRequest(method, relativePath);
+            using var retryRequest = CreateRequest(method, relativePath, token);
             response = await _httpClient.SendAsync(retryRequest, cancellationToken);
+            if (reportAuthentication && token is not null)
+            {
+                if ((int)response.StatusCode is 401 or 403) _authenticationResult?.Invoke(token, false);
+                else if ((int)response.StatusCode is >= 200 and < 300) _authenticationResult?.Invoke(token, true);
+            }
         }
 
         return response;
     }
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, string relativePath)
+    private HttpRequestMessage CreateRequest(HttpMethod method, string relativePath, string? token = null)
     {
-        var token = _tokenProvider()?.Trim();
+        token = token?.Trim();
         var baseUri = new Uri(_baseUrl.TrimEnd('/') + "/");
         var cleanPath = relativePath.TrimStart('/');
 

@@ -1,8 +1,9 @@
-﻿using System.Globalization;
+using System.Globalization;
 using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using XamlApplication = Microsoft.UI.Xaml.Application;
 
 namespace DropSort.UI.Views;
 
@@ -19,18 +20,24 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     private LibraryViewState _state = LibraryViewState.Ready;
     private string _mediaType = "movies";
     private string _availability = "all";
-    private string _sort = "added";
+    private string _sort = "recent";
 
     /// <summary>
     /// The active sort direction. It is not a free-standing preference: changing the sort field resets it
-    /// to that field's natural default (newest first for Date added and Year, A-Z for Title), and the
+    /// to that field's natural default (newest first for Recent, Date added and Year, A-Z for Title), and the
     /// direction button flips it until the field changes again.
     /// </summary>
     private bool _sortDescending = true;
     private string _query = string.Empty;
+    private LibraryViewMode _viewMode;
+    private int _viewSwitchGeneration;
+    private bool _recentMovieOpened;
+    private bool _recentShowOpened;
+    private readonly Dictionary<int, ShowCardItem> _showCards = new();
 
     /// <summary>The catalog rows for this visit, or null when they still have to be read.</summary>
     private IReadOnlyList<MovieRecord>? _movies;
+    private long _moviesRevision = -1;
 
     /// <summary>
     /// The tab strip raises Checked while the XAML is still being parsed (the selected tab is
@@ -42,8 +49,10 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     public LibraryPage()
     {
         this.InitializeComponent();
+        _viewMode = AppSettingsStore.ReadLibraryViewMode();
         _isReady = true;
         ApplyLocalization();
+        ApplyViewMode(_viewMode, persist: false);
     }
 
     public event EventHandler<MovieRecord>? MovieSelected;
@@ -51,14 +60,63 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     public event EventHandler<TVShowRecord>? ShowSelected;
 
     /// <summary>
-    /// Every arrival re-reads the catalog: media may have been registered, or the library cleared,
-    /// since the page was last shown.
+    /// Reuse catalog rows after an activity-only return; reload after another catalog commit.
     /// </summary>
     public void Activate()
     {
+        if (_movies is not null && _moviesRevision != AppServices.CatalogRevision)
+            _movies = null;
+        if (_shows is not null && _showsRevision != AppServices.CatalogRevision)
+            _shows = null;
+        Refresh();
+        var opened = _mediaType == "shows" ? _recentShowOpened : _recentMovieOpened;
+        if (opened && _sort == "recent" && _sortDescending)
+        {
+            var grid = _mediaType == "shows" ? ShowsGrid : MoviesGrid;
+            if (grid.Items.Count > 0)
+                grid.ScrollIntoView(grid.Items[0], ScrollIntoViewAlignment.Leading);
+        }
+        _recentMovieOpened = false;
+        _recentShowOpened = false;
+    }
+
+    public void InvalidateCatalog()
+    {
         _movies = null;
         _shows = null;
-        Refresh();
+        _showCards.Clear();
+    }
+
+    public void RecordMovieOpened(int movieId)
+    {
+        var before = AppServices.CatalogRevision;
+        var openedAt = AppServices.Library.RecordMovieOpened(movieId);
+        var after = AppServices.CatalogRevision;
+        var movie = _movies?.FirstOrDefault(row => row.Id == movieId);
+        if (movie is not null && _moviesRevision == before && after == before + 1)
+        {
+            movie.RecordOpened(openedAt);
+            _moviesRevision = after;
+            if (_showsRevision == before) _showsRevision = after;
+        }
+        else InvalidateCatalog();
+        _recentMovieOpened = true;
+    }
+
+    public void RecordShowOpened(int showId)
+    {
+        var before = AppServices.CatalogRevision;
+        var openedAt = AppServices.Tv.RecordShowOpened(showId);
+        var after = AppServices.CatalogRevision;
+        var show = _shows?.FirstOrDefault(row => row.Id == showId);
+        if (show is not null && _showsRevision == before && after == before + 1)
+        {
+            show.RecordOpened(openedAt);
+            _showsRevision = after;
+            if (_moviesRevision == before) _moviesRevision = after;
+        }
+        else InvalidateCatalog();
+        _recentShowOpened = true;
     }
 
     /// <summary>Entry point for a future library backend to report load progress or failure.</summary>
@@ -80,14 +138,189 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         FilterLocalItem.Text = LocalizationService.Text("Local");
         FilterRemoteItem.Text = LocalizationService.Text("OnlineOnly");
         SortAddedItem.Text = LocalizationService.Text("SortAdded");
+        SortRecentItem.Text = LocalizationService.Text("SortRecent");
         SortTitleItem.Text = LocalizationService.Text("Title");
         SortYearItem.Text = LocalizationService.Text("Year");
         SortMetadataItem.Text = LocalizationService.Text("MetadataStatus");
+        ViewModeSelector.SetValue(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty,
+            LocalizationService.Text("LibraryViewModeLabel"));
+        var gridLabel = LocalizationService.Text("LibraryViewGrid");
+        var compactLabel = LocalizationService.Text("LibraryViewCompact");
+        GridViewModeItem.Text = string.Empty;
+        CompactViewModeItem.Text = string.Empty;
+        GridViewModeItem.SetValue(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty, gridLabel);
+        CompactViewModeItem.SetValue(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty, compactLabel);
+        ToolTipService.SetToolTip(GridViewModeItem, gridLabel);
+        ToolTipService.SetToolTip(CompactViewModeItem, compactLabel);
         LoadingText.Text = LocalizationService.Text("LoadingLibrary");
         ErrorState.Title = LocalizationService.Text("LibraryError");
         ErrorState.Message = LocalizationService.Text("LibraryErrorHelp");
         ErrorState.ActionText = LocalizationService.Text("Retry");
         Refresh();
+    }
+
+    private void ViewModeSelector_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (!_isReady || sender.SelectedItem is not SelectorBarItem { Tag: string tag })
+        {
+            return;
+        }
+
+        var mode = LibraryViewModePreference.Parse(tag);
+        if (mode != _viewMode)
+        {
+            ApplyViewMode(mode, persist: true);
+        }
+    }
+
+    private void ApplyViewMode(LibraryViewMode mode, bool persist)
+    {
+        _viewMode = mode;
+        var selected = mode == LibraryViewMode.Compact ? CompactViewModeItem : GridViewModeItem;
+        if (!ReferenceEquals(ViewModeSelector.SelectedItem, selected))
+        {
+            ViewModeSelector.SelectedItem = selected;
+        }
+
+        if (persist)
+        {
+            AppSettingsStore.WriteLibraryViewMode(mode);
+        }
+
+        var grid = _mediaType == "shows" ? ShowsGrid : MoviesGrid;
+        var anchor = CaptureFirstVisibleItem(grid);
+        var generation = ++_viewSwitchGeneration;
+        var source = grid.ItemsSource;
+        var resources = XamlApplication.Current.Resources;
+        MoviesGrid.ItemTemplate = mode == LibraryViewMode.Compact
+            ? (DataTemplate)resources["HorizontalMovieCardTemplate"]
+            : (DataTemplate)Resources["LibraryMovieCardTemplate"];
+        ShowsGrid.ItemTemplate = mode == LibraryViewMode.Compact
+            ? (DataTemplate)resources["HorizontalShowCardTemplate"]
+            : (DataTemplate)Resources["LibraryShowCardTemplate"];
+        MoviesGrid.ItemContainerStyle = mode == LibraryViewMode.Compact
+            ? (Style)resources["MediaHorizontalGridViewItemStyle"]
+            : (Style)resources["MediaGridViewItemStyle"];
+        ShowsGrid.ItemContainerStyle = mode == LibraryViewMode.Compact
+            ? (Style)resources["MediaHorizontalGridViewItemStyle"]
+            : (Style)resources["MediaGridViewItemStyle"];
+        MoviesGrid.ItemsPanel = (ItemsPanelTemplate)Resources[mode == LibraryViewMode.Compact
+            ? "LibraryHorizontalItemsPanel"
+            : "LibraryMoviePosterItemsPanel"];
+        ShowsGrid.ItemsPanel = (ItemsPanelTemplate)Resources[mode == LibraryViewMode.Compact
+            ? "LibraryHorizontalItemsPanel"
+            : "LibraryShowPosterItemsPanel"];
+
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (generation == _viewSwitchGeneration
+                && ReferenceEquals(grid.ItemsSource, source)
+                && (grid.Visibility == Visibility.Visible || anchor is null))
+            {
+                grid.UpdateLayout();
+                ApplyLibraryLayout(MoviesGrid);
+                ApplyLibraryLayout(ShowsGrid);
+                if (anchor is not null)
+                {
+                    grid.ScrollIntoView(anchor, ScrollIntoViewAlignment.Leading);
+                }
+            }
+        });
+    }
+
+    private void LibraryGrid_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is GridView grid)
+        {
+            ApplyLibraryLayout(grid);
+        }
+    }
+
+    private void LibraryGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is GridView grid)
+        {
+            ApplyLibraryLayout(grid);
+        }
+    }
+
+    private void HorizontalPanel_EffectiveViewportChanged(FrameworkElement sender, EffectiveViewportChangedEventArgs args)
+    {
+        if (sender is ItemsWrapGrid panel && double.IsFinite(args.EffectiveViewport.Width) && args.EffectiveViewport.Width > 0)
+        {
+            if (ReferenceEquals(MoviesGrid.ItemsPanelRoot, panel))
+            {
+                ApplyLibraryLayout(MoviesGrid, args.EffectiveViewport.Width);
+            }
+            else if (ReferenceEquals(ShowsGrid.ItemsPanelRoot, panel))
+            {
+                ApplyLibraryLayout(ShowsGrid, args.EffectiveViewport.Width);
+            }
+        }
+    }
+
+    private void ApplyLibraryLayout(GridView grid, double viewportWidth = double.NaN)
+    {
+        if (grid.Visibility != Visibility.Visible || grid.ActualWidth <= 0
+            || grid.ItemsPanelRoot is not ItemsWrapGrid panel)
+        {
+            return;
+        }
+
+        var available = grid.ActualWidth - grid.Padding.Left - grid.Padding.Right;
+        // The effective viewport also changes when a scrollbar consumes space without resizing the grid.
+        if (double.IsFinite(viewportWidth) && viewportWidth > 0)
+        {
+            available = Math.Min(available, viewportWidth);
+        }
+        double cellWidth;
+        double cellHeight;
+        if (_viewMode == LibraryViewMode.Compact)
+        {
+            cellWidth = LibraryHorizontalLayout.Calculate(available).CellWidth;
+            cellHeight = LibraryHorizontalLayout.CellHeight;
+        }
+        else
+        {
+            var metrics = LibraryPosterLayout.Calculate(available);
+            cellWidth = metrics.CellWidth;
+            cellHeight = ReferenceEquals(grid, ShowsGrid) ? metrics.ShowCellHeight : metrics.MovieCellHeight;
+        }
+        if (!double.IsFinite(panel.ItemWidth) || Math.Abs(panel.ItemWidth - cellWidth) > 0.5)
+        {
+            panel.ItemWidth = cellWidth;
+        }
+        if (!double.IsFinite(panel.ItemHeight) || Math.Abs(panel.ItemHeight - cellHeight) > 0.5)
+        {
+            panel.ItemHeight = cellHeight;
+        }
+    }
+
+    private void PosterSurface_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is FrameworkElement surface && double.IsFinite(e.NewSize.Width) && e.NewSize.Width > 0)
+        {
+            var height = e.NewSize.Width * LibraryPosterLayout.AspectRatio;
+            if (!double.IsFinite(surface.Height) || Math.Abs(surface.Height - height) > 0.5)
+            {
+                surface.Height = height;
+            }
+        }
+    }
+
+    private object? CaptureFirstVisibleItem(GridView grid)
+    {
+        if (grid.Items.Count == 0)
+        {
+            return null;
+        }
+
+        if (grid.ItemsPanelRoot is ItemsWrapGrid panel && panel.FirstVisibleIndex >= 0 && panel.FirstVisibleIndex < grid.Items.Count)
+        {
+            return grid.Items[panel.FirstVisibleIndex];
+        }
+
+        return null;
     }
 
     private void Refresh()
@@ -102,6 +335,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         };
         SortButtonText.Text = _sort switch
         {
+            "recent" => LocalizationService.Text("SortRecent"),
             "title" => LocalizationService.Text("Title"),
             "year" => LocalizationService.Text("Year"),
             "metadata" => LocalizationService.Text("MetadataStatus"),
@@ -186,9 +420,8 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         }
         else
         {
-            // Every other sort is metadata-first: confirmed metadata, then Review Match, then no metadata,
-            // so blank fallback cards never break up rows of posters. The chosen criterion orders WITHIN
-            // each metadata group (secondary), honouring its own direction.
+            // Title and Year retain their existing metadata groups. Recent and Date Added use
+            // the complete filtered sequence so an incomplete item can lead by its timestamp.
             var grouped = items.OrderBy(movie => movie.MetadataGroupRank);
             items = _sort switch
             {
@@ -198,11 +431,8 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
                 "year" => _sortDescending
                     ? grouped.ThenByDescending(movie => movie.Year)
                     : grouped.ThenBy(movie => movie.Year),
-                // "Date added": the catalog id is the monotonic registration order, so descending is newest
-                // first and ascending is oldest first.
-                _ => _sortDescending
-                    ? grouped.ThenByDescending(movie => movie.Id)
-                    : grouped.ThenBy(movie => movie.Id),
+                "added" => LibraryActivityOrdering.ByDateAdded(items, movie => movie.DateAdded, movie => movie.Id, _sortDescending),
+                _ => LibraryActivityOrdering.ByRecent(items, movie => movie.LastOpenedAt, movie => movie.DateAdded, movie => movie.Id, _sortDescending),
             };
         }
 
@@ -216,8 +446,8 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     /// <para>
     /// Refresh runs on every keystroke in the search box, every filter change and every navigation;
     /// reading the whole table each time put a database query behind each keystroke. The cache is
-    /// dropped by <see cref="Activate" />, so navigating back, registering media or clearing the
-    /// library all pick up fresh rows. A failure here is the page's error state, not a crash.
+    /// invalidated when the catalog revision changes or the library is cleared. Activity-only returns
+    /// reuse the rows and their artwork. A failure here is the page's error state, not a crash.
     /// </para>
     /// </summary>
     private IReadOnlyList<MovieRecord> LoadMovies()
@@ -229,8 +459,13 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
 
         try
         {
-            _movies = [.. AppServices.Library.ListMovies().Select(LibraryProjection.ToCard)];
-            return _movies;
+            var revision = AppServices.CatalogRevision;
+            var rows = AppServices.Library.ListMovies().Select(LibraryProjection.ToCard).ToArray();
+            _movies = rows;
+            _moviesRevision = revision;
+            if (_moviesRevision != AppServices.CatalogRevision)
+                _movies = null;
+            return rows;
         }
         catch (Exception)
         {
@@ -242,9 +477,10 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
 
     /// <summary>
     /// The TV catalog for this visit, or null when it still has to be read. Same rule as the movie
-    /// cache: read once per arrival, filter in memory.
+    /// cache: read once per catalog revision, filter in memory.
     /// </summary>
     private IReadOnlyList<TVShowRecord>? _shows;
+    private long _showsRevision = -1;
 
     /// <summary>Reads the shows grid from the catalog; a failure is the page's error state.</summary>
     private IReadOnlyList<TVShowRecord> LoadShows()
@@ -256,8 +492,14 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
 
         try
         {
-            _shows = [.. AppServices.Tv.ListShows().Select(TvProjection.ToCard)];
-            return _shows;
+            var revision = AppServices.CatalogRevision;
+            var rows = AppServices.Tv.ListShows().Select(TvProjection.ToCard).ToArray();
+            _shows = rows;
+            _showCards.Clear();
+            _showsRevision = revision;
+            if (_showsRevision != AppServices.CatalogRevision)
+                _shows = null;
+            return rows;
         }
         catch (Exception)
         {
@@ -286,13 +528,15 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
             "year" => _sortDescending
                 ? items.OrderByDescending(show => show.Year)
                 : items.OrderBy(show => show.Year),
-            _ => _sortDescending
-                ? items.OrderByDescending(show => show.Id)
-                : items.OrderBy(show => show.Id),
+            "added" => LibraryActivityOrdering.ByDateAdded(items, show => show.DateAdded, show => show.Id, _sortDescending),
+            "metadata" => _sortDescending
+                ? items.OrderByDescending(show => show.MetadataStatus == DropSort.Domain.Library.Movies.MetadataStatus.Ready ? 0 : 1).ThenBy(show => show.Title, StringComparer.CurrentCultureIgnoreCase).ThenBy(show => show.Id)
+                : items.OrderBy(show => show.MetadataStatus == DropSort.Domain.Library.Movies.MetadataStatus.Ready ? 0 : 1).ThenBy(show => show.Title, StringComparer.CurrentCultureIgnoreCase).ThenBy(show => show.Id),
+            _ => LibraryActivityOrdering.ByRecent(items, show => show.LastOpenedAt, show => show.DateAdded, show => show.Id, _sortDescending),
         };
 
         var result = items
-            .Select(show => new ShowCardItem(show, show.SeasonCount == 1
+            .Select(show => GetShowCard(show, show.SeasonCount == 1
                 ? LocalizationService.Format(
                     "SeasonAvailableFormat",
                     show.LocalEpisodeCount,
@@ -305,6 +549,17 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
             .ToArray();
         ShowsGrid.ItemsSource = result;
         return result.Length;
+    }
+
+    private ShowCardItem GetShowCard(TVShowRecord show, string secondaryLine)
+    {
+        if (!_showCards.TryGetValue(show.Id, out var card)
+            || !ReferenceEquals(card.Show, show) || card.SecondaryLine != secondaryLine)
+        {
+            card = new ShowCardItem(show, secondaryLine);
+            _showCards[show.Id] = card;
+        }
+        return card;
     }
 
     private bool MatchesMovie(MovieRecord movie) =>
@@ -385,6 +640,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
         SortDirectionGlyph.Glyph = _sortDescending ? "" : "";
         var criterion = _sort switch
         {
+            "recent" => LocalizationService.Text("SortRecent"),
             "title" => LocalizationService.Text("Title"),
             "year" => LocalizationService.Text("Year"),
             "metadata" => LocalizationService.Text("MetadataStatus"),

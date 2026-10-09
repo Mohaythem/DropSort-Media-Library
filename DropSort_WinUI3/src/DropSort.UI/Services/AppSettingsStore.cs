@@ -22,6 +22,20 @@ internal static class AppSettingsStore
     private const string MediaFoldersKey = "ui_media_folders";
     private const string MovieFolderKey = "ui_movie_folder"; // legacy, imported once
     private const string ShowFolderKey = "ui_show_folder";   // legacy, imported once
+    private const string LibraryViewModeKey = "ui_library_view_mode";
+    private const string WideNavigationPaneOpenKey = "ui_navigation_wide_pane_open";
+
+    public static bool ReadWideNavigationPaneOpen() =>
+        NavigationPaneState.ParseWidePreference(Read(WideNavigationPaneOpenKey));
+
+    public static void WriteWideNavigationPaneOpen(bool isOpen) =>
+        Write(WideNavigationPaneOpenKey, isOpen ? "true" : "false");
+
+    public static LibraryViewMode ReadLibraryViewMode() =>
+        LibraryViewModePreference.Parse(Read(LibraryViewModeKey));
+
+    public static void WriteLibraryViewMode(LibraryViewMode mode) =>
+        Write(LibraryViewModeKey, LibraryViewModePreference.Serialize(mode));
 
     /// <summary>The primary media root: the default Add Media scan target and the Organize destination.</summary>
     public static string? MovieFolder => ConfiguredMediaFolders.FirstOrDefault();

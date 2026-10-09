@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using Xunit;
 
 namespace DropSort.Tests.UI;
@@ -56,7 +57,16 @@ public sealed class UiSourceContractTests
         foreach (var page in AllPages)
         {
             var xaml = Read("Views", page);
-            if (gridPages.Contains(page))
+            if (page == "AddMediaPage.xaml")
+            {
+                // A native ListView owns the finite review viewport. Its header and footer scroll
+                // with the queue; nesting it in a page ScrollViewer would defeat virtualization.
+                Assert.Contains("<ListView x:Name=\"Root\"", xaml, StringComparison.Ordinal);
+                Assert.Contains("<ListView.Header>", xaml, StringComparison.Ordinal);
+                Assert.Contains("<ListView.Footer>", xaml, StringComparison.Ordinal);
+                Assert.DoesNotContain("<ScrollViewer", xaml, StringComparison.Ordinal);
+            }
+            else if (gridPages.Contains(page))
             {
                 Assert.DoesNotContain("x:Name=\"Root\" Style=\"{StaticResource PageScrollViewerStyle}\"", xaml, StringComparison.Ordinal);
                 Assert.Contains("<Grid.RowDefinitions>", xaml, StringComparison.Ordinal);
@@ -65,7 +75,7 @@ public sealed class UiSourceContractTests
             else
             {
                 Assert.Contains(
-                    "<ScrollViewer x:Name=\"Root\" Style=\"{StaticResource PageScrollViewerStyle}\">",
+                    "<ScrollViewer x:Name=\"Root\" Style=\"{StaticResource PageScrollViewerStyle}\"",
                     xaml,
                     StringComparison.Ordinal);
             }
@@ -78,13 +88,34 @@ public sealed class UiSourceContractTests
         foreach (var page in AllPages)
         {
             var xaml = Read("Views", page);
-            Assert.DoesNotContain("Width=\"{Binding ActualWidth", xaml, StringComparison.Ordinal);
-            Assert.DoesNotContain("SizeChanged=\"", xaml, StringComparison.Ordinal);
+            if (page is not ("LibraryPage.xaml" or "AddMediaPage.xaml"))
+            {
+                Assert.DoesNotContain("Width=\"{Binding ActualWidth", xaml, StringComparison.Ordinal);
+                Assert.DoesNotContain("SizeChanged=\"", xaml, StringComparison.Ordinal);
+            }
 
             var codeBehind = Read("Views", page + ".cs");
-            Assert.DoesNotContain("ActualWidth", codeBehind, StringComparison.Ordinal);
+            if (page != "LibraryPage.xaml")
+            {
+                Assert.DoesNotContain("ActualWidth", codeBehind, StringComparison.Ordinal);
+            }
             Assert.DoesNotContain("CompactLayoutBreakpoint", codeBehind, StringComparison.Ordinal);
         }
+
+        var library = Read("Views", "LibraryPage.xaml");
+        var libraryCode = Read("Views", "LibraryPage.xaml.cs");
+        Assert.Contains("SizeChanged=\"LibraryGrid_SizeChanged\"", library, StringComparison.Ordinal);
+        Assert.Contains("LibraryGrid_SizeChanged", libraryCode, StringComparison.Ordinal);
+        Assert.Contains("LibraryHorizontalLayout.Calculate", libraryCode, StringComparison.Ordinal);
+        Assert.Contains("ItemsPanelRoot", libraryCode, StringComparison.Ordinal);
+        var layout = Read("Services", "LibraryViewMode.cs");
+        Assert.Contains("double.IsNaN", layout, StringComparison.Ordinal);
+        Assert.Contains("double.IsInfinity", layout, StringComparison.Ordinal);
+        Assert.Contains("FallbackCellWidth", layout, StringComparison.Ordinal);
+        Assert.DoesNotContain("MediaCardPosterWidth", libraryCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("MediaCardPosterHeight", libraryCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("ItemsSource =", Slice(libraryCode, "private void LibraryGrid_SizeChanged", "private void Refresh"), StringComparison.Ordinal);
+        Assert.DoesNotContain("ItemTemplate", Slice(libraryCode, "private void LibraryGrid_SizeChanged", "private void Refresh"), StringComparison.Ordinal);
 
         foreach (var responsive in new[] { "CheckLibraryPage.xaml", "MovieDetailsPage.xaml", "TVShowDetailsPage.xaml" })
         {
@@ -110,24 +141,102 @@ public sealed class UiSourceContractTests
         Assert.Contains("MovieCardTemplate", Read("Views", "HomePage.xaml"), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Library_horizontal_cards_are_isolated_from_the_poster_grid()
+    {
+        var page = Read("Views", "LibraryPage.xaml");
+        var styles = Read("Resources", "Styles.xaml");
+        var templates = Read("Resources", "Templates.xaml");
+
+        Assert.Contains("x:Key=\"LibraryHorizontalItemsPanel\"", page, StringComparison.Ordinal);
+        Assert.Contains("LibraryHorizontalFallbackCellWidth", page, StringComparison.Ordinal);
+        Assert.Contains("LibraryHorizontalCellHeight", page, StringComparison.Ordinal);
+        Assert.Contains("HorizontalMovieCardTemplate", templates, StringComparison.Ordinal);
+        Assert.Contains("HorizontalShowCardTemplate", templates, StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"MediaHorizontalGridViewItemStyle\"", styles, StringComparison.Ordinal);
+        Assert.Contains("CardBackgroundFillColorDefaultBrush", styles, StringComparison.Ordinal);
+        Assert.Contains("CardStrokeColorDefaultBrush", styles, StringComparison.Ordinal);
+        var horizontalStyle = Slice(styles, "x:Key=\"MediaHorizontalGridViewItemStyle\"", "</Style>");
+        Assert.DoesNotContain("BasedOn=\"{StaticResource MediaGridViewItemStyle}\"", horizontalStyle, StringComparison.Ordinal);
+        Assert.DoesNotContain("Property=\"Width\"", horizontalStyle, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{ThemeResource CardBackgroundFillColorDefaultBrush}\"", horizontalStyle, StringComparison.Ordinal);
+        Assert.Contains("BorderThickness=\"1\"", horizontalStyle, StringComparison.Ordinal);
+        Assert.Contains("Property=\"Padding\" Value=\"16\"", horizontalStyle, StringComparison.Ordinal);
+        Assert.Contains("UseSystemFocusVisuals", horizontalStyle, StringComparison.Ordinal);
+        Assert.Contains("FocusVisualMargin", horizontalStyle, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"{TemplateBinding Padding}\"", horizontalStyle, StringComparison.Ordinal);
+
+        var horizontalTemplates = new[]
+        {
+            Slice(templates, "x:Key=\"HorizontalMovieCardTemplate\"", "</DataTemplate>"),
+            Slice(templates, "x:Key=\"HorizontalShowCardTemplate\"", "</DataTemplate>"),
+        };
+        foreach (var template in horizontalTemplates)
+        {
+            Assert.Contains("LibraryHorizontalPosterWidth", template, StringComparison.Ordinal);
+            Assert.Contains("LibraryHorizontalPosterHeight", template, StringComparison.Ordinal);
+            Assert.Contains("MaxLines=\"2\"", template, StringComparison.Ordinal);
+            Assert.DoesNotContain("CardBackgroundFillColorDefaultBrush", template, StringComparison.Ordinal);
+            Assert.DoesNotContain("FlowDirection=\"RightToLeft\"", template, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("x:Key=\"MediaCardItemWidth\">192", Read("Resources", "ThemeResources.xaml"), StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"MediaCardItemHeight\">346", Read("Resources", "ThemeResources.xaml"), StringComparison.Ordinal);
+        Assert.Contains("x:Key=\"ShowCardItemHeight\">364", Read("Resources", "ThemeResources.xaml"), StringComparison.Ordinal);
+        Assert.DoesNotContain("HorizontalMovieCardTemplate", Slice(templates, "x:Key=\"MovieCardTemplate\"", "x:Key=\"ShowCardTemplate\""), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Library_horizontal_templates_keep_local_catalog_rules_and_rtl_artwork_orientation()
+    {
+        var templates = Read("Resources", "Templates.xaml");
+        var models = Read("Models", "DemoModels.cs");
+        var shows = Read("Models", "ShowModels.cs");
+        var localization = Read("Services", "LocalizationService.cs");
+
+        var movie = Slice(templates, "x:Key=\"HorizontalMovieCardTemplate\"", "</DataTemplate>");
+        var show = Slice(templates, "x:Key=\"HorizontalShowCardTemplate\"", "</DataTemplate>");
+        Assert.Contains("YearVisibility", movie, StringComparison.Ordinal);
+        Assert.Contains("Visibility=\"{x:Bind YearVisibility}\"", movie, StringComparison.Ordinal);
+        Assert.Contains("HorizontalSummaryLine", movie, StringComparison.Ordinal);
+        Assert.Contains("SeasonLine", show, StringComparison.Ordinal);
+        Assert.Contains("LocalEpisodesLine", show, StringComparison.Ordinal);
+        Assert.Contains("HorizontalEpisodesOnDiskFormat", localization, StringComparison.Ordinal);
+        Assert.Contains("LocalEpisodeCount", shows, StringComparison.Ordinal);
+        Assert.DoesNotContain("MultiFileBadgeText", movie, StringComparison.Ordinal);
+        Assert.DoesNotContain("MultiFileBadgeText", show, StringComparison.Ordinal);
+        Assert.DoesNotContain("x:Bind Rating", movie, StringComparison.Ordinal);
+        Assert.Contains("بطاقات أفقية", localization, StringComparison.Ordinal);
+        Assert.Contains("Horizontal", models, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// The x:Class assertion is a regression guard: the XAML compiler fails - silently, with no
     /// diagnostic - on {x:Bind} inside a ResourceDictionary that has no code-behind.
     /// </summary>
     [Fact]
-    public void Shared_cards_are_poster_and_title_only()
+    public void Shared_poster_grid_cards_keep_their_original_content()
     {
         var templates = Read("Resources", "Templates.xaml");
+        var document = XDocument.Parse(templates);
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var originalTemplates = document.Descendants()
+            .Where(element => element.Name.LocalName == "DataTemplate"
+                && ((string?)element.Attribute(x + "Key") is "MovieCardTemplate" or "ShowCardTemplate" or "ListMovieCardTemplate"))
+            .Select(element => element.ToString())
+            .ToArray();
 
         Assert.Contains("x:Class=\"DropSort.UI.Resources.MediaTemplates\"", templates, StringComparison.Ordinal);
-        Assert.Contains("x:Key=\"MovieCardTemplate\"", templates, StringComparison.Ordinal);
-        Assert.Contains("x:Key=\"ShowCardTemplate\"", templates, StringComparison.Ordinal);
         Assert.Contains("x:Key=\"ListMovieCardTemplate\"", templates, StringComparison.Ordinal);
-        Assert.Contains("Text=\"{x:Bind Title}\"", templates, StringComparison.Ordinal);
-        Assert.DoesNotContain("{x:Bind Year}", templates, StringComparison.Ordinal);
-        Assert.DoesNotContain("{x:Bind Rating}", templates, StringComparison.Ordinal);
-        Assert.DoesNotContain("{x:Bind MetaLine}", templates, StringComparison.Ordinal);
-        Assert.DoesNotContain("&#xE735;", templates, StringComparison.Ordinal);
+        Assert.Equal(3, originalTemplates.Length);
+        foreach (var original in originalTemplates)
+        {
+            Assert.Contains("Text=\"{x:Bind Title}\"", original, StringComparison.Ordinal);
+            Assert.DoesNotContain("{x:Bind Year}", original, StringComparison.Ordinal);
+            Assert.DoesNotContain("{x:Bind Rating}", original, StringComparison.Ordinal);
+            Assert.DoesNotContain("{x:Bind MetaLine}", original, StringComparison.Ordinal);
+            Assert.DoesNotContain("\uE735", original, StringComparison.Ordinal);
+        }
     }
 
     /// <summary>
@@ -163,7 +272,7 @@ public sealed class UiSourceContractTests
         var code = Read("Views", "AddMediaPage.xaml.cs");
         var model = Read("Models", "AddMediaModels.cs");
 
-        Assert.Contains("DetectedMediaRepeater", xaml, StringComparison.Ordinal);
+        Assert.Contains("<ListView x:Name=\"Root\"", xaml, StringComparison.Ordinal);
         Assert.Contains("CheckBox", xaml, StringComparison.Ordinal);
         Assert.Contains("SelectAllButton", xaml, StringComparison.Ordinal);
         Assert.Contains("DeselectAllButton", xaml, StringComparison.Ordinal);
@@ -212,6 +321,14 @@ public sealed class UiSourceContractTests
         }
 
         return count;
+    }
+
+    private static string Slice(string source, string startToken, string endToken)
+    {
+        var start = source.IndexOf(startToken, StringComparison.Ordinal);
+        var end = source.IndexOf(endToken, start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start);
+        return source[start..end];
     }
 
     [Fact]
@@ -553,7 +670,7 @@ public sealed class UiSourceContractTests
         Assert.Contains("public void SetAlreadyInLibrary()", model, StringComparison.Ordinal);
         Assert.Contains("AppServices.Import.IsMediaFileRegistered(row.Item.Path)", page, StringComparison.Ordinal);
         Assert.Contains("row.SetAlreadyInLibrary()", page, StringComparison.Ordinal);
-        Assert.Contains("_rows.Count(row => row.CanAdd)", page, StringComparison.Ordinal);
+        Assert.Contains("_reviewCounts.Eligible", page, StringComparison.Ordinal);
         Assert.Contains(".Where(row => row.CanAdd && row.IsSelected)", page, StringComparison.Ordinal);
         Assert.Contains("_rows.Where(row => row.CanAdd).ToArray()", page, StringComparison.Ordinal);
     }
@@ -596,14 +713,15 @@ public sealed class UiSourceContractTests
     public void Add_media_row_information_uses_selectable_static_text_not_input_fields()
     {
         var xaml = Read("Views", "AddMediaPage.xaml");
-        var rowStart = xaml.IndexOf("<ItemsRepeater x:Name=\"DetectedMediaRepeater\"", StringComparison.Ordinal);
-        var rowEnd = xaml.IndexOf("</ItemsRepeater>", rowStart, StringComparison.Ordinal);
+        var rowStart = xaml.IndexOf("<ListView.ItemTemplate>", StringComparison.Ordinal);
+        var rowEnd = xaml.IndexOf("</ListView.ItemTemplate>", rowStart, StringComparison.Ordinal);
 
         Assert.True(rowStart >= 0 && rowEnd > rowStart);
         var row = xaml.Substring(rowStart, rowEnd - rowStart);
         Assert.DoesNotContain("<TextBox", row, StringComparison.Ordinal);
         Assert.DoesNotContain("IsReadOnly=", row, StringComparison.Ordinal);
-        Assert.Equal(6, Occurrences(row, "IsTextSelectionEnabled=\"True\""));
+        Assert.True(Occurrences(row, "IsTextSelectionEnabled=\"True\"") >= 4);
+        Assert.Contains("RowDetails_Click", row, StringComparison.Ordinal);
         // The redundant standalone "Search TMDB" card was removed; manual search now lives in the
         // Match with TMDB dialog reached from a row's manual-match action.
         Assert.DoesNotContain("TmdbSearchButton", xaml, StringComparison.Ordinal);
@@ -709,6 +827,18 @@ public sealed class UiSourceContractTests
         Assert.Contains("private void Invalidate()", lists, StringComparison.Ordinal);
         Assert.Contains("_missing = MissingFiles();", check, StringComparison.Ordinal);
         Assert.DoesNotContain("foreach (var missing in MissingFiles())", check, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Library_open_actions_record_only_successful_movie_or_show_navigation()
+    {
+        var library = Read("Views", "LibraryPage.xaml.cs");
+        var shell = Read("MainWindow.xaml.cs");
+        Assert.Contains("RecordMovieOpened", library, StringComparison.Ordinal);
+        Assert.Contains("RecordShowOpened", library, StringComparison.Ordinal);
+        Assert.Contains("InvalidateCatalog", library, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(sender, _libraryPage)", shell, StringComparison.Ordinal);
+        Assert.Contains("IsLoadedSuccessfully", shell, StringComparison.Ordinal);
     }
 
     /// <summary>One helper labels the watch rows, so the first watch cannot move when a row is added.</summary>

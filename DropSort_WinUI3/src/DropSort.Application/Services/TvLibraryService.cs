@@ -29,8 +29,17 @@ public sealed class TvLibraryService(
     ITvSeasonRepository seasons,
     ITvEpisodeRepository episodes,
     IWatchHistoryRepository? history = null,
-    IMetadataProvider? metadataProvider = null) : ITvLibraryUiActions
+    IMetadataProvider? metadataProvider = null,
+    Func<DateTimeOffset>? clock = null) : ITvLibraryUiActions
 {
+    private readonly Func<DateTimeOffset> _clock = clock ?? (() => DateTimeOffset.UtcNow);
+
+    public DateTimeOffset RecordShowOpened(int showId)
+    {
+        var openedAt = _clock().ToUniversalTime();
+        shows.RecordOpened(showId, openedAt);
+        return openedAt;
+    }
     public IReadOnlyList<TvShowListItem> ListShows()
     {
         var result = new List<TvShowListItem>();
@@ -65,7 +74,10 @@ public sealed class TvLibraryService(
                 showSeasons.Count,
                 showEpisodes.Count,
                 withLocalFile,
-                missing));
+                missing,
+                show.DateAdded,
+                show.LastOpenedAt,
+                show.MetadataStatus));
         }
 
         return result;

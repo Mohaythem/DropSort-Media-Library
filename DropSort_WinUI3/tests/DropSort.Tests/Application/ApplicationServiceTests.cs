@@ -59,6 +59,11 @@ public class ApplicationServiceTests
         public IReadOnlyList<Movie> ListAll() => new List<Movie>(Storage.Values);
         public IReadOnlyList<Movie> ListPage(int a, int l) => ListAll();
         public int CountAll() => Storage.Count;
+        public void RecordOpened(int id, DateTimeOffset openedAt)
+        {
+            if (Storage.TryGetValue(id, out var movie))
+                Storage[id] = new Movie(movie.Id, movie.Data, movie.DateAdded, movie.CreatedAt, movie.UpdatedAt, movie.ReviewMatch, openedAt);
+        }
         public void Delete(int id) => Storage.Remove(id);
         public void SetReviewMatch(int id, bool value) { }
     }
@@ -186,5 +191,30 @@ public class ApplicationServiceTests
 
         Assert.Equal(10, result.MoviesRemoved);
         Assert.Equal(15, result.MediaFilesRemoved);
+    }
+
+    [Fact]
+    public void RecordOpened_UsesInjectedUtcClock_ForMovieAndShow_WhileReadsRemainPure()
+    {
+        var now = new DateTimeOffset(2026, 9, 8, 20, 0, 0, TimeSpan.FromHours(4));
+        var movieRepo = new FakeMovieRepo();
+        var movie = movieRepo.Create(new MovieCatalogData("tmdb", "clock", "Clock Movie", null, 2026, null, System.Collections.Immutable.ImmutableArray<string>.Empty, null, null, null, MetadataStatus.Ready), now);
+        var library = new LibraryService(movieRepo, new FakeMediaFileRepo(), null!, () => now);
+        Assert.Null(movieRepo.GetById(movie.Id)!.LastOpenedAt);
+        library.ListMovies();
+        library.GetMovieItem(movie.Id);
+        library.GetMovieDetails(movie.Id);
+        Assert.Null(movieRepo.GetById(movie.Id)!.LastOpenedAt);
+        Assert.Equal(now.UtcDateTime, library.RecordMovieOpened(movie.Id).UtcDateTime);
+        Assert.Equal(now.UtcDateTime, movieRepo.GetById(movie.Id)!.LastOpenedAt!.Value.UtcDateTime);
+
+        var shows = new FakeTvShowRepo();
+        var show = shows.Create(new DropSort.Domain.Library.Shows.TvShowCatalogData(null, null, "Clock Show"), now);
+        var tv = new TvLibraryService(shows, new FakeTvSeasonRepo(), new FakeTvEpisodeRepo(), clock: () => now);
+        tv.ListShows();
+        tv.GetShowDetails(show.Id);
+        Assert.Null(shows.GetById(show.Id)!.LastOpenedAt);
+        Assert.Equal(now.UtcDateTime, tv.RecordShowOpened(show.Id).UtcDateTime);
+        Assert.Equal(now.UtcDateTime, shows.GetById(show.Id)!.LastOpenedAt!.Value.UtcDateTime);
     }
 }

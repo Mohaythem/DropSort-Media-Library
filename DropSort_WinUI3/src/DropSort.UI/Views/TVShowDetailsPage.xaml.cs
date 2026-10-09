@@ -57,12 +57,16 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     }
 
     /// <summary>Loads one show's hierarchy from the catalog.</summary>
+    public bool IsLoadedSuccessfully { get; private set; }
+
     public void LoadShow(int showId)
     {
+        IsLoadedSuccessfully = false;
         try
         {
             SetShow(TvProjection.ToDetails(AppServices.Tv.GetShowDetails(showId)));
             BeginSeasonEnrichment(showId);
+            IsLoadedSuccessfully = true;
         }
         catch (Exception error)
         {

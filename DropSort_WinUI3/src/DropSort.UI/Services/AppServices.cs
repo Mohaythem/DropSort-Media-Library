@@ -13,6 +13,7 @@ using DropSort.Infrastructure.Persistence.Migrations;
 using DropSort.Infrastructure.Persistence.Repositories;
 using DropSort.Infrastructure.Metadata.Cache;
 using DropSort.Infrastructure.Metadata.Tmdb;
+using DropSort.Infrastructure.Security;
 
 namespace DropSort.UI.Services;
 
@@ -77,6 +78,10 @@ internal static class AppServices
     }
 
     public static ILibraryUiActions Library => Require(_library);
+
+    public static long CatalogRevision => _catalogFactory?.Revision ?? 0;
+
+    private static CatalogUnitOfWorkFactory? _catalogFactory;
 
     public static IPersonalLibraryUiActions Personal => Require(_personal);
 
@@ -366,8 +371,12 @@ internal static class AppServices
 
                 var posterFolder = Path.Combine(DataFolder, "Posters");
                 var posterCache = new DiskPosterCache(posterFolder);
-                var settings = new SettingsService(maintenance, posterCache: posterCache, settings: settingsRepository);
-                var tmdbClient = new TmdbClient(() => settings.GetTmdbToken());
+                var credentialStore = new WindowsTmdbCredentialStore(
+                    isolatedProfileRoot: Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"));
+                var settings = new SettingsService(maintenance, posterCache: posterCache,
+                    settings: settingsRepository, credentialStore: credentialStore);
+                var tmdbClient = new TmdbClient(() => settings.GetTmdbToken(),
+                    authenticationResult: settings.RecordTmdbAuthenticationResult);
                 var matching = new MetadataMatchingService(catalogFactory, tmdbClient, posterCache);
 
                 var library = new LibraryService(movies, mediaFiles, personal);
@@ -395,6 +404,7 @@ internal static class AppServices
                 _operationStore = operations;
                 _coordinator = coordinator;
                 _library = library;
+                _catalogFactory = catalogFactory;
                 _personal = library;
                 _watchHistory = watchHistory;
                 _import = import;
@@ -454,6 +464,7 @@ internal static class AppServices
     private static void Clear()
     {
         _library = null;
+        _catalogFactory = null;
         _personal = null;
         _watchHistory = null;
         _import = null;

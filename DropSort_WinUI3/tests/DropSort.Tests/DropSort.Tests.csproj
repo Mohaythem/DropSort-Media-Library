@@ -19,8 +19,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\DropSort.UI\Services\AddMediaReviewState.cs" Link="UI\AddMediaReviewState.cs" />
     <Compile Include="..\..\src\DropSort.UI\Services\PostHandoffRequestLifetime.cs" Link="UI\PostHandoffRequestLifetime.cs" />
     <Compile Include="..\..\src\DropSort.UI\Services\MetadataErrorKey.cs" Link="UI\MetadataErrorKey.cs" />
+    <Compile Include="..\..\src\DropSort.UI\Services\LibraryViewMode.cs" Link="UI\LibraryViewMode.cs" />
+    <Compile Include="..\..\src\DropSort.UI\Services\LibraryActivityOrdering.cs" Link="UI\LibraryActivityOrdering.cs" />
+    <Compile Include="..\..\src\DropSort.UI\Services\NavigationPaneState.cs" Link="UI\NavigationPaneState.cs" />
     <ProjectReference Include="..\..\src\DropSort.Domain\DropSort.Domain.csproj" />
     <ProjectReference Include="..\..\src\DropSort.Application\DropSort.Application.csproj" />
     <ProjectReference Include="..\..\src\DropSort.Infrastructure\DropSort.Infrastructure.csproj" />

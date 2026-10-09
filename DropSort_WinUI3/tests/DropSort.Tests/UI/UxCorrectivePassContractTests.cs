@@ -146,7 +146,7 @@ public sealed class UxCorrectivePassContractTests
         // While the metadata review pass runs, the status line shows real X/Total progress and every
         // action whose meaning depends on the final matched set is disabled until Ready.
         var page = File.ReadAllText(Path.Combine(UiRoot, "Views", "AddMediaPage.xaml.cs"));
-        Assert.Contains("MatchingProgressFormat", page);
+        Assert.Contains("ImportReviewPhaseFormat", page);
         Assert.Contains("_matchProcessed", page);
         Assert.Contains("_matchTotal", page);
         Assert.Contains("var busy = _isAdding || matching;", page);
@@ -177,13 +177,13 @@ public sealed class UxCorrectivePassContractTests
         // Scanning → Matching → Ready → Adding → Done is communicated through the phase-aware status line.
         var page = File.ReadAllText(Path.Combine(UiRoot, "Views", "AddMediaPage.xaml.cs"));
         Assert.Contains("CurrentPhaseStatus", page);
-        foreach (var key in new[] { "MatchingProgressFormat", "AddingProgressFormat", "ReadyPhaseFormat", "ImportDoneFormat" })
+        foreach (var key in new[] { "ImportReviewPhaseFormat", "AddingProgressFormat", "ReadyPhaseFormat", "ImportDoneFormat" })
         {
             Assert.Contains(key, page);
         }
 
         var loc = File.ReadAllText(Path.Combine(UiRoot, "Services", "LocalizationService.cs"));
-        foreach (var key in new[] { "MatchingProgressFormat", "AddingProgressFormat", "ReadyPhaseFormat", "ImportDoneFormat" })
+        foreach (var key in new[] { "ImportReviewPhaseFormat", "AddingProgressFormat", "ReadyPhaseFormat", "ImportDoneFormat" })
         {
             Assert.Equal(2, CountOccurrences(loc, $"[\"{key}\"]")); // English + Arabic
         }
@@ -268,7 +268,7 @@ public sealed class UxCorrectivePassContractTests
         // a temporary UI-only flag and not the same as "missing metadata".
         var migrator = File.ReadAllText(Path.Combine(UiRoot, "../DropSort.Infrastructure/Persistence/Migrations/DatabaseMigrator.cs"));
         Assert.Contains("review_match", migrator);                    // persisted column via migration
-        Assert.Contains("LatestVersion = 14", migrator);
+        Assert.Contains("LatestVersion = 15", migrator);
 
         var movie = File.ReadAllText(Path.Combine(UiRoot, "../DropSort.Domain/Library/Movies/Models.cs"));
         Assert.Contains("public bool ReviewMatch", movie);

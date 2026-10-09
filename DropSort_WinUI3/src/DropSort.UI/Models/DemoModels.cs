@@ -40,8 +40,14 @@ public sealed record MovieRecord(
     int FileCount = 1,
     IReadOnlyList<MovieFileRecord>? MediaFiles = null,
     bool ReviewMatch = false,
-    bool HasPendingMetadata = false) : INotifyPropertyChanged
+    bool HasPendingMetadata = false,
+    DateTimeOffset DateAdded = default,
+    DateTimeOffset? LastOpenedAt = null) : INotifyPropertyChanged
 {
+    public DateTimeOffset? LastOpenedAt { get; private set; } = LastOpenedAt;
+
+    internal void RecordOpened(DateTimeOffset openedAt) => LastOpenedAt = openedAt;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// <summary>
@@ -72,8 +78,8 @@ public sealed record MovieRecord(
 
     /// <summary>
     /// Metadata grouping rank for the metadata-first Library order: 0 = confirmed metadata, 1 = metadata
-    /// present but Review Match recommended, 2 = no usable metadata. Keeps blank fallback cards out of the
-    /// poster rows by default while the user's chosen criterion orders within each group.
+    /// present but Review Match recommended, 2 = no usable metadata. Title and Year retain grouping;
+    /// Recent and Date Added order by timestamp independently of metadata.
     /// </summary>
     public int MetadataGroupRank => HasPendingMetadata ? 2 : ReviewMatch ? 1 : 0;
 
@@ -110,6 +116,14 @@ public sealed record MovieRecord(
             return LocalizationService.Digits(string.Join(" · ", parts));
         }
     }
+
+    public string YearText => Year > 0 ? LocalizationService.Number(Year) : string.Empty;
+
+    public Visibility YearVisibility => Year > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public string HorizontalSummaryLine => LocalizationService.Format(
+        FileCount > 1 ? "MovieFilesSummaryFormat" : "MovieSummaryFormat",
+        FileCount);
 
     public bool IsLiked => string.Equals(Preference, "liked", StringComparison.OrdinalIgnoreCase);
 

@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text.Json;
+using System.Threading;
 using DropSort.Application.Repositories;
 using DropSort.Domain.Library.Movies;
 using Microsoft.Data.Sqlite;
@@ -8,6 +9,7 @@ namespace DropSort.Infrastructure.Persistence.Repositories;
 
 public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
 {
+    private readonly Action? _committed;
     private readonly IDisposable _writeGate;
     private readonly SqliteConnection _connection;
     private readonly SqliteTransaction _transaction;
@@ -21,7 +23,13 @@ public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
     public ITvEpisodeRepository TvEpisodes { get; }
 
     public CatalogUnitOfWork(string connectionString)
+        : this(connectionString, null)
     {
+    }
+
+    internal CatalogUnitOfWork(string connectionString, Action? committed)
+    {
+        _committed = committed;
         // The unit of work opens an IMMEDIATE transaction (write lock) even for read-only work, so it
         // must queue behind other writers to this database rather than collide with them in SQLite.
         _writeGate = DatabaseWriteGate.Enter(connectionString);
@@ -49,6 +57,7 @@ public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
         if (_completed) throw new InvalidOperationException("Unit of work is already complete.");
         _transaction.Commit();
         _completed = true;
+        _committed?.Invoke();
     }
 
     public void Dispose()
@@ -71,13 +80,15 @@ public sealed class CatalogUnitOfWork : ICatalogUnitOfWork
 public sealed class CatalogUnitOfWorkFactory : ICatalogUnitOfWorkFactory
 {
     private readonly string _connectionString;
+    private long _revision;
     public CatalogUnitOfWorkFactory(string connectionString) => _connectionString = connectionString;
-    public ICatalogUnitOfWork Begin() => new CatalogUnitOfWork(_connectionString);
+    public long Revision => Interlocked.Read(ref _revision);
+    public ICatalogUnitOfWork Begin() => new CatalogUnitOfWork(_connectionString, () => Interlocked.Increment(ref _revision));
 }
 
 public sealed class MovieRepository : IMovieRepository
 {
-    private const string Columns = "id, provider, external_id, title, original_title, year, overview, runtime_minutes, rating, poster_path, date_added, created_at, updated_at, genres, metadata_status, backdrop_path, tagline, review_match";
+    private const string Columns = "id, provider, external_id, title, original_title, year, overview, runtime_minutes, rating, poster_path, date_added, created_at, updated_at, genres, metadata_status, backdrop_path, tagline, review_match, last_opened_at";
     private readonly SqliteConnection _connection;
     private readonly SqliteTransaction? _transaction;
 
@@ -182,6 +193,15 @@ public sealed class MovieRepository : IMovieRepository
         command.ExecuteNonQuery();
     }
 
+    public void RecordOpened(int id, DateTimeOffset openedAt)
+    {
+        if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
+        using var command = Command("UPDATE movies SET last_opened_at = $openedAt WHERE id = $id;");
+        command.Parameters.AddWithValue("$openedAt", openedAt.ToUniversalTime().ToString("O"));
+        command.Parameters.AddWithValue("$id", id);
+        if (command.ExecuteNonQuery() != 1) throw new KeyNotFoundException($"Movie {id} was not found.");
+    }
+
     private SqliteCommand Command(string sql)
     {
         var command = _connection.CreateCommand();
@@ -247,7 +267,8 @@ public sealed class MovieRepository : IMovieRepository
             ParseTimestamp(reader.GetString(10)),
             ParseTimestamp(reader.GetString(11)),
             ParseTimestamp(reader.GetString(12)),
-            reviewMatch: !reader.IsDBNull(17) && reader.GetInt32(17) != 0);
+            reviewMatch: !reader.IsDBNull(17) && reader.GetInt32(17) != 0,
+            lastOpenedAt: reader.IsDBNull(18) ? null : ParseTimestamp(reader.GetString(18)));
     }
 
     internal static DateTimeOffset ParseTimestamp(string value) =>

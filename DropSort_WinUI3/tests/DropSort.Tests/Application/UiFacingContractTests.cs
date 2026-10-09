@@ -155,6 +155,7 @@ public class UiFacingContractTests
         public IReadOnlyList<Movie> ListPage(int afterId, int limit) => [];
 
         public int CountAll() => 0;
+        public void RecordOpened(int id, DateTimeOffset openedAt) { }
 
         public Movie Create(MovieCatalogData data, DateTimeOffset now) => throw new NotSupportedException();
 

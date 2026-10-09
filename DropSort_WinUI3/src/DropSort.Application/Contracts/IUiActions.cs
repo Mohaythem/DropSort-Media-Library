@@ -15,6 +15,7 @@ public interface ILibraryUiActions
     IReadOnlyList<MovieListItem> ListMovies();
     MovieListItem GetMovieItem(int movieId);
     MovieDetails GetMovieDetails(int movieId);
+    DateTimeOffset RecordMovieOpened(int movieId);
 }
 
 /// <summary>
@@ -156,6 +157,8 @@ public interface ITvLibraryUiActions
 {
     IReadOnlyList<TvShowListItem> ListShows();
 
+    DateTimeOffset RecordShowOpened(int showId);
+
     TvShowDetails GetShowDetails(int showId);
 
     /// <summary>
@@ -183,11 +186,10 @@ public interface ITvLibraryUiActions
 
 public interface ISettingsUiActions
 {
-    // Simplified credential status for parity
     bool IsTmdbConfigured();
-    bool ApplyTmdbSessionToken(string token);
-    bool ClearTmdbSessionToken();
-    string? GetTmdbToken();
+    TmdbCredentialState GetTmdbCredentialState();
+    Task<TmdbCredentialResult> SaveTmdbCredentialAsync(string credential, ITmdbCredentialValidator validator, CancellationToken cancellationToken = default);
+    Task<bool> RemoveTmdbCredentialAsync(CancellationToken cancellationToken = default);
     Task<ConnectionTestResult> TestTmdbConnectionAsync(IMetadataProvider provider, CancellationToken cancellationToken = default);
     
     ClearLibraryDataResult ClearLibraryData();

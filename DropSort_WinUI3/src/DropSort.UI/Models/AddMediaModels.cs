@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using DropSort.Application.Dto;
 using DropSort.Domain.Media.Discovery;
 using DropSort.Domain.Media.Parser;
@@ -173,6 +173,15 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsSelectionEnabled)));
     }
 
+    public string? RegistrationFailure { get; private set; }
+
+    public void SetRegistrationResult(ImportItemStatus status, string? failure)
+    {
+        RegistrationFailure = failure;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RegistrationFailure)));
+        SetImportStatus(status);
+    }
+
     public void SetImportStatus(ImportItemStatus status)
     {
         if (_status == status)
@@ -238,7 +247,9 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
             nameof(MetadataPreview), nameof(PreviewTitle), nameof(PreviewYear), nameof(PreviewDetails),
             nameof(ManualMatchVisibility), nameof(RetryVisibility), nameof(PreviewVisibility),
             nameof(ManualMatchLabel), nameof(RetryLabel), nameof(AutomationName),
-            nameof(OverrideTypeVisibility), nameof(OverrideTypeLabel)
+            nameof(OverrideTypeVisibility), nameof(OverrideTypeLabel),
+            nameof(LocalEligibilityLabel), nameof(ComparisonLabel), nameof(ComparisonVisibility),
+            nameof(IdentityLabel), nameof(DetailsLabel)
         })
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -319,6 +330,19 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
     public string AutomationName => string.Join(" · ",
         new[] { TypeLabel, Title, Details, FileName, PreviewTitle, PreviewYear }
             .Where(value => !string.IsNullOrWhiteSpace(value)));
+
+    public AddMediaReviewFacts ReviewFacts => new(CanSelect, Status, IsSelected, Item.FileSize is not null);
+    public string IdentityLabel => string.Join(" · ", new[]
+    {
+        TypeLabel, Details, Item.ParsedMedia?.Year is null ? PreviewYear : string.Empty,
+    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+    public string LocalEligibilityLabel => LocalizationService.Text(CanAdd ? "LocalFileCanAdd" : "LocalFileNeedsReview");
+    public string DetailsLabel => LocalizationService.Text("Details");
+    public string ComparisonLabel => LocalizationService.Format("ImportComparisonFormat", PreviewTitle, PreviewYear);
+    public Visibility ComparisonVisibility => !string.IsNullOrWhiteSpace(PreviewTitle)
+        && (!string.Equals(Title, PreviewTitle, StringComparison.CurrentCultureIgnoreCase)
+            || Status == ImportItemStatus.NeedsMatch)
+        ? Visibility.Visible : Visibility.Collapsed;
 
     public bool NeedsReview => !CanSelect;
 

@@ -35,27 +35,6 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <VisualStateManager.VisualStateGroups>
-            <VisualStateGroup x:Name="ShellWidthStates">
-                <VisualState x:Name="ShellWideState">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="1100" />
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="ShellNavigation.OpenPaneLength" Value="272" />
-                    </VisualState.Setters>
-                </VisualState>
-                <VisualState x:Name="ShellMediumState">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="0" />
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="ShellNavigation.OpenPaneLength" Value="224" />
-                    </VisualState.Setters>
-                </VisualState>
-            </VisualStateGroup>
-        </VisualStateManager.VisualStateGroups>
-
         <!--
             The Slate theme, exactly like the design's [data-theme='slate'] rule, is the dark palette
             with a cooler shell tint - so it is one opaque surface drawn under everything and never
@@ -98,23 +77,37 @@
             x:Name="ShellNavigation"
             Grid.Row="1"
             Background="{ThemeResource ShellPaneBackgroundBrush}"
-            CompactModeThresholdWidth="0"
             CompactPaneLength="64"
-            ExpandedModeThresholdWidth="820"
             IsBackButtonVisible="Collapsed"
             IsPaneOpen="True"
             IsPaneToggleButtonVisible="True"
             IsSettingsVisible="False"
             IsTitleBarAutoPaddingEnabled="False"
-            OpenPaneLength="272"
+            OpenPaneLength="240"
             PaneDisplayMode="Left"
             ItemInvoked="ShellNavigation_ItemInvoked">
 
             <NavigationView.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Default">
+                            <!-- ApplyTheme binds these colors to the existing Slate/native shell surface. -->
+                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SolidBackgroundFillColorBase}" />
+                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="Light">
+                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SolidBackgroundFillColorBase}" />
+                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="HighContrast">
+                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
+                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
                 <!--
-                    The pane's own brush keys are Transparent per theme in ThemeResources.xaml, so the
-                    receding pane surface is this control's Background - ShellPaneBackgroundBrush -
-                    and there is one source of truth per theme. NavigationViewContentBackground is
+                    Slate uses the same opaque shell surface for inline and overlay panes. Other
+                    themes keep their native overlay surface and existing inline appearance.
+                    NavigationViewContentBackground is
                     Transparent for the same reason: the elevated content surface is painted by the
                     Border around ContentHost with ShellContentBackgroundBrush, which is what makes
                     the pane read as the darker of the two. A {ThemeResource} colour reference cannot
@@ -138,6 +131,7 @@
                 <Style TargetType="NavigationViewItem">
                     <Setter Property="MinHeight" Value="40" />
                 </Style>
+                </ResourceDictionary>
             </NavigationView.Resources>
 
             <NavigationView.MenuItems>

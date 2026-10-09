@@ -6,6 +6,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using WinRT.Interop;
@@ -26,6 +27,9 @@ public sealed partial class MainWindow : Window
     private string _detailsReturnDestination = "library";
     private AppWindow? _appWindow;
     private Page? _currentPage;
+    private NavigationPaneState _navigationPane = new(true);
+    private long _paneOpenCallbackToken;
+    private bool _isApplyingResponsiveChange;
 
     public MainWindow()
     {
@@ -36,10 +40,14 @@ public sealed partial class MainWindow : Window
         LocalizationService.Restore(language);
 
         InitializeComponent();
+        _navigationPane = new NavigationPaneState(AppSettingsStore.ReadWideNavigationPaneOpen());
         AppServices.UiDispatcherQueue = this.DispatcherQueue;
         ConfigureNativeWindow();
         HostPages();
         WireNavigation();
+        ShellNavigation.SizeChanged += ShellNavigation_SizeChanged;
+        _paneOpenCallbackToken = ShellNavigation.RegisterPropertyChangedCallback(
+            NavigationView.IsPaneOpenProperty, ShellNavigation_IsPaneOpenChanged);
         LocalizationService.LanguageChanged += OnLanguageChanged;
         ThemeService.ThemeChanged += OnThemeChanged;
         ApplyTheme();
@@ -60,6 +68,8 @@ public sealed partial class MainWindow : Window
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         Closed -= OnWindowClosed;
+        ShellNavigation.SizeChanged -= ShellNavigation_SizeChanged;
+        ShellNavigation.UnregisterPropertyChangedCallback(NavigationView.IsPaneOpenProperty, _paneOpenCallbackToken);
         LocalizationService.LanguageChanged -= OnLanguageChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
         AppServices.Shutdown();
@@ -125,6 +135,7 @@ public sealed partial class MainWindow : Window
         _settingsPage.OperationsLogRequested += (_, _) => Navigate("operations");
         _settingsPage.LibraryDataChanged += (_, _) =>
         {
+            _libraryPage.InvalidateCatalog();
             _libraryPage.Activate();
             _homePage.Activate();
             _myListsPage.Activate();
@@ -150,6 +161,8 @@ public sealed partial class MainWindow : Window
         _movieDetailsPage.SetReturnDestination(_detailsReturnDestination);
         _movieDetailsPage.LoadMovie(movie.Id);
         Navigate("details");
+        if (ReferenceEquals(sender, _libraryPage) && _movieDetailsPage.IsLoadedSuccessfully)
+            RecordLibraryActivity(() => _libraryPage.RecordMovieOpened(movie.Id));
     }
 
     private void OpenShow(object? sender, TVShowRecord show)
@@ -159,6 +172,35 @@ public sealed partial class MainWindow : Window
         _showDetailsPage.SetReturnDestination(_detailsReturnDestination);
         _showDetailsPage.LoadShow(show.Id);
         Navigate("show");
+        if (ReferenceEquals(sender, _libraryPage) && _showDetailsPage.IsLoadedSuccessfully)
+            RecordLibraryActivity(() => _libraryPage.RecordShowOpened(show.Id));
+    }
+
+    private void RecordLibraryActivity(Action record)
+    {
+        try { record(); }
+        catch (Exception)
+        {
+            _libraryPage.InvalidateCatalog();
+            _ = ShowActivityWarningAsync();
+        }
+    }
+
+    private async System.Threading.Tasks.Task ShowActivityWarningAsync()
+    {
+        try
+        {
+            await ContentDialogCoordinator.ShowAsync(new ContentDialog
+            {
+                XamlRoot = _currentPage?.XamlRoot,
+                RequestedTheme = ThemeService.ElementTheme,
+                FlowDirection = LocalizationService.FlowDirection,
+                Title = LocalizationService.Text("SortRecent"),
+                Content = LocalizationService.Text("RecentSaveFailed"),
+                CloseButtonText = LocalizationService.Text("Close"),
+            });
+        }
+        catch (Exception) { /* The window can close before the queued warning is shown. */ }
     }
 
     /// <summary>
@@ -213,7 +255,50 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void EscAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
     {
+        // Dismiss temporary navigation before applying the existing page Back rule.
+        if (_navigationPane.ShouldDismissOverlay(ShellNavigation.IsPaneOpen))
+        {
+            ShellNavigation.IsPaneOpen = false;
+            args.Handled = true;
+            return;
+        }
+
         args.Handled = GoBack();
+    }
+
+    private void ShellNavigation_SizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        // XAML sizes are client DIPs. Only zone transitions change the native pane state.
+        if (!_navigationPane.TryResize(args.NewSize.Width, out var isPaneOpen))
+        {
+            return;
+        }
+
+        _isApplyingResponsiveChange = true;
+        try
+        {
+            ShellNavigation.PaneDisplayMode = _navigationPane.Zone switch
+            {
+                NavigationZone.Wide => NavigationViewPaneDisplayMode.Left,
+                NavigationZone.Medium => NavigationViewPaneDisplayMode.LeftCompact,
+                _ => NavigationViewPaneDisplayMode.LeftMinimal,
+            };
+            ShellNavigation.IsPaneOpen = isPaneOpen;
+        }
+        finally
+        {
+            _isApplyingResponsiveChange = false;
+        }
+    }
+
+    private void ShellNavigation_IsPaneOpenChanged(DependencyObject sender, DependencyProperty property)
+    {
+        if (ShellNavigation.PaneDisplayMode == NavigationViewPaneDisplayMode.Left
+            && _navigationPane.RememberWidePreference(ShellNavigation.ActualWidth,
+                ShellNavigation.IsPaneOpen, _isApplyingResponsiveChange))
+        {
+            AppSettingsStore.WriteWideNavigationPaneOpen(_navigationPane.WidePaneOpen);
+        }
     }
 
     /// <summary>
@@ -338,7 +423,39 @@ public sealed partial class MainWindow : Window
     {
         RootGrid.RequestedTheme = ThemeService.ElementTheme;
         SlateSurface.Visibility = ThemeService.UsesSlateSurface ? Visibility.Visible : Visibility.Collapsed;
+        UpdateNavigationPaneBackgrounds();
         UpdateTitleBarColors();
+    }
+
+    private void UpdateNavigationPaneBackgrounds()
+    {
+        // Slate and Dark share ElementTheme.Dark. Bind the pane brushes explicitly on each app
+        // theme change, using element-resolved colors so native theme/contrast updates stay live.
+        var resources = (ResourceDictionary)ShellNavigation.Resources.ThemeDictionaries["Default"];
+        var overlay = (SolidColorBrush)resources["NavigationViewDefaultPaneBackground"];
+        var inline = (SolidColorBrush)resources["NavigationViewExpandedPaneBackground"];
+        var surface = ThemeService.UsesSlateSurface ? (FrameworkElement)SlateSurface : RootGrid;
+        BindingOperations.SetBinding(overlay, SolidColorBrush.ColorProperty, new Binding
+        {
+            Source = surface,
+            Path = new PropertyPath("Background.Color"),
+            Mode = BindingMode.OneWay,
+        });
+
+        if (ThemeService.UsesSlateSurface)
+        {
+            BindingOperations.SetBinding(inline, SolidColorBrush.ColorProperty, new Binding
+            {
+                Source = SlateSurface,
+                Path = new PropertyPath("Background.Color"),
+                Mode = BindingMode.OneWay,
+            });
+        }
+        else
+        {
+            inline.ClearValue(SolidColorBrush.ColorProperty);
+            inline.Color = Colors.Transparent;
+        }
     }
 
     private void UpdateTitleBarColors()

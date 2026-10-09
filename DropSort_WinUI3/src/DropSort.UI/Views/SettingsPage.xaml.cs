@@ -1,4 +1,5 @@
 using DropSort.UI.Models;
+using DropSort.Application.External;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -6,8 +7,20 @@ using Windows.System;
 
 namespace DropSort.UI.Views;
 
-public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableView
+public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableView, IDeactivatableView
 {
+    private bool _editingCredential;
+    private bool _credentialBusy;
+    private CancellationTokenSource? _credentialRequest;
+
+    public void Deactivate()
+    {
+        _credentialRequest?.Cancel();
+        _editingCredential = false;
+        TokenBox.Password = string.Empty;
+        TmdbFeedback.IsOpen = false;
+    }
+
     /// <summary>
     /// True until the page has pushed the stored theme and language into the two selectors.
     /// <para>
@@ -73,12 +86,12 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         OpenDataFolderButton.Content = LocalizationService.Text("OpenFolder");
 
         TmdbHeadingText.Text = LocalizationService.Text("Tmdb");
-        TmdbStatusHelpText.Text = LocalizationService.Text("TmdbStatusHelp");
         TokenLabelText.Text = LocalizationService.Text("ReadAccessToken");
         TokenHelpText.Text = LocalizationService.Text("ReadAccessTokenHelp");
         TokenBox.PlaceholderText = LocalizationService.Text("TmdbTokenPlaceholder");
-        UseTokenButton.Content = LocalizationService.Text("UseForSession");
-        ClearTokenButton.Content = LocalizationService.Text("Clear");
+        UseTokenButton.Content = LocalizationService.Text("TmdbSaveConnect");
+        CancelTokenButton.Content = LocalizationService.Text("Cancel");
+        ClearTokenButton.Content = LocalizationService.Text("Remove");
         TestConnectionButton.Content = LocalizationService.Text("TestConnection");
         SetupGuideButton.Content = LocalizationService.Text("SetupGuide");
 
@@ -114,22 +127,42 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     }
 
     /// <summary>
-    /// The pill reads the settings service, which is where the session token actually lives. Keeping a
-    /// second copy on the page meant the two could disagree.
+    /// Show credential state without copying a saved secret into any UI control.
     /// </summary>
     private void RefreshTmdbStatus()
     {
-        var isConnected = IsTmdbConfigured();
-        TmdbStatusText.Text = LocalizationService.Text(isConnected ? "TmdbSessionConfigured" : "NotConfigured");
-        TmdbConnectedDot.Visibility = isConnected ? Visibility.Visible : Visibility.Collapsed;
-        TmdbMissingDot.Visibility = isConnected ? Visibility.Collapsed : Visibility.Visible;
-        ClearTokenButton.IsEnabled = isConnected;
-        TestConnectionButton.IsEnabled = isConnected;
-
-        if (isConnected && string.IsNullOrEmpty(TokenBox.Password))
+        var state = ReadTmdbState();
+        var configured = state is TmdbCredentialState.Configured or TmdbCredentialState.AuthenticationFailed;
+        TmdbStatusText.Text = LocalizationService.Text(state switch
         {
-            TokenBox.Password = AppServices.Settings.GetTmdbToken() ?? string.Empty;
-        }
+            TmdbCredentialState.Configured => "TmdbConnected",
+            TmdbCredentialState.AuthenticationFailed => "TmdbAuthFailed",
+            TmdbCredentialState.StorageUnavailable => "TmdbStorageUnavailable",
+            _ => "NotConfigured",
+        });
+        TmdbStatusHelpText.Text = LocalizationService.Text(state switch
+        {
+            TmdbCredentialState.Configured => "TmdbSavedHelp",
+            TmdbCredentialState.AuthenticationFailed => "TmdbAuthFailedHelp",
+            TmdbCredentialState.StorageUnavailable => "TmdbStorageFailureHelp",
+            _ => "TmdbNotConfiguredHelp",
+        });
+        TmdbConnectedDot.Visibility = state == TmdbCredentialState.Configured ? Visibility.Visible : Visibility.Collapsed;
+        TmdbMissingDot.Visibility = state == TmdbCredentialState.Configured ? Visibility.Collapsed : Visibility.Visible;
+        ChangeTokenButton.Content = LocalizationService.Text(state == TmdbCredentialState.AuthenticationFailed
+            ? "TmdbUpdateCredential" : configured ? "TmdbChangeCredential" : "TmdbAddCredential");
+        ChangeTokenButton.Visibility = _editingCredential ? Visibility.Collapsed : Visibility.Visible;
+        TokenInputPanel.Visibility = _editingCredential ? Visibility.Visible : Visibility.Collapsed;
+        UseTokenButton.Visibility = _editingCredential ? Visibility.Visible : Visibility.Collapsed;
+        CancelTokenButton.Visibility = _editingCredential ? Visibility.Visible : Visibility.Collapsed;
+        ClearTokenButton.Visibility = configured || state == TmdbCredentialState.StorageUnavailable ? Visibility.Visible : Visibility.Collapsed;
+        TestConnectionButton.Visibility = configured ? Visibility.Visible : Visibility.Collapsed;
+        ChangeTokenButton.IsEnabled = !_credentialBusy;
+        UseTokenButton.IsEnabled = !_credentialBusy;
+        CancelTokenButton.IsEnabled = !_credentialBusy;
+        ClearTokenButton.IsEnabled = !_credentialBusy;
+        TestConnectionButton.IsEnabled = configured && !_credentialBusy;
+        TokenBox.IsEnabled = !_credentialBusy;
     }
 
     private void ThemeSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -274,68 +307,135 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     }
 
     /// <summary>
-    /// The token is held for this session only; configuration does not imply a verified connection.
+    /// Validate a new value before securely replacing the saved credential.
     /// </summary>
-    private void UseTokenButton_Click(object sender, RoutedEventArgs e)
+    private async void UseTokenButton_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            AppServices.Settings.ApplyTmdbSessionToken(TokenBox.Password.Trim());
-        }
-        catch (Exception)
-        {
-            // An invalid or rejected token leaves the status as "not configured"; nothing else to undo.
-        }
-
+        if (_credentialBusy) return;
+        _credentialBusy = true;
+        _credentialRequest = new CancellationTokenSource();
         RefreshTmdbStatus();
-    }
-
-    /// <summary>The one place the token status is read; an unavailable stack answers "not configured".</summary>
-    private static bool IsTmdbConfigured()
-    {
         try
         {
-            return AppServices.IsAvailable && AppServices.Settings.IsTmdbConfigured();
+            var credential = TokenBox.Password;
+            TokenBox.Password = string.Empty;
+            var result = await AppServices.Settings.SaveTmdbCredentialAsync(
+                credential, AppServices.TmdbClient, _credentialRequest.Token);
+            if (result.Success)
+            {
+                _editingCredential = false;
+                TmdbFeedback.IsOpen = false;
+            }
+            else ShowCredentialFeedback(CredentialFailureKey(result.Failure));
         }
+        catch (OperationCanceledException) { }
         catch (Exception)
         {
-            return false;
+            ShowCredentialFeedback("TmdbCredentialStorageError");
+        }
+        finally
+        {
+            TokenBox.Password = string.Empty;
+            _credentialRequest.Dispose();
+            _credentialRequest = null;
+            _credentialBusy = false;
+            RefreshTmdbStatus();
         }
     }
 
-    private void ClearTokenButton_Click(object sender, RoutedEventArgs e)
+    private void ChangeTokenButton_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            AppServices.Settings.ClearTmdbSessionToken();
-        }
-        catch (Exception)
-        {
-            // Nothing to clear when the stack is unavailable; the field is emptied regardless.
-        }
-
         TokenBox.Password = string.Empty;
+        _editingCredential = true;
+        TmdbFeedback.IsOpen = false;
         RefreshTmdbStatus();
+        TokenBox.Focus(FocusState.Programmatic);
+    }
+
+    private void CancelTokenButton_Click(object sender, RoutedEventArgs e)
+    {
+        TokenBox.Password = string.Empty;
+        _editingCredential = false;
+        TmdbFeedback.IsOpen = false;
+        RefreshTmdbStatus();
+    }
+
+    private static TmdbCredentialState ReadTmdbState()
+    {
+        try
+        {
+            return AppServices.IsAvailable ? AppServices.Settings.GetTmdbCredentialState() : TmdbCredentialState.StorageUnavailable;
+        }
+        catch (Exception)
+        {
+            return TmdbCredentialState.StorageUnavailable;
+        }
+    }
+
+    private async void ClearTokenButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_credentialBusy || !await ConfirmAsync("TmdbRemoveCredential", "TmdbRemoveConfirm")) return;
+        if (_credentialBusy) return;
+        _credentialBusy = true;
+        RefreshTmdbStatus();
+        try
+        {
+            if (await AppServices.Settings.RemoveTmdbCredentialAsync())
+            {
+                TokenBox.Password = string.Empty;
+                _editingCredential = false;
+                TmdbFeedback.IsOpen = false;
+            }
+            else ShowCredentialFeedback("TmdbCredentialStorageError");
+        }
+        catch (Exception)
+        {
+            ShowCredentialFeedback("TmdbCredentialStorageError");
+        }
+        finally { _credentialBusy = false; RefreshTmdbStatus(); }
     }
 
     private async void TestConnectionButton_Click(object sender, RoutedEventArgs e)
     {
-        TestConnectionButton.IsEnabled = false;
+        if (_credentialBusy) return;
+        _credentialBusy = true;
+        _credentialRequest = new CancellationTokenSource();
+        RefreshTmdbStatus();
         try
         {
-            var result = await AppServices.Settings.TestTmdbConnectionAsync(AppServices.Metadata);
+            var result = await AppServices.Settings.TestTmdbConnectionAsync(AppServices.Metadata, _credentialRequest.Token);
             var message = MetadataErrorText.For(result);
             await ShowMessageAsync(LocalizationService.Text("TestConnection"), message);
         }
+        catch (OperationCanceledException) { }
         catch (Exception ex)
         {
             await ShowMessageAsync(LocalizationService.Text("TestConnection"), MetadataErrorText.For(ex));
         }
         finally
         {
+            _credentialRequest.Dispose();
+            _credentialRequest = null;
+            _credentialBusy = false;
             RefreshTmdbStatus();
         }
     }
+
+    private void ShowCredentialFeedback(string key)
+    {
+        TmdbFeedback.Message = LocalizationService.Text(key);
+        TmdbFeedback.IsOpen = _hasBeenShown && Visibility == Visibility.Visible;
+    }
+
+    private static string CredentialFailureKey(TmdbCredentialFailure failure) => failure switch
+    {
+        TmdbCredentialFailure.Empty => "TmdbCredentialEmpty",
+        TmdbCredentialFailure.Authentication => "TmdbNewCredentialRejected",
+        TmdbCredentialFailure.Network => "TmdbCredentialNetworkError",
+        TmdbCredentialFailure.Timeout => "TmdbCredentialNetworkError",
+        TmdbCredentialFailure.Storage => "TmdbCredentialStorageError",
+        _ => "TmdbCredentialServiceError",
+    };
 
     private void SetupGuideButton_Click(object sender, RoutedEventArgs e) =>
         _ = Launcher.LaunchUriAsync(new Uri("https://developer.themoviedb.org/docs/authentication-application"));

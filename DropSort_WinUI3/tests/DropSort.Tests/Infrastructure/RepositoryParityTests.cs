@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using DropSort.Domain.Core.Operations;
 using DropSort.Domain.Library.Movies;
 using DropSort.Domain.Library.Personal;
+using DropSort.Domain.Library.Shows;
 using DropSort.Infrastructure.Persistence.Migrations;
 using DropSort.Infrastructure.Persistence.Repositories;
 using Microsoft.Data.Sqlite;
@@ -193,6 +194,133 @@ public sealed class RepositoryParityTests : IDisposable
         }
         using var check = new CatalogUnitOfWork(_connectionString);
         Assert.False(check.Movies.GetById(id)!.ReviewMatch);
+    }
+
+    [Fact]
+    public void PersonalListProjection_PreservesMovieColumnsAndPersonalFlags()
+    {
+        var movieId = SeedMovie("personal-projection");
+        using (var unit = new CatalogUnitOfWork(_connectionString))
+        {
+            unit.Movies.SetReviewMatch(movieId, true);
+            unit.Movies.RecordOpened(movieId, Now.AddHours(2));
+            unit.Commit();
+        }
+
+        var personal = new PersonalLibraryRepository(_connectionString);
+        personal.AddToWatchlist(movieId, Now);
+        personal.SetPreference(movieId, PersonalPreference.Liked, Now.AddMinutes(1));
+
+        var summary = Assert.Single(personal.ListMovies(PersonalLibrarySection.Watchlist));
+
+        Assert.Equal(movieId, summary.Movie.Id);
+        Assert.Equal("personal-projection", summary.Movie.Title);
+        Assert.Equal(Now, summary.Movie.DateAdded);
+        Assert.Equal(Now.AddHours(2), summary.Movie.LastOpenedAt);
+        Assert.True(summary.Movie.ReviewMatch);
+        Assert.Equal(PersonalPreference.Liked, summary.Preference);
+        Assert.True(summary.Watchlisted);
+        Assert.Equal(0, summary.MediaFileCount);
+        Assert.Equal(0, summary.MissingFileCount);
+        Assert.Equal(0, summary.WatchCount);
+        Assert.Null(summary.LastWatched);
+
+        Assert.Single(personal.ListMovies(PersonalLibrarySection.Liked));
+    }
+
+    [Fact]
+    public void RecordOpened_PersistsUtcForMovieAndShow_WithoutChangingCatalogOrPersonalState()
+    {
+        int movieId;
+        int showId;
+        using (var unit = new CatalogUnitOfWork(_connectionString))
+        {
+            movieId = unit.Movies.Create(Data("opened-movie", "Opened Movie"), Now).Id;
+            showId = unit.TvShows.Create(new TvShowCatalogData(null, null, "Opened Show"), Now).Id;
+            unit.Commit();
+        }
+
+        var openedMovie = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.FromHours(3));
+        var openedShow = new DateTimeOffset(2026, 9, 1, 13, 0, 0, TimeSpan.FromHours(-5));
+        using (var unit = new CatalogUnitOfWork(_connectionString))
+        {
+            unit.Movies.RecordOpened(movieId, openedMovie);
+            unit.TvShows.RecordOpened(showId, openedShow);
+            unit.Commit();
+        }
+
+        using (var check = new CatalogUnitOfWork(_connectionString))
+        {
+            var movie = check.Movies.GetById(movieId)!;
+            var show = check.TvShows.GetById(showId)!;
+            Assert.Equal(openedMovie.UtcDateTime, movie.LastOpenedAt!.Value.UtcDateTime);
+            Assert.Equal(openedShow.UtcDateTime, show.LastOpenedAt!.Value.UtcDateTime);
+            Assert.Equal(Now, movie.DateAdded);
+            Assert.Equal(Now, movie.CreatedAt);
+            Assert.Equal(Now, movie.UpdatedAt);
+            Assert.Equal(Now, show.DateAdded);
+            Assert.Equal(Now, show.CreatedAt);
+            Assert.Equal(Now, show.UpdatedAt);
+        }
+
+        var personal = new PersonalLibraryRepository(_connectionString);
+        personal.AddToWatchlist(movieId, Now);
+        personal.SetPreference(movieId, PersonalPreference.Liked, Now.AddMinutes(1));
+        var summary = Assert.Single(personal.ListMovies(PersonalLibrarySection.Watchlist));
+        Assert.Equal(openedMovie.UtcDateTime, summary.Movie.LastOpenedAt!.Value.UtcDateTime);
+        Assert.True(summary.Watchlisted);
+        Assert.Equal(PersonalPreference.Liked, summary.Preference);
+    }
+
+    [Fact]
+    public void RecordOpened_RollsBackWithoutCommit_AndMetadataUpdatePreservesActivity()
+    {
+        var movieId = SeedMovie("opened-rollback");
+        var opened = Now.AddHours(4);
+        using (var unit = new CatalogUnitOfWork(_connectionString))
+        {
+            unit.Movies.RecordOpened(movieId, opened);
+        }
+
+        using (var unit = new CatalogUnitOfWork(_connectionString))
+            Assert.Null(unit.Movies.GetById(movieId)!.LastOpenedAt);
+
+        using (var unit = new CatalogUnitOfWork(_connectionString))
+        {
+            unit.Movies.RecordOpened(movieId, opened);
+            unit.Commit();
+        }
+        using (var unit = new CatalogUnitOfWork(_connectionString))
+        {
+            var movie = unit.Movies.GetById(movieId)!;
+            unit.Movies.UpdateMetadata(movieId, movie.Data, Now.AddDays(1));
+            unit.Commit();
+        }
+        using var check = new CatalogUnitOfWork(_connectionString);
+        Assert.Equal(opened, check.Movies.GetById(movieId)!.LastOpenedAt);
+    }
+
+    [Fact]
+    public void CatalogFactory_RevisionChangesOnlyAfterSuccessfulCommit()
+    {
+        var factory = new CatalogUnitOfWorkFactory(_connectionString);
+        Assert.Equal(0, factory.Revision);
+        using (var read = factory.Begin())
+        {
+            _ = read.Movies.ListAll();
+        }
+        Assert.Equal(0, factory.Revision);
+        using (var rollback = factory.Begin())
+        {
+            rollback.Movies.Create(Data("revision-rollback", "Rollback"), Now);
+        }
+        Assert.Equal(0, factory.Revision);
+        using (var committed = factory.Begin())
+        {
+            committed.Movies.Create(Data("revision-commit", "Commit"), Now);
+            committed.Commit();
+        }
+        Assert.Equal(1, factory.Revision);
     }
 
     private int SeedMovie(string externalId)

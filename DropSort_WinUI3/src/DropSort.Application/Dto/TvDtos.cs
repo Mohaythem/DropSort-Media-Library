@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using DropSort.Domain.Library.Movies;
 using DropSort.Domain.Library.Shows;
@@ -13,7 +14,10 @@ public record TvShowListItem(
     int SeasonCount,
     int EpisodeCount,
     int EpisodesWithLocalFile,
-    int MissingEpisodeCount);
+    int MissingEpisodeCount,
+    DateTimeOffset DateAdded = default,
+    DateTimeOffset? LastOpenedAt = null,
+    MetadataStatus MetadataStatus = MetadataStatus.Pending);
 
 public record TvContinueWatchingItem(
     int ShowId,

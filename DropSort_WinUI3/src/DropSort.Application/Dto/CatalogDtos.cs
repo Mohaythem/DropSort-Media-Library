@@ -11,7 +11,7 @@ using DropSort.Domain.Library.Personal;
 
 namespace DropSort.Application.Dto;
 
-public record MovieListItem(int Id, string Title, int? Year, string? PosterReference, bool IsMissing, bool HasPendingMetadata, int FileCount = 1, bool ReviewMatch = false);
+public record MovieListItem(int Id, string Title, int? Year, string? PosterReference, bool IsMissing, bool HasPendingMetadata, int FileCount = 1, bool ReviewMatch = false, DateTimeOffset DateAdded = default, DateTimeOffset? LastOpenedAt = null);
 
 /// <summary>
 /// A user-created custom list for the UI. Identity is the stable <paramref name="Id" />; the UI shows the

@@ -16,6 +16,12 @@ namespace DropSort.UI.Services;
 /// </summary>
 internal sealed class UnitOfWorkMovieRepository(ICatalogUnitOfWorkFactory factory) : IMovieRepository
 {
+    public void RecordOpened(int id, DateTimeOffset openedAt) => Write<object?>(movies =>
+    {
+        movies.RecordOpened(id, openedAt);
+        return null;
+    });
+
     private T Read<T>(Func<IMovieRepository, T> read)
     {
         using var work = factory.Begin();
@@ -116,6 +122,12 @@ internal sealed class UnitOfWorkMediaFileRepository(ICatalogUnitOfWorkFactory fa
 /// <summary>Show half of the TV catalog; same one-call-one-transaction rule as the movie adapters.</summary>
 internal sealed class UnitOfWorkTvShowRepository(ICatalogUnitOfWorkFactory factory) : ITvShowRepository
 {
+    public void RecordOpened(int id, DateTimeOffset openedAt) => Write<object?>(shows =>
+    {
+        shows.RecordOpened(id, openedAt);
+        return null;
+    });
+
     private T Read<T>(Func<ITvShowRepository, T> read)
     {
         using var work = factory.Begin();

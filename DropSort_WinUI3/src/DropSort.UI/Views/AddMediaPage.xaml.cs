@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using DropSort.Application.Dto;
 using DropSort.Application.Services;
 using DropSort.Domain.Media.Discovery;
@@ -33,6 +33,13 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private AddMediaScanState _state = AddMediaScanState.Idle;
     private IReadOnlyList<DiscoveredMedia> _detected = [];
     private readonly ObservableCollection<DetectedMediaDisplayRecord> _rows = [];
+    private readonly ObservableCollection<DetectedMediaDisplayRecord> _visibleRows = [];
+    private readonly ObservableCollection<DetectedMediaDisplayRecord> _registeredRows = [];
+    private readonly HashSet<DetectedMediaDisplayRecord> _visibleMembers = [];
+    private readonly HashSet<DetectedMediaDisplayRecord> _registeredMembers = [];
+    private readonly AddMediaReviewCounts<DetectedMediaDisplayRecord> _reviewCounts = new();
+    private AddMediaReviewFilter _reviewFilter;
+    private bool _batchPresentation;
     private IReadOnlyList<TvSeriesSuggestion> _seriesSuggestions = [];
     private bool _isScanning;
     private bool _isAdding;
@@ -69,7 +76,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     public AddMediaPage()
     {
         this.InitializeComponent();
-        DetectedMediaRepeater.ItemsSource = _rows;
+        Root.ItemsSource = _visibleRows;
+        _rows.CollectionChanged += Rows_CollectionChanged;
+        ReviewFilterBox.SelectedIndex = 0;
         FolderPathBox.Text = AppSettingsStore.MovieFolder ?? AppSettingsStore.ShowFolder ?? string.Empty;
         ApplyLocalization();
     }
@@ -95,7 +104,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     {
         FlowDirection = LocalizationService.FlowDirection;
         PageTitleText.Text = LocalizationService.Text("AddMedia");
-        SourceHeadingText.Text = LocalizationService.Text("AddMediaScanHeading");
         SourceHelpText.Text = LocalizationService.Text("AddMediaScanHelp");
         FolderPathBox.PlaceholderText = LocalizationService.Text("FolderPathPlaceholder");
         FolderLabelText.Text = LocalizationService.Text("MediaFolderLabel");
@@ -108,10 +116,16 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         DeselectAllButton.Content = LocalizationService.Text("DeselectAll");
         ColumnSelectText.Text = LocalizationService.Text("Select");
         ColumnTypeText.Text = LocalizationService.Text("MediaType");
-        ColumnTitleText.Text = LocalizationService.Text("Title");
-        ColumnPreviewText.Text = LocalizationService.Text("MatchedTitle");
-        ColumnDetailsText.Text = LocalizationService.Text("Details");
-        ColumnStatusText.Text = LocalizationService.Text("Status");
+        ColumnTitleText.Text = LocalizationService.Text("ImportItemColumn");
+        AllNewFilterItem.Content = LocalizationService.Text("ImportAllNew");
+        ReadyFilterItem.Content = LocalizationService.Text("ImportReady");
+        AttentionFilterItem.Content = LocalizationService.Text("ImportAttention");
+        // Refresh the selected ComboBox presenter after an in-place language change.
+        var selectedFilter = ReviewFilterBox.SelectedIndex;
+        ReviewFilterBox.SelectedIndex = -1;
+        ReviewFilterBox.SelectedIndex = selectedFilter;
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ReviewFilterBox, LocalizationService.Text("ReviewMedia"));
+        ColumnStatusText.Text = LocalizationService.Text("ImportStateColumn");
         ColumnActionText.Text = LocalizationService.Text("Action");
         EmptyState.Title = LocalizationService.Text("NothingDetected");
         EmptyState.Message = LocalizationService.Text("NothingDetectedHelp");
@@ -127,7 +141,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     {
         ScanButton.Content = LocalizationService.Text(
             _isScanning ? "Cancel" : "ScanFolder");
-        ScanProgressText.Text = LocalizationService.Text("ScanningFolder");
         AddFilesButton.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
         BrowseButton.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
         CancelButton.Visibility = _isScanning || (_state == AddMediaScanState.Results && !_isAdding)
@@ -148,8 +161,17 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             return;
         }
 
-        var selectable = _rows.Count(row => row.CanAdd);
-        var selected = _rows.Count(row => row.CanAdd && row.IsSelected);
+        var selectable = _reviewCounts.Eligible;
+        var selected = _reviewCounts.Selected;
+        SummaryText.Visibility = _isReviewingMetadata ? Visibility.Collapsed : Visibility.Visible;
+        SummaryText.Text = LocalizationService.Format("ImportSummaryFormat",
+            _reviewCounts.NewFiles, _reviewCounts.Eligible, _reviewCounts.Attention);
+        SelectionFeedbackText.Text = LocalizationService.Format("ImportSelectionGlobalFormat", selected);
+        RegisteredSection.Header = LocalizationService.Format("ImportRegisteredFilesFormat", _reviewCounts.Registered);
+        RegisteredSection.Visibility = _reviewCounts.Registered > 0 ? Visibility.Visible : Visibility.Collapsed;
+        QueueEmptyText.Visibility = _visibleRows.Count == 0 && !_isReviewingMetadata ? Visibility.Visible : Visibility.Collapsed;
+        QueueEmptyText.Text = LocalizationService.Text(_reviewCounts.NewFiles == 0 ? "ImportNoNew" : "ImportNoFilterResults");
+        ReviewFilterBox.IsEnabled = !_isAdding && !_isReviewingMetadata;
 
         // The status line names the current phase (Matching / Ready / Adding / Done) with real counts, so
         // the user always knows whether item counts are still changing in the background.
@@ -162,7 +184,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         AddSelectedButton.IsEnabled = selected > 0 && !busy;
         AddSelectedButton.Content = LocalizationService.Format("AddSelectedFormat", selected);
         SelectAllButton.IsEnabled = selectable > 0 && !busy;
-        var ready = _rows.Count(row => row.IsReadyToAdd);
+        var ready = _reviewCounts.Ready;
         SelectReadyButton.IsEnabled = ready > 0 && !busy;
         DeselectAllButton.IsEnabled = selected > 0 && !busy;
 
@@ -182,7 +204,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     {
         if (_isReviewingMetadata)
         {
-            return LocalizationService.Format("MatchingProgressFormat", _matchProcessed, _matchTotal);
+            return LocalizationService.Format("ImportReviewPhaseFormat", _matchProcessed, _matchTotal);
         }
 
         if (_isAdding)
@@ -198,7 +220,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         // Ready: matching has settled and the counts are final.
         return LocalizationService.Format(
             "ReadyPhaseFormat",
-            LocalizationService.Format("ItemsFoundFormat", _rows.Count),
+            LocalizationService.Format("ItemsFoundFormat", _reviewCounts.NewFiles),
             LocalizationService.Format("SelectedItemsFormat", selected));
     }
 
@@ -209,6 +231,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             row.PropertyChanged -= SelectionChanged;
         }
 
+        _batchPresentation = true;
+        RegisteredSection.IsExpanded = false;
         _detected = items;
         _rows.Clear();
         foreach (var item in items)
@@ -217,6 +241,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             row.PropertyChanged += SelectionChanged;
             _rows.Add(row);
         }
+
+        _batchPresentation = false;
+        RebuildVisibleQueue();
 
         // A fresh detection set starts in the natural discovery order and clears the transient "Done"
         // line from a previous add.
@@ -315,6 +342,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             return;
         }
 
+        _batchPresentation = true;
         for (var index = 0; index < _rows.Count; index++)
         {
             if (!replacements.TryGetValue(_rows[index].Item.Path, out var newItem))
@@ -328,6 +356,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             _rows[index] = replacement;
         }
 
+        _batchPresentation = false;
+        RebuildVisibleQueue();
         _detected = _rows.Select(row => row.Item).ToList();
         UpdateSeriesSuggestion();
         BeginMetadataReview();
@@ -336,12 +366,193 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     private void SelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DetectedMediaDisplayRecord.IsSelected))
+        if (sender is not DetectedMediaDisplayRecord row ||
+            e.PropertyName is not (nameof(DetectedMediaDisplayRecord.IsSelected) or nameof(DetectedMediaDisplayRecord.Status))) return;
+        _reviewCounts.Update(row, row.ReviewFacts);
+        if (!_batchPresentation && !_isReviewingMetadata) SynchronizeRow(row);
+        if (e.PropertyName == nameof(DetectedMediaDisplayRecord.IsSelected)) _addCompleted = false;
+        if (!_batchPresentation) Refresh();
+    }
+
+    private void Rows_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
         {
-            // Any selection change means the user is acting on the queue again, so leave the "Done" line.
-            _addCompleted = false;
-            Refresh();
+            _reviewCounts.Clear();
+            _visibleRows.Clear();
+            _registeredRows.Clear();
+            _visibleMembers.Clear();
+            _registeredMembers.Clear();
         }
+        else if (e.Action != System.Collections.Specialized.NotifyCollectionChangedAction.Move)
+        {
+            if (e.OldItems is not null)
+                foreach (DetectedMediaDisplayRecord row in e.OldItems)
+                {
+                    _reviewCounts.Remove(row);
+                    if (_visibleMembers.Remove(row)) _visibleRows.Remove(row);
+                    if (_registeredMembers.Remove(row)) _registeredRows.Remove(row);
+                }
+            if (e.NewItems is not null)
+                foreach (DetectedMediaDisplayRecord row in e.NewItems)
+                {
+                    _reviewCounts.Update(row, row.ReviewFacts);
+                    if (!_batchPresentation && !_isReviewingMetadata) SynchronizeRow(row);
+                }
+        }
+        if (!_batchPresentation && e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Move)
+            RebuildVisibleQueue();
+    }
+
+    private void SynchronizeRow(DetectedMediaDisplayRecord row)
+    {
+        var show = row.ReviewFacts.Matches(_reviewFilter);
+        if (show && _visibleMembers.Add(row))
+        {
+            // Only a membership transition needs an index walk; normal progress updates do not.
+            var index = 0;
+            foreach (var candidate in _rows)
+            {
+                if (ReferenceEquals(candidate, row)) break;
+                if (_visibleMembers.Contains(candidate)) index++;
+            }
+            _visibleRows.Insert(index, row);
+        }
+        else if (!show && _visibleMembers.Remove(row)) _visibleRows.Remove(row);
+        if (row.ReviewFacts.Registered && _registeredMembers.Add(row)) _registeredRows.Add(row);
+        else if (!row.ReviewFacts.Registered && _registeredMembers.Remove(row)) _registeredRows.Remove(row);
+    }
+
+    private void RebuildVisibleQueue()
+    {
+        _visibleRows.Clear();
+        _visibleMembers.Clear();
+        _registeredRows.Clear();
+        _registeredMembers.Clear();
+        foreach (var row in _rows)
+        {
+            if (row.ReviewFacts.Matches(_reviewFilter)) { _visibleRows.Add(row); _visibleMembers.Add(row); }
+            if (row.ReviewFacts.Registered) { _registeredRows.Add(row); _registeredMembers.Add(row); }
+        }
+    }
+
+    private void ReviewFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (Root is null || ReviewFilterBox.SelectedIndex < 0) return;
+        _reviewFilter = (AddMediaReviewFilter)ReviewFilterBox.SelectedIndex;
+        RebuildVisibleQueue();
+        Refresh();
+    }
+
+    private void RegisteredSection_Expanding(Expander sender, ExpanderExpandingEventArgs args) =>
+        RegisteredMediaRepeater.ItemsSource = _registeredRows;
+
+    private void RegisteredSection_Collapsed(Expander sender, ExpanderCollapsedEventArgs args) =>
+        RegisteredMediaRepeater.ItemsSource = null;
+
+    private void PageRoot_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var padding = e.NewSize.Width < 600 ? 16 : 32;
+        var narrow = e.NewSize.Width - 2 * padding < 760;
+        // The ScrollViewer can measure its child beyond the viewport. Constrain the whole table,
+        // rather than relying on MaxWidth + Stretch, which can arrange columns outside the window.
+        ContentHost.Width = Math.Min(
+            (double)Microsoft.UI.Xaml.Application.Current.Resources["AddMediaContentMaxWidth"],
+            Math.Max(0, e.NewSize.Width - 2 * padding));
+        // Minimal navigation places its native toggle over the page at small shell widths.
+        Root.Padding = new Thickness(padding, e.NewSize.Width < 640 ? 56 : 32, padding, padding);
+        SourceActions.Orientation = ContentHost.Width < 360 ? Orientation.Vertical : Orientation.Horizontal;
+        PrimaryActions.Orientation = ContentHost.Width < 440 ? Orientation.Vertical : Orientation.Horizontal;
+        SelectionActions.Orientation = e.NewSize.Width < 480 ? Orientation.Vertical : Orientation.Horizontal;
+        SortActions.Orientation = e.NewSize.Width < 480 ? Orientation.Vertical : Orientation.Horizontal;
+        Grid.SetColumn(SelectionActions, narrow ? 0 : 1);
+        Grid.SetColumnSpan(SelectionActions, narrow ? 2 : 1);
+        Grid.SetRow(SelectionActions, narrow ? 1 : 0);
+        Grid.SetRow(ReviewFilterBox, narrow ? 2 : 1);
+        Grid.SetColumn(SelectionFeedbackText, narrow ? 0 : 1);
+        Grid.SetColumnSpan(SelectionFeedbackText, narrow ? 2 : 1);
+        Grid.SetRow(SelectionFeedbackText, narrow ? 3 : 1);
+        Grid.SetColumnSpan(PrimaryActions, narrow ? 2 : 1);
+        TableHeader.ColumnDefinitions[0].Width = new GridLength(narrow ? 0 : 40);
+        TableHeader.ColumnDefinitions[2].Width = narrow ? GridLength.Auto : new GridLength(210);
+        TableHeader.ColumnDefinitions[3].Width = new GridLength(narrow ? 0 : 150);
+        ColumnSelectText.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+        ColumnActionText.Visibility = narrow ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void ReviewContainer_ContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.InRecycleQueue) return;
+        BindRowAutomationName(args);
+        // Native containers must use the same bounded width as the header. Binding also updates
+        // already-realized rows during shell reflow, without replacing their controls or state.
+        args.ItemContainer.SetBinding(FrameworkElement.WidthProperty, new Microsoft.UI.Xaml.Data.Binding
+        {
+            Source = ContentHost,
+            Path = new PropertyPath(nameof(FrameworkElement.Width)),
+            Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay,
+        });
+    }
+
+    private void RegisteredContainer_ContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (!args.InRecycleQueue) BindRowAutomationName(args);
+    }
+
+    private static void BindRowAutomationName(ContainerContentChangingEventArgs args) =>
+        args.ItemContainer.SetBinding(Microsoft.UI.Xaml.Automation.AutomationProperties.NameProperty,
+            new Microsoft.UI.Xaml.Data.Binding
+            {
+                Source = args.Item,
+                Path = new PropertyPath(nameof(DetectedMediaDisplayRecord.AutomationName)),
+                Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay,
+            });
+
+    private void ReviewRow_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (sender is not Grid grid) return;
+        var narrow = e.NewSize.Width < 760;
+        grid.ColumnDefinitions[2].Width = narrow ? new GridLength(0) : new GridLength(210);
+        grid.ColumnDefinitions[3].Width = narrow ? new GridLength(0) : new GridLength(150);
+        if (grid.FindName("RowState") is not FrameworkElement state ||
+            grid.FindName("RowActions") is not FrameworkElement actions) return;
+        Grid.SetColumn(state, narrow ? 1 : 2);
+        Grid.SetRow(state, narrow ? 1 : 0);
+        Grid.SetColumn(actions, narrow ? 1 : 3);
+        Grid.SetRow(actions, narrow ? 2 : 0);
+    }
+
+    private async void RowDetails_Click(object sender, RoutedEventArgs e)
+    {
+        var row = RowFromSender(sender);
+        if (row is null) return;
+        var text = new TextBlock { IsTextSelectionEnabled = true, TextWrapping = TextWrapping.Wrap };
+        var preview = row.MetadataPreview;
+        var identity = preview?.MovieCandidate is { } movie ? $"{movie.Provider} · {movie.ExternalId}"
+            : preview?.TvCandidate is { } show ? $"{show.Provider} · {show.ExternalId}" : string.Empty;
+        text.Text = string.Join(Environment.NewLine, new[]
+        {
+            LocalizationService.Text("ImportSourceIdentity"), row.Title, row.IdentityLabel, row.Item.Path,
+            row.LocalEligibilityLabel, row.StatusLabel, row.Item.Issue?.Message, row.RegistrationFailure,
+            LocalizationService.Text("ImportMetadataEvidence"), row.PreviewTitle, row.PreviewYear,
+            identity, row.PreviewDetails, preview?.Failure,
+        }.Where(value => !string.IsNullOrWhiteSpace(value)));
+        var content = new StackPanel { Spacing = 12 };
+        content.Children.Add(text);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot, RequestedTheme = ThemeService.ElementTheme,
+            FlowDirection = LocalizationService.FlowDirection, Title = LocalizationService.Text("Details"),
+            CloseButtonText = LocalizationService.Text("Close"),
+            Content = new ScrollViewer { Content = content, MaxHeight = 480, HorizontalScrollMode = ScrollMode.Disabled },
+        };
+        if (row.CanOverrideType && row.CanAdd && !_isAdding)
+        {
+            var changeType = new Button { Content = row.OverrideTypeLabel, Tag = row };
+            changeType.Click += (button, args) => { dialog.Hide(); OverrideType_Click(button, args); };
+            content.Children.Add(changeType);
+        }
+        await ContentDialogCoordinator.ShowAsync(dialog);
     }
 
     /// <summary>Removes the given paths from the active queue, unsubscribing so no handler leaks.</summary>
@@ -366,10 +577,12 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     private void SelectAllButton_Click(object sender, RoutedEventArgs e)
     {
+        _batchPresentation = true;
         foreach (var row in _rows.Where(row => row.CanAdd))
         {
             row.IsSelected = true;
         }
+        _batchPresentation = false;
         Refresh();
     }
 
@@ -381,19 +594,23 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     /// </summary>
     private void SelectReadyButton_Click(object sender, RoutedEventArgs e)
     {
+        _batchPresentation = true;
         foreach (var row in _rows)
         {
             row.IsSelected = row.IsReadyToAdd;
         }
+        _batchPresentation = false;
         Refresh();
     }
 
     private void DeselectAllButton_Click(object sender, RoutedEventArgs e)
     {
+        _batchPresentation = true;
         foreach (var row in _rows)
         {
             row.IsSelected = false;
         }
+        _batchPresentation = false;
         Refresh();
     }
 
@@ -448,6 +665,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         };
 
         var sorted = (_sortDescending ? ordered.Reverse() : ordered).ToList();
+        _batchPresentation = true;
         for (var targetIndex = 0; targetIndex < sorted.Count; targetIndex++)
         {
             var current = _rows.IndexOf(sorted[targetIndex]);
@@ -456,6 +674,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 _rows.Move(current, targetIndex);
             }
         }
+        _batchPresentation = false;
+        RebuildVisibleQueue();
     }
 
     private void UpdateSortIndicators()
@@ -698,6 +918,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         _isScanning = true;
         SetDetected([]);
         _state = AddMediaScanState.Scanning;
+        ScanProgressText.Text = LocalizationService.Text("ScanningFolder");
         ScanProgressBar.Maximum = 1;
         ScanProgressBar.Value = 0;
         Refresh();
@@ -813,6 +1034,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 // Matching has settled (Ready). Re-apply any active sort once so a Status/Type sort the
                 // user chose reflects the final states, without rows jumping on every row update.
                 ApplySort();
+                RebuildVisibleQueue();
                 Refresh();
             }
 
@@ -1055,7 +1277,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 continue;
             }
 
-            row.SetImportStatus(item.Status);
+            row.SetRegistrationResult(item.Status, item.Failure);
             if (item.Registered)
             {
                 addedPaths.Add(item.Path);

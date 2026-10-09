@@ -49,6 +49,12 @@ internal sealed class PerCallMovieRepository(ICatalogUnitOfWorkFactory factory) 
         return null;
     });
 
+    public void RecordOpened(int id, DateTimeOffset openedAt) => Write<object?>(movies =>
+    {
+        movies.RecordOpened(id, openedAt);
+        return null;
+    });
+
     public void Delete(int id) => Write<object?>(movies =>
     {
         movies.Delete(id);
@@ -135,6 +141,12 @@ internal sealed class PerCallTvShowRepository(ICatalogUnitOfWorkFactory factory)
     public void RegisterAlias(int showId, string aliasSortTitle, DateTimeOffset now) => Write<object?>(shows =>
     {
         shows.RegisterAlias(showId, aliasSortTitle, now);
+        return null;
+    });
+
+    public void RecordOpened(int id, DateTimeOffset openedAt) => Write<object?>(shows =>
+    {
+        shows.RecordOpened(id, openedAt);
         return null;
     });
 

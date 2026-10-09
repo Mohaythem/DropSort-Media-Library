@@ -205,6 +205,8 @@ public record TvShow
 
     public DateTimeOffset DateAdded { get; }
 
+    public DateTimeOffset? LastOpenedAt { get; }
+
     public DateTimeOffset CreatedAt { get; }
 
     public DateTimeOffset UpdatedAt { get; }
@@ -214,7 +216,8 @@ public record TvShow
         TvShowCatalogData data,
         DateTimeOffset dateAdded,
         DateTimeOffset createdAt,
-        DateTimeOffset updatedAt)
+        DateTimeOffset updatedAt,
+        DateTimeOffset? lastOpenedAt = null)
     {
         if (id <= 0)
         {
@@ -224,6 +227,7 @@ public record TvShow
         Id = id;
         Data = data ?? throw new ArgumentNullException(nameof(data));
         DateAdded = dateAdded;
+        LastOpenedAt = lastOpenedAt;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
     }

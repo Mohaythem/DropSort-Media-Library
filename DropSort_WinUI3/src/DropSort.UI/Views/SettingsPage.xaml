@@ -190,20 +190,30 @@
 
                             <Border Style="{StaticResource HairlineDividerStyle}" />
 
-                            <StackPanel Spacing="6">
+                            <StackPanel x:Name="TokenInputPanel" Visibility="Collapsed" Spacing="6">
                                 <TextBlock x:Name="TokenLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                 <TextBlock
                                     x:Name="TokenHelpText"
                                     Style="{StaticResource SecondaryCaptionTextStyle}"
                                     TextWrapping="Wrap" />
-                                <PasswordBox x:Name="TokenBox" Style="{StaticResource FormInputPasswordBoxStyle}" />
+                                <PasswordBox x:Name="TokenBox" PasswordRevealMode="Hidden" Style="{StaticResource FormInputPasswordBoxStyle}" />
                             </StackPanel>
 
+                            <InfoBar x:Name="TmdbFeedback" IsOpen="False" Severity="Warning" IsClosable="True" />
+
                             <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button
+                                    x:Name="ChangeTokenButton"
+                                    Click="ChangeTokenButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
                                 <Button
                                     x:Name="UseTokenButton"
                                     Click="UseTokenButton_Click"
                                     Style="{StaticResource AccentControlButtonStyle}" />
+                                <Button
+                                    x:Name="CancelTokenButton"
+                                    Click="CancelTokenButton_Click"
+                                    Style="{StaticResource SubtleControlButtonStyle}" />
                                 <Button
                                     x:Name="ClearTokenButton"
                                     Click="ClearTokenButton_Click"

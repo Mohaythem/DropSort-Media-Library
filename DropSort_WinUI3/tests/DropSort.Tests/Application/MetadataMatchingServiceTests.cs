@@ -65,6 +65,11 @@ public class MetadataMatchingServiceTests
         public IReadOnlyList<Movie> ListAll() => new List<Movie>(Storage.Values);
         public IReadOnlyList<Movie> ListPage(int afterId, int limit) => ListAll();
         public int CountAll() => Storage.Count;
+        public void RecordOpened(int id, DateTimeOffset openedAt)
+        {
+            if (Storage.TryGetValue(id, out var movie))
+                Storage[id] = new Movie(movie.Id, movie.Data, movie.DateAdded, movie.CreatedAt, movie.UpdatedAt, movie.ReviewMatch, openedAt);
+        }
         public void Delete(int id) => Storage.Remove(id);
         public void SetReviewMatch(int id, bool value)
         {
@@ -161,37 +166,11 @@ public class MetadataMatchingServiceTests
         var service = new SettingsService(
             new FakeMaintenanceRepo(),
             posterCache: null,
-            settings: settingsRepo,
-            initialTmdbToken: null);
-
-        Assert.False(service.IsTmdbConfigured());
-        Assert.Null(service.GetTmdbToken());
-        Assert.Null(settingsRepo.Get("tmdb_read_access_token"));
-    }
-
-    [Fact]
-    public void SettingsService_ApplyAndClearToken_StaysInMemory()
-    {
-        var settingsRepo = new MockSettingsRepo();
-        var service = new SettingsService(
-            new FakeMaintenanceRepo(),
-            posterCache: null,
             settings: settingsRepo);
 
         Assert.False(service.IsTmdbConfigured());
         Assert.Null(service.GetTmdbToken());
-
-        var applied = service.ApplyTmdbSessionToken("new_token_abc");
-        Assert.True(applied);
-        Assert.True(service.IsTmdbConfigured());
-        Assert.Equal("new_token_abc", service.GetTmdbToken());
-        Assert.Null(settingsRepo.Get("tmdb_read_access_token"));
-
-        var cleared = service.ClearTmdbSessionToken();
-        Assert.True(cleared);
-        Assert.False(service.IsTmdbConfigured());
-        Assert.Null(service.GetTmdbToken());
-        Assert.Null(settingsRepo.Get("tmdb_read_access_token"));
+        Assert.Equal("saved_token_123", settingsRepo.Get("tmdb_read_access_token"));
     }
 
     [Fact]
