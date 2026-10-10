@@ -1,11 +1,14 @@
 # DropSort WinUI 3 — Current Progress
 
-Last updated: 2026-09-24
+Last updated: 2026-10-10
 
 ## Current checkpoint
 
 - Branch: `codex`
-- Product Phase 3 is **manually accepted and closed**. Persistence Write Coordination, the 1.0 Scope Freeze (2026-09-24), the Data / File Trust Pass, the Drive-Aware Availability Model, and **Early Backup Protection** are done. Early Backup Protection is implemented, adversarial-reviewed, and verified at **337/337**; the last pre-1.0 trust blocker is closed. All commits are local; `main` is untouched and nothing is pushed.
+- Movie Details: the native Figma redesign (node `0:1` / `137:21918`) and subsequent UI corrections are complete and manually accepted by the user. This includes responsive layout, theme/RTL presentation, watch history, metadata actions, file availability, and separate reviewed Rename/Move flows.
+- Fresh verification on 2026-10-10: all **694 tests passed, 0 failed, 0 skipped**; Visual Studio Debug x64 **Rebuild passed**. The sandbox test attempt had one Windows Credential Manager access failure; the full rerun outside the sandbox passed using the test's isolated QA credential target. No real-library runtime check was performed in this verification.
+- Next proposed phase: Smart TV Batch Import through Add Media. Investigation/planning only; implementation requires explicit approval. Reuse the existing TV hierarchy, parser, identity aliases, and import pipeline. No schema change is proposed for the initial scope.
+- Product Phase 3 is **manually accepted and closed**. Persistence Write Coordination, the 1.0 Scope Freeze (2026-09-24), the Data / File Trust Pass, the Drive-Aware Availability Model, and **Early Backup Protection** are done. Early Backup Protection was implemented, adversarial-reviewed, and verified at **337/337** at that historical checkpoint; the last pre-1.0 trust blocker was closed. `main` remains untouched. Current remote synchronization is verified separately in the Git handoff.
 - Python V1 is a Frozen Reference. Active product work is in `DropSort_WinUI3`.
 
 ## Completed and accepted
@@ -25,6 +28,14 @@ Last updated: 2026-09-24
 - None. (Product Phase 3 acceptance is recorded above.)
 
 ## Latest verification
+
+Fresh on 2026-10-10 for the accepted Movie Details source tree:
+
+- `dotnet test DropSort_WinUI3\tests\DropSort.Tests\DropSort.Tests.csproj --no-restore -v minimal` from the repository root, with a unique isolated `DROPSORT_TEST_DATA_ROOT`: **694 passed, 0 failed, 0 skipped**, exit code **0**, outside the sandbox. The initial sandbox attempt returned **693 passed, 1 failed** because its isolated Windows credential write was unavailable. Seven existing xUnit analyzer warnings appeared during that initial test compilation; no unrelated test code was changed.
+- Visual Studio 18 Community `MSBuild.exe DropSort_WinUI3\src\DropSort.UI\DropSort.UI.csproj /t:Rebuild /p:Configuration=Debug /p:Platform=x64 /v:minimal /m:1` from the repository root: exit code **0**, no reported warnings or errors.
+- Manual visual acceptance was supplied by the user. This verification did not launch the application, access the real media library, rebuild an installer, or establish clean-machine acceptance.
+
+Historical Early Backup Protection verification follows; its totals and environment notes are not current Movie Details verification:
 
 Fresh on 2026-09-24 from the Early Backup Protection source tree:
 
