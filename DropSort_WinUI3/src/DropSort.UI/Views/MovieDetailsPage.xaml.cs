@@ -5,6 +5,7 @@ using System.Linq;
 using DropSort.Application.Contracts;
 using DropSort.Domain.Library.Personal;
 using DropSort.UI.Models;
+using DropSort.UI.Controls;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -41,21 +42,57 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     /// presenting the file as available and openable.
     /// </summary>
     private bool _storageUnavailable;
+    private readonly Dictionary<string, string> _fileAvailability = new(StringComparer.Ordinal);
     private readonly PostHandoffRequestLifetime _metadataRequests = new();
     private readonly PostHandoffRequestLifetime _posterRequests = new();
     private readonly PostHandoffRequestLifetime _availabilityRequests = new();
     private readonly PostHandoffRequestLifetime _actionRequests = new();
+    private readonly PostHandoffRequestLifetime _organizationRequests = new();
+
+    private readonly Windows.UI.ViewManagement.AccessibilitySettings _accessibilitySettings = new();
+    private readonly Windows.UI.ViewManagement.UISettings _uiSettings = new();
+    private bool _watchingContrast;
 
     public MovieDetailsPage()
     {
         InitializeComponent();
+        Root.SizeChanged += (_, _) => UpdateDetailsLayout();
+        ActualThemeChanged += (_, _) => UpdateDetailsIcons();
+        Loaded += (_, _) =>
+        {
+            if (!_watchingContrast)
+            {
+                _uiSettings.ColorValuesChanged += DetailsHighContrastChanged;
+                _watchingContrast = true;
+            }
+            UpdateDetailsIcons();
+            UpdateDetailsLayout();
+            UpdateDetailsIcons();
+            if (_scrollToTopOnLoad) { Root.ChangeView(null, 0, null, true); _scrollToTopOnLoad = false; }
+        };
+        PosterImage.ImageFailed += (_, _) =>
+        {
+            PosterGlyph.Visibility = Visibility.Visible;
+        };
+        OverviewText.IsTextTrimmedChanged += (_, _) => UpdateOverviewToggle();
         HistoryRepeater.ItemsSource = _history;
         WatchedDatePicker.MaxDate = DateTimeOffset.Now;
-        Unloaded += (_, _) => Deactivate();
+        WatchedDatePicker.Loaded += (_, _) =>
+        {
+            WatchedDatePicker.PlaceholderText = string.Empty;
+            WatchedDatePicker.PlaceholderText = LocalizationService.Text("PickDate");
+        };
+        Unloaded += (_, _) =>
+        {
+            if (_watchingContrast) _uiSettings.ColorValuesChanged -= DetailsHighContrastChanged;
+            _watchingContrast = false;
+            Deactivate();
+        };
         SetMovie(_movie);
     }
 
     public event EventHandler? BackRequested;
+    public event EventHandler? MediaPathChanged;
 
     public void Deactivate()
     {
@@ -63,6 +100,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         _posterRequests.Cancel();
         _availabilityRequests.Cancel();
         _actionRequests.Cancel();
+        _organizationRequests.Cancel();
     }
 
     /// <summary>Raised after a manual "Move to series" so the shell can open the target show.</summary>
@@ -71,6 +109,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     public void SetReturnDestination(string destination)
     {
         _returnDestination = destination;
+        UpdateDetailsIcons();
         UpdateBackLabel();
     }
 
@@ -85,10 +124,12 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         IsLoadedSuccessfully = false;
         try
         {
+            var item = AppServices.Library.GetMovieItem(movieId);
             SetMovie(LibraryProjection.ToDetails(
                 AppServices.Library.GetMovieDetails(movieId),
                 AppServices.Personal.GetPersonalSnapshot(movieId),
-                AppServices.Personal.ListWatchEvents(movieId)));
+                AppServices.Personal.ListWatchEvents(movieId)) with
+            { DateAdded = item.DateAdded, HasPendingMetadata = item.HasPendingMetadata });
             IsLoadedSuccessfully = true;
         }
         catch (Exception error)
@@ -100,6 +141,11 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
 
     private void SetMovie(MovieRecord movie)
     {
+        if (_movie.Id != movie.Id)
+        {
+            _scrollToTopOnLoad = !Root.ChangeView(null, 0, null, true);
+        }
+        _organizationRequests.Cancel();
         _metadataRequests.Cancel();
         _posterRequests.Cancel();
         _availabilityRequests.Cancel();
@@ -110,32 +156,49 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         _inWatchlist = movie.InWatchlist;
 
         MovieTitleText.Text = movie.Title;
-        MovieMetaText.Text = movie.MetaLine;
+        MatchedIdentityText.Text = movie.HasPendingMetadata ? string.Empty : movie.Title + (movie.Year > 0 ? " (" + movie.Year.ToString(CultureInfo.InvariantCulture) + ")" : string.Empty);
+        MovieMetaText.Text = LocalizationService.Digits(string.Join(" · ", new[]
+        {
+            movie.Year > 0 ? movie.Year.ToString(CultureInfo.InvariantCulture) : null,
+            string.IsNullOrWhiteSpace(movie.Runtime) ? null : movie.Runtime,
+            movie.Genres.Count == 0 ? null : string.Join(" · ", movie.Genres)
+        }.Where(part => !string.IsNullOrWhiteSpace(part))));
+        RatingText.Text = movie.Rating > 0
+            ? LocalizationService.Digits(movie.Rating.ToString("0.0", CultureInfo.InvariantCulture) + " / 10") : string.Empty;
+        RatingPanel.Visibility = movie.Rating > 0 ? Visibility.Visible : Visibility.Collapsed;
+        _pathExpanded = false;
+        FilePathText.MaxLines = 2;
         OverviewText.Text = movie.Overview;
-        GenresRepeater.ItemsSource = movie.Genres;
+        _overviewExpanded = false;
+        UpdateOverview();
+        GenresText.Text = string.Join(" · ", movie.Genres);
+        GenresText.Visibility = Visibility.Collapsed;
 
         // A movie registered from a file name has no overview yet. A heading with nothing under it
         // reads as a rendering fault, so the whole block goes away until there is text for it.
         var hasOverview = !string.IsNullOrWhiteSpace(movie.Overview);
-        OverviewTitleText.Visibility = hasOverview ? Visibility.Visible : Visibility.Collapsed;
+        OverviewTitleText.Visibility = Visibility.Collapsed;
         OverviewText.Visibility = hasOverview ? Visibility.Visible : Visibility.Collapsed;
+        OverviewSection.Visibility = hasOverview ? Visibility.Visible : Visibility.Collapsed;
 
         var hasFile = movie.HasLocalFile;
         _storageUnavailable = false;
+        _fileAvailability.Clear();
+        foreach (var file in movie.Files) _fileAvailability[file.FilePath] = "UnknownMedia";
         FileNameText.Text = movie.FileName ?? string.Empty;
         FilePathText.Text = movie.FilePath ?? string.Empty;
         FileFactsText.Text = movie.FileFacts ?? string.Empty;
         FileFactsText.Visibility = string.IsNullOrWhiteSpace(movie.FileFacts) ? Visibility.Collapsed : Visibility.Visible;
-        FilePresentPanel.Visibility = hasFile ? Visibility.Visible : Visibility.Collapsed;
+        FilePresentPanel.Visibility = movie.FilePath is not null && movie.FileCount <= 1 ? Visibility.Visible : Visibility.Collapsed;
         NoFilePanel.Visibility = hasFile ? Visibility.Collapsed : Visibility.Visible;
-        PresentPill.Visibility = hasFile ? Visibility.Visible : Visibility.Collapsed;
+        PresentPill.Visibility = movie.FilePath is not null ? Visibility.Visible : Visibility.Collapsed;
         // List every associated local file when the movie has more than one (multiple versions/copies).
         MediaFilesRepeater.ItemsSource = movie.Files;
         AllFilesPanel.Visibility = movie.MultiFileListVisibility;
         AllFilesHeadingText.Text = LocalizationService.Format("FilesCountFormat", movie.FileCount);
         PlayButton.IsEnabled = hasFile && !_isOrganizing;
         OpenFolderButton.IsEnabled = hasFile && !_isOrganizing;
-        OrganizeButton.IsEnabled = hasFile && !_isOrganizing;
+        OrganizeButton.IsEnabled = MoveMovieButton.IsEnabled = hasFile && !_isOrganizing;
         MatchButton.IsEnabled = !_isOrganizing && !_isMatching;
 
         _history.Clear();
@@ -159,25 +222,37 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     /// </summary>
     private void ProbeStorageAvailability(MovieRecord movie)
     {
-        if (!movie.HasLocalFile || string.IsNullOrWhiteSpace(movie.FilePath)) return;
-        var path = movie.FilePath!;
+        if (movie.Files.Count == 0) return;
+        var path = movie.FilePath;
         var request = _availabilityRequests.Begin();
+        MediaFilesRepeater.ItemsSource = movie.Files.Select(file => file with { Availability = LocalizationService.Text("UnknownMedia") }).ToList();
+        PresentText.Text = LocalizationService.Text("UnknownMedia");
         _ = Task.Run(() =>
         {
+            IReadOnlySet<string>? unavailable = null;
             try
             {
-                if (AppServices.IsStorageAvailable(path, request.Token)) return;
+                unavailable = AppServices.UnavailableStoragePaths(movie.Files.Select(file => file.FilePath), request.Token);
             }
             catch (OperationCanceledException) { return; }
+            catch (Exception) { /* Leave availability unknown; never mark storage failure as missing. */ }
             DispatcherQueue.TryEnqueue(() =>
             {
                 if (!request.IsCurrent || _movie.Id != movie.Id
                     || !string.Equals(_movie.FilePath, path, StringComparison.Ordinal)) return;
-                _storageUnavailable = true;
-                PresentText.Text = LocalizationService.Text("StorageUnavailable");
-                PlayButton.IsEnabled = false;
-                OpenFolderButton.IsEnabled = false;
-                OrganizeButton.IsEnabled = false;
+                foreach (var file in movie.Files)
+                    _fileAvailability[file.FilePath] = unavailable is null ? "UnknownMedia" :
+                        unavailable.Contains(file.FilePath) ? "StorageUnavailable" : file.AvailabilityKey;
+                LocalizeFileAvailability();
+                _storageUnavailable = path is not null && unavailable?.Contains(path) == true;
+                PresentText.Text = LocalizationService.Text(unavailable is null ? "UnknownMedia" :
+                    _storageUnavailable ? "StorageUnavailable" : movie.HasLocalFile ? "Present" : "Missing");
+                if (_storageUnavailable)
+                {
+                    PlayButton.IsEnabled = false;
+                    OpenFolderButton.IsEnabled = false;
+                    OrganizeButton.IsEnabled = MoveMovieButton.IsEnabled = false;
+                }
             });
         });
     }
@@ -187,41 +262,50 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         Root.FlowDirection = LocalizationService.FlowDirection;
 
         UpdateBackLabel();
-        KindText.Text = LocalizationService.Text("Movie");
+        KindText.Text = LocalizationService.Text("DetailsLibraryIdentity");
+        Root.Language = LocalizationService.Culture.Name;
         OriginalTitleText.Text = string.IsNullOrWhiteSpace(_movie.OriginalTitle)
             ? string.Empty
             : LocalizationService.Format("OriginalTitleFormat", _movie.OriginalTitle);
-        OriginalTitleText.Visibility = string.IsNullOrWhiteSpace(_movie.OriginalTitle)
+        OriginalTitleText.Visibility = string.IsNullOrWhiteSpace(_movie.OriginalTitle) || string.Equals(_movie.Title, _movie.OriginalTitle, StringComparison.OrdinalIgnoreCase)
             ? Visibility.Collapsed
             : Visibility.Visible;
 
         PlayText.Text = LocalizationService.Text("PlayMovie");
         OpenFolderText.Text = LocalizationService.Text("OpenFolder");
         AddToListText.Text = LocalizationService.Text("AddToList");
-        OrganizeText.Text = LocalizationService.Text("OrganizeFile");
+        OrganizeText.Text = LocalizationService.Text("OrganizationRename");
+        MoveMovieText.Text = LocalizationService.Text("MovieMoveAction");
+        ChangeMatchText.Text = LocalizationService.Text("DetailsChangeMatch");
         MoveToSeriesButton.Content = LocalizationService.Text("AddOrMoveToSeries");
         RemoveFromLibraryButton.Content = LocalizationService.Text("RemoveFromLibrary");
-        MoreButton.SetValue(AutomationProperties.NameProperty, LocalizationService.Text("FileDetails"));
-        ToolTipService.SetToolTip(MoreButton, LocalizationService.Text("FileDetails"));
-        FileDetailsTitleText.Text = LocalizationService.Text("MediaFile");
-        PresentText.Text = LocalizationService.Text(_storageUnavailable ? "StorageUnavailable" : "Present");
+        MoreButton.SetValue(AutomationProperties.NameProperty, LocalizationService.Text("DetailsMoreActions"));
+        ToolTipService.SetToolTip(MoreButton, LocalizationService.Text("DetailsMoreActions"));
+        FileDetailsTitleText.Text = LocalizationService.Text(_movie.FileCount > 1 ? "DetailsLocalFiles" : "DetailsLocalFile");
+        MetadataStatusText.Text = LocalizationService.Text(_movie.HasPendingMetadata ? "DetailsUnmatched" : _movie.ReviewMatch ? "ReviewMatch" : "Matched");
+        DateAddedText.Text = _movie.DateAdded == default ? string.Empty : LocalizationService.Format("DetailsDateAdded",
+            LocalizationService.Digits(_movie.DateAdded.ToLocalTime().ToString("d", LocalizationService.Culture)));
+        DateAddedText.Visibility = _movie.DateAdded == default ? Visibility.Collapsed : Visibility.Visible;
+        UpdateOverview();
         NoFileText.Text = LocalizationService.Text("NoLocalFile");
         NoFileHelpText.Text = LocalizationService.Text("NoLocalFileHelp");
+        LocalizeFileAvailability();
         OverviewTitleText.Text = LocalizationService.Text("Overview");
 
-        ActivityTitleText.Text = LocalizationService.Text("YourActivity");
+        ActivityTitleText.Text = LocalizationService.Text("DetailsWatchActivity");
         ActivityHelpText.Text = LocalizationService.Text("ActivityHelp");
-        PreferenceTitleText.Text = LocalizationService.Text("Preference");
         LikeText.Text = LocalizationService.Text("Like");
         ExcludeText.Text = LocalizationService.Text("Exclude");
         ClearPreferenceButton.Content = LocalizationService.Text("ClearPreference");
-        WatchlistTitleText.Text = LocalizationService.Text("Watchlist");
         WatchingTitleText.Text = LocalizationService.Text("Watching");
         MarkWatchedText.Text = LocalizationService.Text("MarkWatched");
         WatchedDateLabel.Text = LocalizationService.Text("WatchedDate");
+        WatchedDatePicker.Language = LocalizationService.Culture.Name;
+        WatchedDatePicker.PlaceholderText = string.Empty;
         WatchedDatePicker.PlaceholderText = LocalizationService.Text("PickDate");
         MarkOnDateButton.Content = LocalizationService.Text("MarkOnDate");
-        HistoryTitleText.Text = LocalizationService.Text("WatchHistory");
+        HistoryTitleText.Text = LocalizationService.Format("DetailsViewings", LocalizationService.Number(_history.Count));
+        UpdatePathActionLabels();
         NoHistoryText.Text = LocalizationService.Text("NoWatchesHelp");
 
         UpdatePreferenceVisuals();
@@ -294,7 +378,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         };
 
     /// <summary>
-    /// Organizing moves the file into the approved movies root through the journalled coordinator.
+    /// Collects one physical-file choice and confirms a journalled rename or explicit move.
     /// <para>
     /// The preview is prepared, the move is confirmed with the real source and destination in front of
     /// the user, and only then does the transfer run - on a worker thread, because the engine copies and
@@ -304,53 +388,74 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     /// no-overwrite rule are the coordinator's, untouched: this only decides when they run.
     /// </para>
     /// </summary>
-    private async void OrganizeButton_Click(object sender, RoutedEventArgs e)
+    private async void OrganizeButton_Click(object sender, RoutedEventArgs e) => await RunOrganizationAsync(false);
+
+    private async void MoveMovieButton_Click(object sender, RoutedEventArgs e) => await RunOrganizationAsync(true);
+
+    private async Task RunOrganizationAsync(bool move)
     {
         if (_isOrganizing)
         {
             return;
         }
 
-        if (_movie.MediaFileId is not int mediaFileId || _movie.FilePath is null)
+        if (_movie.MediaFileId is null || _movie.FilePath is null)
         {
             ReportMissingFile();
             return;
         }
 
-        var root = AppSettingsStore.MovieFolder;
-
-        if (string.IsNullOrWhiteSpace(root))
-        {
-            await ShowMessageAsync(LocalizationService.Text("OrganizeFile"), LocalizationService.Text("NoMovieFolderHelp"));
-            return;
-        }
-
-        var fileName = Path.GetFileName(_movie.FilePath);
         var movieId = _movie.Id;
-        SetOrganizing(true);
+        var request = _organizationRequests.Begin();
+        DropSort.Application.Dto.OrganizationPreview? preview = null;
+        IOrganizationUiActions? organization = null;
+        SetOrganizing(true, move: move);
 
         try
         {
-            var preview = await Task.Run(() => AppServices.Organization.PrepareOrganization(mediaFileId, root, fileName));
-
-            if (!await ConfirmOrganizeAsync(preview.Plan.Source, preview.Plan.Destination))
+            organization = AppServices.Organization;
+            var details = await Task.Run(() => AppServices.Library.GetMovieDetails(movieId));
+            if (!request.IsCurrent) return;
+            if (!details.MediaFiles.Any(f => f.Status == DropSort.Domain.Library.Movies.MediaFileStatus.Present))
             {
-                AppServices.Organization.DiscardOrganizationPreview(preview.PreviewId);
+                await ShowMessageAsync(LocalizationService.Text("NoLocalFile"), LocalizationService.Text("NoLocalFileHelp"));
                 return;
             }
-
-            await Task.Run(() => AppServices.Organization.ConfirmOrganization(preview.PreviewId));
-
+            var editor = new MovieOrganizationDialog(details, move, () => request.IsCurrent) { XamlRoot = XamlRoot };
+            while (request.IsCurrent)
+            {
+                preview = await editor.ShowEditorAsync();
+                if (preview is null || !request.IsCurrent) return;
+                var decision = await ConfirmOrganizeAsync(preview);
+                if (!request.IsCurrent || decision == ContentDialogResult.None) return;
+                if (decision == ContentDialogResult.Primary) break;
+                organization.DiscardOrganizationPreview(preview.PreviewId);
+                preview = null; // Back returns to the same editor values and prepares a fresh identity snapshot.
+            }
+            if (preview is null || !request.IsCurrent) return;
+            SetOrganizing(true, executing: true, move: move);
+            // There is no active-transfer cancellation contract. Confirmation starts the durable operation.
+            var result = await Task.Run(() => organization.ConfirmOrganization(preview.PreviewId));
+            if (result.Record.State != DropSort.Domain.Core.Operations.OperationState.Committed)
+                throw new InvalidOperationException("Operation is not committed.");
+            MediaPathChanged?.Invoke(this, EventArgs.Empty);
+            if (!request.IsCurrent) return;
             LoadMovie(movieId);
-            await ShowMessageAsync(LocalizationService.Text("OrganizeFile"), LocalizationService.Text("OrganizeDone"));
+            if (!IsLoadedSuccessfully || _movie.Id != movieId) return;
+            // In-place reload cancels the old lifetime. Guard focus during the success dialog with a fresh one.
+            if (IsLoadedSuccessfully && _movie.Id == movieId) request = _organizationRequests.Begin();
+            await ShowMessageAsync(LocalizationService.Text("MovieFileActions"), LocalizationService.Text("OrganizationDone"));
         }
-        catch (Exception error)
+        catch (Exception)
         {
-            ReportFailure(error);
+            if (request.IsCurrent)
+                await ShowMessageAsync(LocalizationService.Text("NeedsAttention"), LocalizationService.Text("OrganizationExecutionAttention"));
         }
         finally
         {
+            if (preview is not null) organization?.DiscardOrganizationPreview(preview.PreviewId);
             SetOrganizing(false);
+            if (request.IsCurrent) (move ? MoveMovieButton : OrganizeButton).Focus(FocusState.Programmatic);
         }
     }
 
@@ -358,38 +463,62 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     /// Locks the file actions for the duration of a move and swaps the button's glyph for a ring. The
     /// three actions all address the same file, so none of them may run while it is being moved.
     /// </summary>
-    private void SetOrganizing(bool isOrganizing)
+    private void SetOrganizing(bool isOrganizing, bool executing = false, bool move = false)
     {
         _isOrganizing = isOrganizing;
 
-        OrganizeProgress.IsActive = isOrganizing;
-        OrganizeProgress.Visibility = isOrganizing ? Visibility.Visible : Visibility.Collapsed;
-        OrganizeGlyph.Visibility = isOrganizing ? Visibility.Collapsed : Visibility.Visible;
-        OrganizeText.Text = LocalizationService.Text(isOrganizing ? "Organizing" : "OrganizeFile");
+        var renameExecuting = executing && !move;
+        var moveExecuting = executing && move;
+        OrganizeProgress.IsActive = renameExecuting;
+        OrganizeProgress.Visibility = renameExecuting ? Visibility.Visible : Visibility.Collapsed;
+        OrganizeGlyph.Visibility = renameExecuting ? Visibility.Collapsed : Visibility.Visible;
+        OrganizeText.Text = LocalizationService.Text(renameExecuting ? "OrganizationWorking" : "OrganizationRename");
+        MoveMovieProgress.IsActive = moveExecuting;
+        MoveMovieProgress.Visibility = moveExecuting ? Visibility.Visible : Visibility.Collapsed;
+        MoveMovieGlyph.Visibility = moveExecuting ? Visibility.Collapsed : Visibility.Visible;
+        MoveMovieText.Text = LocalizationService.Text(moveExecuting ? "OrganizationWorking" : "MovieMoveAction");
 
         var canAct = !isOrganizing && _movie.HasLocalFile && !_storageUnavailable;
-        OrganizeButton.IsEnabled = canAct;
+        OrganizeButton.IsEnabled = MoveMovieButton.IsEnabled = canAct;
         PlayButton.IsEnabled = canAct;
         OpenFolderButton.IsEnabled = canAct;
         MatchButton.IsEnabled = !isOrganizing && !_isMatching;
+        ChangeMatchButton.IsEnabled = !isOrganizing && !_isMatching;
+        MoveToSeriesButton.IsEnabled = !isOrganizing;
+        MoreButton.IsEnabled = !isOrganizing;
     }
 
-    /// <summary>Shows the exact move that is about to happen; the destination is the approved root.</summary>
-    private async Task<bool> ConfirmOrganizeAsync(string source, string destination)
+    /// <summary>Reviews the exact validated operation. Back retains the editor values.</summary>
+    private async Task<ContentDialogResult> ConfirmOrganizeAsync(DropSort.Application.Dto.OrganizationPreview preview)
     {
+        var rename = preview.Plan.OperationType == DropSort.Domain.Core.Operations.OperationType.Rename;
+        var renameDuringMove = !rename && !StringComparer.Ordinal.Equals(Path.GetFileName(preview.Plan.Source), Path.GetFileName(preview.Plan.Destination));
+        var body = new StackPanel { Spacing = 12, MaxWidth = 560 };
+        body.Children.Add(new TextBlock { Text = LocalizationService.Text(rename ? "OrganizationRenameReview" : renameDuringMove ? "MovieMoveRenameReview" : "MovieMoveReview"), TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = LocalizationService.Text("OrganizationSource") });
+        var source = MovieOrganizationDialog.PathText();
+        source.Text = preview.Plan.Source;
+        body.Children.Add(source);
+        body.Children.Add(new TextBlock { Text = LocalizationService.Text("OrganizationDestination") });
+        var destination = MovieOrganizationDialog.PathText();
+        destination.Text = preview.Plan.Destination;
+        body.Children.Add(destination);
+        body.Children.Add(new TextBlock { Text = LocalizationService.Text("OrganizationNoOverwrite"), TextWrapping = TextWrapping.Wrap });
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
             RequestedTheme = ThemeService.ElementTheme,
             FlowDirection = LocalizationService.FlowDirection,
-            Title = LocalizationService.Text("OrganizeFile"),
-            Content = LocalizationService.Format("OrganizeConfirmFormat", source, destination),
-            PrimaryButtonText = LocalizationService.Text("Confirm"),
+            Title = LocalizationService.Text(rename ? "OrganizationConfirmRename" : renameDuringMove ? "MovieMoveRenameConfirm" : "MovieMoveConfirm"),
+            Content = new ScrollViewer { Content = body, MaxHeight = 520, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(16, 0, 16, 0), HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled },
+            PrimaryButtonText = LocalizationService.Text(rename ? "OrganizationRename" : renameDuringMove ? "MovieMoveAndRename" : "MovieMoveAction"),
+            SecondaryButtonText = LocalizationService.Text("MovieOrganizationBack"),
             CloseButtonText = LocalizationService.Text("Cancel"),
             DefaultButton = ContentDialogButton.Close,
         };
+        AutomationProperties.SetAutomationId(dialog, "MovieOrganizationConfirmation");
 
-        return await ContentDialogCoordinator.ShowAsync(dialog) == ContentDialogResult.Primary;
+        return await ContentDialogCoordinator.ShowAsync(dialog);
     }
 
     private void ReportMissingFile() => _ = ShowMessageAsync(
@@ -668,20 +797,22 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     /// <summary>Active states use the native accent / critical button styles, never literal colors.</summary>
     private void UpdatePreferenceVisuals()
     {
-        LikeButton.Style = (Style)App.Current.Resources[
-            _preference == "liked" ? "ActiveControlButtonStyle" : "SubtleControlButtonStyle"];
+        LikeButton.Style = (Style)Resources[
+            _preference == "liked" ? "DetailsSelectedButtonStyle" : "DetailsButtonStyle"];
         LikeGlyph.Glyph = _preference == "liked" ? "\uEB52" : "\uEB51";
-        ExcludeButton.Style = (Style)App.Current.Resources[
-            _preference == "blacklisted" ? "DangerControlButtonStyle" : "SubtleControlButtonStyle"];
+        ExcludeButton.Style = (Style)Resources[
+            _preference == "blacklisted" ? "DetailsSelectedButtonStyle" : "DetailsButtonStyle"];
         ClearPreferenceButton.IsEnabled = _preference is not null;
+        UpdateDetailsIcons();
     }
 
     private void UpdateWatchlistVisuals()
     {
-        WatchlistButton.Style = (Style)App.Current.Resources[
-            _inWatchlist ? "ActiveControlButtonStyle" : "SubtleControlButtonStyle"];
+        WatchlistButton.Style = (Style)Resources[
+            _inWatchlist ? "DetailsSelectedButtonStyle" : "DetailsButtonStyle"];
         WatchlistGlyph.Glyph = _inWatchlist ? "\uE735" : "\uE734";
         WatchlistText.Text = LocalizationService.Text(_inWatchlist ? "InWatchlist" : "AddToWatchlist");
+        UpdateDetailsIcons();
     }
 
     /// <summary>Re-stamps the localized remove-button label on rows created under another language.</summary>
@@ -701,8 +832,70 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
 
     private void UpdateHistoryVisibility()
     {
+        HistoryTitleText.Text = LocalizationService.Format("DetailsViewings", LocalizationService.Number(_history.Count));
+        WatchingTitleText.Text = LocalizationService.Text(_history.Count == 0 ? "DetailsNotWatched" : "DetailsWatched");
         NoHistoryText.Visibility = _history.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         HistoryRepeater.Visibility = _history.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void DetailsHighContrastChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
+        DispatcherQueue.TryEnqueue(UpdateDetailsIcons);
+
+    private void UpdateDetailsIcons()
+    {
+        var native = ActualTheme == ElementTheme.Light || _accessibilitySettings.HighContrast;
+        void Visit(DependencyObject parent)
+        {
+            if (parent is Grid { Tag: string tag } grid && tag.StartsWith("DetailsIcon:", StringComparison.Ordinal)
+                && grid.Children.Count == 2 && grid.Children[0] is Image image && grid.Children[1] is FontIcon glyph)
+            {
+                var dynamicNative = tag == "DetailsIcon:heart" && _preference != "liked"
+                    || tag == "DetailsIcon:bookmark" && !_inWatchlist;
+                image.Visibility = native || dynamicNative ? Visibility.Collapsed : Visibility.Visible;
+                glyph.Visibility = native || dynamicNative ? Visibility.Visible : Visibility.Collapsed;
+                if (tag == "DetailsIcon:back")
+                {
+                    glyph.MirroredWhenRightToLeft = true;
+                    image.RenderTransformOrigin = new Windows.Foundation.Point(0.5, 0.5);
+                    image.RenderTransform = new Microsoft.UI.Xaml.Media.ScaleTransform
+                    { ScaleX = LocalizationService.FlowDirection == FlowDirection.RightToLeft ? -1 : 1 };
+                }
+            }
+            for (var index = 0; index < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent); index++)
+                Visit(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, index));
+        }
+        Visit(Root);
+    }
+
+    private bool _pathExpanded;
+
+    private void UpdatePathActionLabels()
+    {
+        CopyPathButton.SetValue(AutomationProperties.NameProperty, LocalizationService.Text("DetailsCopyPath"));
+        ExpandPathButton.SetValue(AutomationProperties.NameProperty,
+            LocalizationService.Text(_pathExpanded ? "DetailsCollapsePath" : "DetailsExpandPath"));
+        ToolTipService.SetToolTip(CopyPathButton, LocalizationService.Text("DetailsCopyPath"));
+        ToolTipService.SetToolTip(ExpandPathButton,
+            LocalizationService.Text(_pathExpanded ? "DetailsCollapsePath" : "DetailsExpandPath"));
+    }
+
+    private void ExpandPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        _pathExpanded = !_pathExpanded;
+        FilePathText.MaxLines = _pathExpanded ? 0 : 2;
+        UpdatePathActionLabels();
+    }
+
+    private void CopyPathButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(_movie.FilePath)) return;
+        try
+        {
+            var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            package.SetText(_movie.FilePath);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        }
+        catch (Exception error) { ReportFailure(error); }
     }
 
     private void UpdatePosterVisuals()
@@ -754,6 +947,53 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         }
     }
 
+    private bool _overviewExpanded;
+    private bool _scrollToTopOnLoad;
+    private void LocalizeFileAvailability()
+    {
+        MediaFilesRepeater.ItemsSource = _movie.Files.Select(file => file with
+        {
+            Availability = LocalizationService.Text(_fileAvailability.GetValueOrDefault(file.FilePath, "UnknownMedia"))
+        }).ToList();
+        PresentText.Text = LocalizationService.Text(_movie.FilePath is null ? "UnknownMedia" :
+            _fileAvailability.GetValueOrDefault(_movie.FilePath, "UnknownMedia"));
+        if (!_movie.HasLocalFile && _movie.Files.Count > 0)
+        {
+            var key = _movie.FilePath is null ? "UnknownMedia" : _fileAvailability.GetValueOrDefault(_movie.FilePath, "UnknownMedia");
+            NoFileText.Text = LocalizationService.Text(key);
+            NoFileHelpText.Text = LocalizationService.Text(key == "StorageUnavailable" ? "DetailsOfflineHelp" :
+                key == "UnknownMedia" ? "DetailsUnknownHelp" : "DetailsMissingHelp");
+        }
+    }
+
+    private void OverviewToggleButton_Click(object sender, RoutedEventArgs e)
+    {
+        _overviewExpanded = !_overviewExpanded;
+        UpdateOverview();
+    }
+
+    private void UpdateOverview()
+    {
+        OverviewText.MaxLines = _overviewExpanded ? 0 : 5;
+        UpdateOverviewToggle();
+        OverviewToggleButton.Content = LocalizationService.Text(_overviewExpanded ? "DetailsShowLess" : "DetailsShowMore");
+    }
+
+    private void UpdateOverviewToggle() => OverviewToggleButton.Visibility =
+        !string.IsNullOrWhiteSpace(_movie.Overview) && (_overviewExpanded || OverviewText.IsTextTrimmed)
+            ? Visibility.Visible : Visibility.Collapsed;
+
+
+    private void UpdateDetailsLayout()
+    {
+        // Measure the page, not the window. Expanded navigation consumes content width.
+        var available = Math.Max(0, Root.ActualWidth - Root.Padding.Left - Root.Padding.Right);
+        MovieMetaText.MaxWidth = Math.Max(0, available >= 1500 ? available - 614.7 : available >= 900 ? available - 460 : available - 120);
+        OverviewText.MaxWidth = Math.Min(850, Math.Max(0, available >= 1500 ? available - 494.7 : available >= 900 ? available - 340 : available));
+        VisualStateManager.GoToState(this,
+            available >= 1500 ? "DetailsWideState" : available >= 900 ? "DetailsMediumState" : "DetailsCompactState", false);
+    }
+
     private bool HasExternalId()
     {
         try
@@ -781,6 +1021,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     private void SetMatchingState(bool isMatching)
     {
         _isMatching = isMatching;
+        ChangeMatchButton.IsEnabled = !isMatching && !_isOrganizing;
         MatchButton.IsEnabled = !isMatching && !_isOrganizing;
         MatchProgress.IsActive = isMatching;
         MatchProgress.Visibility = isMatching ? Visibility.Visible : Visibility.Collapsed;
@@ -826,6 +1067,20 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
             flyout.Items.Add(refreshItem);
             flyout.Items.Add(fixMatchItem);
             flyout.ShowAt(MatchButton);
+            return;
+        }
+
+        await FixMovieMatchAsync();
+    }
+
+    private async void ChangeMatchButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isOrganizing || _isMatching) return;
+        if (!AppServices.Settings.IsTmdbConfigured())
+        {
+            await ShowMessageAsync(
+                LocalizationService.Text("MatchWithTmdb"),
+                LocalizationService.Text("TmdbNotConfiguredPrompt"));
             return;
         }
 
@@ -891,6 +1146,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     /// </summary>
     private async void MoveToSeriesButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isOrganizing) return;
         MoreButton.Flyout?.Hide();
         if (_movie.Id <= 0)
         {

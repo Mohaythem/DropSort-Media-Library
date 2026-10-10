@@ -16,7 +16,8 @@ public sealed class UxCorrectivePassContractTests
     public void Movie_details_probes_storage_and_shows_unavailable_instead_of_available()
     {
         var page = File.ReadAllText(Path.Combine(UiRoot, "Views", "MovieDetailsPage.xaml.cs"));
-        Assert.Contains("AppServices.IsStorageAvailable", page);
+        Assert.Contains("AppServices.UnavailableStoragePaths", page);
+        Assert.Contains("file.AvailabilityKey", page);
         Assert.Contains("StorageUnavailable", page);
     }
 

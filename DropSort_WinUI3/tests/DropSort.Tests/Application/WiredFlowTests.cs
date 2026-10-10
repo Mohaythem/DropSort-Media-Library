@@ -379,6 +379,123 @@ public sealed class WiredFlowTests : IDisposable
         return null;
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Single_movie_rename_or_explicit_move_preserves_identity_and_commits_exact_path(bool move)
+    {
+        var source = WriteMedia("source", "original.MKV");
+        var registered = NewImportService().RegisterMovieImport(Command(source));
+        var destinationRoot = move ? Path.Combine(_workspace, "chosen") : Path.GetDirectoryName(source)!;
+        Directory.CreateDirectory(destinationRoot);
+        using var store = new FileOperationStore(_connectionString);
+        using var coordinator = new FileOperationCoordinator(store);
+        var organization = new OrganizationService(MediaFiles(), coordinator);
+        var preview = organization.PrepareOrganization(registered.MediaFile.Id, destinationRoot, "Fight Club (1999).MKV");
+        Assert.Equal(move ? DropSort.Domain.Core.Operations.OperationType.Move : DropSort.Domain.Core.Operations.OperationType.Rename, preview.Plan.OperationType);
+        Assert.Empty(store.ListHistory());
+        Assert.True(File.Exists(source));
+        var result = organization.ConfirmOrganization(preview.PreviewId);
+        var media = MediaFiles().GetById(registered.MediaFile.Id)!;
+        Assert.Equal(registered.Movie.Id, media.MovieId);
+        Assert.Equal(registered.MediaFile.Id, media.Id);
+        Assert.Equal(preview.Plan.Destination, media.CurrentPath);
+        Assert.False(File.Exists(source));
+        Assert.Equal(new byte[2048], File.ReadAllBytes(media.CurrentPath));
+        Assert.Equal(DropSort.Domain.Core.Operations.OperationState.Committed, result.Record.State);
+    }
+
+    [Theory]
+    [InlineData("CON.mkv")]
+    [InlineData("../escape.mkv")]
+    [InlineData("bad:name.mkv")]
+    [InlineData("changed.mp4")]
+    [InlineData("trailing.mkv.")]
+    public void Invalid_destination_names_do_not_create_a_journal_or_mutate_files(string filename)
+    {
+        var source = WriteMedia("source", "original.mkv");
+        var registered = NewImportService().RegisterMovieImport(Command(source));
+        using var store = new FileOperationStore(_connectionString);
+        using var coordinator = new FileOperationCoordinator(store);
+        var organization = new OrganizationService(MediaFiles(), coordinator);
+        Assert.Throws<ArgumentException>(() => organization.PrepareOrganization(registered.MediaFile.Id, Path.GetDirectoryName(source)!, filename));
+        Assert.Empty(store.ListHistory());
+        Assert.True(File.Exists(source));
+        Assert.Equal(source, MediaFiles().GetById(registered.MediaFile.Id)!.CurrentPath);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Collision_or_changed_source_after_preview_is_rejected_before_journal_creation(bool changeSource)
+    {
+        var source = WriteMedia("source", "original.mkv");
+        var registered = NewImportService().RegisterMovieImport(Command(source));
+        using var store = new FileOperationStore(_connectionString);
+        using var coordinator = new FileOperationCoordinator(store);
+        var organization = new OrganizationService(MediaFiles(), coordinator);
+        var preview = organization.PrepareOrganization(registered.MediaFile.Id, Path.GetDirectoryName(source)!, "renamed.mkv");
+        if (changeSource) File.AppendAllText(source, "changed identity");
+        else File.WriteAllText(preview.Plan.Destination, "existing destination");
+        Assert.ThrowsAny<IOException>(() => organization.ConfirmOrganization(preview.PreviewId));
+        Assert.Empty(store.ListHistory());
+        Assert.True(File.Exists(source));
+        Assert.Equal(source, MediaFiles().GetById(registered.MediaFile.Id)!.CurrentPath);
+        if (!changeSource) Assert.Equal("existing destination", File.ReadAllText(preview.Plan.Destination));
+    }
+
+    [Fact]
+    public void Cancelling_a_rename_preview_performs_no_file_or_journal_mutation()
+    {
+        var source = WriteMedia("source", "original.mkv");
+        var registered = NewImportService().RegisterMovieImport(Command(source));
+        using var store = new FileOperationStore(_connectionString);
+        using var coordinator = new FileOperationCoordinator(store);
+        var organization = new OrganizationService(MediaFiles(), coordinator);
+        var preview = organization.PrepareOrganization(registered.MediaFile.Id, Path.GetDirectoryName(source)!, "renamed.mkv");
+        organization.DiscardOrganizationPreview(preview.PreviewId);
+        Assert.Throws<KeyNotFoundException>(() => organization.ConfirmOrganization(preview.PreviewId));
+        Assert.Empty(store.ListHistory());
+        Assert.True(File.Exists(source));
+        Assert.False(File.Exists(preview.Plan.Destination));
+        Assert.Equal(source, MediaFiles().GetById(registered.MediaFile.Id)!.CurrentPath);
+    }
+
+    [Fact]
+    public void A_catalog_owned_destination_is_a_conflict_even_when_its_file_is_absent()
+    {
+        var source = WriteMedia("source", "original.mkv");
+        var ownerPath = WriteMedia("source", "owned.mkv");
+        var import = NewImportService();
+        var registered = import.RegisterMovieImport(Command(source));
+        var owner = import.RegisterMovieImport(Command(ownerPath));
+        File.Delete(ownerPath);
+        using var store = new FileOperationStore(_connectionString);
+        using var coordinator = new FileOperationCoordinator(store);
+        var organization = new OrganizationService(MediaFiles(), coordinator);
+        Assert.Throws<OrganizationDestinationConflictException>(() => organization.PrepareOrganization(registered.MediaFile.Id, Path.GetDirectoryName(source)!, "owned.mkv"));
+        Assert.Empty(store.ListHistory());
+        Assert.True(File.Exists(source));
+        Assert.Equal(ownerPath, MediaFiles().GetById(owner.MediaFile.Id)!.CurrentPath);
+    }
+
+    [Fact]
+    public void An_unavailable_destination_or_disappeared_source_cannot_start_a_rename()
+    {
+        var source = WriteMedia("source", "original.mkv");
+        var registered = NewImportService().RegisterMovieImport(Command(source));
+        using var store = new FileOperationStore(_connectionString);
+        using var coordinator = new FileOperationCoordinator(store);
+        var organization = new OrganizationService(MediaFiles(), coordinator);
+        Assert.ThrowsAny<IOException>(() => organization.PrepareOrganization(registered.MediaFile.Id, Path.Combine(_workspace, "unavailable"), "renamed.mkv"));
+        var preview = organization.PrepareOrganization(registered.MediaFile.Id, Path.GetDirectoryName(source)!, "renamed.mkv");
+        File.Delete(source);
+        Assert.ThrowsAny<IOException>(() => organization.ConfirmOrganization(preview.PreviewId));
+        Assert.Empty(store.ListHistory());
+        Assert.False(File.Exists(preview.Plan.Destination));
+        Assert.Equal(source, MediaFiles().GetById(registered.MediaFile.Id)!.CurrentPath);
+    }
+
     private ImportService NewImportService() =>
         new(_factory, new NoMetadataProvider(), new DropSort.FileSystem.Discovery.MediaDiscoveryService());
 

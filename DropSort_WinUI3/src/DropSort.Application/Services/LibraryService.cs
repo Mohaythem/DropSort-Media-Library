@@ -51,7 +51,8 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
         var files = _mediaFiles.GetByMovieId(movieId);
         return new MovieDetails(
             movie.Id, movie.Title, movie.OriginalTitle, movie.Year, movie.Overview,
-            movie.Genres, movie.RuntimeMinutes, movie.Rating, movie.PosterReference, files, movie.ReviewMatch);
+            movie.Genres, movie.RuntimeMinutes, movie.Rating, movie.PosterReference, files, movie.ReviewMatch,
+            MovieOrganizationNaming.HasTrustworthyMetadata(movie));
     }
 
     public DateTimeOffset RecordMovieOpened(int movieId)

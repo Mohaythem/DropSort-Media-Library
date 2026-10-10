@@ -129,6 +129,7 @@ public sealed partial class MainWindow : Window
         _myListsPage.MovieSelected += OpenMovie;
         _myListsPage.ShowSelected += OpenShow;
         _movieDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
+        _movieDetailsPage.MediaPathChanged += (_, _) => _libraryPage.InvalidateCatalog();
         _movieDetailsPage.ShowRequested += OpenShowById;
         _showDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
         _checkLibraryPage.MovieReviewRequested += OpenMovieForReview;

@@ -43,7 +43,7 @@ public sealed class OrganizationService : IOrganizationUiActions
             .Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var existing = _mediaFiles.GetByPath(destination);
         if (existing is not null && existing.Id != media.Id)
-            throw new InvalidOperationException("Another media record owns the destination path.");
+            throw new OrganizationDestinationConflictException();
         var (plan, identity) = _coordinator.Preview(
             operationType, media.CurrentPath, destination, roots, media.Id);
         var previewId = Guid.NewGuid().ToString("D");
@@ -60,7 +60,7 @@ public sealed class OrganizationService : IOrganizationUiActions
             throw new InvalidOperationException("Catalog path changed after preview.");
         var owner = _mediaFiles.GetByPath(prepared.PreviewPlan.Destination);
         if (owner is not null && owner.Id != media.Id)
-            throw new InvalidOperationException("Destination was claimed after preview.");
+            throw new OrganizationDestinationConflictException();
         var (plan, _) = _coordinator.Plan(
             prepared.PreviewPlan.OperationType,
             prepared.PreviewPlan.Source,
@@ -92,4 +92,9 @@ public sealed class OrganizationService : IOrganizationUiActions
         FileOperationPlan PreviewPlan,
         IReadOnlyList<string> Roots,
         SourceIdentity Identity);
+}
+
+public sealed class OrganizationDestinationConflictException : InvalidOperationException
+{
+    public OrganizationDestinationConflictException() : base("Another media record owns the destination path.") { }
 }

@@ -10,7 +10,8 @@ using Microsoft.UI.Xaml.Media.Imaging;
 namespace DropSort.UI.Models;
 
 /// <summary>One associated local file shown in the Movie Details media-files list.</summary>
-public sealed record MovieFileRecord(string FileName, string FilePath, string Extension, string Availability);
+public sealed record MovieFileRecord(string FileName, string FilePath, string Extension, string Availability,
+    string Facts = "", string AvailabilityKey = "UnknownMedia");
 
 /// <summary>One configured media root in Settings, with its per-row Replace / Remove actions.</summary>
 public sealed record MediaFolderRow(string Path)

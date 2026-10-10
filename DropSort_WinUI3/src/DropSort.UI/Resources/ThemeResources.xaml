@@ -104,6 +104,20 @@
             <SolidColorBrush x:Key="DangerControlBorderBrush" Color="#61FF99A4" />
             <SolidColorBrush x:Key="DangerCardStrokeBrush" Color="#61FF99A4" />
             <SolidColorBrush x:Key="AccentControlBorderBrush" Color="#7A60CDFF" />
+
+            <!-- Figma Approved Theme Tokens: Slate / Dark Default -->
+            <SolidColorBrush x:Key="FigmaSurfaceAppBrush" Color="#FF20272E" />
+            <SolidColorBrush x:Key="FigmaSurfaceSecondaryBrush" Color="#FF1A2026" />
+            <SolidColorBrush x:Key="FigmaSurfaceControlBrush" Color="#FF293139" />
+            <SolidColorBrush x:Key="FigmaBorderDefaultBrush" Color="#FF414B54" />
+            <SolidColorBrush x:Key="FigmaTextPrimaryBrush" Color="#FFF4F2EF" />
+            <SolidColorBrush x:Key="FigmaTextSecondaryBrush" Color="#FFB2BAC1" />
+            <SolidColorBrush x:Key="FigmaTextTertiaryBrush" Color="#FF8C98A2" />
+            <SolidColorBrush x:Key="FigmaAccentButtonBrush" Color="#FF44C4F6" />
+            <SolidColorBrush x:Key="FigmaAccentForegroundBrush" Color="#FF231A16" />
+            <SolidColorBrush x:Key="FigmaAccentSelectedSurfaceBrush" Color="#FF203E4B" />
+            <SolidColorBrush x:Key="FigmaStatusAvailableBrush" Color="#FFA5C8AD" />
+            <SolidColorBrush x:Key="FigmaStatusStorageGoldBrush" Color="#FFE6BB70" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
@@ -136,6 +150,20 @@
             <SolidColorBrush x:Key="DangerControlBorderBrush" Color="#61C42B1C" />
             <SolidColorBrush x:Key="DangerCardStrokeBrush" Color="#61C42B1C" />
             <SolidColorBrush x:Key="AccentControlBorderBrush" Color="#7A0067C0" />
+
+            <!-- Figma Approved Theme Tokens: Light Theme -->
+            <SolidColorBrush x:Key="FigmaSurfaceAppBrush" Color="#FFF8F9FA" />
+            <SolidColorBrush x:Key="FigmaSurfaceSecondaryBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FigmaSurfaceControlBrush" Color="#FFF0F2F5" />
+            <SolidColorBrush x:Key="FigmaBorderDefaultBrush" Color="#FFD0D7DE" />
+            <SolidColorBrush x:Key="FigmaTextPrimaryBrush" Color="#FF1A2026" />
+            <SolidColorBrush x:Key="FigmaTextSecondaryBrush" Color="#FF57606A" />
+            <SolidColorBrush x:Key="FigmaTextTertiaryBrush" Color="#FF6E7781" />
+            <SolidColorBrush x:Key="FigmaAccentButtonBrush" Color="#FF0078D4" />
+            <SolidColorBrush x:Key="FigmaAccentForegroundBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="FigmaAccentSelectedSurfaceBrush" Color="#FFDDF4FF" />
+            <SolidColorBrush x:Key="FigmaStatusAvailableBrush" Color="#FF2DA44E" />
+            <SolidColorBrush x:Key="FigmaStatusStorageGoldBrush" Color="#FFBF8700" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="HighContrast">
@@ -160,6 +188,20 @@
             <SolidColorBrush x:Key="DangerControlBorderBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="DangerCardStrokeBrush" Color="{ThemeResource SystemColorButtonTextColor}" />
             <SolidColorBrush x:Key="AccentControlBorderBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+
+            <!-- Figma Approved Theme Tokens: HighContrast -->
+            <SolidColorBrush x:Key="FigmaSurfaceAppBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FigmaSurfaceSecondaryBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="FigmaSurfaceControlBrush" Color="{ThemeResource SystemColorButtonFaceColor}" />
+            <SolidColorBrush x:Key="FigmaBorderDefaultBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FigmaTextPrimaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FigmaTextSecondaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FigmaTextTertiaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FigmaAccentButtonBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FigmaAccentForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="FigmaAccentSelectedSurfaceBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="FigmaStatusAvailableBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="FigmaStatusStorageGoldBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

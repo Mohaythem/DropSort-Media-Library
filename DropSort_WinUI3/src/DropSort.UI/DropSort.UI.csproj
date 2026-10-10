@@ -43,4 +43,9 @@
     <ProjectReference Include="..\DropSort.FileSystem\DropSort.FileSystem.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Assets\MovieDetails\*.svg">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

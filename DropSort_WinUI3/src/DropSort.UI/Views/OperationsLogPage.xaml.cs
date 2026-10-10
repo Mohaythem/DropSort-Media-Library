@@ -119,16 +119,16 @@ public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivat
         return [.. _visible.Select(ToRecord)];
     }
 
-    /// <summary>A committed or filesystem-verified operation is the success case; everything else is not.</summary>
+    /// <summary>Only a fully committed operation is final success.</summary>
     private static bool IsSuccess(OperationHistoryItem item) =>
-        item.State is OperationState.Committed or OperationState.FsVerified;
+        item.State == OperationState.Committed;
 
     private static OperationLogRecord ToRecord(OperationHistoryItem item)
     {
         var local = item.Timestamp.ToLocalTime();
         var status = item.State switch
         {
-            OperationState.Committed or OperationState.FsVerified => "success",
+            OperationState.Committed => "success",
             OperationState.Failed or OperationState.RecoveryRequired => "failed",
             _ => "warning",
         };

@@ -95,7 +95,7 @@ public sealed class UiSourceContractTests
             }
 
             var codeBehind = Read("Views", page + ".cs");
-            if (page != "LibraryPage.xaml")
+            if (page is not ("LibraryPage.xaml" or "MovieDetailsPage.xaml"))
             {
                 Assert.DoesNotContain("ActualWidth", codeBehind, StringComparison.Ordinal);
             }
@@ -117,10 +117,11 @@ public sealed class UiSourceContractTests
         Assert.DoesNotContain("ItemsSource =", Slice(libraryCode, "private void LibraryGrid_SizeChanged", "private void Refresh"), StringComparison.Ordinal);
         Assert.DoesNotContain("ItemTemplate", Slice(libraryCode, "private void LibraryGrid_SizeChanged", "private void Refresh"), StringComparison.Ordinal);
 
-        foreach (var responsive in new[] { "CheckLibraryPage.xaml", "MovieDetailsPage.xaml", "TVShowDetailsPage.xaml" })
+        foreach (var responsive in new[] { "CheckLibraryPage.xaml", "TVShowDetailsPage.xaml" })
         {
             Assert.Contains("<AdaptiveTrigger", Read("Views", responsive), StringComparison.Ordinal);
         }
+        Assert.Contains("Root.ActualWidth - Root.Padding.Left - Root.Padding.Right", Read("Views", "MovieDetailsPage.xaml.cs"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -332,7 +333,7 @@ public sealed class UiSourceContractTests
     }
 
     [Fact]
-    public void Movie_details_matches_the_refined_design()
+    public void Movie_details_preserves_core_behavior_controls()
     {
         var xaml = Read("Views", "MovieDetailsPage.xaml");
 
@@ -344,7 +345,97 @@ public sealed class UiSourceContractTests
         Assert.Contains("x:Name=\"WatchlistButton\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"WatchedDatePicker\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"HistoryRepeater\"", xaml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Media Files", xaml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("MaxWidth=\"{StaticResource PageContentMaxWidth}\"", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Movie_details_keeps_the_approved_reading_pane_hierarchy()
+    {
+        var xaml = Read("Views", "MovieDetailsPage.xaml");
+        var document = XDocument.Parse(xaml);
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+
+        XElement Named(string name) => document.Descendants()
+            .Single(element => (string?)element.Attribute(x + "Name") == name);
+
+        var gallery = Named("GalleryPanel");
+        var readingPane = Named("ReadingPane");
+        var dailyCommands = Named("DailyCommandsGrid");
+        var recordsGrid = Named("RecordsGrid");
+        var watchPane = Named("WatchPane");
+        var filesPane = Named("FilesPane");
+        var metadataFooter = Named("MetadataFooter");
+
+        Assert.Same(readingPane, Named("WatchControlsGrid").Ancestors().First(ancestor => ancestor == readingPane));
+        Assert.Same(watchPane, Named("WatchControlsGrid").Ancestors().First(ancestor => ancestor == watchPane));
+        Assert.Same(filesPane, Named("FileActionsPanel").Ancestors().First(ancestor => ancestor == filesPane));
+        Assert.Same(recordsGrid, watchPane.Ancestors().First(ancestor => ancestor == recordsGrid));
+        Assert.Same(recordsGrid, filesPane.Ancestors().First(ancestor => ancestor == recordsGrid));
+        Assert.Same(metadataFooter, Named("ChangeMatchButton").Ancestors().First(ancestor => ancestor == metadataFooter));
+        Assert.Same(metadataFooter, Named("MoveToSeriesButton").Ancestors().First(ancestor => ancestor == metadataFooter));
+        var moreButton = Named("MoreButton");
+        Assert.Contains(moreButton.Descendants(), element => (string?)element.Attribute(x + "Name") == "RemoveFromLibraryButton");
+        Assert.Same(dailyCommands, Named("WatchlistButton").Ancestors().First(ancestor => ancestor == dailyCommands));
+        Assert.Same(HeroCopyPanel(document, x), Named("PreferenceGroup").Ancestors().First(ancestor => ancestor == HeroCopyPanel(document, x)));
+        Assert.Same(HeroCopyPanel(document, x), dailyCommands.Ancestors().First(ancestor => ancestor == HeroCopyPanel(document, x)));
+        Assert.Same(readingPane, recordsGrid.Ancestors().First(ancestor => ancestor == readingPane));
+        Assert.Same(gallery, Named("PosterSurface").Ancestors().First(ancestor => ancestor == gallery));
+        Assert.Contains("Stretch=\"Uniform\"", gallery.ToString(SaveOptions.DisableFormatting), StringComparison.Ordinal);
+
+        var pageResources = document.Root!.Elements().Single(element => element.Name.LocalName == "Page.Resources");
+        Assert.Equal("{ThemeResource FigmaSurfaceSecondaryBrush}", (string?)gallery.Attribute("Background"));
+        Assert.Contains("FigmaTextPrimaryBrush", pageResources.ToString(SaveOptions.DisableFormatting), StringComparison.Ordinal);
+    }
+
+    private static XElement HeroCopyPanel(XDocument document, XNamespace x) => document.Descendants()
+        .Single(element => (string?)element.Attribute(x + "Name") == "HeroCopyPanel");
+
+    [Fact]
+    public void Movie_details_metadata_and_organization_actions_keep_busy_guards()
+    {
+        var page = Read("Views", "MovieDetailsPage.xaml.cs");
+        var changeMatch = Slice(page, "private async void ChangeMatchButton_Click", "private async Task RefreshMovieMetadataAsync");
+        var matchingState = Slice(page, "private void SetMatchingState", "private async void MatchButton_Click");
+        var organizingState = Slice(page, "private void SetOrganizing", "private async Task<ContentDialogResult> ConfirmOrganizeAsync");
+        var moveToSeries = Slice(page, "private async void MoveToSeriesButton_Click", "private async void RemoveFromLibraryButton_Click");
+
+        Assert.Contains("if (_isOrganizing || _isMatching) return;", changeMatch, StringComparison.Ordinal);
+        Assert.Contains("ChangeMatchButton.IsEnabled = !isMatching && !_isOrganizing;", matchingState, StringComparison.Ordinal);
+        Assert.Contains("ChangeMatchButton.IsEnabled = !isOrganizing && !_isMatching;", organizingState, StringComparison.Ordinal);
+        Assert.Contains("MoveToSeriesButton.IsEnabled = !isOrganizing;", organizingState, StringComparison.Ordinal);
+        Assert.Contains("if (_isOrganizing) return;", moveToSeries, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Movie_details_history_header_and_visibility_follow_current_history_count()
+    {
+        var page = Read("Views", "MovieDetailsPage.xaml.cs");
+        var history = Slice(page, "private void UpdateHistoryVisibility()", "private void UpdateDetailsIcons()");
+
+        Assert.Contains("LocalizationService.Format(\"DetailsViewings\", LocalizationService.Number(_history.Count))", history, StringComparison.Ordinal);
+        Assert.Contains("_history.Count == 0 ? \"DetailsNotWatched\" : \"DetailsWatched\"", history, StringComparison.Ordinal);
+        Assert.Contains("HistoryRepeater.Visibility = _history.Count == 0 ? Visibility.Collapsed : Visibility.Visible", history, StringComparison.Ordinal);
+        Assert.Contains("NoHistoryText.Visibility = _history.Count == 0 ? Visibility.Visible : Visibility.Collapsed", history, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Movie_poster_is_static_and_preserves_loading_and_missing_artwork()
+    {
+        var xaml = Read("Views", "MovieDetailsPage.xaml");
+        var page = Read("Views", "MovieDetailsPage.xaml.cs");
+        var document = XDocument.Parse(xaml);
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var poster = document.Descendants().Single(e => (string?)e.Attribute(x + "Name") == "PosterImage");
+        Assert.Equal("Uniform", (string?)poster.Attribute("Stretch"));
+        Assert.DoesNotContain(poster.Ancestors(), e => e.Name.LocalName == "Button");
+        Assert.DoesNotContain("PosterButton", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("PosterViewLink", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("PosterLightbox", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("PreferenceTitleText", xaml, StringComparison.Ordinal);
+        Assert.Contains("GetCachedPosterPath", page, StringComparison.Ordinal);
+        Assert.Contains("EnsurePosterCachedAsync", page, StringComparison.Ordinal);
+        Assert.Contains("PosterImage.ImageFailed", page, StringComparison.Ordinal);
+        Assert.Contains("PosterGlyph.Visibility = Visibility.Visible", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -523,9 +614,18 @@ public sealed class UiSourceContractTests
         var page = Read("Views", "MovieDetailsPage.xaml.cs");
 
         Assert.Contains("ConfirmOrganizeAsync", page, StringComparison.Ordinal);
-        Assert.Contains("OrganizeConfirmFormat", page, StringComparison.Ordinal);
-        Assert.Contains("await Task.Run(() => AppServices.Organization.PrepareOrganization", page, StringComparison.Ordinal);
-        Assert.Contains("await Task.Run(() => AppServices.Organization.ConfirmOrganization", page, StringComparison.Ordinal);
+        Assert.Contains("OrganizationConfirmRename", page, StringComparison.Ordinal);
+        Assert.Contains("preview.Plan.Source", page, StringComparison.Ordinal);
+        Assert.Contains("preview.Plan.Destination", page, StringComparison.Ordinal);
+        var editor = Read("Views", "MovieOrganizationDialog.cs");
+        Assert.Contains("await Task.Run(() => _organization.PrepareOrganization", editor, StringComparison.Ordinal);
+        Assert.Contains("MovieRenameStays", editor, StringComparison.Ordinal);
+        Assert.DoesNotContain("RadioButton", editor, StringComparison.Ordinal);
+        Assert.Contains("MoveMovieButton_Click", page, StringComparison.Ordinal);
+        Assert.Contains("SecondaryButtonText", page, StringComparison.Ordinal);
+        Assert.Contains("organization.DiscardOrganizationPreview(preview.PreviewId)", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppSettingsStore.MovieFolder", page, StringComparison.Ordinal);
+        Assert.Contains("await Task.Run(() => organization.ConfirmOrganization", page, StringComparison.Ordinal);
         Assert.Contains("DiscardOrganizationPreview", page, StringComparison.Ordinal);
         Assert.Contains("SetOrganizing", page, StringComparison.Ordinal);
         Assert.Contains("OrganizeProgress", Read("Views", "MovieDetailsPage.xaml"), StringComparison.Ordinal);

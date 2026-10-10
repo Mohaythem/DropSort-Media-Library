@@ -43,7 +43,8 @@ public record MovieDetails(
     double? Rating,
     string? PosterReference,
     IReadOnlyList<MediaFile> MediaFiles,
-    bool ReviewMatch = false);
+    bool ReviewMatch = false,
+    bool HasTrustworthyMetadata = false);
 
 public record MovieFileIngestionResult(Movie Movie, MediaFile MediaFile, bool AlreadyRegistered = false);
 

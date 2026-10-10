@@ -54,7 +54,8 @@ internal static class LibraryProjection
                 Path.GetFileName(f.CurrentPath),
                 f.CurrentPath,
                 string.IsNullOrWhiteSpace(f.Extension) ? Path.GetExtension(f.CurrentPath) : f.Extension!,
-                LocalizationService.Text(f.Status == MediaFileStatus.Present ? "Present" : "Missing")))
+                LocalizationService.Text(f.Status == MediaFileStatus.Present ? "Present" : "Missing"),
+                FileFacts(f), f.Status == MediaFileStatus.Present ? "Present" : "Missing"))
             .ToList();
 
         return new MovieRecord(
