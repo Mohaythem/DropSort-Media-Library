@@ -10,7 +10,8 @@ public readonly record struct AddMediaReviewFacts(bool LocalEligible, ImportItem
     public bool Registered => Status == ImportItemStatus.AlreadyInLibrary;
     public bool CanAdd => LocalEligible && !Registered;
     public bool Ready => CanAdd && Status is ImportItemStatus.ReadyToAdd or ImportItemStatus.Matched;
-    public bool NeedsAttention => !Registered && !Ready && Status != ImportItemStatus.Matching;
+    public bool NeedsAttention => !Registered && !Ready && Status != ImportItemStatus.Matching
+        && (Status != ImportItemStatus.SkippedByUser || !LocalEligible);
 
     public bool Matches(AddMediaReviewFilter filter) => !Registered && filter switch
     {

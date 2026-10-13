@@ -6,6 +6,20 @@ namespace DropSort.Tests.UI;
 
 public sealed class AddMediaReviewStateTests
 {
+    [Fact]
+    public void Excluding_an_eligible_file_is_not_a_review_failure_but_unresolved_files_still_need_review()
+    {
+        var excluded = new AddMediaReviewFacts(true, ImportItemStatus.SkippedByUser, false);
+        var unresolved = new AddMediaReviewFacts(false, ImportItemStatus.SkippedByUser, false);
+        Assert.True(excluded.CanAdd);
+        Assert.True(excluded.Matches(AddMediaReviewFilter.AllNew));
+        Assert.False(excluded.NeedsAttention);
+        Assert.True(unresolved.NeedsAttention);
+        var counts = new AddMediaReviewCounts<int>();
+        counts.Update(1, excluded); counts.Update(2, unresolved);
+        Assert.Equal(1, counts.Attention); Assert.Equal(0, counts.Selected);
+    }
+
     [Theory]
     [InlineData(ImportItemStatus.MetadataUnavailable)]
     [InlineData(ImportItemStatus.MetadataError)]

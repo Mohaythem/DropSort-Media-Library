@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\..\src\DropSort.UI\Services\TvReviewGroupState.cs" Link="UI\TvReviewGroupState.cs" />
     <Compile Include="..\..\src\DropSort.UI\Services\AddMediaReviewState.cs" Link="UI\AddMediaReviewState.cs" />
     <Compile Include="..\..\src\DropSort.UI\Services\PostHandoffRequestLifetime.cs" Link="UI\PostHandoffRequestLifetime.cs" />
     <Compile Include="..\..\src\DropSort.UI\Services\MetadataErrorKey.cs" Link="UI\MetadataErrorKey.cs" />

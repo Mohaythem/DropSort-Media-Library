@@ -384,7 +384,8 @@ internal static class AppServices
                     catalogFactory,
                     tmdbClient,
                     new MediaDiscoveryService(),
-                    matching: matching);
+                    matching: matching,
+                    fileValidator: new ImportFileValidator());
                 var availabilityInspector = new AvailabilityInspector();
                 var reconciliation = new ReconciliationService(mediaFiles, availabilityInspector, movies);
                 var tv = new TvLibraryService(

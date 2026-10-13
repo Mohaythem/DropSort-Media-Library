@@ -133,13 +133,14 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
             if (isCancelled?.Invoke() == true) throw new OperationCanceledException();
             try
             {
-                var fileSize = _networkReads.Execute(file, () =>
+                var observation = _networkReads.Execute<FileObservation?>(file, () =>
                 {
                     var attributes = _getAttributes(file);
                     if ((attributes & FileAttributes.Directory) != 0) throw new FileNotFoundException(file);
-                    return new FileInfo(file).Length;
-                }, () => (long?)null, isCancelled);
-                if (fileSize is null)
+                    var info = new FileInfo(file);
+                    return new FileObservation(info.Length, info.LastWriteTimeUtc);
+                }, () => null, isCancelled);
+                if (observation is null)
                 {
                     if (NetworkReadGuard.IsNetworkPath(root))
                     {
@@ -170,7 +171,7 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
                             MediaType.TvEpisode => DiscoveryClassification.TvEpisodeSkipped,
                             _ => DiscoveryClassification.UnknownMedia
                         };
-                results.Add(new DiscoveredMedia(file, fileSize.Value, parsed, classification, null));
+                results.Add(new DiscoveredMedia(file, observation.FileSize, parsed, classification, null, observation));
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {

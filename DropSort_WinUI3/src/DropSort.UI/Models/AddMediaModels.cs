@@ -19,16 +19,52 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
     private ImportItemStatus _status = ImportItemStatus.ReadyToAdd;
     private ImportMetadataPreview? _metadataPreview;
 
-    public DetectedMediaDisplayRecord(DiscoveredMedia item)
+    public DetectedMediaDisplayRecord(DiscoveredMedia item, TvBatchFileCandidate? tvAnalysis = null, string? tvProvenance = null)
     {
         Item = item ?? throw new ArgumentNullException(nameof(item));
+        TvAnalysis = tvAnalysis;
+        OriginalLocalTitle = tvAnalysis?.Title;
+        TvProvenance = tvProvenance ?? string.Empty;
         _isSelected = CanSelect;
     }
 
-    public DiscoveredMedia Item { get; }
+    public DiscoveredMedia Item { get; private set; }
+    public TvBatchFileCandidate? TvAnalysis { get; private set; }
+    public string TvProvenance { get; }
+    public int? ExistingShowId { get; private set; }
+    public string? OriginalLocalTitle { get; }
+    public string TvGroupKey => Title + "|" + TvProvenance;
+    public bool IsTv => TvAnalysis is not null;
+    // WinUI mirrors the leading margin with FlowDirection; do not swap the Thickness for RTL.
+    public Thickness ReviewIndent => IsTv ? new(68, 0, 0, 0) : new(0);
+    public Visibility CorrectionVisibility => IsTv && Item.Classification != DiscoveryClassification.Error
+        ? Visibility.Visible : Visibility.Collapsed;
+    public string CorrectionLabel => LocalizationService.Text("TvBatchCorrectFile");
+    public string EvidenceLabel => TvAnalysis is { } candidate ? string.Join(" · ", new[]
+    {
+        LocalizationService.Format("TvBatchEvidence", LocalizationService.Text("TvEvidence" + candidate.TitleSource),
+            LocalizationService.Text("TvEvidence" + candidate.SeasonSource), LocalizationService.Text("TvEvidence" + candidate.EpisodeSource)),
+        ExistingShowId is null ? string.Empty : LocalizationService.Text("TvBatchExistingTarget"),
+        string.Join(" · ", candidate.Warnings.Select(w => LocalizationService.Text("TvWarning" + w.Code)))
+    }.Where(s => !string.IsNullOrWhiteSpace(s))) : string.Empty;
 
-    public bool CanSelect => Item.Classification is
-        DiscoveryClassification.MovieCandidate or DiscoveryClassification.TvEpisodeCandidate;
+    public void CorrectTv(TvBatchFileCandidate candidate, int? existingShowId)
+    {
+        var selectAfterCorrection = candidate.CanImport && (_isSelected || !CanSelect);
+        TvAnalysis = candidate;
+        Item = candidate.CurrentItem;
+        ExistingShowId = existingShowId;
+        _metadataPreview = null;
+        _status = ImportItemStatus.ReadyToAdd;
+        _isSelected = selectAfterCorrection;
+        foreach (var name in new[] { nameof(Item), nameof(Title), nameof(Details), nameof(IdentityLabel), nameof(CanSelect),
+            nameof(CanAdd), nameof(IsSelected), nameof(IsSelectionEnabled), nameof(Status), nameof(StatusLabel), nameof(EvidenceLabel), nameof(LocalEligibilityLabel), nameof(ReviewIndent) })
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        RaiseMetadataProperties();
+    }
+
+    public bool CanSelect => TvAnalysis?.CanImport ?? (Item.Classification is
+        DiscoveryClassification.MovieCandidate or DiscoveryClassification.TvEpisodeCandidate);
 
     /// <summary>
     /// Whether this row is eligible for a new registration. A path already present in the catalog
@@ -249,7 +285,7 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
             nameof(ManualMatchLabel), nameof(RetryLabel), nameof(AutomationName),
             nameof(OverrideTypeVisibility), nameof(OverrideTypeLabel),
             nameof(LocalEligibilityLabel), nameof(ComparisonLabel), nameof(ComparisonVisibility),
-            nameof(IdentityLabel), nameof(DetailsLabel)
+            nameof(IdentityLabel), nameof(DetailsLabel), nameof(ReviewIndent)
         })
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
@@ -258,6 +294,8 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
 
     public void RefreshLocalization()
     {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CorrectionLabel)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(EvidenceLabel)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(TypeLabel)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Details)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StatusLabel)));
@@ -275,9 +313,9 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
         _ => LocalizationService.Text("DiscoveryError"),
     };
 
-    public string Title => Item.ParsedMedia?.Title is { Length: > 0 } title
+    public string Title => TvAnalysis?.Title ?? (Item.ParsedMedia?.Title is { Length: > 0 } title
         ? title
-        : Path.GetFileNameWithoutExtension(Item.Path);
+        : Path.GetFileNameWithoutExtension(Item.Path));
 
     public string FileName => Path.GetFileName(Item.Path);
 
@@ -323,6 +361,8 @@ public sealed class DetectedMediaDisplayRecord : INotifyPropertyChanged
             ImportItemStatus.MetadataCancelled => LocalizationService.Text("ImportMetadataCancelled"),
             ImportItemStatus.RegistrationFailed => LocalizationService.Text("RegistrationFailed"),
             ImportItemStatus.AlreadyInLibrary => LocalizationService.Text("AlreadyInLibrary"),
+            ImportItemStatus.SkippedByUser => LocalizationService.Text("TvBatchSkipped"),
+            ImportItemStatus.NotProcessedCancelled => LocalizationService.Text("TvBatchCancelled"),
             _ => LocalizationService.Text("ReadyToAdd"),
         }
         : LocalizationService.Text("NeedsReview");

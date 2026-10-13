@@ -83,7 +83,10 @@ public record ConfirmEpisodeImportCommand(
     string FilePath,
     long FileSize,
     DropSort.Domain.Media.Parser.ParsedMedia ParsedMedia,
-    System.DateTimeOffset ObservedAt);
+    System.DateTimeOffset ObservedAt,
+    int? ExistingShowId = null,
+    string? OriginalLocalTitle = null,
+    DropSort.Domain.Metadata.Contracts.TvCandidate? SelectedCandidate = null);
 
 /// <summary>Why an episode file could not be registered. Reported to the user as-is, never worked around.</summary>
 public enum EpisodeRegistrationRefusal

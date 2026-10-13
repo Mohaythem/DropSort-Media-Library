@@ -257,7 +257,9 @@ public sealed class ImportSelectedTests : IDisposable
 
         var result = await service.ImportSelectedAsync([new ImportSelection(selected)], cancellation.Token);
 
-        Assert.Empty(result.Items);
+        var outcome = Assert.Single(result.Items);
+        Assert.Equal(ImportItemStatus.NotProcessedCancelled, outcome.Status);
+        Assert.False(outcome.Registered);
         using var uow = _factory.Begin();
         Assert.Empty(uow.Movies.ListAll());
         Assert.Empty(uow.TvShows.ListAll());
@@ -569,7 +571,7 @@ public sealed class ImportSelectedTests : IDisposable
     }
 
     [Fact]
-    public async Task GroupedTvRows_ConflictingManualPreviewsStayNeedsMatch()
+    public async Task GroupedTvRows_ConflictingManualPreviewsRefuseRegistrationBeforeWrites()
     {
         var provider = new CountingProvider();
         var service = CreateService(provider);
@@ -592,16 +594,13 @@ public sealed class ImportSelectedTests : IDisposable
 
         Assert.All(result.Items, item =>
         {
-            Assert.True(item.Registered);
-            Assert.Equal(ImportItemStatus.NeedsMatch, item.Status);
-            Assert.Equal(MatchStatus.ReviewRequired, item.MatchStatus);
+            Assert.False(item.Registered);
+            Assert.Equal(ImportItemStatus.RegistrationFailed, item.Status);
         });
-        Assert.Equal(2, result.NeedsMatchCount);
+        Assert.Equal(2, result.RegistrationFailuresCount);
         Assert.Equal(0, provider.TvMatchCount);
         using var uow = _factory.Begin();
-        var show = uow.TvShows.ListAll().Single();
-        Assert.Null(show.ExternalId);
-        Assert.Equal(MetadataStatus.NeedsMatch, show.MetadataStatus);
+        Assert.Empty(uow.TvShows.ListAll());
     }
 
     [Fact]

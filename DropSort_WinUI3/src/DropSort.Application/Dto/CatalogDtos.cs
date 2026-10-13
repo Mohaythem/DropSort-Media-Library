@@ -73,7 +73,9 @@ public enum ImportItemStatus
     MetadataError,
     MetadataCancelled,
     RegistrationFailed,
-    AlreadyInLibrary
+    AlreadyInLibrary,
+    SkippedByUser,
+    NotProcessedCancelled
 }
 
 /// <summary>A discovered item selected by the user for local registration.</summary>
@@ -86,7 +88,8 @@ public record ImportMetadataPreview(
     MetadataFailureKind? MetadataFailureKind = null,
     bool IsManual = false);
 
-public record ImportSelection(DiscoveredMedia Item, ImportMetadataPreview? MetadataPreview = null);
+public record ImportSelection(DiscoveredMedia Item, ImportMetadataPreview? MetadataPreview = null,
+    int? ExistingShowId = null, string? OriginalLocalTitle = null, bool IsExcluded = false, bool LocalOnly = false);
 
 /// <summary>
 /// Progress of a running bulk add: <paramref name="Processed" /> local registrations completed out of
@@ -122,6 +125,8 @@ public record ImportBatchResult(IReadOnlyList<ImportItemResult> Items)
     public int MetadataErrorsCount => Items.Count(item => item.Status == ImportItemStatus.MetadataError);
     public int MetadataCancelledCount => Items.Count(item => item.Status == ImportItemStatus.MetadataCancelled);
     public int RegistrationFailuresCount => Items.Count(item => item.Status == ImportItemStatus.RegistrationFailed);
+    public int SkippedCount => Items.Count(item => item.Status == ImportItemStatus.SkippedByUser);
+    public int NotProcessedCount => Items.Count(item => item.Status == ImportItemStatus.NotProcessedCancelled);
     /// <summary>Items requiring user attention after the concise completion summary is shown.</summary>
     public int NeedsAttentionCount => Items.Count(item => item.Status is
         ImportItemStatus.NeedsMatch or

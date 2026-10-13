@@ -771,8 +771,8 @@ public sealed class UiSourceContractTests
         Assert.Contains("AppServices.Import.IsMediaFileRegistered(row.Item.Path)", page, StringComparison.Ordinal);
         Assert.Contains("row.SetAlreadyInLibrary()", page, StringComparison.Ordinal);
         Assert.Contains("_reviewCounts.Eligible", page, StringComparison.Ordinal);
-        Assert.Contains(".Where(row => row.CanAdd && row.IsSelected)", page, StringComparison.Ordinal);
-        Assert.Contains("_rows.Where(row => row.CanAdd).ToArray()", page, StringComparison.Ordinal);
+        Assert.Contains("!row.CanAdd || !row.IsSelected", page, StringComparison.Ordinal);
+        Assert.Contains("row.Status != ImportItemStatus.AlreadyInLibrary", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -796,7 +796,7 @@ public sealed class UiSourceContractTests
         Assert.Contains("RetryMetadataAsync(row.Item", page, StringComparison.Ordinal);
         Assert.Contains("MatchMediaDialog.ShowForMovieAsync", page, StringComparison.Ordinal);
         Assert.Contains("MatchMediaDialog.ShowForTvShowAsync", page, StringComparison.Ordinal);
-        Assert.Contains("ImportSelection(row.Item, row.MetadataPreview)", page, StringComparison.Ordinal);
+        Assert.Contains("ImportSelection(row.Item, row.MetadataPreview, row.ExistingShowId", page, StringComparison.Ordinal);
         Assert.Contains("ManualMatch_Click", xaml, StringComparison.Ordinal);
         Assert.Contains("RetryMetadata_Click", xaml, StringComparison.Ordinal);
         Assert.Contains("ImportItemStatus.NoMatchFound", model, StringComparison.Ordinal);
@@ -813,8 +813,8 @@ public sealed class UiSourceContractTests
     public void Add_media_row_information_uses_selectable_static_text_not_input_fields()
     {
         var xaml = Read("Views", "AddMediaPage.xaml");
-        var rowStart = xaml.IndexOf("<ListView.ItemTemplate>", StringComparison.Ordinal);
-        var rowEnd = xaml.IndexOf("</ListView.ItemTemplate>", rowStart, StringComparison.Ordinal);
+        var rowStart = xaml.IndexOf("<DataTemplate x:Key=\"FileReviewTemplate\"", StringComparison.Ordinal);
+        var rowEnd = xaml.IndexOf("</DataTemplate>", rowStart, StringComparison.Ordinal);
 
         Assert.True(rowStart >= 0 && rowEnd > rowStart);
         var row = xaml.Substring(rowStart, rowEnd - rowStart);

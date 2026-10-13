@@ -61,6 +61,8 @@ public record DiscoveryIssue
     }
 }
 
+public sealed record FileObservation(long FileSize, DateTime LastWriteTimeUtc);
+
 public record DiscoveredMedia
 {
     public string Path { get; }
@@ -68,13 +70,15 @@ public record DiscoveredMedia
     public ParsedMedia? ParsedMedia { get; }
     public DiscoveryClassification Classification { get; }
     public DiscoveryIssue? Issue { get; }
+    public FileObservation? Observation { get; }
 
     public DiscoveredMedia(
         string path,
         long? fileSize,
         ParsedMedia? parsedMedia,
         DiscoveryClassification classification,
-        DiscoveryIssue? issue)
+        DiscoveryIssue? issue,
+        FileObservation? observation = null)
     {
         if (string.IsNullOrWhiteSpace(path) || !System.IO.Path.IsPathRooted(path))
             throw new ArgumentException("path must be an absolute path");
@@ -111,6 +115,7 @@ public record DiscoveredMedia
         ParsedMedia = parsedMedia;
         Classification = classification;
         Issue = issue;
+        Observation = observation;
     }
 
     public static DiscoveredMedia Error(string path, DiscoveryIssue issue)

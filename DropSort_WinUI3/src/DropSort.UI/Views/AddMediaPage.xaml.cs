@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using DropSort.Application.Dto;
 using DropSort.Application.Services;
 using DropSort.Domain.Media.Discovery;
@@ -33,7 +33,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private AddMediaScanState _state = AddMediaScanState.Idle;
     private IReadOnlyList<DiscoveredMedia> _detected = [];
     private readonly ObservableCollection<DetectedMediaDisplayRecord> _rows = [];
-    private readonly ObservableCollection<DetectedMediaDisplayRecord> _visibleRows = [];
+    private readonly ObservableCollection<object> _visibleRows = [];
     private readonly ObservableCollection<DetectedMediaDisplayRecord> _registeredRows = [];
     private readonly HashSet<DetectedMediaDisplayRecord> _visibleMembers = [];
     private readonly HashSet<DetectedMediaDisplayRecord> _registeredMembers = [];
@@ -90,6 +90,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     public void Deactivate()
     {
+        _presentationVersion++;
+        _confirmationCancelled = true;
+        _importCancellation?.Cancel();
         _cancellation?.Cancel();
         CancelMetadataReview();
     }
@@ -110,6 +113,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         BrowseButton.Content = LocalizationService.Text("Browse");
         AddFilesButton.Content = LocalizationService.Text("AddFiles");
         CancelButton.Content = LocalizationService.Text("CancelReview");
+        LocalOnlyBox.Content = LocalizationService.Text("TvBatchLocalOnly");
         ResultsHeadingText.Text = LocalizationService.Text("ReviewMedia");
         SelectAllButton.Content = LocalizationService.Text("SelectAll");
         SelectReadyButton.Content = LocalizationService.Text("SelectReady");
@@ -143,7 +147,11 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             _isScanning ? "Cancel" : "ScanFolder");
         AddFilesButton.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
         BrowseButton.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
-        CancelButton.Visibility = _isScanning || (_state == AddMediaScanState.Results && !_isAdding)
+        CancelButton.Content = LocalizationService.Text(_isAdding ? "Cancel" : "CancelReview");
+        LocalOnlyBox.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
+        FolderPathBox.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
+        if (!_isAdding && !_isReviewingMetadata) RefreshGroupHeaders();
+        CancelButton.Visibility = _isScanning || _isAdding || (_state == AddMediaScanState.Results)
             ? Visibility.Visible
             : Visibility.Collapsed;
         ScanButton.IsEnabled = !_isAdding && !_isReviewingMetadata;
@@ -224,7 +232,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             LocalizationService.Format("SelectedItemsFormat", selected));
     }
 
-    private void SetDetected(IReadOnlyList<DiscoveredMedia> items)
+    private void SetDetected(IReadOnlyList<DiscoveredMedia> items, string? analysisRoot = null)
     {
         foreach (var row in _rows)
         {
@@ -235,9 +243,12 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         RegisteredSection.IsExpanded = false;
         _detected = items;
         _rows.Clear();
+        _tvHeaders.Clear();
+        var analyses = AnalyzeDetected(items, analysisRoot);
         foreach (var item in items)
         {
-            var row = new DetectedMediaDisplayRecord(item);
+            analyses.TryGetValue(item.Path, out var analysis);
+            var row = new DetectedMediaDisplayRecord(analysis.Candidate?.CurrentItem ?? item, analysis.Candidate, analysis.Provenance);
             row.PropertyChanged += SelectionChanged;
             _rows.Add(row);
         }
@@ -307,17 +318,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         DiscoveredMedia replacement;
         if (item.Classification == DiscoveryClassification.MovieCandidate)
         {
-            var parsedTitle = item.ParsedMedia?.Title;
-            if (!TvSeriesGrouping.TryDeriveEpisode(parsedTitle ?? string.Empty, out var baseTitle, out var episode))
-            {
-                // No trailing number to read: keep the whole title as the show name and default to episode 1.
-                baseTitle = string.IsNullOrWhiteSpace(parsedTitle)
-                    ? Path.GetFileNameWithoutExtension(item.Path)
-                    : parsedTitle!;
-                episode = 1;
-            }
-
-            replacement = TvSeriesGrouping.AsTvEpisode(item, baseTitle, season: 1, episode);
+            _ = CorrectTvRowsAsync([row], singleFile: true);
+            return;
         }
         else
         {
@@ -351,7 +353,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             }
 
             _rows[index].PropertyChanged -= SelectionChanged;
-            var replacement = new DetectedMediaDisplayRecord(newItem);
+            var candidate = newItem.Classification == DiscoveryClassification.TvEpisodeCandidate
+                ? new TvBatchAnalysisService().Analyze(Path.GetDirectoryName(newItem.Path)!, [newItem]).AllFiles.FirstOrDefault() : null;
+            var replacement = new DetectedMediaDisplayRecord(newItem, candidate, Path.GetDirectoryName(newItem.Path));
             replacement.PropertyChanged += SelectionChanged;
             _rows[index] = replacement;
         }
@@ -369,7 +373,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         if (sender is not DetectedMediaDisplayRecord row ||
             e.PropertyName is not (nameof(DetectedMediaDisplayRecord.IsSelected) or nameof(DetectedMediaDisplayRecord.Status))) return;
         _reviewCounts.Update(row, row.ReviewFacts);
-        if (!_batchPresentation && !_isReviewingMetadata) SynchronizeRow(row);
+        // Selection does not change filter membership. Keep the native control and keyboard focus.
+        if (!_batchPresentation && !_isReviewingMetadata && e.PropertyName == nameof(DetectedMediaDisplayRecord.Status)) SynchronizeRow(row);
         if (e.PropertyName == nameof(DetectedMediaDisplayRecord.IsSelected)) _addCompleted = false;
         if (!_batchPresentation) Refresh();
     }
@@ -406,6 +411,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     private void SynchronizeRow(DetectedMediaDisplayRecord row)
     {
+        if (_rows.Any(r => r.IsTv)) { RebuildVisibleQueue(); return; }
         var show = row.ReviewFacts.Matches(_reviewFilter);
         if (show && _visibleMembers.Add(row))
         {
@@ -431,9 +437,10 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         _registeredMembers.Clear();
         foreach (var row in _rows)
         {
-            if (row.ReviewFacts.Matches(_reviewFilter)) { _visibleRows.Add(row); _visibleMembers.Add(row); }
+            if (row.ReviewFacts.Matches(_reviewFilter)) _visibleMembers.Add(row);
             if (row.ReviewFacts.Registered) { _registeredRows.Add(row); _registeredMembers.Add(row); }
         }
+        BuildGroupedQueue();
     }
 
     private void ReviewFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -701,6 +708,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isAdding) { _importCancellation?.Cancel(); return; }
+        if (_isConfirming) { _confirmationCancelled = true; return; }
         var wasScanning = _isScanning;
         _cancellation?.Cancel();
         CancelMetadataReview();
@@ -874,7 +883,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 return;
             }
 
-            SetDetected(session.Items);
+            SetDetected(session.Items, root);
             _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
             if (_detected.Count > 0)
             {
@@ -962,6 +971,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         _metadataCancellation = cancellation;
         var version = ++_metadataVersion;
         _isReviewingMetadata = true;
+        RefreshGroupHeaders();
 
         Refresh();
         _ = ReviewMetadataAsync(version, cancellation);
@@ -969,7 +979,10 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     private async Task ReviewMetadataAsync(long version, CancellationTokenSource cancellation)
     {
-        var candidates = _rows.Where(row => row.CanAdd).ToArray();
+        var candidates = _rows.Where(row => row.Item.FileSize is not null).ToArray();
+        var tvPreviews = _rows.Where(r => r.IsTv && r.MetadataPreview is { Status: not ImportItemStatus.ReadyToAdd } && r.Status != ImportItemStatus.AlreadyInLibrary)
+            .GroupBy(r => r.TvGroupKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().MetadataPreview!, StringComparer.OrdinalIgnoreCase);
         _matchTotal = candidates.Length;
         _matchProcessed = 0;
         Refresh();
@@ -1006,6 +1019,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                     continue;
                 }
 
+                cancellation.Token.ThrowIfCancellationRequested();
                 if (isRegistered)
                 {
                     row.SetAlreadyInLibrary();
@@ -1014,9 +1028,24 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                     continue;
                 }
 
+                if (!row.CanAdd || row.ExistingShowId is not null) { _matchProcessed++; continue; }
+                if (LocalOnlyBox.IsChecked == true)
+                {
+                    row.SetMetadataPreview(new ImportMetadataPreview(ImportItemStatus.ReadyToAdd));
+                    _matchProcessed++;
+                    continue;
+                }
+                if (!row.IsTv && row.MetadataPreview is { Status: not ImportItemStatus.ReadyToAdd }) { _matchProcessed++; continue; }
+                if (row.IsTv && tvPreviews.TryGetValue(row.TvGroupKey, out var groupedPreview))
+                {
+                    row.SetMetadataPreview(groupedPreview);
+                    _matchProcessed++;
+                    continue;
+                }
                 row.SetMetadataReviewing();
                 Refresh();
                 await ReviewMetadataRowAsync(row, cancellation.Token);
+                if (row.IsTv && row.MetadataPreview is { } preview) tvPreviews[row.TvGroupKey] = preview;
                 _matchProcessed++;
                 Refresh();
             }
@@ -1105,54 +1134,52 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private async void RetryMetadata_Click(object sender, RoutedEventArgs e)
     {
         var row = RowFromSender(sender);
-        if (row is null || _isAdding || !row.CanAdd || _retryCancellations.ContainsKey(row))
+        if (row is null || _isAdding || _isReviewingMetadata || !row.CanAdd || _retryCancellations.ContainsKey(row))
         {
             return;
         }
 
+        var members = row.IsTv ? _rows.Where(r => r.IsTv && r.TvGroupKey == row.TvGroupKey && r.CanAdd).ToArray() : [row];
         var cancellation = new CancellationTokenSource();
-        _retryCancellations[row] = cancellation;
-        row.SetMetadataReviewing();
+        foreach (var member in members)
+        {
+            _retryCancellations[member] = cancellation;
+            member.SetMetadataReviewing();
+        }
         Refresh();
         try
         {
-            // RetryMetadataAsync delegates to PreviewMetadataAsync, whose canonical path check is
-            // synchronous before its first await. Run the complete retry off the UI thread as well.
+            // The provider is retried once for the series. The path check remains specific to row.
             var preview = await Task.Run(
-                () => AppServices.Import.RetryMetadataAsync(row.Item, cancellation.Token),
-                cancellation.Token);
-            if (!cancellation.IsCancellationRequested && _rows.Contains(row))
+                () => AppServices.Import.RetryMetadataAsync(row.Item, cancellation.Token), cancellation.Token);
+            if (!cancellation.IsCancellationRequested)
             {
-                if (preview.Status == ImportItemStatus.AlreadyInLibrary)
+                foreach (var member in members.Where(_rows.Contains))
                 {
-                    row.SetAlreadyInLibrary();
-                }
-                else
-                {
-                    row.SetMetadataPreview(preview);
+                    if (preview.Status == ImportItemStatus.AlreadyInLibrary)
+                    {
+                        if (ReferenceEquals(member, row)) member.SetAlreadyInLibrary();
+                        else member.SetMetadataCancelled();
+                    }
+                    else member.SetMetadataPreview(preview);
                 }
                 Refresh();
             }
         }
-        catch (OperationCanceledException)
-        {
-        }
+        catch (OperationCanceledException) { }
         catch (Exception error)
         {
-            if (!cancellation.IsCancellationRequested && _rows.Contains(row))
+            if (!cancellation.IsCancellationRequested)
             {
-                row.SetMetadataPreview(new ImportMetadataPreview(
-                    ImportItemStatus.MetadataError,
-                    Failure: MetadataErrorText.For(error)));
+                var preview = new ImportMetadataPreview(ImportItemStatus.MetadataError, Failure: MetadataErrorText.For(error));
+                foreach (var member in members.Where(_rows.Contains)) member.SetMetadataPreview(preview);
                 Refresh();
             }
         }
         finally
         {
-            if (_retryCancellations.Remove(row, out var active))
-            {
-                active.Dispose();
-            }
+            foreach (var member in members) _retryCancellations.Remove(member);
+            cancellation.Dispose();
             Refresh();
         }
     }
@@ -1185,11 +1212,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 var show = await MatchMediaDialog.ShowForTvShowAsync(this, row.Title, year);
                 if (show is not null)
                 {
-                    row.SetMetadataPreview(new ImportMetadataPreview(
-                        ImportItemStatus.Matched,
-                        MatchStatus.Matched,
-                        TvCandidate: show,
-                        IsManual: true));
+                    var preview = new ImportMetadataPreview(ImportItemStatus.Matched, MatchStatus.Matched, TvCandidate: show, IsManual: true);
+                    foreach (var member in _rows.Where(r => r.IsTv && r.TvGroupKey == row.TvGroupKey && r.CanAdd))
+                        member.SetMetadataPreview(preview);
                 }
             }
             Refresh();
@@ -1202,22 +1227,64 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
     private async void AddSelectedButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_isAdding)
+        if (_isAdding || _isConfirming || _isReviewingMetadata)
         {
             return;
         }
 
         var selections = _rows
-            .Where(row => row.CanAdd && row.IsSelected)
-            .Select(row => new ImportSelection(row.Item, row.MetadataPreview))
+            .Where(row => row.Status != ImportItemStatus.AlreadyInLibrary)
+            .Select(row => new ImportSelection(row.Item, row.MetadataPreview, row.ExistingShowId,
+                row.OriginalLocalTitle, !row.CanAdd || !row.IsSelected, LocalOnlyBox.IsChecked == true))
             .ToArray();
 
-        if (selections.Length == 0)
+        var selectedCount = selections.Count(s => !s.IsExcluded);
+        if (selectedCount == 0)
         {
             return;
         }
 
+        var importPresentationVersion = _presentationVersion;
+
+        var confirm = new ContentDialog
+        {
+            XamlRoot = XamlRoot, RequestedTheme = ThemeService.ElementTheme, FlowDirection = LocalizationService.FlowDirection,
+            Title = LocalizationService.Text("TvBatchConfirm"),
+            Content = LocalizationService.Format("TvBatchConfirmCount", selectedCount, selections.Count(s => s.IsExcluded)),
+            PrimaryButtonText = LocalizationService.Text("TvBatchImport"), CloseButtonText = LocalizationService.Text("Cancel"),
+            DefaultButton = ContentDialogButton.Close
+        };
+        _confirmationCancelled = false;
+        confirm.PrimaryButtonClick += (_, _) =>
+        {
+            if (_confirmationCancelled) return;
+            // Native dialog dismissal is asynchronous. Cancellation must already be available
+            // during that transition, before the background registration loop starts.
+            _importCancellation = new CancellationTokenSource();
+            _isAdding = true;
+            _addProcessed = 0;
+            _addTotal = selections.Length;
+            foreach (var row in _rows) row.SetImporting(true);
+            RefreshGroupHeaders();
+            Refresh();
+        };
+        _isConfirming = true;
+        ContentDialogResult confirmation;
+        try { confirmation = await ContentDialogCoordinator.ShowAsync(confirm); }
+        finally { _isConfirming = false; }
+        if (confirmation != ContentDialogResult.Primary || _confirmationCancelled)
+        {
+            _importCancellation?.Dispose();
+            _importCancellation = null;
+            _isAdding = false;
+            foreach (var row in _rows) row.SetImporting(false);
+            RefreshGroupHeaders();
+            Refresh();
+            return;
+        }
+        CancelMetadataReview();
         _isAdding = true;
+        RefreshGroupHeaders();
         _addCompleted = false;
         _addProcessed = 0;
         _addTotal = selections.Length;
@@ -1231,11 +1298,13 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
 
         Refresh();
         ImportBatchResult result;
+        var importCancellation = _importCancellation ??= new CancellationTokenSource();
 
         try
         {
             result = await Task.Run(() => AppServices.Import.ImportSelectedAsync(
                 selections,
+                cancellationToken: importCancellation.Token,
                 progress: update => DispatcherQueue.TryEnqueue(() =>
                 {
                     // Real processed/total from the registration loop; keep the status line honest.
@@ -1255,12 +1324,15 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
                 row.SetImporting(false);
             }
             Refresh();
-            await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+            if (importPresentationVersion == _presentationVersion && XamlRoot is not null)
+                await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
             return;
         }
         finally
         {
             _isAdding = false;
+            _importCancellation?.Dispose();
+            _importCancellation = null;
             foreach (var row in _rows)
             {
                 row.SetImporting(false);
@@ -1268,11 +1340,11 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         }
 
         var addedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var rowsByPath = _rows.ToDictionary(row => row.Item.Path, StringComparer.OrdinalIgnoreCase);
+        _batchPresentation = true;
         foreach (var item in result.Items)
         {
-            var row = _rows.FirstOrDefault(candidate =>
-                string.Equals(candidate.Item.Path, item.Path, StringComparison.OrdinalIgnoreCase));
-            if (row is null)
+            if (!rowsByPath.TryGetValue(item.Path, out var row))
             {
                 continue;
             }
@@ -1287,6 +1359,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         // Successfully registered rows leave the active queue so it answers "what still needs my
         // attention?": failed/unresolved rows, and rows the user did not select, stay visible.
         RemoveRows(addedPaths);
+        _batchPresentation = false;
+        RebuildVisibleQueue();
 
         // Enter the transient "Done" phase: the status line reports what was added and what still needs
         // attention until the user acts again.
@@ -1302,6 +1376,8 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             LocalizationService.Format("ImportAddedFormat", result.AddedCount),
             LocalizationService.Format("ImportMatchedFormat", result.MatchedCount),
             LocalizationService.Format("ImportNeedsAttentionFormat", result.NeedsAttentionCount),
+            LocalizationService.Format("TvBatchSkippedCount", result.SkippedCount),
+            LocalizationService.Format("TvBatchCancelledCount", result.NotProcessedCount),
         };
 
         // The three lines above are the result users need every time. Only append actionable
@@ -1327,9 +1403,12 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
             summaryLines.Add(LocalizationService.Text(MetadataErrorKey.For(kind)));
         }
 
-        await ShowMessageAsync(
-            LocalizationService.Text("AddMedia"),
-            string.Join(Environment.NewLine, summaryLines));
+        // Cached queue state and shell catalog notifications stay truthful after navigation.
+        // A completed operation must not present a dialog from a page that was left meanwhile.
+        if (importPresentationVersion == _presentationVersion && XamlRoot is not null)
+            await ShowMessageAsync(
+                LocalizationService.Text("AddMedia"),
+                string.Join(Environment.NewLine, summaryLines));
 
         // Only the successfully added rows have been removed. If the whole queue is now empty the page
         // returns to its idle state; otherwise the remaining items (failures / not-yet-resolved) stay on

@@ -22,18 +22,21 @@ public class ImportService : IImportUiActions
     private readonly IMediaDiscoveryService? _discovery;
     private readonly MetadataMatchingService? _matching;
     private readonly Func<DateTimeOffset> _clock;
+    private readonly IImportFileValidator? _fileValidator;
 
     public ImportService(
         ICatalogUnitOfWorkFactory uowFactory,
         IMetadataProvider metadataProvider,
         IMediaDiscoveryService? discovery = null,
         Func<DateTimeOffset>? clock = null,
-        MetadataMatchingService? matching = null)
+        MetadataMatchingService? matching = null,
+        IImportFileValidator? fileValidator = null)
     {
         _uowFactory = uowFactory;
         _metadataProvider = metadataProvider;
         _discovery = discovery;
         _matching = matching;
+        _fileValidator = fileValidator;
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
     }
 
@@ -177,6 +180,12 @@ public class ImportService : IImportUiActions
         var results = new List<ImportItemResult>(selections.Count);
         var moviesPending = new List<MovieImportWork>();
         var tvShows = new Dictionary<int, TvImportGroup>();
+        var conflictingTvNames = selections.Where(s => !s.IsExcluded && !s.LocalOnly && s.Item.Classification == DiscoveryClassification.TvEpisodeCandidate
+                && s.MetadataPreview is { Status: ImportItemStatus.Matched, TvCandidate: not null })
+            .GroupBy(s => s.ExistingShowId is int id ? "id:" + id : TvShowCatalogData.NormalizeTitle(s.Item.ParsedMedia!.Title!))
+            .Where(g => g.Select(s => s.MetadataPreview!.TvCandidate!.Provider.ToLowerInvariant() + ":" + s.MetadataPreview.TvCandidate.ExternalId)
+                .Distinct(StringComparer.Ordinal).Count() > 1)
+            .SelectMany(g => g.Select(s => s.Item.Path)).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var processed = 0;
         foreach (var selection in selections)
@@ -184,14 +193,30 @@ public class ImportService : IImportUiActions
             // Real processed/total progress for the bulk-add UI, reported as each selected item is
             // registered locally. This is the dominant per-item work in a large batch.
             progress?.Invoke(new ImportProgress(processed, selections.Count));
-            processed++;
             ArgumentNullException.ThrowIfNull(selection);
             var item = selection.Item;
+            if (selection.IsExcluded)
+            {
+                results.Add(new ImportItemResult(item.Path, item.Classification, false, false,
+                    Status: ImportItemStatus.SkippedByUser));
+                processed++;
+                continue;
+            }
+            if (cancellationToken.IsCancellationRequested) break;
+            if (conflictingTvNames.Contains(item.Path))
+            {
+                results.Add(new ImportItemResult(item.Path, item.Classification, false, false,
+                    Failure: "Conflicting metadata choices for the same local series. Review the series match.",
+                    Status: ImportItemStatus.RegistrationFailed));
+                processed++;
+                continue;
+            }
             if (item.FileSize is not long size || item.ParsedMedia is null)
             {
                 results.Add(new ImportItemResult(item.Path, item.Classification, false, false,
                     Failure: "The discovered item has no verified file facts.",
                     Status: ImportItemStatus.RegistrationFailed));
+                processed++;
                 continue;
             }
 
@@ -214,6 +239,8 @@ public class ImportService : IImportUiActions
 
                 if (item.Classification == DiscoveryClassification.MovieCandidate)
                 {
+                    _fileValidator?.Validate(item, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
                     var registration = RegisterMovieImport(new ConfirmMovieImportCommand(
                         item.Path, size, item.ParsedMedia, _clock()));
                     if (registration.AlreadyRegistered)
@@ -230,10 +257,10 @@ public class ImportService : IImportUiActions
 
                     var resultIndex = results.Count;
                     var needsMetadata = registration.Movie.MetadataStatus != MetadataStatus.Ready;
-                    var staged = selection.MetadataPreview;
+                    var staged = selection.LocalOnly ? null : selection.MetadataPreview;
                     var canAttemptMetadata = needsMetadata && _matching is not null && _metadataProvider.IsConfigured
-                        && (staged is null || staged.Status == ImportItemStatus.Matched);
-                    var initialStatus = !needsMetadata ? ImportItemStatus.Matched
+                        && !selection.LocalOnly && (staged is null || staged.Status == ImportItemStatus.Matched);
+                    var initialStatus = selection.LocalOnly ? ImportItemStatus.ReadyToAdd : !needsMetadata ? ImportItemStatus.Matched
                         : staged is not null && staged.Status != ImportItemStatus.Matched ? staged.Status
                         : canAttemptMetadata ? ImportItemStatus.Matching : ImportItemStatus.MetadataUnavailable;
                     results.Add(new ImportItemResult(item.Path, item.Classification, true, false,
@@ -241,7 +268,7 @@ public class ImportService : IImportUiActions
                         Failure: staged?.Failure,
                         Status: initialStatus,
                         MetadataFailureKind: staged?.MetadataFailureKind
-                            ?? (needsMetadata && !canAttemptMetadata && staged is null
+                            ?? (needsMetadata && !selection.LocalOnly && !canAttemptMetadata && staged is null
                                 ? MetadataFailureKind.NotConfigured : null),
                         AlreadyRegistered: registration.AlreadyRegistered));
                     if (canAttemptMetadata)
@@ -254,7 +281,7 @@ public class ImportService : IImportUiActions
                             registration.Movie.MetadataStatus,
                             staged));
                     }
-                    else if (needsMetadata)
+                    else if (needsMetadata && !selection.LocalOnly)
                     {
                         if (staged?.Status is ImportItemStatus.NeedsMatch or ImportItemStatus.NoMatchFound)
                         {
@@ -268,8 +295,12 @@ public class ImportService : IImportUiActions
                 }
                 else if (item.Classification == DiscoveryClassification.TvEpisodeCandidate)
                 {
+                    _fileValidator?.Validate(item, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
                     var registration = RegisterEpisodeImport(new ConfirmEpisodeImportCommand(
-                        item.Path, size, item.ParsedMedia, _clock()));
+                        item.Path, size, item.ParsedMedia, _clock(), selection.ExistingShowId,
+                        selection.OriginalLocalTitle, !selection.LocalOnly && selection.MetadataPreview?.Status == ImportItemStatus.Matched
+                            ? selection.MetadataPreview.TvCandidate : null));
                     if (registration.AlreadyRegistered)
                     {
                         results.Add(new ImportItemResult(
@@ -283,13 +314,14 @@ public class ImportService : IImportUiActions
                     }
 
                     var resultIndex = results.Count;
-                    var requiresMatch = registration.Show.MetadataStatus != MetadataStatus.Ready;
-                    var requiresRefresh = !registration.AlreadyRegistered && !requiresMatch;
+                    var requiresMatch = selection.ExistingShowId is null && registration.Show.MetadataStatus != MetadataStatus.Ready;
+                    var requiresRefresh = selection.ExistingShowId is null && !registration.AlreadyRegistered && !requiresMatch;
                     var needsMetadata = requiresMatch || requiresRefresh;
-                    var staged = selection.MetadataPreview;
-                    var canAttemptMetadata = needsMetadata && _matching is not null && _metadataProvider.IsConfigured
+                    var staged = selection.LocalOnly ? null : selection.MetadataPreview;
+                    var canAttemptMetadata = !selection.LocalOnly && selection.ExistingShowId is null
+                        && needsMetadata && _matching is not null && _metadataProvider.IsConfigured
                         && (staged is null || staged.Status == ImportItemStatus.Matched);
-                    var initialStatus = !needsMetadata ? ImportItemStatus.Matched
+                    var initialStatus = selection.LocalOnly ? ImportItemStatus.ReadyToAdd : !needsMetadata ? ImportItemStatus.Matched
                         : staged is not null && staged.Status != ImportItemStatus.Matched ? staged.Status
                         : canAttemptMetadata ? ImportItemStatus.Matching : ImportItemStatus.MetadataUnavailable;
                     results.Add(new ImportItemResult(item.Path, item.Classification, true, false,
@@ -297,7 +329,7 @@ public class ImportService : IImportUiActions
                         Failure: staged?.Failure,
                         Status: initialStatus,
                         MetadataFailureKind: staged?.MetadataFailureKind
-                            ?? (needsMetadata && !canAttemptMetadata && staged is null
+                            ?? (needsMetadata && !selection.LocalOnly && !canAttemptMetadata && staged is null
                                 ? MetadataFailureKind.NotConfigured : null),
                         AlreadyRegistered: registration.AlreadyRegistered));
 
@@ -326,7 +358,7 @@ public class ImportService : IImportUiActions
                     {
                         pending.EnrichmentResultIndexes.Add(resultIndex);
                     }
-                    else if (requiresMatch && staged is null)
+                    else if (requiresMatch && staged is null && !selection.LocalOnly)
                     {
                         TrySetTvStatus(registration.Show.Id, MetadataStatus.Failed, registration.Show.MetadataStatus);
                     }
@@ -348,11 +380,19 @@ public class ImportService : IImportUiActions
                     Failure: error.Message,
                     Status: ImportItemStatus.RegistrationFailed));
             }
+            finally
+            {
+                processed = results.Count;
+            }
         }
 
-        // All selected items have been registered locally; report the final count so the UI shows the
-        // completed total before the (fast, staged-preview) metadata phase runs.
-        progress?.Invoke(new ImportProgress(selections.Count, selections.Count));
+        // Report actual processed items. Remaining items receive explicit cancellation outcomes.
+        progress?.Invoke(new ImportProgress(processed, selections.Count));
+        foreach (var remaining in selections.Skip(results.Count))
+        {
+            results.Add(new ImportItemResult(remaining.Item.Path, remaining.Item.Classification, false, false,
+                Status: remaining.IsExcluded ? ImportItemStatus.SkippedByUser : ImportItemStatus.NotProcessedCancelled));
+        }
 
         // Apply staged TV terminal states only after every episode in a grouped show is registered.
         // Updating the show inside the registration loop would change its metadata status before a
@@ -978,6 +1018,8 @@ public class ImportService : IImportUiActions
             var existingMovie = uow.Movies.GetById(existingFile.MovieId.Value)!;
             return new MovieFileIngestionResult(existingMovie, existingFile, AlreadyRegistered: true);
         }
+        if (existingFile is not null && uow.TvEpisodes.GetEpisodeIdForMediaFile(existingFile.Id) is not null)
+            throw new InvalidOperationException("The media file is already associated with a TV episode.");
 
         var movie = uow.Movies.Create(movieData, _clock());
         var mediaFile = existingFile == null 
@@ -1093,8 +1135,8 @@ public class ImportService : IImportUiActions
                     ?? uow.TvShows.GetBySortTitle(showData.SortTitle);
                 var isSameEpisode = ownerSeason.Number == seasonNumber
                     && ownerEpisode.Number == episodeNumber
-                    && aliasShow is not null
-                    && aliasShow.Id == ownerShow.Id;
+                    && (command.ExistingShowId is int targetId ? targetId == ownerShow.Id
+                        : aliasShow is not null && aliasShow.Id == ownerShow.Id);
 
                 if (!isSameEpisode)
                 {
@@ -1117,14 +1159,37 @@ public class ImportService : IImportUiActions
         // sort_title (for shows created before aliases existed), and create it only when neither
         // matches. The filename-derived alias is then recorded idempotently so a later provider match
         // that rewrites title/sort_title cannot orphan the next episode arriving under this filename.
-        var show = uow.TvShows.GetByAlias(showData.SortTitle)
-            ?? uow.TvShows.GetBySortTitle(showData.SortTitle);
+        var aliasOwner = uow.TvShows.GetByAlias(showData.SortTitle);
+        var titleOwner = uow.TvShows.GetBySortTitle(showData.SortTitle);
+        var originalAlias = string.IsNullOrWhiteSpace(command.OriginalLocalTitle) ? null
+            : TvShowCatalogData.NormalizeTitle(command.OriginalLocalTitle);
+        var originalOwner = originalAlias is null ? null : uow.TvShows.GetByAlias(originalAlias);
+        var show = command.ExistingShowId is int selectedId
+            ? uow.TvShows.GetById(selectedId) ?? throw new InvalidOperationException("The selected series no longer exists.")
+            : aliasOwner ?? titleOwner;
+
+        foreach (var owner in new[] { aliasOwner, titleOwner, originalOwner })
+        {
+            if (owner is not null && (show is null || owner.Id != show.Id))
+                throw new InvalidOperationException("The local series name belongs to another series. Choose a different name or its existing series.");
+        }
+        if (command.SelectedCandidate is { } candidate)
+        {
+            var providerOwner = uow.TvShows.GetByExternalId(candidate.Provider, candidate.ExternalId);
+            if (providerOwner is not null && providerOwner.Id != show?.Id)
+                throw new InvalidOperationException("The selected metadata belongs to another series. Select that existing series explicitly.");
+            if (show?.Data.Provider is { } provider &&
+                (!string.Equals(provider, candidate.Provider, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(show.Data.ExternalId, candidate.ExternalId, StringComparison.Ordinal)))
+                throw new InvalidOperationException("The selected series has a different metadata identity.");
+        }
         if (show is null)
         {
             show = uow.TvShows.Create(showData, now);
         }
 
         uow.TvShows.RegisterAlias(show.Id, showData.SortTitle, now);
+        if (originalAlias is not null) uow.TvShows.RegisterAlias(show.Id, originalAlias, now);
 
         var season = uow.TvSeasons.GetByNumber(show.Id, seasonNumber)
             ?? uow.TvSeasons.Create(show.Id, seasonNumber, title: null, overview: null, now);

@@ -151,7 +151,7 @@ public static class TvSeriesGrouping
             parsed.Extension,
             season,
             episode);
-        return new DiscoveredMedia(item.Path, item.FileSize, episodeParsed, DiscoveryClassification.TvEpisodeCandidate, null);
+        return new DiscoveredMedia(item.Path, item.FileSize, episodeParsed, DiscoveryClassification.TvEpisodeCandidate, null, item.Observation);
     }
 
     /// <summary>Reclassifies a discovered file back to a movie, dropping any season/episode.</summary>
@@ -172,7 +172,7 @@ public static class TvSeriesGrouping
             parsed.Source,
             parsed.Codec,
             parsed.Extension);
-        return new DiscoveredMedia(item.Path, item.FileSize, movieParsed, DiscoveryClassification.MovieCandidate, null);
+        return new DiscoveredMedia(item.Path, item.FileSize, movieParsed, DiscoveryClassification.MovieCandidate, null, item.Observation);
     }
 
     private static string NormalizeKey(string value)
