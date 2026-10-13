@@ -26,14 +26,22 @@ Last updated: 2026-10-11
 
 ## Smart TV Batch Import acceptance
 
-- Smart TV Batch Import: implementation and isolated verification complete. The user confirmed successful manual functional testing. The final grouped-review placement is implemented and runtime-verified; candidate visual acceptance remains pending. Product Phase 3 acceptance remains recorded above.
+- Smart TV Batch Import: implementation and isolated verification complete. The user confirmed successful manual functional testing. The final grouped-review placement is implemented and runtime-verified. On 2026-10-13 the user confirmed satisfaction with current application functionality, closing candidate functional/visual acceptance. Installer and stable-publication gates remain separate. Product Phase 3 acceptance remains recorded above.
+
+## Final release-hardening status
+
+- User accepted current functionality on 2026-10-13. Further app interaction stopped when requested.
+- Fresh full Release tests: **734 passed, 0 failed, 0 skipped**; focused hardening tests: **165 passed, 0 failed, 0 skipped**. Fresh self-contained Release build and separate installer recompile passed.
+- No product-code fix or migration was required. Original `0.10.0-rc.1` artifacts remain unchanged.
+- Clean Windows installer lifecycle tests remain **not executed**: no Sandbox/VM is available, and the real installation must remain untouched. Unsigned distribution limits remain documented.
+- Details and publication recommendation: [packaging/FINAL_RELEASE_HARDENING.md](packaging/FINAL_RELEASE_HARDENING.md). No stable tag or publication is authorized.
 
 ## Current release candidate
 
 - Local version: **0.10.0-rc.1**. Latest published WinUI release: **0.9.0-preview**. The older Python `v1.0.0` tag does not identify the current native release.
 - Fresh Release tests on 2026-10-13: **734 passed, 0 failed, 0 skipped**; focused TV/import/UI tests: **152 passed, 0 failed, 0 skipped**. Seven existing xUnit analyzer warnings remain.
 - Release provenance and remaining acceptance limits: [packaging/RELEASE_MANIFEST.md](packaging/RELEASE_MANIFEST.md). Exact source commit, artifact checksums and packaged-runtime results are generated in the artifact-side manifest after the checkpoint.
-- Candidate acceptance, signing and clean-machine verification remain open. No tag or public release is authorized.
+- Installer/clean-machine acceptance and distribution signing remain open; application functional/visual acceptance is complete. No tag or public release is authorized.
 
 ## Latest verification
 
