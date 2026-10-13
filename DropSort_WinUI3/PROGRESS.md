@@ -1,13 +1,14 @@
 # DropSort WinUI 3 — Current Progress
 
-Last updated: 2026-10-10
+Last updated: 2026-10-11
 
 ## Current checkpoint
 
 - Branch: `codex`
 - Movie Details: the native Figma redesign (node `0:1` / `137:21918`) and subsequent UI corrections are complete and manually accepted by the user. This includes responsive layout, theme/RTL presentation, watch history, metadata actions, file availability, and separate reviewed Rename/Move flows.
 - Fresh verification on 2026-10-10: all **694 tests passed, 0 failed, 0 skipped**; Visual Studio Debug x64 **Rebuild passed**. The sandbox test attempt had one Windows Credential Manager access failure; the full rerun outside the sandbox passed using the test's isolated QA credential target. No real-library runtime check was performed in this verification.
-- Next proposed phase: Smart TV Batch Import through Add Media. Investigation/planning only; implementation requires explicit approval. Reuse the existing TV hierarchy, parser, identity aliases, and import pipeline. No schema change is proposed for the initial scope.
+- Smart TV Batch Import: **implemented locally; user manual acceptance pending**. The native Add Media workflow now supports folder-aware TV analysis, grouped series/season review, tri-state selection, corrections and exclusions, local-only import, existing-series targeting, duplicate-safe registration, cancellation, partial failures, and retry. Existing TV repositories, metadata services, aliases, and schema **v15** are reused. No migration, media move/rename/delete, commit, or push.
+- Current TV verification on 2026-10-11: **734 tests passed, 0 failed, 0 skipped**; focused import/analysis/review tests **108 passed**; fresh Visual Studio Debug x64 **Rebuild passed**, with no reported warnings or errors. Native isolated-QA runtime checks passed for pre-confirmation read-only review, import/reimport, corrections, exclusions, additional versions, cancellation, navigation cancellation, missing-file recovery, Slate/Light/Dark, narrow layouts, and Arabic/RTL. The application is open with the isolated QA profile. Evidence and launch instructions: `artifacts/qa/smart-tv-complete-2094ff368df74cda96257db20e6b088b/HANDOFF.md`. Live credentialed TMDB and physical drive removal were not exercised.
 - Product Phase 3 is **manually accepted and closed**. Persistence Write Coordination, the 1.0 Scope Freeze (2026-09-24), the Data / File Trust Pass, the Drive-Aware Availability Model, and **Early Backup Protection** are done. Early Backup Protection was implemented, adversarial-reviewed, and verified at **337/337** at that historical checkpoint; the last pre-1.0 trust blocker was closed. `main` remains untouched. Current remote synchronization is verified separately in the Git handoff.
 - Python V1 is a Frozen Reference. Active product work is in `DropSort_WinUI3`.
 
@@ -23,11 +24,28 @@ Last updated: 2026-10-10
 - Drive-Aware Availability Model: distinguishes StorageUnavailable (disconnected/unmounted drive) from Missing (reachable root, absent file) and Error (access/I/O); reconciliation is non-destructive on unavailable storage and probes each root once. Adversarial-reviewed (Codex needs-attention); H1 (access-denied false Missing) fixed; M1 (UNC timeout), M2 (offline shown as available) deferred; M3 real-drive test deferred to Golden Journeys/RC. Verified 329/329. Details in `PHASES.md` §13.
 - Early Backup Protection: automatic verified SQLite snapshot before a forward migration of an existing database and before Clear Library Data; fail-closed; bounded retention (5); backend restore primitive with WAL-safe preservation and compatibility gating. Adversarial-reviewed (Codex needs-attention); C1/C3/M1/M2 fixed; C2 (fully journaled crash-safe restore + user-facing restore workflow) deferred to a pre-1.0 release gate. Verified 337/337 (test parallelization disabled for determinism). Details in `PHASES.md` §14.
 
-## Completed locally; manual acceptance pending
+## Smart TV Batch Import acceptance
 
-- None. (Product Phase 3 acceptance is recorded above.)
+- Smart TV Batch Import: implementation and isolated verification complete. The user confirmed successful manual functional testing. The final grouped-review placement is implemented and runtime-verified; candidate visual acceptance remains pending. Product Phase 3 acceptance remains recorded above.
+
+## Current release candidate
+
+- Local version: **0.10.0-rc.1**. Latest published WinUI release: **0.9.0-preview**. The older Python `v1.0.0` tag does not identify the current native release.
+- Fresh Release tests on 2026-10-13: **734 passed, 0 failed, 0 skipped**; focused TV/import/UI tests: **152 passed, 0 failed, 0 skipped**. Seven existing xUnit analyzer warnings remain.
+- Release provenance and remaining acceptance limits: [packaging/RELEASE_MANIFEST.md](packaging/RELEASE_MANIFEST.md). Exact source commit, artifact checksums and packaged-runtime results are generated in the artifact-side manifest after the checkpoint.
+- Candidate acceptance, signing and clean-machine verification remain open. No tag or public release is authorized.
 
 ## Latest verification
+
+Fresh on 2026-10-11 for Smart TV Batch Import:
+
+- Full suite: `dotnet test DropSort_WinUI3\tests\DropSort.Tests\DropSort.Tests.csproj --no-restore -v minimal`, isolated QA environment: **734 passed, 0 failed, 0 skipped**, exit **0**. The Windows credential fixture used its isolated QA target outside the sandbox. Seven pre-existing xUnit analyzer warnings remain.
+- Focused suite: the same test project with `--no-build --no-restore -v minimal --filter` selecting `SmartTvImportSafetyTests`, `ImportFileValidatorTests`, `TvReviewGroupStateTests`, `TvBatchAnalysisTests`, `ImportSelectedTests`, and `AddMediaReviewStateTests`: **108 passed, 0 failed, 0 skipped**, exit **0**.
+- Visual Studio 18 Community `MSBuild.exe DropSort_WinUI3\src\DropSort.UI\DropSort.UI.csproj /t:Rebuild /p:Configuration=Debug /p:Platform=x64 /v:minimal /m:1`: exit **0**, no reported warnings or errors. The exact executable, DLL, PRI, and Add Media XBF hashes are saved in the QA build manifest.
+- Native runtime evidence: the bare-filename example imported **1 show / 2 seasons / 3 episodes / 3 files**; repeat import left these counts unchanged. Additional correction/version cases left the final manual QA profile at **1 show / 3 seasons / 4 logical episodes / 5 files**. Synthetic media hashes remained unchanged. Large-batch cancellation recorded **516 saved / 4246 not processed**; navigation cancellation, missing-file partial failure, and retry were verified separately. No real library was opened.
+- Read-only Luna review identified three material issues; all were fixed and the follow-up review reported no additional material findings. The final count correction also has a regression test and a native runtime check.
+
+The following Movie Details verification is a historical checkpoint:
 
 Fresh on 2026-10-10 for the accepted Movie Details source tree:
 

@@ -13,6 +13,7 @@
 
             <StackPanel Spacing="24">
                 <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" />
+                <TextBlock x:Name="AppVersionText" Style="{StaticResource SecondaryCaptionTextStyle}" FlowDirection="LeftToRight" TextWrapping="Wrap" />
 
                 <!--  Appearance: the section heading sits above its card, like the design source.  -->
                 <StackPanel Spacing="12">

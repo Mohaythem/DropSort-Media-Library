@@ -15,18 +15,18 @@
 
     <!--
       Desktop app identity for the unpackaged EXE and the installer. There is no authoritative legal
-      publisher, so Company/Product use the project name. The release is an explicit preview
-      (0.9.0-preview): roadmap risks remain open, so this is not a public 1.0 declaration. The win32
-      file/assembly versions carry the numeric 0.9.0.0; the informational version keeps the -preview tag.
+      publisher, so Company/Product use the project name. This is a local release candidate,
+      not a stable 1.0 declaration. Numeric file/assembly versions omit the SemVer prerelease suffix.
     -->
     <ApplicationIcon>Assets\DropSort.ico</ApplicationIcon>
     <Product>DropSort</Product>
     <AssemblyTitle>DropSort</AssemblyTitle>
     <Company>DropSort</Company>
     <Authors>DropSort</Authors>
-    <Version>0.9.0-preview</Version>
-    <AssemblyVersion>0.9.0.0</AssemblyVersion>
-    <FileVersion>0.9.0.0</FileVersion>
+    <Version>0.10.0-rc.1</Version>
+    <AssemblyVersion>0.10.0.0</AssemblyVersion>
+    <FileVersion>0.10.0.0</FileVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Copyright>Copyright © DropSort</Copyright>
   </PropertyGroup>
 

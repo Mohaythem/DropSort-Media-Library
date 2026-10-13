@@ -63,6 +63,8 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     {
         FlowDirection = LocalizationService.FlowDirection;
         PageTitleText.Text = LocalizationService.Text("Settings");
+        AppVersionText.Text = "DropSort " + System.Reflection.CustomAttributeExtensions
+            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion;
 
         AppearanceHeadingText.Text = LocalizationService.Text("Appearance");
         ThemeLabelText.Text = LocalizationService.Text("Theme");
