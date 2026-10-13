@@ -178,6 +178,17 @@
     <Style x:Key="FormInputTextBoxStyle" TargetType="TextBox">
         <Setter Property="Height" Value="{StaticResource ControlRowHeight}" />
     </Style>
+    <Style x:Key="FolderPickerFieldStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Padding" Value="12,4,12,4" />
+        <Setter Property="Background" Value="{ThemeResource TextControlBackground}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource TextControlBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+    </Style>
     <Style x:Key="FormInputPasswordBoxStyle" TargetType="PasswordBox">
         <Setter Property="Height" Value="{StaticResource ControlRowHeight}" />
     </Style>

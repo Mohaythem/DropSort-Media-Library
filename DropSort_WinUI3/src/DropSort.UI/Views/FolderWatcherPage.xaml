@@ -1,0 +1,122 @@
+<Page
+    x:Class="DropSort.UI.Views.FolderWatcherPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:models="using:DropSort.UI.Models"
+    xmlns:controls="using:DropSort.UI.Controls"
+    Background="Transparent">
+
+    <ListView
+        x:Name="Root"
+        Padding="24,16,24,24"
+        SelectionMode="None"
+        IsItemClickEnabled="False">
+        <ListView.Header>
+            <StackPanel Spacing="16" Margin="0,0,0,16">
+                <StackPanel Spacing="4">
+                    <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" />
+                    <TextBlock x:Name="SafetyHelpText" Style="{StaticResource SecondaryBodyTextStyle}" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Border Style="{StaticResource CardBorderStyle}">
+                    <StackPanel Spacing="12">
+                        <TextBlock x:Name="FolderLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                        <controls:FolderPickerField x:Name="FolderPathBox" AutomationProperties.AutomationId="WatcherFolderPathBox"
+                                                    Height="32" Style="{StaticResource FolderPickerFieldStyle}" Click="BrowseButton_Click" />
+                        <Grid ColumnSpacing="8" RowSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="BrowseButton" AutomationProperties.AutomationId="WatcherBrowseButton"
+                                    Grid.Column="1" Style="{StaticResource SubtleControlButtonStyle}" Click="BrowseButton_Click" />
+                            <Button x:Name="AddFolderButton" AutomationProperties.AutomationId="WatcherAddFolderButton"
+                                    Grid.Column="2" Style="{StaticResource AccentControlButtonStyle}" Click="AddFolderButton_Click" />
+                        </Grid>
+                        <Grid RowSpacing="8">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="ScanNowButton" AutomationProperties.AutomationId="WatcherScanNowButton"
+                                        Style="{StaticResource TextActionButtonStyle}" Click="ScanNowButton_Click" />
+                                <Button x:Name="CancelScanButton" AutomationProperties.AutomationId="WatcherCancelScanButton"
+                                        Style="{StaticResource SubtleControlButtonStyle}" Click="CancelScanButton_Click" />
+                            </StackPanel>
+                            <TextBlock x:Name="StatusText" Grid.Row="1" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
+                        </Grid>
+
+                        <ItemsControl x:Name="WatchedFoldersItemsControl">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="models:FolderWatcherDisplayModel">
+                                    <Border Style="{StaticResource RowDividerStyle}" AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}">
+                                        <Grid ColumnSpacing="8" MinHeight="56">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel VerticalAlignment="Center" Spacing="2">
+                                                <TextBlock Text="{x:Bind Path, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{x:Bind SummaryLabel, Mode=OneWay}" Style="{StaticResource SecondaryCaptionTextStyle}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{x:Bind StatusLabel, Mode=OneWay}" Style="{StaticResource TertiaryCaptionTextStyle}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <CheckBox Grid.Column="1" IsChecked="{x:Bind IsEnabled, Mode=OneWay}" Tag="{x:Bind}"
+                                                      Content="{x:Bind ToggleLabel, Mode=OneWay}"
+                                                      Checked="FolderToggle_Changed" Unchecked="FolderToggle_Changed" />
+                                            <Button Grid.Column="2" Style="{StaticResource SubtleControlButtonStyle}"
+                                                    Content="{x:Bind RemoveLabel, Mode=OneWay}"
+                                                    Tag="{x:Bind}" Click="RemoveFolder_Click" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="ChangesHeaderTitle" VerticalAlignment="Center" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" />
+                    <Button x:Name="BulkReviewNewButton" Grid.Column="1" Style="{StaticResource TextActionButtonStyle}" Click="BulkReviewNewButton_Click" />
+                    <Button x:Name="IgnoreAllButton" Grid.Column="2" Style="{StaticResource SubtleControlButtonStyle}" Click="IgnoreAllButton_Click" />
+                </Grid>
+            </StackPanel>
+        </ListView.Header>
+
+        <ListView.ItemTemplate>
+            <DataTemplate x:DataType="models:FolderWatcherChangeDisplayModel">
+                <Border Style="{StaticResource CardBorderStyle}" Margin="0,0,0,8" Padding="12,10"
+                        AutomationProperties.Name="{x:Bind AutomationName, Mode=OneWay}"
+                        ToolTipService.ToolTip="{x:Bind Path, Mode=OneWay}">
+                    <Grid ColumnSpacing="12" RowSpacing="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Spacing="2">
+                            <TextBlock Text="{x:Bind KindLabel, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                            <TextBlock Text="{x:Bind FileName, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind Path, Mode=OneWay}" Style="{StaticResource SecondaryCaptionTextStyle}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind Message, Mode=OneWay}" Style="{StaticResource TertiaryCaptionTextStyle}" TextWrapping="Wrap" />
+                            <TextBlock Text="{x:Bind Details, Mode=OneWay}" Style="{StaticResource TertiaryCaptionTextStyle}" TextWrapping="Wrap" />
+                            <TextBlock Text="{x:Bind RelatedPath, Mode=OneWay}" Style="{StaticResource TertiaryCaptionTextStyle}" TextWrapping="Wrap" Visibility="{x:Bind RelatedPathVisibility, Mode=OneWay}" />
+                        </StackPanel>
+                        <Button Grid.Column="1" VerticalAlignment="Center" Style="{StaticResource TextActionButtonStyle}"
+                                Content="{x:Bind ReviewLabel, Mode=OneWay}" IsEnabled="{x:Bind CanReview, Mode=OneWay}"
+                                Tag="{x:Bind}" Click="ReviewChange_Click" />
+                        <Button Grid.Column="2" VerticalAlignment="Center" Style="{StaticResource SubtleControlButtonStyle}"
+                                Content="{x:Bind IgnoreLabel, Mode=OneWay}" Tag="{x:Bind}" Click="IgnoreChange_Click" />
+                    </Grid>
+                </Border>
+            </DataTemplate>
+        </ListView.ItemTemplate>
+    </ListView>
+</Page>

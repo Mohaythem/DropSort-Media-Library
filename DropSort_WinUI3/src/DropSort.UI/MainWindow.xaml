@@ -160,6 +160,11 @@
                         <FontIcon Glyph="&#xE73E;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem x:Name="WatcherNavItem" Tag="watcher">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xEC50;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
 
             <NavigationView.FooterMenuItems>

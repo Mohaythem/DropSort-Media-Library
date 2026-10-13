@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     private readonly MyListsPage _myListsPage = new();
     private readonly AddMediaPage _addMediaPage = new();
     private readonly CheckLibraryPage _checkLibraryPage = new();
+    private readonly FolderWatcherPage _watcherPage = new();
     private readonly SettingsPage _settingsPage = new();
     private readonly OperationsLogPage _operationsLogPage = new();
     private readonly MovieDetailsPage _movieDetailsPage = new();
@@ -88,6 +89,7 @@ public sealed partial class MainWindow : Window
             _myListsPage,
             _addMediaPage,
             _checkLibraryPage,
+            _watcherPage,
             _settingsPage,
             _operationsLogPage,
             _movieDetailsPage,
@@ -133,6 +135,12 @@ public sealed partial class MainWindow : Window
         _movieDetailsPage.ShowRequested += OpenShowById;
         _showDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
         _checkLibraryPage.MovieReviewRequested += OpenMovieForReview;
+        _watcherPage.ReviewNewRequested += async (_, args) =>
+        {
+            Navigate("add");
+            await _addMediaPage.ReviewWatchedFilesAsync(args.Paths);
+        };
+        _watcherPage.CheckLibraryRequested += (_, _) => Navigate("check");
         _settingsPage.OperationsLogRequested += (_, _) => Navigate("operations");
         _settingsPage.LibraryDataChanged += (_, _) =>
         {
@@ -331,6 +339,7 @@ public sealed partial class MainWindow : Window
             "lists" => _myListsPage,
             "add" => _addMediaPage,
             "check" => _checkLibraryPage,
+            "watcher" => _watcherPage,
             "settings" => _settingsPage,
             "operations" => _operationsLogPage,
             "details" => _movieDetailsPage,
@@ -360,6 +369,7 @@ public sealed partial class MainWindow : Window
             "lists" => MyListsNavItem,
             "add" => AddMediaNavItem,
             "check" => CheckLibraryNavItem,
+            "watcher" => WatcherNavItem,
             "settings" or "operations" => SettingsNavItem,
             _ => HomeNavItem,
         };
@@ -402,6 +412,7 @@ public sealed partial class MainWindow : Window
         SetNavigationItemText(MyListsNavItem, "MyLists");
         SetNavigationItemText(AddMediaNavItem, "AddMedia");
         SetNavigationItemText(CheckLibraryNavItem, "CheckLibrary");
+        SetNavigationItemText(WatcherNavItem, "FolderWatcher");
         SetNavigationItemText(SettingsNavItem, "Settings");
     }
 
@@ -499,6 +510,7 @@ public sealed partial class MainWindow : Window
             _myListsPage,
             _addMediaPage,
             _checkLibraryPage,
+            _watcherPage,
             _settingsPage,
             _operationsLogPage,
             _movieDetailsPage,

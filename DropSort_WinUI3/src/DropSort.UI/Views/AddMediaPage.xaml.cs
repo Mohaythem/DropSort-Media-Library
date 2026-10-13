@@ -44,6 +44,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     private bool _isScanning;
     private bool _isAdding;
     private bool _isReviewingMetadata;
+    private bool _isPickingFolder;
     private long _scanVersion;
     private long _metadataVersion;
     private CancellationTokenSource? _metadataCancellation;
@@ -146,10 +147,10 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         ScanButton.Content = LocalizationService.Text(
             _isScanning ? "Cancel" : "ScanFolder");
         AddFilesButton.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
-        BrowseButton.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
+        BrowseButton.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata && !_isPickingFolder;
         CancelButton.Content = LocalizationService.Text(_isAdding ? "Cancel" : "CancelReview");
         LocalOnlyBox.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
-        FolderPathBox.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata;
+        FolderPathBox.IsEnabled = !_isScanning && !_isAdding && !_isReviewingMetadata && !_isPickingFolder;
         if (!_isAdding && !_isReviewingMetadata) RefreshGroupHeaders();
         CancelButton.Visibility = _isScanning || _isAdding || (_state == AddMediaScanState.Results)
             ? Visibility.Visible
@@ -728,6 +729,9 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     /// </summary>
     private async void BrowseButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isPickingFolder || _isScanning || _isAdding || _isReviewingMetadata) return;
+        _isPickingFolder = true;
+        Refresh();
         try
         {
             var picker = new FolderPicker();
@@ -745,6 +749,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         {
             await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
+        finally { _isPickingFolder = false; Refresh(); }
     }
 
     /// <summary>Picks loose media files and sends them through the same mixed review as folder scans.</summary>
@@ -818,6 +823,65 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         catch (Exception error)
         {
             await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+        }
+    }
+
+    /// <summary>
+    /// Opens an explicit watcher review in the existing Add Media pipeline. The watcher supplies exact
+    /// paths only; discovery, duplicate checks, metadata review and the final import confirmation remain
+    /// the same as for manually selected files.
+    /// </summary>
+    public async Task ReviewWatchedFilesAsync(
+        IReadOnlyList<string> paths,
+        CancellationToken cancellationToken = default)
+    {
+        var wanted = paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (wanted.Length == 0)
+        {
+            return;
+        }
+
+        var (cancellation, scanVersion) = BeginScan();
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token, cancellationToken);
+        try
+        {
+            var discovered = await Task.Run(
+                () => DiscoverPicked(wanted, () => linked.IsCancellationRequested),
+                linked.Token);
+
+            if (!IsCurrentScan(scanVersion, cancellation) || linked.IsCancellationRequested)
+            {
+                return;
+            }
+
+            SetDetected(discovered);
+            _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
+            if (_detected.Count > 0)
+            {
+                BeginMetadataReview();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            if (IsCurrentScan(scanVersion, cancellation))
+            {
+                _state = AddMediaScanState.Idle;
+            }
+        }
+        catch (Exception error)
+        {
+            if (IsCurrentScan(scanVersion, cancellation))
+            {
+                _state = AddMediaScanState.Idle;
+                await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+            }
+        }
+        finally
+        {
+            EndScan(scanVersion, cancellation);
         }
     }
 
@@ -1426,7 +1490,7 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
     /// directory is scanned without recursion and the results are filtered back to what was picked, so
     /// one parser decides what a name means.
     /// </summary>
-    private static IReadOnlyList<DiscoveredMedia> DiscoverPicked(
+    internal static IReadOnlyList<DiscoveredMedia> DiscoverPicked(
         IReadOnlyList<string> paths,
         Func<bool>? isCancelled = null)
     {

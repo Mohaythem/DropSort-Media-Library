@@ -133,7 +133,8 @@
                 <TextBlock x:Name="FolderLabelText" Style="{StaticResource SecondaryCaptionTextStyle}" />
                 <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <TextBox x:Name="FolderPathBox" Style="{StaticResource FormInputTextBoxStyle}" />
+                    <controls:FolderPickerField x:Name="FolderPathBox" AutomationProperties.AutomationId="AddMediaFolderPathBox"
+                                                Height="{StaticResource ControlRowHeight}" Style="{StaticResource FolderPickerFieldStyle}" Click="BrowseButton_Click" />
                     <Button x:Name="BrowseButton" Grid.Column="1" Click="BrowseButton_Click" Style="{StaticResource SubtleControlButtonStyle}" />
                 </Grid>
                 <StackPanel x:Name="SourceActions" Orientation="Horizontal" Spacing="8">
