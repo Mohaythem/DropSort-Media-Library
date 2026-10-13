@@ -1,10 +1,12 @@
 # DropSort WinUI 3 — Current Progress
 
-Last updated: 2026-10-11
+Last updated: 2026-10-13
 
 ## Current checkpoint
 
 - Branch: `codex`
+- Folder Watcher: **complete and manually accepted on 2026-10-13**, including the corrective pass, live Arabic/English switching, and clickable native Folder Picker fields in Folder Watcher and Add Media. Implementation checkpoint: `581528b1d90f35f6d9e6b5d83a05df53680eaa10`.
+- Fresh finalization verification on 2026-10-13: **768 tests passed, 0 failed, 0 skipped**, including **34 Folder Watcher tests**; Visual Studio Debug x64 **Rebuild passed**. Monitoring remains advisory-only, preserves incomplete/offline scan baselines, and stores watcher state separately without a database migration. The accepted `0.10.0-rc.1` release artifacts remain unchanged. Smart Relink has not started.
 - Movie Details: the native Figma redesign (node `0:1` / `137:21918`) and subsequent UI corrections are complete and manually accepted by the user. This includes responsive layout, theme/RTL presentation, watch history, metadata actions, file availability, and separate reviewed Rename/Move flows.
 - Fresh verification on 2026-10-10: all **694 tests passed, 0 failed, 0 skipped**; Visual Studio Debug x64 **Rebuild passed**. The sandbox test attempt had one Windows Credential Manager access failure; the full rerun outside the sandbox passed using the test's isolated QA credential target. No real-library runtime check was performed in this verification.
 - Smart TV Batch Import: **implemented locally; user manual acceptance pending**. The native Add Media workflow now supports folder-aware TV analysis, grouped series/season review, tri-state selection, corrections and exclusions, local-only import, existing-series targeting, duplicate-safe registration, cancellation, partial failures, and retry. Existing TV repositories, metadata services, aliases, and schema **v15** are reused. No migration, media move/rename/delete, commit, or push.
@@ -44,6 +46,15 @@ Last updated: 2026-10-11
 - Installer/clean-machine acceptance and distribution signing remain open; application functional/visual acceptance is complete. No tag or public release is authorized.
 
 ## Latest verification
+
+Fresh on 2026-10-13 for the manually accepted Folder Watcher checkpoint:
+
+- Full suite: `dotnet test DropSort_WinUI3\tests\DropSort.Tests\DropSort.Tests.csproj --logger "trx;LogFileName=full-finalize.trx" --results-directory DropSort_WinUI3\artifacts\qa\folder-watcher-finalize-20261013` — **768 passed, 0 failed, 0 skipped**, exit **0**. Automated verification used isolated temporary fixtures, including the test-owned Windows credential target; no production library or real media was used.
+- Fresh Visual Studio 18 Community `MSBuild.exe` rebuild of `DropSort.UI.csproj`, `Configuration=Debug`, `Platform=x64`, with a separate QA `BaseOutputPath` — exit **0**, no reported warnings or errors. This preserved the open QA build and existing release outputs. Local evidence: `artifacts/qa/folder-watcher-finalize-20261013/full-suite.log`, `full-finalize.trx`, and `debug-rebuild.log`.
+- Regression coverage includes corrupt/unsupported JSON preservation, cancellation during file-fact reads, active-writer readiness, configuration-save rollback, persisted alerts and restart recovery, watcher-error recovery, bounded debounce, ambiguous moves, restored-file alert cleanup, and partial/offline baseline preservation.
+- Prior native QA verified repeated live English/Arabic switching, Slate/Light/Dark, 800-pixel layouts, automatic synthetic-file detection, persisted alerts after restart, and visible corrupted-state errors. The user subsequently accepted the complete implementation and both pages' Folder Picker click/select/cancel behavior. This user acceptance is distinct from automated UI coverage.
+- Codex inspected the final staged scope; Antigravity's final read-only review reported no confirmed commit-blocking correctness or security defect. The implementation commit contains only the 18 approved source/integration/localization/test files. QA artifacts, secrets, unrelated roadmap changes, and legacy deletions were excluded.
+- Physical removable-drive, network-outage/sleep, and actual link-loop runtime scenarios were not exercised in this phase. Existing release/installer acceptance limits remain unchanged; this checkpoint does not rebuild or publish `0.10.0-rc.1`.
 
 Fresh on 2026-10-11 for Smart TV Batch Import:
 
