@@ -87,12 +87,98 @@ public sealed class ImportSelectedTests : IDisposable
 
     // --- Duplicate identity: same movie in two folders becomes one Movie with many media files ---------
 
-    private DiscoveredMedia MovieFile(string fileName, string title, int? year, string extension = ".mkv")
+    private DiscoveredMedia MovieFile(string fileName, string title, int? year, string extension = ".mkv", string? resolution = "1080p")
     {
         var path = Path.Combine(_root, fileName);
         return new DiscoveredMedia(path, 100, new ParsedMedia(fileName, MediaType.Movie, title, year,
-            "1080p", "web", "h264", extension, null, null),
+            resolution, "web", "h264", extension, null, null),
             DiscoveryClassification.MovieCandidate, null);
+    }
+
+    [Fact]
+    public void ConfirmMovieImport_ReusesIdentityForThreeEditionsAndRejectsRepeatedPath()
+    {
+        var provider = new CountingProvider();
+        var service = CreateService(provider);
+        var candidate = Candidate("Movie", "movie-1");
+        var first = MovieFile("First.1080p.mkv", "Movie", 2020);
+        var original = service.ConfirmMovieImport(new(first.Path, first.FileSize!.Value, first.ParsedMedia!,
+            DateTimeOffset.UtcNow, candidate));
+        var personal = new PersonalLibraryRepository("Data Source=" + Path.Combine(_root, "catalog.db"));
+        var listId = personal.CreateCustomList("Favorites", DateTimeOffset.UtcNow);
+        personal.AddMovieToCustomList(listId, original.Movie.Id, DateTimeOffset.UtcNow);
+        personal.AddWatchEvent(original.Movie.Id, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+
+        var second = MovieFile("Second.2160p.mp4", "Different filename", 2020, extension: ".mp4", resolution: "2160p");
+        var third = MovieFile("Third.Directors.Cut.mkv", "Different filename", 2020);
+        foreach (var file in new[] { second, third })
+        {
+            var added = service.ConfirmMovieImport(new(file.Path, file.FileSize!.Value, file.ParsedMedia!,
+                DateTimeOffset.UtcNow, candidate));
+            Assert.False(added.AlreadyRegistered);
+            Assert.Equal(original.Movie, added.Movie);
+        }
+        // A repeated file cannot be reassigned even when another identity is selected.
+        var repeated = service.ConfirmMovieImport(new(first.Path, first.FileSize!.Value, first.ParsedMedia!,
+            DateTimeOffset.UtcNow, Candidate("Other", "other")));
+        Assert.True(repeated.AlreadyRegistered);
+        Assert.Equal(original.Movie.Id, repeated.Movie.Id);
+
+        // Path identity normalizes case-insensitively: uppercase path is also recognized as already registered.
+        var repeatedUpper = service.ConfirmMovieImport(new(first.Path.ToUpperInvariant(), first.FileSize!.Value, first.ParsedMedia!,
+            DateTimeOffset.UtcNow, Candidate("Other", "other")));
+        Assert.True(repeatedUpper.AlreadyRegistered);
+        Assert.Equal(original.Movie.Id, repeatedUpper.Movie.Id);
+        Assert.Equal(repeated.MediaFile.Id, repeatedUpper.MediaFile.Id);
+        Assert.True(service.IsMediaFileRegistered(first.Path.ToUpperInvariant()));
+
+        using var uow = _factory.Begin();
+        Assert.Single(uow.Movies.ListAll());
+        var files = uow.MediaFiles.GetByMovieId(original.Movie.Id);
+        Assert.Equal(3, files.Count);
+        Assert.Equal(3, files.Select(f => f.CurrentPath).Distinct().Count());
+        Assert.Contains(files, f => f.Extension == ".mkv" && f.Resolution == "1080p" && f.CurrentPath == first.Path);
+        Assert.Contains(files, f => f.Extension == ".mp4" && f.Resolution == "2160p" && f.CurrentPath == second.Path);
+        Assert.Contains(files, f => f.Extension == ".mkv" && f.Resolution == "1080p" && f.CurrentPath == third.Path);
+        Assert.NotNull(uow.MediaFiles.GetByPath(first.Path.ToUpperInvariant()));
+        Assert.Equal(repeated.MediaFile.Id, uow.MediaFiles.GetByPath(first.Path.ToUpperInvariant())!.Id);
+        Assert.Equal(1, provider.MovieDetailsCount);
+
+        using var db = new SqliteConnection("Data Source=" + Path.Combine(_root, "catalog.db"));
+        db.Open();
+        foreach (var table in new[] { "custom_list_members", "watch_events" })
+        {
+            using var query = db.CreateCommand();
+            query.CommandText = $"SELECT COUNT(*) FROM {table} WHERE movie_id = $id";
+            query.Parameters.AddWithValue("$id", original.Movie.Id);
+            Assert.Equal(1L, query.ExecuteScalar());
+        }
+    }
+
+    [Fact]
+    public async Task ConfirmedBatchSelection_ReusesExistingMovieWithoutConfiguredProvider()
+    {
+        var initialService = CreateService(new CountingProvider());
+        var first = MovieFile("Original.mkv", "Movie", 2020);
+        var candidate = Candidate("Movie", "movie-1");
+        var original = initialService.ConfirmMovieImport(new(first.Path, first.FileSize!.Value, first.ParsedMedia!,
+            DateTimeOffset.UtcNow, candidate));
+        var offlineProvider = new CountingProvider { IsConfigured = false };
+        var service = CreateService(offlineProvider);
+        var preview = new ImportMetadataPreview(ImportItemStatus.Matched, MatchStatus.Matched,
+            MovieCandidate: candidate, IsManual: true);
+        var second = MovieFile("Second.mkv", "Alternate edition", null);
+        var third = MovieFile("Third.mp4", "Alternate edition", null, ".mp4");
+        var result = await service.ImportSelectedAsync(
+            [new(second, preview), new(third, preview), new(second, preview)]);
+        Assert.Equal(2, result.Items.Count(item => !item.AlreadyRegistered));
+        Assert.Equal(ImportItemStatus.AlreadyInLibrary, result.Items[2].Status);
+        Assert.All(result.Items.Take(2), item => Assert.Equal(ImportItemStatus.Matched, item.Status));
+        using var uow = _factory.Begin();
+        Assert.Equal(original.Movie, Assert.Single(uow.Movies.ListAll()));
+        Assert.Equal(3, uow.MediaFiles.GetByMovieId(original.Movie.Id).Count);
+        Assert.Equal(0, offlineProvider.MovieDetailsCount);
+        Assert.Equal(0, offlineProvider.MovieSearchCount);
     }
 
     [Fact]
@@ -1439,8 +1525,13 @@ public sealed class ImportSelectedTests : IDisposable
         public int TvMatchCount { get; private set; }
 
         public IReadOnlyList<MovieCandidate> Search(MovieSearchQuery query) => MovieCandidates;
-        public MovieMetadata? GetMovie(string externalId) => new("tmdb", externalId, "Movie", null, 2020,
-            null, ImmutableArray<string>.Empty, null, null, "/movie.jpg");
+        public int MovieDetailsCount { get; private set; }
+        public MovieMetadata? GetMovie(string externalId)
+        {
+            MovieDetailsCount++;
+            return new("tmdb", externalId, "Movie", null, 2020,
+                null, ImmutableArray<string>.Empty, null, null, "/movie.jpg");
+        }
         public Task<IReadOnlyList<MovieCandidate>> SearchMoviesAsync(MovieSearchQuery query, CancellationToken ct = default)
         {
             MovieSearchCount++;

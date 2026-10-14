@@ -131,7 +131,7 @@ public sealed class NavigationPaneStateTests
         Assert.Equal("240", (string?)navigation.Attribute("OpenPaneLength"));
         Assert.Equal("64", (string?)navigation.Attribute("CompactPaneLength"));
         Assert.Equal("Left", (string?)navigation.Attribute("PaneDisplayMode"));
-        Assert.Equal(new[] { "home", "library", "lists", "add", "check", "watcher", "settings" },
+        Assert.Equal(new[] { "home", "library", "lists", "add", "check", "settings" },
             navigation.Descendants().Where(e => e.Name.LocalName == "NavigationViewItem")
                 .Select(e => (string?)e.Attribute("Tag")).ToArray());
         Assert.Single(navigation.Descendants().Where(e => e.Name.LocalName == "NavigationView.FooterMenuItems")
@@ -144,6 +144,27 @@ public sealed class NavigationPaneStateTests
         var paneBrushes = themes.Descendants().Where(e => (string?)e.Attribute(x + "Key") == "NavigationViewDefaultPaneBackground").ToArray();
         Assert.Equal(3, paneBrushes.Length);
         Assert.All(paneBrushes, brush => Assert.Contains("{ThemeResource ", (string?)brush.Attribute("Color")));
+    }
+
+    [Fact]
+    public void Removed_feature_wiring_is_absent_and_add_media_picker_remains()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "src", "DropSort.UI")))
+            directory = directory.Parent;
+        Assert.NotNull(directory);
+
+        var uiRoot = Path.Combine(directory!.FullName, "src", "DropSort.UI");
+        var shell = File.ReadAllText(Path.Combine(uiRoot, "MainWindow.xaml"))
+            + File.ReadAllText(Path.Combine(uiRoot, "MainWindow.xaml.cs"));
+        var services = File.ReadAllText(Path.Combine(uiRoot, "Services", "AppServices.cs"));
+        Assert.DoesNotContain("FolderWatcher", shell + services, StringComparison.Ordinal);
+        Assert.DoesNotContain("SmartRelink", shell + services, StringComparison.Ordinal);
+
+        var addMedia = File.ReadAllText(Path.Combine(uiRoot, "Views", "AddMediaPage.xaml"))
+            + File.ReadAllText(Path.Combine(uiRoot, "Views", "AddMediaPage.xaml.cs"));
+        Assert.Contains("FolderPickerField", addMedia, StringComparison.Ordinal);
+        Assert.Contains("new FolderPicker()", addMedia, StringComparison.Ordinal);
     }
 
     [Fact]

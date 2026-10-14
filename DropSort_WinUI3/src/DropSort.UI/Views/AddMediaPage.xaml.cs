@@ -826,65 +826,6 @@ public sealed partial class AddMediaPage : Page, ILocalizableView, IActivatableV
         }
     }
 
-    /// <summary>
-    /// Opens an explicit watcher review in the existing Add Media pipeline. The watcher supplies exact
-    /// paths only; discovery, duplicate checks, metadata review and the final import confirmation remain
-    /// the same as for manually selected files.
-    /// </summary>
-    public async Task ReviewWatchedFilesAsync(
-        IReadOnlyList<string> paths,
-        CancellationToken cancellationToken = default)
-    {
-        var wanted = paths
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        if (wanted.Length == 0)
-        {
-            return;
-        }
-
-        var (cancellation, scanVersion) = BeginScan();
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation.Token, cancellationToken);
-        try
-        {
-            var discovered = await Task.Run(
-                () => DiscoverPicked(wanted, () => linked.IsCancellationRequested),
-                linked.Token);
-
-            if (!IsCurrentScan(scanVersion, cancellation) || linked.IsCancellationRequested)
-            {
-                return;
-            }
-
-            SetDetected(discovered);
-            _state = _detected.Count == 0 ? AddMediaScanState.Idle : AddMediaScanState.Results;
-            if (_detected.Count > 0)
-            {
-                BeginMetadataReview();
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            if (IsCurrentScan(scanVersion, cancellation))
-            {
-                _state = AddMediaScanState.Idle;
-            }
-        }
-        catch (Exception error)
-        {
-            if (IsCurrentScan(scanVersion, cancellation))
-            {
-                _state = AddMediaScanState.Idle;
-                await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
-            }
-        }
-        finally
-        {
-            EndScan(scanVersion, cancellation);
-        }
-    }
-
     private static readonly string[] MediaExtensions =
         [".mkv", ".mp4", ".avi", ".mov", ".m4v", ".wmv"];
 

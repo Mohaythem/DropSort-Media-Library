@@ -164,7 +164,7 @@ public class ImportService : IImportUiActions
             // used instead of the batch Add Media flow.
             return registration;
         }
-        if (command.SelectedCandidate != null)
+        if (command.SelectedCandidate != null && !HasSelectedMovieIdentity(registration.Movie, command.SelectedCandidate))
         {
             return EnrichMovieImport(command, registration);
         }
@@ -242,7 +242,9 @@ public class ImportService : IImportUiActions
                     _fileValidator?.Validate(item, cancellationToken);
                     cancellationToken.ThrowIfCancellationRequested();
                     var registration = RegisterMovieImport(new ConfirmMovieImportCommand(
-                        item.Path, size, item.ParsedMedia, _clock()));
+                        item.Path, size, item.ParsedMedia, _clock(),
+                        !selection.LocalOnly && selection.MetadataPreview?.Status == ImportItemStatus.Matched
+                            ? selection.MetadataPreview.MovieCandidate : null));
                     if (registration.AlreadyRegistered)
                     {
                         results.Add(new ImportItemResult(
@@ -256,8 +258,9 @@ public class ImportService : IImportUiActions
                     }
 
                     var resultIndex = results.Count;
-                    var needsMetadata = registration.Movie.MetadataStatus != MetadataStatus.Ready;
                     var staged = selection.LocalOnly ? null : selection.MetadataPreview;
+                    var needsMetadata = registration.Movie.MetadataStatus != MetadataStatus.Ready
+                        && !(staged?.MovieCandidate is { } selected && HasSelectedMovieIdentity(registration.Movie, selected));
                     var canAttemptMetadata = needsMetadata && _matching is not null && _metadataProvider.IsConfigured
                         && !selection.LocalOnly && (staged is null || staged.Status == ImportItemStatus.Matched);
                     var initialStatus = selection.LocalOnly ? ImportItemStatus.ReadyToAdd : !needsMetadata ? ImportItemStatus.Matched
@@ -1021,7 +1024,13 @@ public class ImportService : IImportUiActions
         if (existingFile is not null && uow.TvEpisodes.GetEpisodeIdForMediaFile(existingFile.Id) is not null)
             throw new InvalidOperationException("The media file is already associated with a TV episode.");
 
-        var movie = uow.Movies.Create(movieData, _clock());
+        // A selected provider identity belongs to the movie, not to this local edition.
+        // Reuse it inside the registration transaction without refreshing its metadata or personal state.
+        var candidate = command.SelectedCandidate;
+        var movie = candidate is not null && !string.IsNullOrWhiteSpace(candidate.Provider)
+            && !string.IsNullOrWhiteSpace(candidate.ExternalId)
+            ? uow.Movies.GetByExternalId(candidate.Provider, candidate.ExternalId) : null;
+        movie ??= uow.Movies.Create(movieData, _clock());
         var mediaFile = existingFile == null 
             ? uow.MediaFiles.Add(fileFacts, movie.Id)
             : uow.MediaFiles.LinkToMovie(existingFile.Id, movie.Id);
@@ -1033,6 +1042,8 @@ public class ImportService : IImportUiActions
     public MovieFileIngestionResult EnrichMovieImport(ConfirmMovieImportCommand command, MovieFileIngestionResult registration)
     {
         if (command.SelectedCandidate == null) throw new ArgumentException("Enrichment requires a selected candidate.");
+        if (registration.AlreadyRegistered || HasSelectedMovieIdentity(registration.Movie, command.SelectedCandidate))
+            return registration;
         
         // Simulates TMDB optional enrichment contract
         var remote = _metadataProvider.GetMovie(command.SelectedCandidate.ExternalId);
@@ -1057,6 +1068,11 @@ public class ImportService : IImportUiActions
         
         return new MovieFileIngestionResult(updatedMovie, registration.MediaFile);
     }
+
+    private static bool HasSelectedMovieIdentity(Movie movie, MovieCandidate candidate) =>
+        !string.IsNullOrWhiteSpace(movie.Provider) && !string.IsNullOrWhiteSpace(movie.ExternalId)
+        && string.Equals(movie.Provider, candidate.Provider?.Trim(), StringComparison.Ordinal)
+        && string.Equals(movie.ExternalId, candidate.ExternalId?.Trim(), StringComparison.Ordinal);
 
     public ManualMovieSearchResult ManualMovieSearch(string title, string? year = null)
     {

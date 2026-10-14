@@ -14,8 +14,6 @@ using DropSort.Infrastructure.Persistence.Repositories;
 using DropSort.Infrastructure.Metadata.Cache;
 using DropSort.Infrastructure.Metadata.Tmdb;
 using DropSort.Infrastructure.Security;
-using DropSort.Infrastructure.Watching;
-using DropSort.FileSystem.Watching;
 
 namespace DropSort.UI.Services;
 
@@ -107,8 +105,6 @@ internal static class AppServices
 
     public static IOrganizationUiActions Organization => Require(_organization);
 
-    /// <summary>Read-only folder observation. It never writes the media catalog or changes media files.</summary>
-    public static FolderWatcherService FolderWatcher => Require(_folderWatcher);
 
     public static IMetadataProvider Metadata => Require(_metadataProvider);
 
@@ -281,7 +277,6 @@ internal static class AppServices
     private static IMetadataProvider? _metadataProvider;
     private static MetadataMatchingService? _matching;
     private static ILibraryRepairUiActions? _repair;
-    private static FolderWatcherService? _folderWatcher;
 
     /// <summary>
     /// The two objects that own a resource rather than a connection string: the journal store holds a
@@ -344,7 +339,6 @@ internal static class AppServices
 
             FileOperationStore? operations = null;
             FileOperationCoordinator? coordinator = null;
-            FolderWatcherService? folderWatcher = null;
 
             try
             {
@@ -405,13 +399,6 @@ internal static class AppServices
                 var history = new OperationHistoryService(operations, coordinator, mediaFiles, movies);
                 var organization = new OrganizationService(mediaFiles, coordinator);
                 var repair = new LibraryRepairService(catalogFactory);
-                folderWatcher = new FolderWatcherService(
-                    new MediaDiscoveryService(),
-                    new JsonFolderWatcherStateStore(Path.Combine(DataFolder, "folder-watcher.json")),
-                    new FileSystemWatcherIO(),
-                    () => mediaFiles.ListAll().Select(file => file.CurrentPath).ToArray());
-                folderWatcher.Start();
-
                 _mediaFiles = mediaFiles;
                 _availabilityInspector = availabilityInspector;
                 _settingsRepository = settingsRepository;
@@ -432,7 +419,6 @@ internal static class AppServices
                 _metadataProvider = tmdbClient;
                 _matching = matching;
                 _repair = repair;
-                _folderWatcher = folderWatcher;
 
                 InitializationError = null;
                 _initialized = true;
@@ -443,7 +429,6 @@ internal static class AppServices
                 _lastFailure = DateTimeOffset.UtcNow;
                 coordinator?.Dispose();
                 operations?.Dispose();
-                folderWatcher?.Dispose();
                 Clear();
             }
         }
@@ -461,7 +446,6 @@ internal static class AppServices
         lock (Gate)
         {
             _closed = true;
-            _folderWatcher?.Dispose();
             _coordinator?.Dispose();
             _operationStore?.Dispose();
             Clear();
@@ -500,7 +484,6 @@ internal static class AppServices
         _metadataProvider = null;
         _matching = null;
         _repair = null;
-        _folderWatcher = null;
         _operationStore = null;
         _coordinator = null;
     }
