@@ -1,12 +1,13 @@
 # DropSort WinUI 3 — Current Progress
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 
 ## Current checkpoint
 
 - Branch: `codex`
-- Folder Watcher: **complete and manually accepted on 2026-10-13**, including the corrective pass, live Arabic/English switching, and clickable native Folder Picker fields in Folder Watcher and Add Media. Implementation checkpoint: `581528b1d90f35f6d9e6b5d83a05df53680eaa10`.
-- Fresh finalization verification on 2026-10-13: **768 tests passed, 0 failed, 0 skipped**, including **34 Folder Watcher tests**; Visual Studio Debug x64 **Rebuild passed**. Monitoring remains advisory-only, preserves incomplete/offline scan baselines, and stores watcher state separately without a database migration. The accepted `0.10.0-rc.1` release artifacts remain unchanged. Smart Relink has not started.
+- Folder Watcher and Smart Relink are **permanently removed by user decision on 2026-10-14**. Their UI, background monitoring, configuration, candidate search, cache integration, and feature tests are removed. Existing profile JSON files are retained untouched. The original Check Library checks and manual file selection remain available.
+- Release preparation targets **0.10.0-rc.2**, an unsigned Windows x64 pre-release. Add Media, Smart TV Batch Import, Movie/TV Details, the clickable native Add Media Folder Picker, and the TMDB movie-reuse fix are retained. No database migration is introduced. The accepted `0.10.0-rc.1` artifacts remain unchanged.
+- Removal verification: **737 full Debug tests passed, 0 failed, 0 skipped**; **125 focused tests passed**; Visual Studio Release x64 self-contained **Rebuild passed**. Independent Luna review completed, and its two dead-import findings were corrected and rechecked. Isolated schema-v15 compatibility checks passed for SQLite integrity, foreign keys, identities, editions, metadata, history, lists, and retained legacy JSON. Exact committed-source packaging and final runtime evidence are recorded in the RC2 artifact-side manifests.
 - Movie Details: the native Figma redesign (node `0:1` / `137:21918`) and subsequent UI corrections are complete and manually accepted by the user. This includes responsive layout, theme/RTL presentation, watch history, metadata actions, file availability, and separate reviewed Rename/Move flows.
 - Fresh verification on 2026-10-10: all **694 tests passed, 0 failed, 0 skipped**; Visual Studio Debug x64 **Rebuild passed**. The sandbox test attempt had one Windows Credential Manager access failure; the full rerun outside the sandbox passed using the test's isolated QA credential target. No real-library runtime check was performed in this verification.
 - Smart TV Batch Import: **implemented locally; user manual acceptance pending**. The native Add Media workflow now supports folder-aware TV analysis, grouped series/season review, tri-state selection, corrections and exclusions, local-only import, existing-series targeting, duplicate-safe registration, cancellation, partial failures, and retry. Existing TV repositories, metadata services, aliases, and schema **v15** are reused. No migration, media move/rename/delete, commit, or push.

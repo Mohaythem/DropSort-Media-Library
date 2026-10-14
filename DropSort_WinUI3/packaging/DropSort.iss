@@ -9,10 +9,10 @@
 ; uninstall leave user data and media untouched.
 ;
 ; Build:  ISCC.exe packaging\DropSort.iss
-; Output: artifacts\release\0.10.0-rc.1\DropSortSetup.exe
+; Output: artifacts\release\0.10.0-rc.2\DropSortSetup.exe
 
 #define MyAppName "DropSort"
-#define MyAppVersion "0.10.0-rc.1"
+#define MyAppVersion "0.10.0-rc.2"
 #define MyAppPublisher "DropSort"
 #define MyAppExeName "DropSort.UI.exe"
 ; Payload = the self-contained Release BUILD output for win-x64. We package the build output, not the
@@ -20,7 +20,9 @@
 ; index (DropSort.UI.pri) and XAML binaries (*.xbf), so a published build exits at startup, whereas the
 ; self-contained build output contains the PRI, the XBFs, the .NET runtime and the Windows App Runtime
 ; and launches correctly (verified). PDBs and the nested publish folder are excluded.
+#ifndef PayloadDir
 #define PayloadDir "..\src\DropSort.UI\bin\x64\Release\net10.0-windows10.0.22621\win-x64"
+#endif
 #define IconFile "..\src\DropSort.UI\Assets\DropSort.ico"
 
 [Setup]
