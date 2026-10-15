@@ -1,6 +1,18 @@
 # DropSort WinUI 3 — Current Progress
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
+
+## Accepted UI and installer checkpoint — 2026-10-15
+
+- The user accepted the expanded TV Details layout: bounded width 1280, wide poster 240 x 360, compact poster 170 x 255. TV Details now offers confirmed catalog-only removal, preserving physical media and watch-history snapshots.
+- This checkpoint includes Home viewing activity, native landscape cards and Slate styling, frameless empty states, full-width Check Library with metadata issues first, and mixed movie/TV Watch Later and Favorites alongside custom lists.
+- Schema v16 adds active viewings. Schema v17 adds TV personal memberships. These are additive migrations and use the existing verified pre-migration backup path. Historical watch events and existing movie memberships remain intact.
+- Implementation/source commit: `52ed8914b69e044c5242e18ef5cc02b16656a78d`. Installer version: `0.10.0-rc.3`; file/installer version: `0.10.0.3`; assembly version remains `0.10.0.0`.
+- Independent Luna source review found no material correctness or data-safety issue. The root corrected a stale artwork expectation in an existing source-contract test. Tests and runtime/UI verification are explicitly left to the user; no fresh suite result is claimed for this checkpoint.
+- Release packaging uses a fresh export of the source commit and a Visual Studio Release x64 self-contained Rebuild. Final build results, checksums, and payload provenance are recorded beside the new installer under `artifacts/release/0.10.0-rc.3/BUILD_MANIFEST.json`.
+- The per-user Inno installer preserves its existing AppId, creates a Start menu entry, and offers a desktop shortcut selected by default. No GitHub release or tag is created in this phase. Previous release artifacts, production data, unrelated changes, and legacy deletions are preserved.
+
+The following sections record earlier checkpoints. Their version numbers and test totals are historical.
 
 ## Current checkpoint
 
