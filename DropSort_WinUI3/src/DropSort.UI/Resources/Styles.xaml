@@ -430,7 +430,7 @@
         <Setter Property="Height" Value="{StaticResource LibraryHorizontalCardHeight}" />
         <Setter Property="MinHeight" Value="0" />
         <Setter Property="Margin" Value="0,0,12,12" />
-        <Setter Property="Padding" Value="16" />
+        <Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
         <Setter Property="UseSystemFocusVisuals" Value="True" />
@@ -449,13 +449,15 @@
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
                                         <Setter Target="CardRoot.Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
-                                        <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ControlStrongStrokeColorDefaultBrush}" />
+                                        <Setter Target="CardOverlay.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                        <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource AccentFillColorDefaultBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
                                 <VisualState x:Name="Pressed">
                                     <VisualState.Setters>
                                         <Setter Target="CardRoot.Background" Value="{ThemeResource ControlFillColorTertiaryBrush}" />
-                                        <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ControlStrongStrokeColorDefaultBrush}" />
+                                        <Setter Target="CardOverlay.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                        <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource AccentFillColorDefaultBrush}" />
                                         <Setter Target="CardContent.Opacity" Value="0.85" />
                                     </VisualState.Setters>
                                 </VisualState>
@@ -464,6 +466,7 @@
                                 <VisualState x:Name="PressedSelected">
                                     <VisualState.Setters>
                                         <Setter Target="CardRoot.Background" Value="{ThemeResource ControlFillColorTertiaryBrush}" />
+                                        <Setter Target="CardOverlay.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
                                         <Setter Target="CardContent.Opacity" Value="0.85" />
                                     </VisualState.Setters>
                                 </VisualState>
@@ -474,12 +477,16 @@
                                 </VisualState>
                             </VisualStateGroup>
                         </VisualStateManager.VisualStateGroups>
+                        <Grid>
                         <ContentPresenter x:Name="CardContent"
                                           Margin="{TemplateBinding Padding}"
                                           HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                           Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}" />
+                            <Border x:Name="CardOverlay" Background="Transparent"
+                                    CornerRadius="{ThemeResource ControlCornerRadius}" IsHitTestVisible="False" />
+                        </Grid>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>

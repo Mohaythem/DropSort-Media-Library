@@ -4,7 +4,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     HorizontalAlignment="Left">
 
-    <Border
+    <Grid>
+        <Border
+            x:Name="FramedState"
         MaxWidth="{StaticResource EmptyStateMaxWidth}"
         Style="{StaticResource CardBorderStyle}">
         <Grid ColumnSpacing="12">
@@ -42,5 +44,40 @@
                     Visibility="{x:Bind IsActionVisible, Mode=OneWay}" />
             </StackPanel>
         </Grid>
-    </Border>
+        </Border>
+
+        <StackPanel
+            x:Name="FramelessState"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="8"
+            Visibility="Collapsed">
+            <FontIcon
+                HorizontalAlignment="Center"
+                FontFamily="{StaticResource SymbolThemeFontFamily}"
+                FontSize="36"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Glyph="{x:Bind Glyph, Mode=OneWay}" />
+            <TextBlock
+                HorizontalAlignment="Center"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="{x:Bind Title, Mode=OneWay}"
+                TextAlignment="Center"
+                TextWrapping="Wrap" />
+            <TextBlock
+                MaxWidth="480"
+                HorizontalAlignment="Center"
+                Style="{StaticResource SecondaryBodyTextStyle}"
+                Text="{x:Bind Message, Mode=OneWay}"
+                TextAlignment="Center"
+                TextWrapping="Wrap" />
+            <Button
+                Margin="0,8,0,0"
+                HorizontalAlignment="Center"
+                Click="ActionButton_Click"
+                Content="{x:Bind ActionText, Mode=OneWay}"
+                Style="{StaticResource SubtleControlButtonStyle}"
+                Visibility="{x:Bind IsActionVisible, Mode=OneWay}" />
+        </StackPanel>
+    </Grid>
 </UserControl>

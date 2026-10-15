@@ -35,6 +35,7 @@ internal static class TvProjection
             item.EpisodesWithLocalFile,
             item.MissingEpisodeCount),
         PosterReference: item.PosterReference,
+        BackdropReference: item.BackdropReference,
         MetadataStatus: item.MetadataStatus,
         DateAdded: item.DateAdded,
         LastOpenedAt: item.LastOpenedAt);

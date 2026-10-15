@@ -1,7 +1,7 @@
 <!--
     TV show details.
 
-    Mirrors TVShowDetails.tsx / index.css: hero band (2:3 poster + 720 px copy column, progress
+    TV hero band (2:3 poster and bounded copy column, progress
     line, Play Next Episode / Add to List / more), then the seasons stack. Each season is a native
     Expander whose header is the designed season card and whose content is the episode thread.
 -->
@@ -20,10 +20,11 @@
                         <AdaptiveTrigger MinWindowWidth="1180" />
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
-                        <Setter Target="PosterSurface.Width" Value="200" />
-                        <Setter Target="PosterSurface.Height" Value="300" />
+                        <Setter Target="PosterSurface.Width" Value="240" />
+                        <Setter Target="PosterSurface.Height" Value="360" />
                         <Setter Target="PosterGlyph.FontSize" Value="48" />
                         <Setter Target="ActionsPanel.Orientation" Value="Horizontal" />
+                        <Setter Target="PersonalActionsPanel.Orientation" Value="Horizontal" />
                     </VisualState.Setters>
                 </VisualState>
                 <VisualState x:Name="ShowMediumState">
@@ -32,6 +33,7 @@
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
                         <Setter Target="ActionsPanel.Orientation" Value="Horizontal" />
+                        <Setter Target="PersonalActionsPanel.Orientation" Value="Horizontal" />
                     </VisualState.Setters>
                 </VisualState>
                 <VisualState x:Name="ShowCompactState">
@@ -46,7 +48,7 @@
                 <ColumnDefinition
                     x:Name="ContentColumn"
                     Width="*"
-                    MaxWidth="{StaticResource PageContentMaxWidth}" />
+                    MaxWidth="1280" />
             </Grid.ColumnDefinitions>
 
             <StackPanel>
@@ -74,13 +76,13 @@
                             <ColumnDefinition
                                 x:Name="HeroCopyColumn"
                                 Width="*"
-                                MaxWidth="720" />
+                                MaxWidth="920" />
                         </Grid.ColumnDefinitions>
 
                         <Border
                             x:Name="PosterSurface"
-                            Width="148"
-                            Height="222"
+                            Width="170"
+                            Height="255"
                             VerticalAlignment="Top"
                             Style="{StaticResource ShowPosterSurfaceStyle}">
                             <Grid>
@@ -187,8 +189,32 @@
                                                     <FontIcon Glyph="&#xE8B7;" />
                                                 </MenuFlyoutItem.Icon>
                                             </MenuFlyoutItem>
+                                            <MenuFlyoutSeparator />
+                                            <MenuFlyoutItem x:Name="RemoveShowFromLibraryItem" Click="RemoveShowFromLibrary_Click">
+                                                <MenuFlyoutItem.Icon>
+                                                    <FontIcon Glyph="&#xE74D;" />
+                                                </MenuFlyoutItem.Icon>
+                                            </MenuFlyoutItem>
                                         </MenuFlyout>
                                     </Button.Flyout>
+                                </Button>
+                            </StackPanel>
+                            <StackPanel x:Name="PersonalActionsPanel" Orientation="Vertical" Spacing="8">
+                                <Button x:Name="ShowWatchLaterButton" Click="ShowWatchLaterButton_Click"
+                                        AutomationProperties.AutomationId="ShowWatchLaterButton"
+                                        Style="{StaticResource SubtleControlButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon x:Name="ShowWatchLaterGlyph" FontSize="16" Glyph="&#xE734;" />
+                                        <TextBlock x:Name="ShowWatchLaterText" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="ShowFavoriteButton" Click="ShowFavoriteButton_Click"
+                                        AutomationProperties.AutomationId="ShowFavoriteButton"
+                                        Style="{StaticResource SubtleControlButtonStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <FontIcon x:Name="ShowFavoriteGlyph" FontSize="16" Glyph="&#xEB51;" />
+                                        <TextBlock x:Name="ShowFavoriteText" />
+                                    </StackPanel>
                                 </Button>
                             </StackPanel>
                         </StackPanel>

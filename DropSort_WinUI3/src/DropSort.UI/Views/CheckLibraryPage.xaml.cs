@@ -233,14 +233,23 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
     }
 
     /// <summary>
-    /// The issue rows: first the files that are registered but no longer on disk, then the movies whose
-    /// metadata is incomplete. A missing file keeps its registration - that is the product contract -
-    /// so it is reported, never removed. The file rows carry their media-file id, which is what the row
-    /// action resolves.
+    /// The issue rows: first the movies whose metadata is incomplete, then the files that are registered
+    /// but no longer on disk. A missing file keeps its registration - that is the product contract - so
+    /// it is reported, never removed. The file rows carry their media-file id, which is what the row
+    /// action resolves. Each category keeps the order supplied by its repository.
     /// </summary>
     private IReadOnlyList<LibraryIssueDisplayRecord> BuildIssues(LibraryHealthProgress result)
     {
         var rows = new List<LibraryIssueDisplayRecord>();
+
+        foreach (var item in result.CurrentIssues)
+        {
+            rows.Add(new LibraryIssueDisplayRecord(
+                item.Title,
+                LocalizationService.Text("IssueMetadataReview"),
+                LocalizationService.Text("Review"),
+                MovieId: item.MovieId));
+        }
 
         foreach (var missing in _missing)
         {
@@ -251,15 +260,6 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
                 LocalizationService.Text("OpenFolder"),
                 missing.Id,
                 LocalizationService.Text("Relink")));
-        }
-
-        foreach (var item in result.CurrentIssues)
-        {
-            rows.Add(new LibraryIssueDisplayRecord(
-                item.Title,
-                LocalizationService.Text("IssueMetadataReview"),
-                LocalizationService.Text("Review"),
-                MovieId: item.MovieId));
         }
 
         return rows;

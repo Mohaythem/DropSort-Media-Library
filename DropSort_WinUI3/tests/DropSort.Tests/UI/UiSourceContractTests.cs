@@ -964,8 +964,8 @@ public sealed class UiSourceContractTests
         var tvDetails = Read("Views", "TVShowDetailsPage.xaml.cs");
         var tvXaml = Read("Views", "TVShowDetailsPage.xaml");
 
-        Assert.Contains("AppServices.WatchHistory.ListRecentWatchHistory(8)", home, StringComparison.Ordinal);
-        Assert.Contains("AppServices.Tv.ListContinueWatching(6)", home, StringComparison.Ordinal);
+        Assert.Contains("AppServices.ViewingActivity.ListRecentCompleted(8)", home, StringComparison.Ordinal);
+        Assert.Contains("AppServices.ViewingActivity.ListActive(6)", home, StringComparison.Ordinal);
         Assert.DoesNotContain("RecordEpisodeWatch", home, StringComparison.Ordinal);
         Assert.Contains("if (!card.IsAvailable)", home, StringComparison.Ordinal);
         Assert.Contains("HistoryEmptyState", xaml, StringComparison.Ordinal);
@@ -974,7 +974,7 @@ public sealed class UiSourceContractTests
         Assert.Contains("EnsurePosterCachedAsync", models, StringComparison.Ordinal);
         Assert.Contains("foreach (var reference in candidates)", models, StringComparison.Ordinal);
         Assert.Contains("selection.Episode.HasLocalFile && !selection.Episode.Watched", models, StringComparison.Ordinal);
-        Assert.Contains("new WatchHistoryService(personal)", services, StringComparison.Ordinal);
+        Assert.Contains("new ViewingActivityService", services, StringComparison.Ordinal);
         Assert.Contains("EpisodeMarkWatched_Click", tvDetails, StringComparison.Ordinal);
         Assert.Contains("AppServices.WatchHistory.RecordEpisodeWatch(episode.Id)", tvDetails, StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{x:Bind CanMarkWatched}\"", tvXaml, StringComparison.Ordinal);

@@ -10,15 +10,13 @@ public sealed class Phase3UiSourceContractTests
     public void Home_uses_persisted_history_and_continue_services()
     {
         var code = File.ReadAllText(Path.Combine(Root, "Views", "HomePage.xaml.cs"));
-        Assert.Contains("ListRecentWatchHistory", code);
-        Assert.Contains("ListContinueWatching", code);
+        Assert.Contains("ListRecentCompleted", code);
+        Assert.Contains("ListActive", code);
         Assert.Contains("HistoryUnavailableHelp", code);
         Assert.Contains("HistoryCard_Click", code);
-        // A movie card leads with its own artwork; a TV card is show-grouped and leads with the show's
-        // artwork (backdrop, then poster) plus a season-oriented context line.
-        Assert.Contains("[item.ArtworkReference, item.BackdropReference, item.PosterReference]", code);
-        Assert.Contains("[item.BackdropReference, item.PosterReference, item.ArtworkReference]", code);
-        Assert.Contains("HistoryShowContextFormat", code);
+        // Compact completed-viewing cards prefer portrait artwork and retain their episode context.
+        Assert.Contains("[item.PosterReference, item.ArtworkReference, item.BackdropReference]", code);
+        Assert.Contains("HomeContinueEpisodeFormat", code);
         Assert.Contains("item.ShowTitle", code);
     }
 

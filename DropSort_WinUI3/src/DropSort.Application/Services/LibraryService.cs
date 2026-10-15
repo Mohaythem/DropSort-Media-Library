@@ -73,7 +73,7 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
         bool pending = movie.MetadataStatus is MetadataStatus.Pending
             or MetadataStatus.NeedsMatch
             or MetadataStatus.Failed;
-        return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, !hasPresentFile, pending, fileCount, movie.ReviewMatch, movie.DateAdded, movie.LastOpenedAt);
+        return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, !hasPresentFile, pending, fileCount, movie.ReviewMatch, movie.DateAdded, movie.LastOpenedAt, movie.BackdropReference);
     }
 
     public PersonalMovieSnapshot GetPersonalSnapshot(int movieId)
@@ -120,7 +120,7 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
     public IReadOnlyList<MovieListItem> ListPersonalMovies(PersonalLibrarySection section)
     {
         // The summary already carries file counts, so map from it instead of a per-movie GetByMovieId.
-        return _personal.ListMovies(section)
+        return _personal.ListMovies(section, limit: int.MaxValue)
             .Select(summary => ToListItem(summary.Movie, summary.MediaFileCount > summary.MissingFileCount, summary.MediaFileCount))
             .ToList();
     }

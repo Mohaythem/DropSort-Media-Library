@@ -43,7 +43,8 @@ public sealed record MovieRecord(
     bool ReviewMatch = false,
     bool HasPendingMetadata = false,
     DateTimeOffset DateAdded = default,
-    DateTimeOffset? LastOpenedAt = null) : INotifyPropertyChanged
+    DateTimeOffset? LastOpenedAt = null,
+    string? BackdropReference = null) : INotifyPropertyChanged
 {
     public DateTimeOffset? LastOpenedAt { get; private set; } = LastOpenedAt;
 
@@ -86,6 +87,7 @@ public sealed record MovieRecord(
 
     private ImageSource? _posterSource;
     private bool _posterRequested;
+    private ArtworkLoader? _horizontalArtwork;
 
     /// <summary>
     /// Year · runtime · rating, with the parts the catalog does not know yet left out: a movie
@@ -185,6 +187,21 @@ public sealed record MovieRecord(
 
     public bool IsPosterMissing => _posterSource is null && (string.IsNullOrWhiteSpace(PosterReference) || !AppServices.IsAvailable || AppServices.Poster.GetCachedPosterPath("TMDB", PosterReference) is null);
 
+    /// <summary>Landscape artwork for horizontal Library cards, with the existing poster as view fallback.</summary>
+    public ImageSource? HorizontalArtworkSource => HorizontalArtwork.Source;
+
+    public Visibility HorizontalPosterVisibility => HorizontalArtworkSource is null
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    private ArtworkLoader HorizontalArtwork => _horizontalArtwork ??= new ArtworkLoader(
+        [BackdropReference],
+        () =>
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HorizontalArtworkSource)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HorizontalPosterVisibility)));
+        });
+
     /// <summary>
     /// A GridView item container takes its accessible name from the item's ToString(), so the
     /// record default would make Narrator read the whole property list of the card.
@@ -259,6 +276,8 @@ public sealed record ListMediaItem : INotifyPropertyChanged
     }
 
     public bool IsShow => Show is not null;
+
+    public string TypeLabel => LocalizationService.Text(IsShow ? "TvShow" : "HomeMovieType");
 
     public string Title => Movie?.Title ?? Show?.Title ?? string.Empty;
 

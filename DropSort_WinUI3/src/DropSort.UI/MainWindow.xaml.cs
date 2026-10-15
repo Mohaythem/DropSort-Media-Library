@@ -30,6 +30,9 @@ public sealed partial class MainWindow : Window
     private NavigationPaneState _navigationPane = new(true);
     private long _paneOpenCallbackToken;
     private bool _isApplyingResponsiveChange;
+    private readonly ResourceDictionary _slatePaletteResources = CreateSlatePaletteResources();
+    private readonly Windows.UI.ViewManagement.AccessibilitySettings _accessibilitySettings = new();
+    private readonly Windows.UI.ViewManagement.UISettings _uiSettings = new();
 
     public MainWindow()
     {
@@ -42,6 +45,7 @@ public sealed partial class MainWindow : Window
         InitializeComponent();
         _navigationPane = new NavigationPaneState(AppSettingsStore.ReadWideNavigationPaneOpen());
         AppServices.UiDispatcherQueue = this.DispatcherQueue;
+        _uiSettings.ColorValuesChanged += OnSystemColorsChanged;
         ConfigureNativeWindow();
         HostPages();
         WireNavigation();
@@ -72,6 +76,7 @@ public sealed partial class MainWindow : Window
         ShellNavigation.UnregisterPropertyChangedCallback(NavigationView.IsPaneOpenProperty, _paneOpenCallbackToken);
         LocalizationService.LanguageChanged -= OnLanguageChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
+        _uiSettings.ColorValuesChanged -= OnSystemColorsChanged;
         AppServices.Shutdown();
     }
 
@@ -422,11 +427,80 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void ApplyTheme()
     {
-        RootGrid.RequestedTheme = ThemeService.ElementTheme;
+        // Slate is a window-local overlay palette. Keeping it local means Light, Dark and
+        // High Contrast continue to resolve the framework resources from the app dictionaries.
+        // Each brush is a new instance, so no shared WinUI brush is mutated during a switch.
+        RootGrid.Resources = ThemeService.UsesSlateSurface
+            && !_accessibilitySettings.HighContrast
+            ? _slatePaletteResources
+            : new ResourceDictionary();
+        // Install the palette before changing theme. Slate and Dark share ElementTheme.Dark,
+        // so explicitly refresh inherited ThemeResource values when only the app palette changes.
+        var targetTheme = ThemeService.ElementTheme;
+        if (RootGrid.RequestedTheme == targetTheme)
+        {
+            RootGrid.RequestedTheme = targetTheme == ElementTheme.Dark ? ElementTheme.Light : ElementTheme.Dark;
+        }
+        RootGrid.RequestedTheme = targetTheme;
         SlateSurface.Visibility = ThemeService.UsesSlateSurface ? Visibility.Visible : Visibility.Collapsed;
         UpdateNavigationPaneBackgrounds();
         UpdateTitleBarColors();
     }
+
+    private static ResourceDictionary CreateSlatePaletteResources()
+    {
+        var resources = new ResourceDictionary();
+
+        static SolidColorBrush Brush(byte r, byte g, byte b, byte alpha = 0xFF) =>
+            new(ColorHelper.FromArgb(alpha, r, g, b));
+
+        // Deep navy shell, with a small peach accent reserved for actions and selection.
+        resources["ApplicationPageBackgroundThemeBrush"] = Brush(0x18, 0x22, 0x2D);
+        resources["SlateBackgroundBrush"] = Brush(0x18, 0x22, 0x2D);
+        resources["ShellPaneBackgroundBrush"] = Brush(0x11, 0x18, 0x22, 0xE6);
+        resources["ShellContentBackgroundBrush"] = Brush(0x20, 0x2B, 0x35, 0xB8);
+        resources["ShellPaneSeparatorBrush"] = Brush(0x8B, 0xA8, 0xC7, 0x45);
+
+        // Raised card/control surfaces and fine borders.
+        resources["CardBackgroundFillColorDefaultBrush"] = Brush(0x29, 0x36, 0x41);
+        resources["CardStrokeColorDefaultBrush"] = Brush(0x83, 0x92, 0xA6, 0x55);
+        resources["ControlFillColorDefaultBrush"] = Brush(0x24, 0x32, 0x42);
+        resources["ControlFillColorSecondaryBrush"] = Brush(0x2B, 0x3A, 0x4B);
+        resources["ControlFillColorTertiaryBrush"] = Brush(0x32, 0x43, 0x55);
+        resources["ControlStrongStrokeColorDefaultBrush"] = Brush(0x8B, 0xA8, 0xC7, 0xD0);
+
+        // Peach is intentionally limited to primary/secondary/tertiary accent states.
+        resources["AccentFillColorDefaultBrush"] = Brush(0xF2, 0xB5, 0x9A);
+        resources["AccentFillColorSecondaryBrush"] = Brush(0xD9, 0x9A, 0x7C);
+        resources["AccentFillColorTertiaryBrush"] = Brush(0xB9, 0x78, 0x60);
+        resources["AccentFillColorDisabledBrush"] = Brush(0xF2, 0xB5, 0x9A, 0x52);
+        resources["AccentTextFillColorPrimaryBrush"] = Brush(0xFF, 0xC9, 0xB5);
+        resources["AccentTextFillColorSecondaryBrush"] = Brush(0xF2, 0xB5, 0x9A);
+        resources["TextOnAccentFillColorPrimaryBrush"] = Brush(0x2A, 0x1D, 0x1A);
+        resources["TextOnAccentFillColorSecondaryBrush"] = Brush(0x2A, 0x1D, 0x1A);
+
+        // Native templates consume these aliases directly; replacing the underlying accent
+        // brush alone cannot replace aliases already resolved in the WinUI resource dictionary.
+        resources["AccentButtonBackground"] = resources["AccentFillColorDefaultBrush"];
+        resources["AccentButtonBackgroundPointerOver"] = resources["AccentFillColorSecondaryBrush"];
+        resources["AccentButtonBackgroundPressed"] = resources["AccentFillColorTertiaryBrush"];
+        resources["AccentButtonBackgroundDisabled"] = resources["AccentFillColorDisabledBrush"];
+        resources["AccentButtonForeground"] = resources["TextOnAccentFillColorPrimaryBrush"];
+        resources["AccentButtonForegroundPointerOver"] = resources["TextOnAccentFillColorPrimaryBrush"];
+        resources["AccentButtonForegroundPressed"] = resources["TextOnAccentFillColorSecondaryBrush"];
+        resources["NavigationViewSelectionIndicatorForeground"] = resources["AccentFillColorDefaultBrush"];
+        resources["NavigationViewItemBackgroundSelected"] = Brush(0xF2, 0xB5, 0x9A, 0x20);
+        resources["NavigationViewItemBackgroundSelectedPointerOver"] = Brush(0xF2, 0xB5, 0x9A, 0x30);
+        resources["NavigationViewItemBackgroundSelectedPressed"] = Brush(0xF2, 0xB5, 0x9A, 0x18);
+        resources["ButtonBackgroundPointerOver"] = resources["ControlFillColorSecondaryBrush"];
+        resources["ButtonBackgroundPressed"] = resources["ControlFillColorTertiaryBrush"];
+        resources["ButtonBorderBrushPointerOver"] = Brush(0xF2, 0xB5, 0x9A, 0xC0);
+
+        return resources;
+    }
+
+    private void OnSystemColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
+        RootGrid.DispatcherQueue.TryEnqueue(ApplyTheme);
 
     private void UpdateNavigationPaneBackgrounds()
     {

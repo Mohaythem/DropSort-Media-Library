@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 15;
+    public const int LatestVersion = 17;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -569,6 +569,43 @@ public class DatabaseMigrator
         @"
             ALTER TABLE movies ADD COLUMN last_opened_at TEXT NULL;
             ALTER TABLE tv_shows ADD COLUMN last_opened_at TEXT NULL;
+        ",
+        // v16: one current viewing row per logical movie or episode. Historical watch_events remain append-only.
+        @"
+            CREATE TABLE active_viewings (
+                id INTEGER PRIMARY KEY,
+                media_kind TEXT NOT NULL CHECK(media_kind IN ('MOVIE', 'EPISODE')),
+                movie_id INTEGER REFERENCES movies(id) ON DELETE CASCADE,
+                episode_id INTEGER REFERENCES tv_episodes(id) ON DELETE CASCADE,
+                media_file_id INTEGER REFERENCES media_files(id) ON DELETE SET NULL,
+                title_snapshot TEXT NOT NULL,
+                year_snapshot INTEGER,
+                season_number_snapshot INTEGER,
+                episode_number_snapshot INTEGER,
+                episode_title_snapshot TEXT,
+                path TEXT NOT NULL,
+                started_at TEXT NOT NULL,
+                artwork_reference TEXT,
+                backdrop_reference TEXT,
+                poster_reference TEXT,
+                CHECK ((media_kind = 'MOVIE' AND movie_id IS NOT NULL AND episode_id IS NULL)
+                    OR (media_kind = 'EPISODE' AND episode_id IS NOT NULL AND movie_id IS NULL))
+            );
+            CREATE UNIQUE INDEX ux_active_viewings_movie ON active_viewings(movie_id) WHERE movie_id IS NOT NULL;
+            CREATE UNIQUE INDEX ux_active_viewings_episode ON active_viewings(episode_id) WHERE episode_id IS NOT NULL;
+            CREATE INDEX idx_active_viewings_started ON active_viewings(julianday(started_at) DESC, id DESC);
+        ",
+        // v17: persist independent TV-show Favorites and Watch Later membership.
+        @"
+            CREATE TABLE tv_show_personal_state (
+                show_id INTEGER PRIMARY KEY REFERENCES tv_shows(id) ON DELETE CASCADE,
+                is_favorite INTEGER NOT NULL DEFAULT 0 CHECK(is_favorite IN (0, 1)),
+                watch_later_added_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX idx_tv_show_personal_state_favorite ON tv_show_personal_state(is_favorite);
+            CREATE INDEX idx_tv_show_personal_state_watch_later ON tv_show_personal_state(watch_later_added_at);
         "
     };
 
@@ -625,7 +662,8 @@ public class DatabaseMigrator
                 // Keep the v14 validation gate before its commit as well as validating v15.
                 // Adding a migration must not weaken the prior rollback boundary on a corrupt schema.
                 if (i + 1 >= 14 && targetVersion == LatestVersion)
-                    ValidateSchema(connection, tx, includeActivity: i + 1 >= 15);
+                    ValidateSchema(connection, tx, includeActivity: i + 1 >= 15,
+                        includeViewing: i + 1 >= 16, includeShowPersonal: i + 1 >= 17);
 
                 cmd.CommandText = $"PRAGMA user_version = {i + 1};";
                 cmd.ExecuteNonQuery();
@@ -648,7 +686,8 @@ public class DatabaseMigrator
             DatabaseSafetyBackup.PruneAfterSuccessfulMigration(verifiedBackupPath);
     }
 
-    private static void ValidateSchema(SqliteConnection connection, SqliteTransaction? transaction = null, bool includeActivity = true)
+    private static void ValidateSchema(SqliteConnection connection, SqliteTransaction? transaction = null,
+        bool includeActivity = true, bool includeViewing = true, bool includeShowPersonal = true)
     {
         var requiredTables = new[]
         {
@@ -669,6 +708,22 @@ public class DatabaseMigrator
         };
         foreach (var table in requiredTables) RequireSchemaObject(connection, "table", table, transaction);
         foreach (var index in requiredIndexes) RequireSchemaObject(connection, "index", index, transaction);
+        if (includeViewing)
+        {
+            RequireSchemaObject(connection, "table", "active_viewings", transaction);
+            foreach (var index in new[] { "ux_active_viewings_movie", "ux_active_viewings_episode", "idx_active_viewings_started" })
+                RequireSchemaObject(connection, "index", index, transaction);
+            RequireTableColumns(connection, "active_viewings", transaction,
+                "media_kind", "movie_id", "episode_id", "media_file_id", "path", "started_at");
+        }
+        if (includeShowPersonal)
+        {
+            RequireSchemaObject(connection, "table", "tv_show_personal_state", transaction);
+            foreach (var index in new[] { "idx_tv_show_personal_state_favorite", "idx_tv_show_personal_state_watch_later" })
+                RequireSchemaObject(connection, "index", index, transaction);
+            RequireTableColumns(connection, "tv_show_personal_state", transaction,
+                "show_id", "is_favorite", "watch_later_added_at", "created_at", "updated_at");
+        }
         // Column-level guard: user_version alone cannot detect a table left on an older shape by a
         // migration script that was edited after it had already been stamped (the drift that made
         // Mark Watched fail with 'no column named poster_reference'). Assert the columns the write

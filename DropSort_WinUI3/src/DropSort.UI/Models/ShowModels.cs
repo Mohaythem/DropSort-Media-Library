@@ -65,7 +65,8 @@ public sealed record TVShowRecord(
     string? ExternalId = null,
     MetadataStatus MetadataStatus = MetadataStatus.Pending,
     DateTimeOffset DateAdded = default,
-    DateTimeOffset? LastOpenedAt = null)
+    DateTimeOffset? LastOpenedAt = null,
+    string? BackdropReference = null)
 {
     public DateTimeOffset? LastOpenedAt { get; private set; } = LastOpenedAt;
 
@@ -126,6 +127,7 @@ public sealed record ShowCardItem(TVShowRecord Show, string SecondaryLine) : INo
 
     private ImageSource? _posterSource;
     private bool _posterRequested;
+    private ArtworkLoader? _horizontalArtwork;
 
     public string Title => Show.Title;
 
@@ -190,6 +192,21 @@ public sealed record ShowCardItem(TVShowRecord Show, string SecondaryLine) : INo
 
     public bool IsPosterMissing => _posterSource is null && (string.IsNullOrWhiteSpace(Show.PosterReference) || !AppServices.IsAvailable || AppServices.Poster.GetCachedPosterPath("TMDB", Show.PosterReference) is null);
 
+    /// <summary>Landscape artwork for horizontal Library cards, with the existing poster as view fallback.</summary>
+    public ImageSource? HorizontalArtworkSource => HorizontalArtwork.Source;
+
+    public Visibility HorizontalPosterVisibility => HorizontalArtworkSource is null
+        ? Visibility.Visible
+        : Visibility.Collapsed;
+
+    private ArtworkLoader HorizontalArtwork => _horizontalArtwork ??= new ArtworkLoader(
+        [Show.BackdropReference],
+        () =>
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HorizontalArtworkSource)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HorizontalPosterVisibility)));
+        });
+
     public override string ToString() => Title;
 }
 
@@ -223,7 +240,7 @@ public sealed record EpisodeDisplayRecord(
     /// given a file is not an error, so it shows no pill at all.
     /// </summary>
     public bool IsMissing => IsFileMissing;
-    public bool CanMarkWatched => HasLocalFile && !Watched;
+    public bool CanMarkWatched => HasLocalFile;
 
     /// <summary>
     /// File-open actions (Play, Open folder) are allowed only when the file is present and its storage
@@ -249,7 +266,7 @@ public sealed record EpisodeActionLabels(
     string More,
     string StorageUnavailable = "");
 
-public sealed record StatCardRecord(string Label, string Value);
+public sealed record StatCardRecord(string Label, string Value, string Glyph = "");
 
 /// <summary>
 /// One actionable Continue Watching card. Artwork candidates are ordered by visual relevance, but

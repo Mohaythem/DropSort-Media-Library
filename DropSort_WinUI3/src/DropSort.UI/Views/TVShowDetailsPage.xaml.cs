@@ -26,6 +26,9 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     private TVShowRecord _show = new(0, string.Empty, 0, [], string.Empty, []);
     private string _returnDestination = "library";
     private bool _isMatching;
+    private bool _showFavorite;
+    private bool _showWatchLater;
+    private bool _showPersonalAvailable;
     private readonly PostHandoffRequestLifetime _metadataRequests = new();
     private readonly PostHandoffRequestLifetime _posterRequests = new();
     private readonly PostHandoffRequestLifetime _enrichmentRequests = new();
@@ -84,6 +87,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         _actionRequests.Cancel();
         SetMatchingState(false);
         _show = show;
+        ReloadShowPersonalState();
         ShowTitleText.Text = show.Title;
         ShowMetaText.Text = show.MetaLine;
         OverviewText.Text = show.Overview;
@@ -109,16 +113,75 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         ProgressLabelText.Text = LocalizationService.Text("EpisodesOnDisk");
         PlayNextText.Text = LocalizationService.Text("PlayNextEpisode");
         AddToListText.Text = LocalizationService.Text("AddToList");
+        UpdateShowPersonalVisuals();
         MoreButton.SetValue(AutomationProperties.NameProperty, LocalizationService.Text("MoreOptions"));
         ToolTipService.SetToolTip(MoreButton, LocalizationService.Text("MoreOptions"));
         MarkShowWatchedItem.Text = LocalizationService.Text("MarkWatched");
         OpenShowFolderItem.Text = LocalizationService.Text("OpenFolder");
+        RemoveShowFromLibraryItem.Text = LocalizationService.Text("RemoveFromLibrary");
+        RemoveShowFromLibraryItem.IsEnabled = _show.Id > 0;
         SeasonsTitleText.Text = LocalizationService.Text("Seasons");
         SeasonsHelpText.Text = LocalizationService.Text("SeasonsHelp");
 
         SeasonsRepeater.ItemsSource = BuildSeasons(_show);
         UpdateMatchButtonVisuals();
         ProbeEpisodeStorageAvailability(_show);
+    }
+
+    private void ReloadShowPersonalState()
+    {
+        _showFavorite = false;
+        _showWatchLater = false;
+        _showPersonalAvailable = false;
+        if (_show.Id <= 0) return;
+        try
+        {
+            var state = AppServices.ShowPersonal.GetState(_show.Id);
+            _showFavorite = state.IsFavorite;
+            _showWatchLater = state.WatchLater;
+            _showPersonalAvailable = true;
+        }
+        catch (Exception error)
+        {
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+        }
+    }
+
+    private void UpdateShowPersonalVisuals()
+    {
+        ShowFavoriteButton.IsEnabled = _showPersonalAvailable;
+        ShowWatchLaterButton.IsEnabled = _showPersonalAvailable;
+        ShowFavoriteText.Text = LocalizationService.Text(_showFavorite ? "InFavorites" : "AddToFavorites");
+        ShowWatchLaterText.Text = LocalizationService.Text(_showWatchLater ? "InWatchLater" : "AddToWatchLater");
+        ShowFavoriteGlyph.Glyph = _showFavorite ? "\uEB52" : "\uEB51";
+        ShowWatchLaterGlyph.Glyph = _showWatchLater ? "\uE735" : "\uE734";
+        ShowFavoriteButton.Style = (Style)App.Current.Resources[_showFavorite ? "ActiveControlButtonStyle" : "SubtleControlButtonStyle"];
+        ShowWatchLaterButton.Style = (Style)App.Current.Resources[_showWatchLater ? "ActiveControlButtonStyle" : "SubtleControlButtonStyle"];
+        ToolTipService.SetToolTip(ShowFavoriteButton, LocalizationService.Text(_showFavorite ? "RemoveFromFavorites" : "AddToFavorites"));
+        ToolTipService.SetToolTip(ShowWatchLaterButton, LocalizationService.Text(_showWatchLater ? "RemoveFromWatchLater" : "AddToWatchLater"));
+    }
+
+    private void ShowFavoriteButton_Click(object sender, RoutedEventArgs e) => ToggleShowPersonal(favorite: true);
+    private void ShowWatchLaterButton_Click(object sender, RoutedEventArgs e) => ToggleShowPersonal(favorite: false);
+
+    private void ToggleShowPersonal(bool favorite)
+    {
+        if (_show.Id <= 0) return;
+        try
+        {
+            var current = AppServices.ShowPersonal.GetState(_show.Id);
+            var saved = favorite
+                ? AppServices.ShowPersonal.SetFavorite(_show.Id, !current.IsFavorite)
+                : AppServices.ShowPersonal.SetWatchLater(_show.Id, !current.WatchLater);
+            _showFavorite = saved.IsFavorite;
+            _showWatchLater = saved.WatchLater;
+            _showPersonalAvailable = true;
+            UpdateShowPersonalVisuals();
+        }
+        catch (Exception error)
+        {
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+        }
     }
 
     /// <summary>
@@ -273,6 +336,43 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
 
     private void BackButton_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 
+    private async void RemoveShowFromLibrary_Click(object sender, RoutedEventArgs e)
+    {
+        MoreButton.Flyout?.Hide();
+        var showId = _show.Id;
+        if (showId <= 0) return;
+        var request = _actionRequests.Begin();
+        var confirm = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            RequestedTheme = ThemeService.ElementTheme,
+            FlowDirection = LocalizationService.FlowDirection,
+            Title = LocalizationService.Text("RemoveFromLibrary"),
+            Content = LocalizationService.Text("RemoveShowFromLibraryConfirm"),
+            PrimaryButtonText = LocalizationService.Text("RemoveFromLibrary"),
+            CloseButtonText = LocalizationService.Text("Cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+
+        try
+        {
+            if (await ContentDialogCoordinator.ShowAsync(confirm) != ContentDialogResult.Primary
+                || !request.IsCurrent) return;
+            RemoveShowFromLibraryItem.IsEnabled = false;
+            await Task.Run(() => AppServices.Repair.RemoveShowFromLibrary(showId));
+            if (request.IsCurrent) BackRequested?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception error)
+        {
+            if (request.IsCurrent)
+                await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
+        }
+        finally
+        {
+            if (request.IsCurrent) RemoveShowFromLibraryItem.IsEnabled = true;
+        }
+    }
+
     /// <summary>Plays the first episode of the show that has a file on disk.</summary>
     private async void PlayNextButton_Click(object sender, RoutedEventArgs e)
     {
@@ -294,7 +394,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     {
         if (sender is not Button { Tag: EpisodeDisplayRecord row }) return;
         var episode = FindEpisode(row);
-        if (episode is null || episode.Watched || !episode.HasLocalFile || episode.Id <= 0) return;
+        if (episode is null || !episode.HasLocalFile || episode.Id <= 0) return;
         try
         {
             AppServices.WatchHistory.RecordEpisodeWatch(episode.Id);
@@ -381,8 +481,13 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         var request = _actionRequests.Begin();
         try
         {
-            var result = await AppServices.MediaFileActions.OpenFileAsync(path, request.Token);
+            var result = await AppServices.PlayMediaFileAsync(path, request.Token);
             if (!request.IsCurrent) return;
+            if (result.ErrorCode == "PlaybackActivityNotSaved")
+            {
+                await ShowMessageAsync(LocalizationService.Text("Failed"), LocalizationService.Text("PlaybackActivityNotSaved"));
+                return;
+            }
             await PresentActionResultAsync(result.Status);
         }
         catch (OperationCanceledException) { }

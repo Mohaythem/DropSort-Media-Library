@@ -99,6 +99,12 @@ internal static class AppServices
 
     public static MediaFileActions MediaFileActions => new(Require(_availabilityInspector));
 
+    public static ViewingActivityService ViewingActivity => Require(_viewingActivity);
+    public static ShowPersonalLibraryService ShowPersonal => Require(_showPersonal);
+
+    public static Task<FileActionResult> PlayMediaFileAsync(string path, CancellationToken token = default) =>
+        new TrackedPlaybackActions(MediaFileActions, playedPath => ViewingActivity.RecordSuccessfulPlay(playedPath)).OpenFileAsync(path, token);
+
     public static IOperationHistoryUiActions History => Require(_history);
 
     public static ISettingsUiActions Settings => Require(_settings);
@@ -263,6 +269,8 @@ internal static class AppServices
     private static LibraryService? _library;
     private static LibraryService? _personal;
     private static WatchHistoryService? _watchHistory;
+    private static ViewingActivityService? _viewingActivity;
+    private static ShowPersonalLibraryService? _showPersonal;
     private static ImportService? _import;
     private static ReconciliationService? _reconciliation;
     private static OperationHistoryService? _history;
@@ -398,7 +406,7 @@ internal static class AppServices
                 var watchHistory = new WatchHistoryService(personal);
                 var history = new OperationHistoryService(operations, coordinator, mediaFiles, movies);
                 var organization = new OrganizationService(mediaFiles, coordinator);
-                var repair = new LibraryRepairService(catalogFactory);
+                var repair = new LibraryRepairService(catalogFactory, fileOperations: operations);
                 _mediaFiles = mediaFiles;
                 _availabilityInspector = availabilityInspector;
                 _settingsRepository = settingsRepository;
@@ -408,6 +416,8 @@ internal static class AppServices
                 _catalogFactory = catalogFactory;
                 _personal = library;
                 _watchHistory = watchHistory;
+                _viewingActivity = new ViewingActivityService(new ViewingActivityRepository(connectionString));
+                _showPersonal = new ShowPersonalLibraryService(new ShowPersonalLibraryRepository(connectionString), tv);
                 _import = import;
                 _reconciliation = reconciliation;
                 _tv = tv;
@@ -468,6 +478,8 @@ internal static class AppServices
         _catalogFactory = null;
         _personal = null;
         _watchHistory = null;
+        _viewingActivity = null;
+        _showPersonal = null;
         _import = null;
         _reconciliation = null;
         _tv = null;

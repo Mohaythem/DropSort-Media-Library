@@ -269,7 +269,7 @@ public sealed class UxCorrectivePassContractTests
         // a temporary UI-only flag and not the same as "missing metadata".
         var migrator = File.ReadAllText(Path.Combine(UiRoot, "../DropSort.Infrastructure/Persistence/Migrations/DatabaseMigrator.cs"));
         Assert.Contains("review_match", migrator);                    // persisted column via migration
-        Assert.Contains("LatestVersion = 15", migrator);
+        Assert.Contains("LatestVersion = 17", migrator);
 
         var movie = File.ReadAllText(Path.Combine(UiRoot, "../DropSort.Domain/Library/Movies/Models.cs"));
         Assert.Contains("public bool ReviewMatch", movie);

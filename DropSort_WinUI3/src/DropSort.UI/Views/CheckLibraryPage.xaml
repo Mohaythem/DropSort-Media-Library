@@ -7,34 +7,7 @@
     Background="Transparent">
 
     <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}">
-        <VisualStateManager.VisualStateGroups>
-            <VisualStateGroup x:Name="CheckWidthStates">
-                <VisualState x:Name="CheckWideState">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="1100" />
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="ContentColumn.MaxWidth" Value="{StaticResource CheckLibraryWideMaxWidth}" />
-                    </VisualState.Setters>
-                </VisualState>
-                <VisualState x:Name="CheckNarrowState">
-                    <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="0" />
-                    </VisualState.StateTriggers>
-                    <VisualState.Setters>
-                        <Setter Target="ContentColumn.MaxWidth" Value="{StaticResource CheckLibraryContentMaxWidth}" />
-                    </VisualState.Setters>
-                </VisualState>
-            </VisualStateGroup>
-        </VisualStateManager.VisualStateGroups>
         <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition
-                    x:Name="ContentColumn"
-                    Width="*"
-                    MaxWidth="{StaticResource CheckLibraryContentMaxWidth}" />
-            </Grid.ColumnDefinitions>
-
             <StackPanel Spacing="24">
                 <StackPanel Spacing="8">
                     <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" />

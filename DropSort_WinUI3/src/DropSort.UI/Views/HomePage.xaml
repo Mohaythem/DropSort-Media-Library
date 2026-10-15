@@ -3,8 +3,19 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:DropSort.UI.Controls"
+    xmlns:local="using:DropSort.UI.Views"
     xmlns:models="using:DropSort.UI.Models"
     Background="Transparent">
+
+    <Page.Resources>
+        <ResourceDictionary>
+            <Style x:Key="HomeHeroButtonStyle" TargetType="Button" BasedOn="{StaticResource CardActionButtonStyle}">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            </Style>
+        </ResourceDictionary>
+    </Page.Resources>
 
     <!--
         Padding lives on the ScrollViewer and the content is a single stretched column, so Home fills
@@ -37,16 +48,28 @@
                             ItemsStretch="Fill"
                             MaximumRowsOrColumns="4"
                             MinColumnSpacing="12"
-                            MinItemWidth="140"
+                            MinItemWidth="180"
                             MinRowSpacing="12" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="models:StatCardRecord">
                             <Border Style="{StaticResource CardBorderStyle}">
-                                <StackPanel Spacing="2">
-                                    <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{x:Bind Value}" />
-                                    <TextBlock Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind Label}" />
-                                </StackPanel>
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" VerticalAlignment="Center"
+                                            Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                            CornerRadius="{ThemeResource ControlCornerRadius}">
+                                        <FontIcon FontSize="22" Glyph="{x:Bind Glyph}"
+                                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{x:Bind Value}" />
+                                        <TextBlock Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind Label}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
@@ -54,78 +77,85 @@
 
                 <StackPanel Spacing="12">
                     <TextBlock x:Name="ContinueHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
-                    <!--
-                        MinItemWidth is what decides how roomy a Continue watching card is: the row
-                        always fills the content width (ItemsStretch="Fill"), so the only way to give
-                        a card more width is to let fewer of them share the row. 340 epx keeps two
-                        generous cards on a 1360 epx window - enough that the episode line stops
-                        being trimmed - and goes back to three once the window is wide enough to give
-                        each of them that width.
-                    -->
+                    <!-- Both activity sections use the same native whole-card interaction. -->
                     <ItemsRepeater x:Name="ContinueRepeater">
                         <ItemsRepeater.Layout>
                             <UniformGridLayout
                                 ItemsStretch="Fill"
-                                MinColumnSpacing="16"
-                                MinItemWidth="340"
+                                MinColumnSpacing="12"
+                                MinItemWidth="280"
                                 MinRowSpacing="16" />
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
-                            <DataTemplate x:DataType="models:ContinueWatchingRecord">
-                                <Button
-                                    Click="ContinueCard_Click"
-                                    Style="{StaticResource CardActionButtonStyle}"
-                                    Tag="{x:Bind ShowId}">
-                                    <Grid ColumnSpacing="12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <Border
-                                            Width="112"
-                                            Height="70"
-                                            Style="{StaticResource ShowPosterSurfaceStyle}">
-                                            <Grid>
-                                                <Image
-                                                    Source="{x:Bind ArtworkSource, Mode=OneWay}"
-                                                    Stretch="UniformToFill" />
-                                                <Border
-                                                    Width="24"
-                                                    Height="24"
-                                                    Background="{ThemeResource AccentFillColorDefaultBrush}"
-                                                    CornerRadius="12">
-                                                    <FontIcon
-                                                        FontFamily="{StaticResource SymbolThemeFontFamily}"
-                                                        FontSize="10"
-                                                        Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
-                                                        Glyph="&#xE768;" />
-                                                </Border>
+                            <DataTemplate x:DataType="models:HomeActivityCard">
+                                <Grid>
+                                    <Button
+                                        AutomationProperties.AutomationId="{x:Bind DetailsAutomationId}"
+                                        AutomationProperties.Name="{x:Bind AccessibleName}"
+                                        Click="ContinueDetails_Click"
+                                        Style="{StaticResource HomeHeroButtonStyle}"
+                                        Tag="{x:Bind}"
+                                        ToolTipService.ToolTip="{x:Bind Title}">
+                                        <Border CornerRadius="{ThemeResource ControlCornerRadius}">
+                                            <Grid MinHeight="196" Background="{ThemeResource PosterMoviePlaceholderBrush}">
+                                                <FontIcon Margin="0,0,0,64" FontSize="40" Glyph="&#xE8B2;"
+                                                          Foreground="{ThemeResource PosterGlyphForegroundBrush}" />
+                                                <Image Height="196" Source="{x:Bind ArtworkSource, Mode=OneWay}"
+                                                       Stretch="UniformToFill" />
+                                                <Image Width="96" Height="144" Margin="12,8,12,0"
+                                                       HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                       Source="{x:Bind PosterSource, Mode=OneWay}"
+                                                       Visibility="{x:Bind PosterVisibility, Mode=OneWay}"
+                                                       Stretch="Uniform" />
+                                                <Border Background="{ThemeResource LandscapeCardScrimBrush}" />
+                                                <Grid Margin="14,68,14,14" ColumnSpacing="12" VerticalAlignment="Bottom">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Spacing="3">
+                                                        <TextBlock Foreground="{ThemeResource LandscapeCardTextBrush}"
+                                                                   Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                                   Text="{x:Bind Title}" MaxLines="2"
+                                                                   TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
+                                                        <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                                                                   Style="{StaticResource SecondaryCaptionTextStyle}"
+                                                                   Text="{x:Bind SecondaryLine}"
+                                                                   TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                        <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                                                                   Style="{StaticResource SecondaryCaptionTextStyle}"
+                                                                   Text="{x:Bind TypeLabel}" />
+                                                    </StackPanel>
+                                                    <!-- Reserves the real Play button's space in both LTR and RTL. -->
+                                                    <Border Grid.Column="1" MinWidth="76" />
+                                                </Grid>
                                             </Grid>
                                         </Border>
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
-                                            <TextBlock
-                                                Style="{StaticResource BodyStrongTextBlockStyle}"
-                                                Text="{x:Bind ShowTitle}"
-                                                TextTrimming="CharacterEllipsis"
-                                                TextWrapping="NoWrap" />
-                                            <TextBlock
-                                                Style="{StaticResource SecondaryCaptionTextStyle}"
-                                                Text="{x:Bind EpisodeLine}"
-                                                TextTrimming="CharacterEllipsis"
-                                                TextWrapping="NoWrap" />
+                                    </Button>
+                                    <Button Margin="16" AutomationProperties.AutomationId="{x:Bind PlayAutomationId}"
+                                            AutomationProperties.Name="{x:Bind PlayLabel}" Click="ContinuePlay_Click"
+                                            HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                            IsEnabled="{x:Bind PlayEnabled, Mode=OneWay}"
+                                            Style="{StaticResource AccentControlButtonStyle}"
+                                            Tag="{x:Bind}" ToolTipService.ToolTip="{x:Bind PlayLabel}">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <FontIcon FontSize="12" Glyph="&#xE768;" />
+                                            <TextBlock Text="{x:Bind PlayLabel}" />
                                         </StackPanel>
-                                    </Grid>
-                                </Button>
+                                    </Button>
+                                </Grid>
                             </DataTemplate>
                         </ItemsRepeater.ItemTemplate>
                     </ItemsRepeater>
 
                     <!--
-                        The row is empty until a show has an episode on disk. The designed strings for
-                        that state exist, so the card states it instead of leaving a gap.
+                        Active viewing starts only after a successful Play action.
                     -->
                     <controls:EmptyStateCard
                         x:Name="ContinueEmptyState"
+                        MinHeight="200"
+                        HorizontalAlignment="Stretch"
+                        IsFrameless="True"
                         Glyph="&#xE768;"
                         Visibility="Collapsed" />
                 </StackPanel>
@@ -136,13 +166,14 @@
                         <ItemsRepeater.Layout>
                             <UniformGridLayout
                                 ItemsStretch="Fill"
-                                MinColumnSpacing="16"
-                                MinItemWidth="300"
+                                MinColumnSpacing="12"
+                                MinItemWidth="280"
                                 MinRowSpacing="16" />
                         </ItemsRepeater.Layout>
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="models:WatchHistoryCardRecord">
                                 <Button
+                                    AutomationProperties.AutomationId="{x:Bind local:HomePage.HistoryAutomationId(EventId)}"
                                     AutomationProperties.Name="{x:Bind AccessibleName}"
                                     Click="HistoryCard_Click"
                                     Style="{StaticResource CardActionButtonStyle}"
@@ -153,8 +184,8 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <Border
-                                            Width="88"
-                                            Height="56"
+                                            Width="56"
+                                            Height="84"
                                             Style="{StaticResource ShowPosterSurfaceStyle}">
                                             <Grid>
                                                 <FontIcon
@@ -186,7 +217,13 @@
                                             <TextBlock
                                                 Foreground="{ThemeResource SystemFillColorCriticalBrush}"
                                                 Style="{StaticResource CaptionTextBlockStyle}"
-                                                Text="{x:Bind AvailabilityText}" />
+                                                Text="{x:Bind AvailabilityText}"
+                                                Visibility="{x:Bind local:HomePage.UnavailableVisibility(IsAvailable)}" />
+                                            <TextBlock
+                                                Style="{StaticResource CaptionTextBlockStyle}"
+                                                Text="{x:Bind local:HomePage.HistoryTypeLabel(MediaKind)}"
+                                                TextTrimming="CharacterEllipsis"
+                                                TextWrapping="NoWrap" />
                                         </StackPanel>
                                     </Grid>
                                 </Button>
@@ -195,6 +232,9 @@
                     </ItemsRepeater>
                     <controls:EmptyStateCard
                         x:Name="HistoryEmptyState"
+                        MinHeight="200"
+                        HorizontalAlignment="Stretch"
+                        IsFrameless="True"
                         Glyph="&#xE81C;"
                         Visibility="Collapsed" />
                 </StackPanel>

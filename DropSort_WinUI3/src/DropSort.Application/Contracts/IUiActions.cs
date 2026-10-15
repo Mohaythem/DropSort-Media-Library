@@ -37,6 +37,9 @@ public interface ILibraryRepairUiActions
     /// and unrelated items are untouched.
     /// </summary>
     void RemoveMovieFromLibrary(int movieId);
+
+    /// <summary>Removes a show and its episode registrations. Files on disk are kept.</summary>
+    void RemoveShowFromLibrary(int showId);
 }
 
 public interface IPersonalLibraryUiActions

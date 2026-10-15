@@ -14,16 +14,16 @@ namespace DropSort.UI.Views;
 /// <summary>
 /// My Lists.
 /// <para>
-/// The three system lists are the real personal-library sections: Watchlist, Favorites is Liked, and
-/// Watch Later is Ready to Watch (watchlisted with a file on disk). Every further tab is a user-created
-/// custom list. A custom list is a real catalog row (custom_lists) with a stable id; its display name is
+/// The two system lists are Watch Later (the persisted Watchlist membership) and Favorites (the persisted
+/// Liked preference). Every further tab is a user-created custom list. A custom list is a real catalog row
+/// (custom_lists) with a stable id; its display name is
 /// only a label, so a rename keeps the list's movies. Membership (custom_list_members) is keyed on that
 /// id, so a movie can belong to any number of lists and appears here right after it is added.
 /// </para>
 /// </summary>
 public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableView
 {
-    private string _selectedKey = "watchlist";
+    private string _selectedKey = "watch-later";
     private string _query = string.Empty;
 
     /// <summary>The user's custom lists for this visit. Reloaded on arrival and after every mutation.</summary>
@@ -80,6 +80,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
 
     public void ApplyLocalization()
     {
+        Invalidate();
         FlowDirection = LocalizationService.FlowDirection;
         PageTitleText.Text = LocalizationService.Text("MyLists");
         NewListButtonText.Text = LocalizationService.Text("NewList");
@@ -93,16 +94,15 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         Refresh();
     }
 
-    /// <summary>The lists on the strip: the three system sections, then one per user-created custom list.</summary>
+    /// <summary>The lists on the strip: the two system sections, then one per user-created custom list.</summary>
     private IReadOnlyList<MediaListDefinition> Definitions
     {
         get
         {
             List<MediaListDefinition> definitions =
             [
-                new("watchlist", "Watchlist", true),
-                new("favorites", "Favorites", true),
                 new("watch-later", "WatchLater", true),
+                new("favorites", "Favorites", true),
             ];
 
             foreach (var list in _customLists)
@@ -123,14 +123,12 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
 
     private (RadioButton Tab, TextBlock Label, TextBlock Count, string Key)[] SystemTabs =>
     [
-        (WatchlistItem, WatchlistLabel, WatchlistCount, "watchlist"),
-        (FavoritesItem, FavoritesLabel, FavoritesCount, "favorites"),
         (WatchLaterItem, WatchLaterLabel, WatchLaterCount, "watch-later"),
+        (FavoritesItem, FavoritesLabel, FavoritesCount, "favorites"),
     ];
 
     private void LocalizeSystemTabs()
     {
-        WatchlistLabel.Text = LocalizationService.Text("Watchlist");
         FavoritesLabel.Text = LocalizationService.Text("Favorites");
         WatchLaterLabel.Text = LocalizationService.Text("WatchLater");
     }
@@ -193,7 +191,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
 
         var isCustom = !definition.IsSystem;
         ListNameText.Text = isCustom ? definition.LabelKey : LocalizationService.Text(definition.LabelKey);
-        AddMoviesButton.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
+        AddMoviesButton.Visibility = Visibility.Visible;
         RenameListButton.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
         DeleteListButton.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
 
@@ -228,21 +226,17 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         EmptyState.Message = LocalizationService.Text(
             searching ? "NoResultsHelp" : isCustom ? "CustomListEmptyHelp" : "ListEmptyHelp");
 
-        // The empty-state action clears the search while searching, and otherwise offers "Add movies" on
-        // a custom list (a system list is filled from Movie Details, so it shows no action).
+        // The empty-state action clears the search while searching, and otherwise opens the picker for
+        // every list type.
         if (searching)
         {
             EmptyState.ActionText = LocalizationService.Text("ClearSearch");
             EmptyState.IsActionVisible = true;
         }
-        else if (isCustom)
+        else
         {
             EmptyState.ActionText = LocalizationService.Text("AddMovies");
             EmptyState.IsActionVisible = true;
-        }
-        else
-        {
-            EmptyState.IsActionVisible = false;
         }
     }
 
@@ -299,8 +293,8 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     }
 
     /// <summary>
-    /// Reads a list's members. System lists are the movie personal-library sections; a custom list holds
-    /// movies and TV shows together. Returns null when the catalog could not be read.
+    /// Reads a list's members. System lists contain movies and TV shows; a custom list holds both kinds
+    /// together. Returns null when the catalog could not be read.
     /// </summary>
     private static IReadOnlyList<ListMediaItem>? LoadItems(MediaListDefinition definition)
     {
@@ -310,22 +304,27 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             {
                 var section = definition.Key switch
                 {
-                    "watchlist" => PersonalLibrarySection.Watchlist,
                     "favorites" => PersonalLibrarySection.Liked,
-                    "watch-later" => PersonalLibrarySection.ReadyToWatch,
+                    "watch-later" => PersonalLibrarySection.Watchlist,
                     _ => (PersonalLibrarySection?)null,
                 };
                 if (section is null) return [];
-                var showBadge = definition.Key == "watch-later";
                 return
                 [
                     .. AppServices.Personal.ListPersonalMovies(section.Value)
                         .Select(LibraryProjection.ToCard)
                         .Select(movie => new ListMediaItem(
                             movie,
-                            showBadge,
+                            true,
                             movie.HasLocalFile,
-                            LocalizationService.Text(movie.HasLocalFile ? "Local" : "OnlineOnly"))),
+                            LocalizationService.Text(movie.HasLocalFile ? "Local" : "Unavailable"))),
+                    .. AppServices.ShowPersonal.ListShows(section.Value)
+                        .Select(TvProjection.ToCard)
+                        .Select(show => new ListMediaItem(
+                            show,
+                            true,
+                            show.LocalEpisodeCount > 0,
+                            LocalizationService.Text(show.LocalEpisodeCount > 0 ? "Local" : "Unavailable"))),
                 ];
             }
 
@@ -397,11 +396,8 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             return;
         }
 
-        // Not searching: the only empty-state action is "Add media" on a custom list.
-        if (SelectedListId() is not null)
-        {
-            _ = ShowAddMediaAsync();
-        }
+        // Every list accepts explicit movie/show membership through the same picker.
+        _ = ShowAddMediaAsync();
     }
 
     private void ListGrid_ItemClick(object sender, ItemClickEventArgs e)
@@ -422,17 +418,11 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     }
 
     /// <summary>
-    /// A right-tap (or press-and-hold) on a card in a custom list offers "Remove from list". The item is
-    /// resolved from the tapped element's data context, so the menu targets the exact movie or show.
-    /// System lists have no such action: their membership is defined elsewhere.
+    /// A right-tap (or press-and-hold) offers removal from the selected list. The item is resolved from
+    /// the tapped element's data context, so the menu targets the exact movie or show.
     /// </summary>
     private void ListGrid_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
-        if (SelectedListId() is not int listId)
-        {
-            return;
-        }
-
         if ((e.OriginalSource as FrameworkElement)?.DataContext is not ListMediaItem item)
         {
             return;
@@ -443,23 +433,37 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             Text = LocalizationService.Text("RemoveFromList"),
             FlowDirection = LocalizationService.FlowDirection,
         };
-        remove.Click += (_, _) => RemoveFromList(listId, item);
+        var destinationKey = _selectedKey;
+        remove.Click += (_, _) => RemoveFromSelectedList(item, destinationKey);
         var menu = new MenuFlyout();
         menu.Items.Add(remove);
         menu.ShowAt(ListGrid, new FlyoutShowOptions { Position = e.GetPosition(ListGrid) });
     }
 
-    private void RemoveFromList(int listId, ListMediaItem item)
+    private void RemoveFromSelectedList(ListMediaItem item, string destinationKey)
     {
         try
         {
-            if (item.Show is { } show)
+            if (ParseCustomKey(destinationKey) is int listId)
             {
-                AppServices.Personal.RemoveShowFromCustomList(listId, show.Id);
+                if (item.Show is { } show)
+                {
+                    AppServices.Personal.RemoveShowFromCustomList(listId, show.Id);
+                }
+                else if (item.Movie is { } movie)
+                {
+                    AppServices.Personal.RemoveMovieFromCustomList(listId, movie.Id);
+                }
             }
-            else if (item.Movie is { } movie)
+            else if (destinationKey == "watch-later")
             {
-                AppServices.Personal.RemoveMovieFromCustomList(listId, movie.Id);
+                if (item.Show is { } show) AppServices.ShowPersonal.SetWatchLater(show.Id, false);
+                else if (item.Movie is { } movie) AppServices.Personal.RemoveFromWatchlist(movie.Id);
+            }
+            else if (destinationKey == "favorites")
+            {
+                if (item.Show is { } show) AppServices.ShowPersonal.SetFavorite(show.Id, false);
+                else if (item.Movie is { } movie) AppServices.Personal.ClearPersonalPreference(movie.Id);
             }
         }
         catch (Exception error)
@@ -582,7 +586,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             return;
         }
 
-        _selectedKey = "watchlist";
+        _selectedKey = "watch-later";
         Invalidate();
         RebuildTabs();
         Refresh();
@@ -590,26 +594,23 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
 
     // APPEND_MARKER5
     /// <summary>
-    /// Adds existing library items - movies and TV shows - to the selected custom list. The picker lists
+    /// Adds existing library items - movies and TV shows - to the selected list. The picker lists
     /// items already registered in DropSort; it never imports files, scans folders or fetches metadata.
     /// Items already in the list are shown disabled.
     /// </summary>
     private async Task ShowAddMediaAsync()
     {
-        if (SelectedList() is not { } list)
-        {
-            return;
-        }
-
+        var destinationKey = _selectedKey;
+        var destinationListId = ParseCustomKey(destinationKey);
+        var definition = Definitions.FirstOrDefault(item => item.Key == destinationKey);
+        if (definition is null) return;
         List<MediaPickerEntry> entries;
         try
         {
-            var movieMembers = new HashSet<int>();
-            var showMembers = new HashSet<int>();
-            foreach (var member in AppServices.Personal.ListCustomListItems(list.Id))
-            {
-                (member.Kind == CustomListMediaKind.Show ? showMembers : movieMembers).Add(member.Id);
-            }
+            var members = LoadItems(definition)
+                ?? throw new InvalidOperationException(LocalizationService.Text("Failed"));
+            var movieMembers = members.Where(item => item.Movie is not null).Select(item => item.Movie!.Id).ToHashSet();
+            var showMembers = members.Where(item => item.Show is not null).Select(item => item.Show!.Id).ToHashSet();
 
             entries =
             [
@@ -635,13 +636,20 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         {
             foreach (var pick in picks)
             {
-                if (pick.Kind == CustomListMediaKind.Show)
+                if (destinationListId is int listId)
                 {
-                    AppServices.Personal.AddShowToCustomList(list.Id, pick.Id);
+                    if (pick.Kind == CustomListMediaKind.Show) AppServices.Personal.AddShowToCustomList(listId, pick.Id);
+                    else AppServices.Personal.AddMovieToCustomList(listId, pick.Id);
                 }
-                else
+                else if (destinationKey == "watch-later")
                 {
-                    AppServices.Personal.AddMovieToCustomList(list.Id, pick.Id);
+                    if (pick.Kind == CustomListMediaKind.Show) AppServices.ShowPersonal.SetWatchLater(pick.Id, true);
+                    else AppServices.Personal.AddToWatchlist(pick.Id);
+                }
+                else if (destinationKey == "favorites")
+                {
+                    if (pick.Kind == CustomListMediaKind.Show) AppServices.ShowPersonal.SetFavorite(pick.Id, true);
+                    else AppServices.Personal.SetPersonalPreference(pick.Id, PersonalPreference.Liked);
                 }
             }
         }

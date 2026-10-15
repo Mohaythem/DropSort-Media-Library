@@ -3,9 +3,8 @@ using Microsoft.UI.Xaml;
 namespace DropSort.UI.Services;
 
 /// <summary>
-/// The three themes the design source exposes. Slate and Dark share the native dark palette;
-/// Slate only re-tints the shell surface, exactly like the design's <c>[data-theme='slate']</c>
-/// override. Light maps straight onto the native light palette.
+/// The three application themes. Slate layers a navy/peach palette over native dark controls;
+/// Dark and Light keep their respective native palettes.
 /// </summary>
 public enum AppTheme
 {

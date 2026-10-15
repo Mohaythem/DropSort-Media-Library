@@ -77,7 +77,8 @@ public sealed class TvLibraryService(
                 missing,
                 show.DateAdded,
                 show.LastOpenedAt,
-                show.MetadataStatus));
+                show.MetadataStatus,
+                show.BackdropReference));
         }
 
         return result;

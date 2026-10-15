@@ -128,6 +128,11 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         command.Parameters.AddWithValue("$watched", watchedAt.ToString("O"));
         command.Parameters.AddWithValue("$created", createdAt.ToString("O"));
         var id = checked((int)(long)(command.ExecuteScalar() ?? throw new InvalidOperationException("Watch insert returned no ID.")));
+        using (var active = Command(connection, transaction, "DELETE FROM active_viewings WHERE movie_id = $movie;"))
+        {
+            active.Parameters.AddWithValue("$movie", movieId);
+            active.ExecuteNonQuery();
+        }
         var events = ReadEvents(connection, movieId, transaction);
         transaction.Commit();
         return events.Single(item => item.Id == id);
@@ -495,6 +500,11 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         using var idCommand = Command(connection, transaction, "SELECT last_insert_rowid();");
         var id = checked(Convert.ToInt32((long)(idCommand.ExecuteScalar() ?? throw new InvalidOperationException("Watch insert returned no ID."))));
         var entry = ReadHistory(connection, transaction, id).Single();
+        using (var active = Command(connection, transaction, "DELETE FROM active_viewings WHERE episode_id = $episode;"))
+        {
+            active.Parameters.AddWithValue("$episode", episodeId);
+            active.ExecuteNonQuery();
+        }
         transaction.Commit();
         return entry;
     }
@@ -504,6 +514,8 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         using var gate = DatabaseWriteGate.Enter(_connectionString);
         using var connection = SqliteConnections.Open(_connectionString);
         using var transaction = connection.BeginTransaction(deferred: false);
+        using var active = Command(connection, transaction, "DELETE FROM active_viewings;");
+        active.ExecuteNonQuery();
         using var command = Command(connection, transaction, "DELETE FROM watch_events;");
         var removed = command.ExecuteNonQuery();
         transaction.Commit();

@@ -24,9 +24,13 @@ public sealed partial class EmptyStateCard : UserControl
     public static readonly DependencyProperty IsActionVisibleProperty = DependencyProperty.Register(
         nameof(IsActionVisible), typeof(bool), typeof(EmptyStateCard), new PropertyMetadata(false));
 
+    public static readonly DependencyProperty IsFramelessProperty = DependencyProperty.Register(
+        nameof(IsFrameless), typeof(bool), typeof(EmptyStateCard), new PropertyMetadata(false, OnIsFramelessChanged));
+
     public EmptyStateCard()
     {
         this.InitializeComponent();
+        UpdatePresentation();
     }
 
     public event RoutedEventHandler? ActionClick;
@@ -59,6 +63,32 @@ public sealed partial class EmptyStateCard : UserControl
     {
         get => (bool)GetValue(IsActionVisibleProperty);
         set => SetValue(IsActionVisibleProperty, value);
+    }
+
+    public bool IsFrameless
+    {
+        get => (bool)GetValue(IsFramelessProperty);
+        set => SetValue(IsFramelessProperty, value);
+    }
+
+    private static void OnIsFramelessChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs args)
+    {
+        ((EmptyStateCard)dependencyObject).UpdatePresentation();
+    }
+
+    private void UpdatePresentation()
+    {
+        if (FramedState is null || FramelessState is null)
+        {
+            return;
+        }
+
+        var frameless = IsFrameless;
+        FramedState.Visibility = frameless ? Visibility.Collapsed : Visibility.Visible;
+        FramelessState.Visibility = frameless ? Visibility.Visible : Visibility.Collapsed;
+        HorizontalAlignment = frameless
+            ? Microsoft.UI.Xaml.HorizontalAlignment.Stretch
+            : Microsoft.UI.Xaml.HorizontalAlignment.Left;
     }
 
     private void ActionButton_Click(object sender, RoutedEventArgs e) => ActionClick?.Invoke(this, e);

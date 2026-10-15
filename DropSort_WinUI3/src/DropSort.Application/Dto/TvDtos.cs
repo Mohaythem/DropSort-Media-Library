@@ -17,7 +17,8 @@ public record TvShowListItem(
     int MissingEpisodeCount,
     DateTimeOffset DateAdded = default,
     DateTimeOffset? LastOpenedAt = null,
-    MetadataStatus MetadataStatus = MetadataStatus.Pending);
+    MetadataStatus MetadataStatus = MetadataStatus.Pending,
+    string? BackdropReference = null);
 
 public record TvContinueWatchingItem(
     int ShowId,

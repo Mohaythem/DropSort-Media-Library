@@ -131,127 +131,68 @@
     </DataTemplate>
 
     <DataTemplate x:Key="HorizontalMovieCardTemplate" x:DataType="models:MovieRecord">
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="96" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Border
-                Width="{StaticResource LibraryHorizontalPosterWidth}"
-                Height="{StaticResource LibraryHorizontalPosterHeight}"
-                VerticalAlignment="Center"
-                CornerRadius="4"
-                Style="{StaticResource PosterSurfaceStyle}">
-                <Grid>
-                    <Image FlowDirection="LeftToRight" Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="UniformToFill" />
-                    <Border
-                        Margin="4"
-                        Padding="4"
+        <Border CornerRadius="{ThemeResource ControlCornerRadius}">
+            <Grid Background="{ThemeResource PosterMoviePlaceholderBrush}">
+                <FontIcon Margin="0,0,0,60" FontSize="36" Glyph="&#xE8B2;"
+                          Foreground="{ThemeResource PosterGlyphForegroundBrush}" />
+                <Image Source="{x:Bind HorizontalArtworkSource, Mode=OneWay}" Stretch="UniformToFill" FlowDirection="LeftToRight" />
+                <Image Width="88" Height="132" Margin="12,8,12,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Top"
+                       Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="Uniform"
+                       Visibility="{x:Bind HorizontalPosterVisibility, Mode=OneWay}" FlowDirection="LeftToRight" />
+                <Border Background="{ThemeResource LandscapeCardScrimBrush}" />
+                <Border Margin="12" Padding="6,2" HorizontalAlignment="Left" VerticalAlignment="Top"
                         Background="{ThemeResource LayerFillColorAltBrush}"
-                        BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
-                        BorderThickness="1"
                         CornerRadius="{ThemeResource ControlCornerRadius}"
-                        Visibility="{x:Bind IsPosterMissing, Mode=OneWay}">
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            VerticalAlignment="Center"
-                            MaxLines="2"
-                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Style="{StaticResource CaptionTextBlockStyle}"
-                            Text="{x:Bind Title}"
-                            TextAlignment="Center"
-                            TextTrimming="CharacterEllipsis"
-                            TextWrapping="Wrap" />
-                    </Border>
-                </Grid>
-            </Border>
-            <Grid Grid.Column="1">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <StackPanel Spacing="4">
-                <TextBlock
-                    MaxLines="2"
-                    FontSize="16"
-                    Style="{StaticResource BodyStrongTextBlockStyle}"
-                    Text="{x:Bind Title}"
-                    TextTrimming="CharacterEllipsis"
-                    TextWrapping="Wrap"
-                    ToolTipService.ToolTip="{x:Bind Title}" />
-                <TextBlock FontSize="14" Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind YearText}" Visibility="{x:Bind YearVisibility}" />
-                </StackPanel>
-                <StackPanel Grid.Row="2" Spacing="4">
-                <TextBlock Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind HorizontalSummaryLine}" TextTrimming="CharacterEllipsis" />
-                <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{x:Bind ReviewMatchBadgeVisibility, Mode=OneWay}">
-                <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="{ThemeResource SystemFillColorCautionBrush}" />
-                <TextBlock
-                    Foreground="{ThemeResource SystemFillColorCautionBrush}"
-                    Style="{StaticResource CaptionTextBlockStyle}"
-                    Text="{x:Bind ReviewMatchLabel}"
-                    TextTrimming="CharacterEllipsis"
-                    ToolTipService.ToolTip="{x:Bind ReviewMatchLabel}" />
-                </StackPanel>
+                        Visibility="{x:Bind ReviewMatchBadgeVisibility, Mode=OneWay}">
+                    <TextBlock Foreground="{ThemeResource SystemFillColorCautionBrush}"
+                               Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind ReviewMatchLabel}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind ReviewMatchLabel}" />
+                </Border>
+                <StackPanel Margin="14" VerticalAlignment="Bottom" Spacing="2">
+                    <TextBlock Foreground="{ThemeResource LandscapeCardTextBrush}"
+                               Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Title}"
+                               MaxLines="2" TextTrimming="CharacterEllipsis" TextWrapping="Wrap"
+                               ToolTipService.ToolTip="{x:Bind Title}" />
+                    <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                               Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind YearText}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Visibility="{x:Bind YearVisibility}" />
+                    <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                               Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind HorizontalSummaryLine}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                 </StackPanel>
             </Grid>
-        </Grid>
+        </Border>
     </DataTemplate>
 
     <DataTemplate x:Key="HorizontalShowCardTemplate" x:DataType="models:ShowCardItem">
-        <Grid ColumnSpacing="16">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="96" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <Border
-                Width="{StaticResource LibraryHorizontalPosterWidth}"
-                Height="{StaticResource LibraryHorizontalPosterHeight}"
-                VerticalAlignment="Center"
-                CornerRadius="4"
-                Style="{StaticResource ShowPosterSurfaceStyle}">
-                <Grid>
-                    <Image FlowDirection="LeftToRight" Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="UniformToFill" />
-                    <FontIcon
-                        FontFamily="{StaticResource SymbolThemeFontFamily}"
-                        FontSize="24"
-                        Foreground="{ThemeResource PosterGlyphForegroundBrush}"
-                        Glyph="&#xE7F4;"
-                        Visibility="{x:Bind IsPosterMissing, Mode=OneWay}" />
-                </Grid>
-            </Border>
-            <Grid Grid.Column="1">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-                <StackPanel Spacing="4">
-                <TextBlock
-                    MaxLines="2"
-                    FontSize="16"
-                    Style="{StaticResource BodyStrongTextBlockStyle}"
-                    Text="{x:Bind Title}"
-                    TextTrimming="CharacterEllipsis"
-                    TextWrapping="Wrap"
-                    ToolTipService.ToolTip="{x:Bind Title}" />
-                <TextBlock FontSize="14" Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind YearText}" Visibility="{x:Bind YearVisibility}" />
-                </StackPanel>
-                <StackPanel Grid.Row="2" Spacing="4">
-                <TextBlock
-                    Style="{StaticResource SecondaryCaptionTextStyle}"
-                    Text="{x:Bind SeasonLine}"
-                    TextTrimming="CharacterEllipsis"
-                    TextWrapping="NoWrap" />
-                <TextBlock
-                    Style="{StaticResource SecondaryCaptionTextStyle}"
-                    Text="{x:Bind LocalEpisodesLine}"
-                    ToolTipService.ToolTip="{x:Bind LocalEpisodesLine}"
-                    TextTrimming="CharacterEllipsis"
-                    TextWrapping="NoWrap" />
+        <Border CornerRadius="{ThemeResource ControlCornerRadius}">
+            <Grid Background="{ThemeResource PosterShowPlaceholderBrush}">
+                <FontIcon Margin="0,0,0,60" FontSize="36" Glyph="&#xE7F4;"
+                          Foreground="{ThemeResource PosterGlyphForegroundBrush}" />
+                <Image Source="{x:Bind HorizontalArtworkSource, Mode=OneWay}" Stretch="UniformToFill" FlowDirection="LeftToRight" />
+                <Image Width="88" Height="132" Margin="12,8,12,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Top"
+                       Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="Uniform"
+                       Visibility="{x:Bind HorizontalPosterVisibility, Mode=OneWay}" FlowDirection="LeftToRight" />
+                <Border Background="{ThemeResource LandscapeCardScrimBrush}" />
+                <StackPanel Margin="14" VerticalAlignment="Bottom" Spacing="2">
+                    <TextBlock Foreground="{ThemeResource LandscapeCardTextBrush}"
+                               Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Title}"
+                               MaxLines="2" TextTrimming="CharacterEllipsis" TextWrapping="Wrap"
+                               ToolTipService.ToolTip="{x:Bind Title}" />
+                    <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                               Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind YearText}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Visibility="{x:Bind YearVisibility}" />
+                    <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                               Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind SeasonLine}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                    <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                               Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind LocalEpisodesLine}"
+                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                 </StackPanel>
             </Grid>
-        </Grid>
+        </Border>
     </DataTemplate>
 
     <DataTemplate x:Key="ListMovieCardTemplate" x:DataType="models:ListMediaItem">
@@ -262,6 +203,12 @@
                 HorizontalAlignment="Left"
                 Style="{StaticResource PosterSurfaceStyle}">
                 <Grid>
+                    <Border Margin="8" Padding="6,2" HorizontalAlignment="Left" VerticalAlignment="Top"
+                            Background="{ThemeResource LayerFillColorAltBrush}"
+                            CornerRadius="{ThemeResource ControlCornerRadius}" Canvas.ZIndex="1">
+                        <TextBlock Text="{x:Bind TypeLabel}" Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorPrimaryBrush}" />
+                    </Border>
                     <Image Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="UniformToFill" />
                     <!-- Graceful no-poster fallback: inset bordered title panel (see MovieCardTemplate). -->
                     <Border

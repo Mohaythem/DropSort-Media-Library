@@ -136,6 +136,13 @@ public interface IWatchHistoryRepository
     int ClearWatchHistory();
 }
 
+public interface IViewingActivityRepository
+{
+    IReadOnlyList<DropSort.Application.Dto.ActiveViewingItem> ListActive(int limit);
+    DropSort.Application.Dto.ActiveViewingItem RecordSuccessfulPlay(string path, DateTimeOffset startedAt);
+    IReadOnlyList<WatchHistoryEntry> ListRecentCompleted(int limit, int offset = 0);
+}
+
 public interface ILibraryMaintenanceRepository
 {
     /// <summary>

@@ -14,7 +14,8 @@ namespace DropSort.Application.Services;
 /// </summary>
 public sealed class LibraryRepairService(
     ICatalogUnitOfWorkFactory uowFactory,
-    Func<DateTimeOffset>? clock = null) : ILibraryRepairUiActions
+    Func<DateTimeOffset>? clock = null,
+    IFileOperationStore? fileOperations = null) : ILibraryRepairUiActions
 {
     private readonly ICatalogUnitOfWorkFactory _uowFactory =
         uowFactory ?? throw new ArgumentNullException(nameof(uowFactory));
@@ -60,6 +61,32 @@ public sealed class LibraryRepairService(
 
         uow.Commit();
         return new MoveToSeriesResult(showId, seasonNumber, episodeNumber);
+    }
+
+    public void RemoveShowFromLibrary(int showId)
+    {
+        using var uow = _uowFactory.Begin();
+        _ = uow.TvShows.GetById(showId)
+            ?? throw new InvalidOperationException($"TV show {showId} was not found.");
+
+        // Capture registrations before the show's cascading delete removes episode links.
+        var files = uow.TvEpisodes.ListMediaFilesByShow(showId).Values
+            .SelectMany(files => files).DistinctBy(file => file.Id).ToList();
+        var fileIds = files.Select(file => file.Id).ToHashSet();
+        if (fileOperations?.ListNonterminal().Any(operation =>
+                operation.MediaFileId is int id && fileIds.Contains(id)) == true)
+            throw new InvalidOperationException("Cannot remove a TV show while its files have pending operations.");
+
+        uow.TvShows.Delete(showId);
+        foreach (var file in files)
+        {
+            // Keep a registration if it also belongs to a movie or another episode.
+            if (file.MovieId is null && uow.TvEpisodes.GetEpisodeIdForMediaFile(file.Id) is null)
+                uow.MediaFiles.Delete(file.Id);
+        }
+
+        // History snapshots survive through ON DELETE SET NULL; no filesystem operation occurs.
+        uow.Commit();
     }
 
     public void RemoveMovieFromLibrary(int movieId)

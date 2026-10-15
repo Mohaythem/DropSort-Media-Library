@@ -294,7 +294,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
 
         ActivityTitleText.Text = LocalizationService.Text("DetailsWatchActivity");
         ActivityHelpText.Text = LocalizationService.Text("ActivityHelp");
-        LikeText.Text = LocalizationService.Text("Like");
+        LikeText.Text = LocalizationService.Text(_preference == "liked" ? "InFavorites" : "AddToFavorites");
         ExcludeText.Text = LocalizationService.Text("Exclude");
         ClearPreferenceButton.Content = LocalizationService.Text("ClearPreference");
         WatchingTitleText.Text = LocalizationService.Text("Watching");
@@ -331,8 +331,13 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         var request = _actionRequests.Begin();
         try
         {
-            var result = await AppServices.MediaFileActions.OpenFileAsync(_movie.FilePath, request.Token);
+            var result = await AppServices.PlayMediaFileAsync(_movie.FilePath, request.Token);
             if (!request.IsCurrent) return;
+            if (result.ErrorCode == "PlaybackActivityNotSaved")
+            {
+                await ShowMessageAsync(LocalizationService.Text("Failed"), LocalizationService.Text("PlaybackActivityNotSaved"));
+                return;
+            }
             await PresentActionResultAsync(result.Status);
         }
         catch (OperationCanceledException) { }
@@ -797,6 +802,8 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     /// <summary>Active states use the native accent / critical button styles, never literal colors.</summary>
     private void UpdatePreferenceVisuals()
     {
+        LikeText.Text = LocalizationService.Text(_preference == "liked" ? "InFavorites" : "AddToFavorites");
+        ToolTipService.SetToolTip(LikeButton, LocalizationService.Text(_preference == "liked" ? "RemoveFromFavorites" : "AddToFavorites"));
         LikeButton.Style = (Style)Resources[
             _preference == "liked" ? "DetailsSelectedButtonStyle" : "DetailsButtonStyle"];
         LikeGlyph.Glyph = _preference == "liked" ? "\uEB52" : "\uEB51";
@@ -811,7 +818,8 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         WatchlistButton.Style = (Style)Resources[
             _inWatchlist ? "DetailsSelectedButtonStyle" : "DetailsButtonStyle"];
         WatchlistGlyph.Glyph = _inWatchlist ? "\uE735" : "\uE734";
-        WatchlistText.Text = LocalizationService.Text(_inWatchlist ? "InWatchlist" : "AddToWatchlist");
+        WatchlistText.Text = LocalizationService.Text(_inWatchlist ? "InWatchLater" : "AddToWatchLater");
+        ToolTipService.SetToolTip(WatchlistButton, LocalizationService.Text(_inWatchlist ? "RemoveFromWatchLater" : "AddToWatchLater"));
         UpdateDetailsIcons();
     }
 

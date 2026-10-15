@@ -75,6 +75,15 @@
     -->
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
+            <SolidColorBrush x:Key="LandscapeCardTextBrush" Color="#FFF8F9FB" />
+            <SolidColorBrush x:Key="LandscapeCardSecondaryTextBrush" Color="#FFE1E6EB" />
+            <LinearGradientBrush x:Key="LandscapeCardScrimBrush" StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Offset="0" Color="#10080F16" />
+                <GradientStop Offset="0.35" Color="#33080F16" />
+                <GradientStop Offset="0.65" Color="#CC080F16" />
+                <GradientStop Offset="1" Color="#F5080F16" />
+            </LinearGradientBrush>
+
             <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="#3D000000" />
             <SolidColorBrush x:Key="ShellContentBackgroundBrush" Color="#12FFFFFF" />
             <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="#1FFFFFFF" />
@@ -121,6 +130,15 @@
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="LandscapeCardTextBrush" Color="#FFF8F9FB" />
+            <SolidColorBrush x:Key="LandscapeCardSecondaryTextBrush" Color="#FFE1E6EB" />
+            <LinearGradientBrush x:Key="LandscapeCardScrimBrush" StartPoint="0,0" EndPoint="0,1">
+                <GradientStop Offset="0" Color="#10080F16" />
+                <GradientStop Offset="0.35" Color="#33080F16" />
+                <GradientStop Offset="0.65" Color="#CC080F16" />
+                <GradientStop Offset="1" Color="#F5080F16" />
+            </LinearGradientBrush>
+
             <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="#17000000" />
             <SolidColorBrush x:Key="ShellContentBackgroundBrush" Color="#B3FFFFFF" />
             <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="#1F000000" />
@@ -167,6 +185,10 @@
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="LandscapeCardTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="LandscapeCardSecondaryTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="LandscapeCardScrimBrush" Color="{ThemeResource SystemColorWindowColor}" />
+
             <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="ShellContentBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="ShellPaneSeparatorBrush" Color="{ThemeResource SystemColorWindowTextColor}" />

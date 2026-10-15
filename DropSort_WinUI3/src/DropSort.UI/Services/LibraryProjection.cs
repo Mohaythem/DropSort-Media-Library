@@ -28,6 +28,7 @@ internal static class LibraryProjection
         string.Empty,
         HasLocalFile: !item.IsMissing,
         PosterReference: item.PosterReference,
+        BackdropReference: item.BackdropReference,
         FileCount: item.FileCount,
         ReviewMatch: item.ReviewMatch,
         HasPendingMetadata: item.HasPendingMetadata,
