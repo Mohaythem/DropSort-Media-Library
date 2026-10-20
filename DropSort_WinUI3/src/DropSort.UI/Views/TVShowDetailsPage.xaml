@@ -12,45 +12,171 @@
     xmlns:models="using:DropSort.UI.Models"
     Background="Transparent">
 
-    <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}">
+    <Page.Resources>
+        <Style TargetType="TextBlock" x:Key="TvDetailsTitleStyle" BasedOn="{StaticResource TitleTextBlockStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource FigmaTextPrimaryBrush}" />
+            <Setter Property="FontSize" Value="32" />
+            <Setter Property="LineHeight" Value="40" />
+            <Setter Property="LineStackingStrategy" Value="MaxHeight" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style TargetType="TextBlock" x:Key="TvDetailsOverviewStyle" BasedOn="{StaticResource SecondaryBodyTextStyle}">
+            <Setter Property="Foreground" Value="{ThemeResource FigmaTextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="LineHeight" Value="24" />
+            <Setter Property="LineStackingStrategy" Value="MaxHeight" />
+        </Style>
+        <Style TargetType="Button" x:Key="TvDetailsButtonStyle" BasedOn="{StaticResource SubtleControlButtonStyle}">
+            <Setter Property="Background" Value="{ThemeResource FigmaSurfaceControlBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource FigmaBorderDefaultBrush}" />
+            <Setter Property="Foreground" Value="{ThemeResource FigmaTextPrimaryBrush}" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Padding" Value="14,4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style TargetType="Button" x:Key="TvDetailsSelectedButtonStyle" BasedOn="{StaticResource TvDetailsButtonStyle}">
+            <Setter Property="Background" Value="{ThemeResource FigmaAccentSelectedSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource FigmaAccentButtonBrush}" />
+        </Style>
+        <Style TargetType="Button" x:Key="TvDetailsAccentButtonStyle" BasedOn="{StaticResource AccentControlButtonStyle}">
+            <Setter Property="Background" Value="{ThemeResource FigmaAccentButtonBrush}" />
+            <Setter Property="Foreground" Value="{ThemeResource FigmaAccentForegroundBrush}" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Padding" Value="16,4" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}" Padding="40,8,40,48" Background="{ThemeResource FigmaSurfaceAppBrush}">
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup x:Name="ShowWidthStates">
                 <VisualState x:Name="ShowWideState">
                     <VisualState.StateTriggers>
-                        <AdaptiveTrigger MinWindowWidth="1180" />
+                        <AdaptiveTrigger MinWindowWidth="1400" />
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
-                        <Setter Target="PosterSurface.Width" Value="240" />
-                        <Setter Target="PosterSurface.Height" Value="360" />
-                        <Setter Target="PosterGlyph.FontSize" Value="48" />
-                        <Setter Target="ActionsPanel.Orientation" Value="Horizontal" />
-                        <Setter Target="PersonalActionsPanel.Orientation" Value="Horizontal" />
+                        <Setter Target="HeroPosterColumn.Width" Value="420" />
+                        <Setter Target="PosterSurface.Width" Value="420" />
+                        <Setter Target="PosterSurface.Height" Value="630" />
+                        <Setter Target="HeroGrid.ColumnSpacing" Value="40" />
+                        <Setter Target="SecondaryActionsGrid.RowSpacing" Value="0" />
+                        <Setter Target="SecondaryActionsGrid.Visibility" Value="Visible" />
+                        <Setter Target="PlayNextButton.(Grid.Row)" Value="0" />
+                        <Setter Target="PlayNextButton.(Grid.Column)" Value="0" />
+                        <Setter Target="PlayNextButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="AddToListButton.(Grid.Row)" Value="0" />
+                        <Setter Target="AddToListButton.(Grid.Column)" Value="1" />
+                        <Setter Target="AddToListButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="MatchButton.(Grid.Row)" Value="0" />
+                        <Setter Target="MatchButton.(Grid.Column)" Value="2" />
+                        <Setter Target="MatchButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="MoreButton.(Grid.Row)" Value="0" />
+                        <Setter Target="MoreButton.(Grid.Column)" Value="3" />
+                        <Setter Target="MoreButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="ShowWatchLaterButton.(Grid.Row)" Value="0" />
+                        <Setter Target="ShowWatchLaterButton.(Grid.Column)" Value="0" />
+                        <Setter Target="ShowFavoriteButton.(Grid.Row)" Value="0" />
+                        <Setter Target="ShowFavoriteButton.(Grid.Column)" Value="1" />
+                        <Setter Target="PersonalSecondColumn.Width" Value="Auto" />
                     </VisualState.Setters>
                 </VisualState>
                 <VisualState x:Name="ShowMediumState">
                     <VisualState.StateTriggers>
+                        <AdaptiveTrigger MinWindowWidth="1120" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="HeroPosterColumn.Width" Value="300" />
+                        <Setter Target="PosterSurface.Width" Value="300" />
+                        <Setter Target="PosterSurface.Height" Value="450" />
+                        <Setter Target="HeroGrid.ColumnSpacing" Value="32" />
+                        <Setter Target="SecondaryActionsGrid.RowSpacing" Value="8" />
+                        <Setter Target="SecondaryActionsGrid.Visibility" Value="Visible" />
+                        <Setter Target="PlayNextButton.(Grid.Row)" Value="0" />
+                        <Setter Target="PlayNextButton.(Grid.Column)" Value="0" />
+                        <Setter Target="PlayNextButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="AddToListButton.(Grid.Row)" Value="0" />
+                        <Setter Target="AddToListButton.(Grid.Column)" Value="1" />
+                        <Setter Target="AddToListButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="MatchButton.(Grid.Row)" Value="1" />
+                        <Setter Target="MatchButton.(Grid.Column)" Value="0" />
+                        <Setter Target="MatchButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="MoreButton.(Grid.Row)" Value="1" />
+                        <Setter Target="MoreButton.(Grid.Column)" Value="1" />
+                        <Setter Target="MoreButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="ShowWatchLaterButton.(Grid.Row)" Value="0" />
+                        <Setter Target="ShowWatchLaterButton.(Grid.Column)" Value="0" />
+                        <Setter Target="ShowFavoriteButton.(Grid.Row)" Value="0" />
+                        <Setter Target="ShowFavoriteButton.(Grid.Column)" Value="1" />
+                        <Setter Target="PersonalSecondColumn.Width" Value="Auto" />
+                    </VisualState.Setters>
+                </VisualState>
+                <VisualState x:Name="ShowNarrowState">
+                    <VisualState.StateTriggers>
                         <AdaptiveTrigger MinWindowWidth="900" />
                     </VisualState.StateTriggers>
                     <VisualState.Setters>
-                        <Setter Target="ActionsPanel.Orientation" Value="Horizontal" />
-                        <Setter Target="PersonalActionsPanel.Orientation" Value="Horizontal" />
+                        <Setter Target="HeroPosterColumn.Width" Value="220" />
+                        <Setter Target="PosterSurface.Width" Value="220" />
+                        <Setter Target="PosterSurface.Height" Value="330" />
+                        <Setter Target="HeroGrid.ColumnSpacing" Value="24" />
+                        <Setter Target="SecondaryActionsGrid.RowSpacing" Value="8" />
+                        <Setter Target="SecondaryActionsGrid.Visibility" Value="Visible" />
+                        <Setter Target="PlayNextButton.(Grid.Row)" Value="0" />
+                        <Setter Target="PlayNextButton.(Grid.Column)" Value="0" />
+                        <Setter Target="PlayNextButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="AddToListButton.(Grid.Row)" Value="1" />
+                        <Setter Target="AddToListButton.(Grid.Column)" Value="0" />
+                        <Setter Target="AddToListButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="MatchButton.(Grid.Row)" Value="2" />
+                        <Setter Target="MatchButton.(Grid.Column)" Value="0" />
+                        <Setter Target="MatchButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="MoreButton.(Grid.Row)" Value="2" />
+                        <Setter Target="MoreButton.(Grid.Column)" Value="1" />
+                        <Setter Target="MoreButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="PersonalSecondColumn.Width" Value="Auto" />
+                        <Setter Target="ShowWatchLaterButton.(Grid.Row)" Value="0" />
+                        <Setter Target="ShowWatchLaterButton.(Grid.Column)" Value="0" />
+                        <Setter Target="ShowFavoriteButton.(Grid.Column)" Value="0" />
+                        <Setter Target="ShowFavoriteButton.(Grid.Row)" Value="1" />
                     </VisualState.Setters>
                 </VisualState>
                 <VisualState x:Name="ShowCompactState">
                     <VisualState.StateTriggers>
                         <AdaptiveTrigger MinWindowWidth="0" />
                     </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="HeroPosterRow.Height" Value="Auto" />
+                        <Setter Target="HeroCopyRow.Height" Value="Auto" />
+                        <Setter Target="HeroPosterColumn.Width" Value="Auto" />
+                        <Setter Target="PosterSurface.Width" Value="220" />
+                        <Setter Target="PosterSurface.Height" Value="330" />
+                        <Setter Target="PosterSurface.HorizontalAlignment" Value="Left" />
+                        <Setter Target="HeroCopyPanel.(Grid.Column)" Value="0" />
+                        <Setter Target="HeroCopyPanel.(Grid.Row)" Value="1" />
+                        <Setter Target="HeroCopyPanel.(Grid.ColumnSpan)" Value="2" />
+                        <Setter Target="SecondaryActionsGrid.RowSpacing" Value="8" />
+                        <Setter Target="SecondaryActionsGrid.Visibility" Value="Visible" />
+                        <Setter Target="PlayNextButton.(Grid.Row)" Value="0" />
+                        <Setter Target="PlayNextButton.(Grid.Column)" Value="0" />
+                        <Setter Target="PlayNextButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="AddToListButton.(Grid.Row)" Value="1" />
+                        <Setter Target="AddToListButton.(Grid.Column)" Value="0" />
+                        <Setter Target="AddToListButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="MatchButton.(Grid.Row)" Value="2" />
+                        <Setter Target="MatchButton.(Grid.Column)" Value="0" />
+                        <Setter Target="MatchButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="MoreButton.(Grid.Row)" Value="2" />
+                        <Setter Target="MoreButton.(Grid.Column)" Value="1" />
+                        <Setter Target="MoreButton.(Grid.ColumnSpan)" Value="1" />
+                        <Setter Target="PersonalSecondColumn.Width" Value="Auto" />
+                        <Setter Target="ShowWatchLaterButton.(Grid.Row)" Value="0" />
+                        <Setter Target="ShowWatchLaterButton.(Grid.Column)" Value="0" />
+                        <Setter Target="ShowFavoriteButton.(Grid.Column)" Value="0" />
+                        <Setter Target="ShowFavoriteButton.(Grid.Row)" Value="1" />
+                    </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
-        <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition
-                    x:Name="ContentColumn"
-                    Width="*"
-                    MaxWidth="1280" />
-            </Grid.ColumnDefinitions>
-
+        <Grid x:Name="PageContent">
             <StackPanel>
                 <Button
                     x:Name="BackButton"
@@ -66,156 +192,115 @@
                     </StackPanel>
                 </Button>
 
-                <Border
-                    BorderBrush="{ThemeResource ControlStrokeColorSecondaryBrush}"
-                    BorderThickness="0,0,0,1"
-                    Padding="0,0,0,24">
-                    <Grid ColumnSpacing="24">
+                <Border BorderBrush="{ThemeResource ControlStrokeColorSecondaryBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,32">
+                    <Grid x:Name="HeroGrid" FlowDirection="LeftToRight" ColumnSpacing="32">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition
-                                x:Name="HeroCopyColumn"
-                                Width="*"
-                                MaxWidth="920" />
+                            <ColumnDefinition x:Name="HeroPosterColumn" Width="420" />
+                            <ColumnDefinition x:Name="HeroCopyColumn" Width="*" />
                         </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition x:Name="HeroPosterRow" Height="Auto" />
+                            <RowDefinition x:Name="HeroCopyRow" Height="0" />
+                        </Grid.RowDefinitions>
 
-                        <Border
-                            x:Name="PosterSurface"
-                            Width="170"
-                            Height="255"
-                            VerticalAlignment="Top"
-                            Style="{StaticResource ShowPosterSurfaceStyle}">
+                        <Border x:Name="PosterSurface" Width="420" Height="630" Grid.Row="0" VerticalAlignment="Top" Style="{StaticResource ShowPosterSurfaceStyle}">
                             <Grid>
-                                <Image x:Name="PosterImage" Stretch="UniformToFill" />
-                                <FontIcon
-                                    x:Name="PosterGlyph"
-                                    FontSize="36"
-                                    Foreground="{ThemeResource PosterGlyphForegroundBrush}"
-                                    Glyph="&#xE7F4;" />
+                                <Image x:Name="PosterImage" Stretch="Uniform" />
+                                <FontIcon x:Name="PosterGlyph" FontSize="48" Foreground="{ThemeResource PosterGlyphForegroundBrush}" Glyph="&#xE7F4;" />
                             </Grid>
                         </Border>
 
-                        <StackPanel Grid.Column="1" Spacing="8">
+                        <StackPanel x:Name="HeroCopyPanel" Grid.Column="1" Grid.Row="0" Spacing="20" FlowDirection="LeftToRight">
                             <TextBlock x:Name="KindText" Style="{StaticResource SecondaryCaptionTextStyle}" />
-                            <TextBlock
-                                x:Name="ShowTitleText"
-                                Style="{StaticResource TitleTextBlockStyle}"
-                                TextWrapping="Wrap" />
-                            <TextBlock
-                                x:Name="ShowMetaText"
-                                Style="{StaticResource SecondaryBodyTextStyle}"
-                                TextWrapping="Wrap" />
-                            <TextBlock
-                                x:Name="OverviewText"
-                                MaxWidth="{StaticResource ProseMaxWidth}"
-                                HorizontalAlignment="Left"
-                                Style="{StaticResource SecondaryBodyTextStyle}"
-                                TextWrapping="Wrap" />
-                            <StackPanel
-                                Orientation="Horizontal"
-                                Spacing="8"
-                                VerticalAlignment="Bottom">
-                                <TextBlock x:Name="ProgressValueText" Style="{StaticResource BodyStrongTextBlockStyle}" />
-                                <TextBlock
-                                    x:Name="ProgressLabelText"
-                                    VerticalAlignment="Bottom"
-                                    Style="{StaticResource SecondaryCaptionTextStyle}" />
-                            </StackPanel>
-                            <StackPanel
-                                x:Name="ActionsPanel"
-                                Margin="0,4,0,0"
-                                Orientation="Vertical"
-                                Spacing="8">
-                                <Button
-                                    x:Name="PlayNextButton"
-                                    Click="PlayNextButton_Click"
-                                    Style="{StaticResource AccentControlButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon
-                                            VerticalAlignment="Center"
-                                            FontSize="14"
-                                            Glyph="&#xE768;" />
-                                        <TextBlock x:Name="PlayNextText" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <DropDownButton
-                                    x:Name="AddToListButton"
-                                    Style="{StaticResource SubtleControlButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon
-                                            VerticalAlignment="Center"
-                                            FontSize="14"
-                                            Glyph="&#xE710;" />
-                                        <TextBlock x:Name="AddToListText" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                    <DropDownButton.Flyout>
-                                        <MenuFlyout
-                                            x:Name="AddToListFlyout"
-                                            Opening="AddToListFlyout_Opening"
-                                            Placement="BottomEdgeAlignedLeft" />
-                                    </DropDownButton.Flyout>
-                                </DropDownButton>
-                                <Button
-                                    x:Name="MatchButton"
-                                    Click="MatchButton_Click"
-                                    Style="{StaticResource SubtleControlButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon
-                                            x:Name="MatchGlyph"
-                                            VerticalAlignment="Center"
-                                            FontSize="14"
-                                            Glyph="&#xE721;" />
-                                        <ProgressRing
-                                            x:Name="MatchProgress"
-                                            Width="14"
-                                            Height="14"
-                                            VerticalAlignment="Center"
-                                            IsActive="False"
-                                            Visibility="Collapsed" />
-                                        <TextBlock x:Name="MatchText" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button x:Name="MoreButton" Style="{StaticResource SubtleIconActionButtonStyle}">
-                                    <FontIcon FontSize="16" Glyph="&#xE712;" />
-                                    <Button.Flyout>
-                                        <MenuFlyout Placement="Bottom">
-                                            <MenuFlyoutItem x:Name="MarkShowWatchedItem" IsEnabled="False">
-                                                <MenuFlyoutItem.Icon>
-                                                    <FontIcon Glyph="&#xE73E;" />
-                                                </MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutItem x:Name="OpenShowFolderItem" IsEnabled="False">
-                                                <MenuFlyoutItem.Icon>
-                                                    <FontIcon Glyph="&#xE8B7;" />
-                                                </MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                            <MenuFlyoutSeparator />
-                                            <MenuFlyoutItem x:Name="RemoveShowFromLibraryItem" Click="RemoveShowFromLibrary_Click">
-                                                <MenuFlyoutItem.Icon>
-                                                    <FontIcon Glyph="&#xE74D;" />
-                                                </MenuFlyoutItem.Icon>
-                                            </MenuFlyoutItem>
-                                        </MenuFlyout>
-                                    </Button.Flyout>
-                                </Button>
-                            </StackPanel>
-                            <StackPanel x:Name="PersonalActionsPanel" Orientation="Vertical" Spacing="8">
-                                <Button x:Name="ShowWatchLaterButton" Click="ShowWatchLaterButton_Click"
-                                        AutomationProperties.AutomationId="ShowWatchLaterButton"
-                                        Style="{StaticResource SubtleControlButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon x:Name="ShowWatchLaterGlyph" FontSize="16" Glyph="&#xE734;" />
-                                        <TextBlock x:Name="ShowWatchLaterText" />
-                                    </StackPanel>
-                                </Button>
-                                <Button x:Name="ShowFavoriteButton" Click="ShowFavoriteButton_Click"
-                                        AutomationProperties.AutomationId="ShowFavoriteButton"
-                                        Style="{StaticResource SubtleControlButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon x:Name="ShowFavoriteGlyph" FontSize="16" Glyph="&#xEB51;" />
-                                        <TextBlock x:Name="ShowFavoriteText" />
-                                    </StackPanel>
-                                </Button>
+                            <StackPanel x:Name="ReadingPane" Spacing="20" FlowDirection="LeftToRight">
+                                <TextBlock x:Name="ShowTitleText" Style="{StaticResource TvDetailsTitleStyle}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="ShowMetaText" Style="{StaticResource SecondaryBodyTextStyle}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="OverviewText" HorizontalAlignment="Left" MaxWidth="{StaticResource ProseMaxWidth}" Style="{StaticResource TvDetailsOverviewStyle}" TextWrapping="Wrap" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock x:Name="ProgressValueText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock x:Name="ProgressLabelText" VerticalAlignment="Bottom" Style="{StaticResource SecondaryCaptionTextStyle}" />
+                                </StackPanel>
+                                <TextBlock x:Name="PlayNextEpisodeText" Style="{StaticResource SecondaryCaptionTextStyle}" TextWrapping="Wrap" />
+                                <Grid x:Name="SecondaryActionsGrid" ColumnSpacing="8" RowSpacing="8" HorizontalAlignment="Left" Visibility="Visible">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Button x:Name="PlayNextButton" Grid.Column="0" HorizontalAlignment="Left" Click="PlayNextButton_Click" Style="{StaticResource TvDetailsAccentButtonStyle}">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon FontSize="14" Glyph="&#xE768;" />
+                                            <TextBlock x:Name="PlayNextText" Grid.Column="1" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </Button>
+                                    <DropDownButton x:Name="AddToListButton" Grid.Column="1" HorizontalAlignment="Left" Style="{StaticResource TvDetailsButtonStyle}">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon FontSize="14" Glyph="&#xE710;" />
+                                            <TextBlock x:Name="AddToListText" Grid.Column="1" TextWrapping="Wrap" />
+                                        </Grid>
+                                        <DropDownButton.Flyout><MenuFlyout x:Name="AddToListFlyout" Opening="AddToListFlyout_Opening" Placement="BottomEdgeAlignedLeft" /></DropDownButton.Flyout>
+                                    </DropDownButton>
+                                    <Button x:Name="MatchButton" Grid.Column="2" HorizontalAlignment="Left" Click="MatchButton_Click" Style="{StaticResource TvDetailsButtonStyle}">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon x:Name="MatchGlyph" FontSize="14" Glyph="&#xE721;" />
+                                            <ProgressRing x:Name="MatchProgress" Width="14" Height="14" IsActive="False" Visibility="Collapsed" />
+                                            <TextBlock x:Name="MatchText" Grid.Column="1" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </Button>
+                                    <Button x:Name="MoreButton" Grid.Column="3" Width="40" Padding="4" HorizontalAlignment="Left" Style="{StaticResource TvDetailsButtonStyle}">
+                                        <FontIcon FontSize="16" Glyph="&#xE712;" />
+                                        <Button.Flyout><MenuFlyout Placement="Bottom"><MenuFlyoutItem x:Name="MarkShowWatchedItem" IsEnabled="False"><MenuFlyoutItem.Icon><FontIcon Glyph="&#xE73E;" /></MenuFlyoutItem.Icon></MenuFlyoutItem><MenuFlyoutItem x:Name="OpenShowFolderItem" IsEnabled="False"><MenuFlyoutItem.Icon><FontIcon Glyph="&#xE8B7;" /></MenuFlyoutItem.Icon></MenuFlyoutItem><MenuFlyoutSeparator /><MenuFlyoutItem x:Name="RemoveShowFromLibraryItem" Click="RemoveShowFromLibrary_Click"><MenuFlyoutItem.Icon><FontIcon Glyph="&#xE74D;" /></MenuFlyoutItem.Icon></MenuFlyoutItem></MenuFlyout></Button.Flyout>
+                                    </Button>
+                                </Grid>
+                                <Grid x:Name="PersonalActionsGrid" HorizontalAlignment="Left" ColumnSpacing="8" RowSpacing="8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition x:Name="PersonalSecondColumn" Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Button x:Name="ShowWatchLaterButton" HorizontalAlignment="Left" Click="ShowWatchLaterButton_Click" AutomationProperties.AutomationId="ShowWatchLaterButton" Style="{StaticResource TvDetailsButtonStyle}">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon x:Name="ShowWatchLaterGlyph" FontSize="16" Glyph="&#xE734;" />
+                                            <TextBlock x:Name="ShowWatchLaterText" Grid.Column="1" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </Button>
+                                    <Button x:Name="ShowFavoriteButton" Grid.Column="1" HorizontalAlignment="Left" Click="ShowFavoriteButton_Click" AutomationProperties.AutomationId="ShowFavoriteButton" Style="{StaticResource TvDetailsButtonStyle}">
+                                        <Grid ColumnSpacing="8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <FontIcon x:Name="ShowFavoriteGlyph" FontSize="16" Glyph="&#xEB51;" />
+                                            <TextBlock x:Name="ShowFavoriteText" Grid.Column="1" TextWrapping="Wrap" />
+                                        </Grid>
+                                    </Button>
+                                </Grid>
                             </StackPanel>
                         </StackPanel>
                     </Grid>

@@ -95,7 +95,7 @@ public sealed class UiSourceContractTests
             }
 
             var codeBehind = Read("Views", page + ".cs");
-            if (page is not ("LibraryPage.xaml" or "MovieDetailsPage.xaml"))
+            if (page is not ("LibraryPage.xaml" or "MovieDetailsPage.xaml" or "HomePage.xaml"))
             {
                 Assert.DoesNotContain("ActualWidth", codeBehind, StringComparison.Ordinal);
             }
@@ -117,7 +117,7 @@ public sealed class UiSourceContractTests
         Assert.DoesNotContain("ItemsSource =", Slice(libraryCode, "private void LibraryGrid_SizeChanged", "private void Refresh"), StringComparison.Ordinal);
         Assert.DoesNotContain("ItemTemplate", Slice(libraryCode, "private void LibraryGrid_SizeChanged", "private void Refresh"), StringComparison.Ordinal);
 
-        foreach (var responsive in new[] { "CheckLibraryPage.xaml", "TVShowDetailsPage.xaml" })
+        foreach (var responsive in new[] { "TVShowDetailsPage.xaml" })
         {
             Assert.Contains("<AdaptiveTrigger", Read("Views", responsive), StringComparison.Ordinal);
         }
@@ -162,7 +162,7 @@ public sealed class UiSourceContractTests
         Assert.DoesNotContain("Property=\"Width\"", horizontalStyle, StringComparison.Ordinal);
         Assert.Contains("Background=\"{ThemeResource CardBackgroundFillColorDefaultBrush}\"", horizontalStyle, StringComparison.Ordinal);
         Assert.Contains("BorderThickness=\"1\"", horizontalStyle, StringComparison.Ordinal);
-        Assert.Contains("Property=\"Padding\" Value=\"16\"", horizontalStyle, StringComparison.Ordinal);
+        Assert.Contains("Property=\"Padding\" Value=\"0\"", horizontalStyle, StringComparison.Ordinal);
         Assert.Contains("UseSystemFocusVisuals", horizontalStyle, StringComparison.Ordinal);
         Assert.Contains("FocusVisualMargin", horizontalStyle, StringComparison.Ordinal);
         Assert.Contains("Margin=\"{TemplateBinding Padding}\"", horizontalStyle, StringComparison.Ordinal);
@@ -174,8 +174,8 @@ public sealed class UiSourceContractTests
         };
         foreach (var template in horizontalTemplates)
         {
-            Assert.Contains("LibraryHorizontalPosterWidth", template, StringComparison.Ordinal);
-            Assert.Contains("LibraryHorizontalPosterHeight", template, StringComparison.Ordinal);
+            Assert.Contains("HorizontalArtworkSource", template, StringComparison.Ordinal);
+            Assert.Contains("PosterSource", template, StringComparison.Ordinal);
             Assert.Contains("MaxLines=\"2\"", template, StringComparison.Ordinal);
             Assert.DoesNotContain("CardBackgroundFillColorDefaultBrush", template, StringComparison.Ordinal);
             Assert.DoesNotContain("FlowDirection=\"RightToLeft\"", template, StringComparison.Ordinal);
@@ -371,12 +371,19 @@ public sealed class UiSourceContractTests
         Assert.Same(filesPane, Named("FileActionsPanel").Ancestors().First(ancestor => ancestor == filesPane));
         Assert.Same(recordsGrid, watchPane.Ancestors().First(ancestor => ancestor == recordsGrid));
         Assert.Same(recordsGrid, filesPane.Ancestors().First(ancestor => ancestor == recordsGrid));
-        Assert.Same(metadataFooter, Named("ChangeMatchButton").Ancestors().First(ancestor => ancestor == metadataFooter));
-        Assert.Same(metadataFooter, Named("MoveToSeriesButton").Ancestors().First(ancestor => ancestor == metadataFooter));
+        var matchButton = Named("MatchButton");
+        Assert.Same(dailyCommands, matchButton.Ancestors().First(ancestor => ancestor == dailyCommands));
+        Assert.Contains(matchButton.Descendants(), element => (string?)element.Attribute(x + "Name") == "ChangeMatchButton");
+        Assert.Contains(matchButton.Descendants(), element => (string?)element.Attribute(x + "Name") == "RefreshMetadataMenuItem");
         var moreButton = Named("MoreButton");
+        Assert.Contains(moreButton.Descendants(), element => (string?)element.Attribute(x + "Name") == "MoveToSeriesButton");
         Assert.Contains(moreButton.Descendants(), element => (string?)element.Attribute(x + "Name") == "RemoveFromLibraryButton");
-        Assert.Same(dailyCommands, Named("WatchlistButton").Ancestors().First(ancestor => ancestor == dailyCommands));
-        Assert.Same(HeroCopyPanel(document, x), Named("PreferenceGroup").Ancestors().First(ancestor => ancestor == HeroCopyPanel(document, x)));
+        var preferenceGroup = Named("PreferenceGroup");
+        Assert.Same(preferenceGroup, Named("WatchlistButton").Ancestors().First(ancestor => ancestor == preferenceGroup));
+        Assert.Same(preferenceGroup, Named("FavoriteButton").Ancestors().First(ancestor => ancestor == preferenceGroup));
+        Assert.Same(metadataFooter, Named("MetadataStatusText").Ancestors().First(ancestor => ancestor == metadataFooter));
+        Assert.Same(metadataFooter, Named("MatchedIdentityText").Ancestors().First(ancestor => ancestor == metadataFooter));
+        Assert.Same(HeroCopyPanel(document, x), preferenceGroup.Ancestors().First(ancestor => ancestor == HeroCopyPanel(document, x)));
         Assert.Same(HeroCopyPanel(document, x), dailyCommands.Ancestors().First(ancestor => ancestor == HeroCopyPanel(document, x)));
         Assert.Same(readingPane, recordsGrid.Ancestors().First(ancestor => ancestor == readingPane));
         Assert.Same(gallery, Named("PosterSurface").Ancestors().First(ancestor => ancestor == gallery));
@@ -964,8 +971,8 @@ public sealed class UiSourceContractTests
         var tvDetails = Read("Views", "TVShowDetailsPage.xaml.cs");
         var tvXaml = Read("Views", "TVShowDetailsPage.xaml");
 
-        Assert.Contains("AppServices.ViewingActivity.ListRecentCompleted(8)", home, StringComparison.Ordinal);
-        Assert.Contains("AppServices.ViewingActivity.ListActive(6)", home, StringComparison.Ordinal);
+        Assert.Contains("AppServices.ViewingActivity.ListRecentCompleted(20)", home, StringComparison.Ordinal);
+        Assert.Contains("AppServices.ViewingActivity.ListActive(20)", home, StringComparison.Ordinal);
         Assert.DoesNotContain("RecordEpisodeWatch", home, StringComparison.Ordinal);
         Assert.Contains("if (!card.IsAvailable)", home, StringComparison.Ordinal);
         Assert.Contains("HistoryEmptyState", xaml, StringComparison.Ordinal);

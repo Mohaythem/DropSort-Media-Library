@@ -89,7 +89,6 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         _show = show;
         ReloadShowPersonalState();
         ShowTitleText.Text = show.Title;
-        ShowMetaText.Text = show.MetaLine;
         OverviewText.Text = show.Overview;
 
         // A show registered from file names has no overview yet; a heading with nothing under it reads
@@ -97,8 +96,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         var hasOverview = !string.IsNullOrWhiteSpace(show.Overview);
         OverviewText.Visibility = hasOverview ? Visibility.Visible : Visibility.Collapsed;
 
-        ProgressValueText.Text = show.ProgressLine;
-        PlayNextButton.IsEnabled = show.NextPlayableEpisode is not null;
+        UpdateShowSummary();
         MatchButton.IsEnabled = !_isMatching;
         UpdatePosterVisuals();
         ApplyLocalization();
@@ -107,6 +105,9 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     public void ApplyLocalization()
     {
         Root.FlowDirection = LocalizationService.FlowDirection;
+        HeroGrid.FlowDirection = FlowDirection.LeftToRight;
+        HeroCopyPanel.FlowDirection = LocalizationService.FlowDirection;
+        ReadingPane.FlowDirection = LocalizationService.FlowDirection;
 
         UpdateBackLabel();
         KindText.Text = LocalizationService.Text("TvShow");
@@ -123,9 +124,33 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         SeasonsTitleText.Text = LocalizationService.Text("Seasons");
         SeasonsHelpText.Text = LocalizationService.Text("SeasonsHelp");
 
+        UpdateShowSummary();
         SeasonsRepeater.ItemsSource = BuildSeasons(_show);
         UpdateMatchButtonVisuals();
         ProbeEpisodeStorageAvailability(_show);
+    }
+
+    private void UpdateShowSummary()
+    {
+        var seasonLabel = LocalizationService.Format(
+            _show.SeasonCount == 1 ? "SeasonCountFormat" : "SeasonsCountFormat",
+            _show.SeasonCount);
+        var episodeLabel = $"{LocalizationService.Number(_show.EpisodeCount)} {LocalizationService.Text("Episodes")}";
+        ShowMetaText.Text = string.Join(
+            " · ",
+            new[] { _show.MetaLine, seasonLabel, episodeLabel }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+        ProgressValueText.Text = _show.ProgressLine;
+        var next = _show.NextPlayableEpisode;
+        PlayNextButton.IsEnabled = next is not null;
+        PlayNextEpisodeText.Text = next is null
+            ? string.Empty
+            : LocalizationService.Digits(LocalizationService.Format(
+                "HomeContinueEpisodeFormat",
+                next.SeasonNumber,
+                next.EpisodeNumber,
+                next.Episode.Title));
+        PlayNextEpisodeText.Visibility = next is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void ReloadShowPersonalState()
@@ -155,8 +180,8 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         ShowWatchLaterText.Text = LocalizationService.Text(_showWatchLater ? "InWatchLater" : "AddToWatchLater");
         ShowFavoriteGlyph.Glyph = _showFavorite ? "\uEB52" : "\uEB51";
         ShowWatchLaterGlyph.Glyph = _showWatchLater ? "\uE735" : "\uE734";
-        ShowFavoriteButton.Style = (Style)App.Current.Resources[_showFavorite ? "ActiveControlButtonStyle" : "SubtleControlButtonStyle"];
-        ShowWatchLaterButton.Style = (Style)App.Current.Resources[_showWatchLater ? "ActiveControlButtonStyle" : "SubtleControlButtonStyle"];
+        ShowFavoriteButton.Style = (Style)Resources[_showFavorite ? "TvDetailsSelectedButtonStyle" : "TvDetailsButtonStyle"];
+        ShowWatchLaterButton.Style = (Style)Resources[_showWatchLater ? "TvDetailsSelectedButtonStyle" : "TvDetailsButtonStyle"];
         ToolTipService.SetToolTip(ShowFavoriteButton, LocalizationService.Text(_showFavorite ? "RemoveFromFavorites" : "AddToFavorites"));
         ToolTipService.SetToolTip(ShowWatchLaterButton, LocalizationService.Text(_showWatchLater ? "RemoveFromWatchLater" : "AddToWatchLater"));
     }
@@ -260,8 +285,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     private void ApplyEnrichedShow(TVShowRecord enriched)
     {
         _show = enriched;
-        ProgressValueText.Text = _show.ProgressLine;
-        PlayNextButton.IsEnabled = _show.NextPlayableEpisode is not null;
+        UpdateShowSummary();
         SeasonsRepeater.ItemsSource = BuildSeasons(_show);
         ProbeEpisodeStorageAvailability(_show);
     }
@@ -546,7 +570,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         await ContentDialogCoordinator.ShowAsync(dialog);
     }
 
-    /// <summary>The first season starts expanded, exactly like the design source.</summary>
+    /// <summary>Each season starts collapsed until the user opens it.</summary>
     private static IReadOnlyList<SeasonDisplayRecord> BuildSeasons(TVShowRecord show, IReadOnlySet<string>? unavailablePaths = null)
     {
         var labels = new EpisodeActionLabels(
@@ -564,14 +588,14 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
             // hidden here; a Specials that actually has files on disk (present or missing) still shows.
             .. show.Seasons
                 .Where(season => season.Number != 0 || season.LocalCount > 0 || season.MissingCount > 0)
-                .Select((season, index) => new SeasonDisplayRecord(
+                .Select(season => new SeasonDisplayRecord(
                 show.Id,
                 season.Number,
                 ShowFormatting.SeasonArtLabel(season.Number),
                 ShowFormatting.SeasonLabel(season.Number),
                 SeasonMeta(season),
                 season.Episodes.Count == 0 ? 0 : 100.0 * season.LocalCount / season.Episodes.Count,
-                index == 0,
+                false,
                 [
                     .. season.Episodes.Select(episode => new EpisodeDisplayRecord(
                         show.Id,

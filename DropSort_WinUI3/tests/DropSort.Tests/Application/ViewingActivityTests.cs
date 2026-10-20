@@ -164,6 +164,29 @@ public sealed class ViewingActivityTests : IDisposable
     }
 
     [Fact]
+    public void UnboundedActivityReadsIncludeMoreThanHomePreviewLimit()
+    {
+        var history = new PersonalLibraryRepository(_cs);
+        for (var id = 1; id <= 12; id++)
+        {
+            var path = Path.Combine(_dir, $"movie-{id}.mkv");
+            SeedMovie(id, $"Movie {id}", 2020 + id, path);
+            Service().RecordSuccessfulPlay(path);
+        }
+
+        for (var id = 13; id <= 24; id++)
+        {
+            var path = Path.Combine(_dir, $"movie-{id}.mkv");
+            SeedMovie(id, $"Movie {id}", 2020 + id, path);
+            history.AddWatchEvent(id, _t0.AddMinutes(id), _t0.AddMinutes(id));
+        }
+
+        Assert.Equal(12, Service().ListActive().Count);
+        Assert.Equal(12, Service().ListActive(int.MaxValue).Count);
+        Assert.Equal(12, Service().ListRecentCompleted(int.MaxValue).Count);
+    }
+
+    [Fact]
     public void ActivityAndHistoryPersistAcrossRepositoryRestart()
     {
         SeedMovie(1, "Movie One", 2020, MoviePath);

@@ -70,7 +70,6 @@
                         <Setter Target="ReadingPane.(Grid.Column)" Value="1" />
                         <Setter Target="ReadingPane.(Grid.ColumnSpan)" Value="1" />
                         <Setter Target="PreferenceActionsPanel.Orientation" Value="Horizontal" />
-                        <Setter Target="MaintenanceActionsPanel.Orientation" Value="Horizontal" />
                         <Setter Target="FileActionsPanel.Orientation" Value="Horizontal" />
                         <Setter Target="HeroPosterColumn.Width" Value="454.7" />
                         <Setter Target="WatchPane.(Grid.ColumnSpan)" Value="1" />
@@ -85,11 +84,11 @@
                         <Setter Target="PosterSurface.Height" Value="630" />
                         <Setter Target="PlayButton.(Grid.Row)" Value="0" />
                         <Setter Target="AddToListButton.(Grid.Row)" Value="0" />
-                        <Setter Target="WatchlistButton.(Grid.Row)" Value="0" />
+                        <Setter Target="MatchButton.(Grid.Row)" Value="0" />
                         <Setter Target="MoreButton.(Grid.Row)" Value="0" />
                         <Setter Target="PlayButton.(Grid.Column)" Value="0" />
                         <Setter Target="AddToListButton.(Grid.Column)" Value="1" />
-                        <Setter Target="WatchlistButton.(Grid.Column)" Value="2" />
+                        <Setter Target="MatchButton.(Grid.Column)" Value="2" />
                         <Setter Target="MoreButton.(Grid.Column)" Value="3" />
                         <Setter Target="PreferenceGroup.Orientation" Value="Horizontal" />
                         <Setter Target="DailyCommandsGrid.RowSpacing" Value="0" />
@@ -107,17 +106,16 @@
                         <Setter Target="PosterSurface.Height" Value="430" />
                         <Setter Target="AddToListButton.(Grid.Row)" Value="0" />
                         <Setter Target="AddToListButton.(Grid.Column)" Value="1" />
-                        <Setter Target="WatchlistButton.(Grid.Row)" Value="1" />
-                        <Setter Target="WatchlistButton.(Grid.Column)" Value="0" />
+                        <Setter Target="MatchButton.(Grid.Row)" Value="1" />
+                        <Setter Target="MatchButton.(Grid.Column)" Value="0" />
                         <Setter Target="MoreButton.(Grid.Row)" Value="1" />
                         <Setter Target="MoreButton.(Grid.Column)" Value="1" />
                         <Setter Target="FileActionsPanel.Orientation" Value="Vertical" />
-                        <Setter Target="MaintenanceActionsPanel.Orientation" Value="Vertical" />
                         <Setter Target="PreferenceGroup.Orientation" Value="Horizontal" />
                         <Setter Target="DailyCommandsGrid.RowSpacing" Value="0" />
                         <Setter Target="PlayButton.Margin" Value="0,0,0,10" />
                         <Setter Target="AddToListButton.Margin" Value="0,0,0,10" />
-                        <Setter Target="WatchlistButton.Margin" Value="0,0,0,10" />
+                        <Setter Target="MatchButton.Margin" Value="0,0,0,10" />
                         <Setter Target="MoreButton.Margin" Value="0,0,0,10" />
                     </VisualState.Setters>
                 </VisualState>
@@ -233,31 +231,33 @@
                                     <MenuFlyout x:Name="AddToListFlyout" Opening="AddToListFlyout_Opening" Placement="BottomEdgeAlignedLeft" />
                                 </DropDownButton.Flyout>
                             </DropDownButton>
-                            <Button x:Name="WatchlistButton" Click="WatchlistButton_Click" Style="{StaticResource DetailsButtonStyle}" MinHeight="40" Grid.Row="2" Grid.Column="0">
+                            <DropDownButton x:Name="MatchButton" Style="{StaticResource DetailsButtonStyle}" MinHeight="40" Grid.Row="2" Grid.Column="0">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Grid Tag="DetailsIcon:bookmark" Width="18" Height="18">
-                                        <Image Width="18" Height="18">
-                                            <Image.Source>
-                                                <SvgImageSource UriSource="ms-appx:///Assets/MovieDetails/bookmark.svg" />
-                                            </Image.Source>
-                                        </Image>
-                                        <FontIcon x:Name="WatchlistGlyph" VerticalAlignment="Center" FontSize="14" Glyph="" Visibility="Collapsed" />
-                                    </Grid>
-                                    <TextBlock x:Name="WatchlistText" VerticalAlignment="Center" />
+                                    <FontIcon x:Name="MatchGlyph" VerticalAlignment="Center" FontSize="14" Glyph="&#xE72C;" />
+                                    <ProgressRing x:Name="MatchProgress" Width="14" Height="14" VerticalAlignment="Center" IsActive="False" Visibility="Collapsed" />
+                                    <TextBlock x:Name="MatchText" VerticalAlignment="Center" />
                                 </StackPanel>
-                            </Button>
+                                <DropDownButton.Flyout>
+                                    <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                        <MenuFlyoutItem x:Name="RefreshMetadataMenuItem" Click="RefreshMetadataMenuItem_Click">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE72C;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                        <MenuFlyoutItem x:Name="ChangeMatchButton" Click="ChangeMatchButton_Click">
+                                            <MenuFlyoutItem.Icon>
+                                                <FontIcon Glyph="&#xE721;" />
+                                            </MenuFlyoutItem.Icon>
+                                        </MenuFlyoutItem>
+                                    </MenuFlyout>
+                                </DropDownButton.Flyout>
+                            </DropDownButton>
                             <Button x:Name="MoreButton" VerticalAlignment="Top" Style="{StaticResource DetailsButtonStyle}" MinHeight="40" Grid.Row="3" Grid.Column="0">
-                                <Grid Tag="DetailsIcon:more" Width="18" Height="18">
-                                    <Image Width="18" Height="18">
-                                        <Image.Source>
-                                            <SvgImageSource UriSource="ms-appx:///Assets/MovieDetails/more.svg" />
-                                        </Image.Source>
-                                    </Image>
-                                    <FontIcon Glyph="" FontSize="18" Foreground="{ThemeResource FigmaTextPrimaryBrush}" Visibility="Collapsed" />
-                                </Grid>
+                                <FontIcon Glyph="&#xE712;" FontSize="18" />
                                 <Button.Flyout>
                                     <Flyout Placement="BottomEdgeAlignedRight">
                                         <StackPanel Width="{StaticResource FileDetailsFlyoutWidth}" Spacing="8">
+                                            <Button x:Name="MoveToSeriesButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="MoveToSeriesButton_Click" Style="{StaticResource TextActionButtonStyle}" />
                                             <Button x:Name="RemoveFromLibraryButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="RemoveFromLibraryButton_Click" Style="{StaticResource TextActionButtonStyle}" />
                                             <TextBlock x:Name="DateAddedText" Style="{StaticResource DetailsSmallStyle}" TextWrapping="Wrap" />
                                         </StackPanel>
@@ -267,7 +267,7 @@
                         </Grid>
                         <StackPanel x:Name="PreferenceGroup" Spacing="12">
                             <StackPanel x:Name="PreferenceActionsPanel" Orientation="Horizontal" Spacing="8">
-                                <Button x:Name="LikeButton" Click="LikeButton_Click" Style="{StaticResource DetailsButtonStyle}">
+                                <Button x:Name="FavoriteButton" Click="FavoriteButton_Click" Style="{StaticResource DetailsButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
                                         <Grid Tag="DetailsIcon:heart" Width="18" Height="18">
                                             <Image Width="18" Height="18">
@@ -275,25 +275,24 @@
                                                     <SvgImageSource UriSource="ms-appx:///Assets/MovieDetails/heart.svg" />
                                                 </Image.Source>
                                             </Image>
-                                            <FontIcon x:Name="LikeGlyph" VerticalAlignment="Center" FontSize="14" Glyph="" Visibility="Collapsed" />
+                                            <FontIcon x:Name="FavoriteGlyph" VerticalAlignment="Center" FontSize="14" Glyph="" Visibility="Collapsed" />
                                         </Grid>
-                                        <TextBlock x:Name="LikeText" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="FavoriteText" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="ExcludeButton" Click="ExcludeButton_Click" Style="{StaticResource DetailsButtonStyle}">
+                                <Button x:Name="WatchlistButton" Click="WatchlistButton_Click" Style="{StaticResource DetailsButtonStyle}">
                                     <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <Grid Tag="DetailsIcon:exclude" Width="18" Height="18">
+                                        <Grid Tag="DetailsIcon:bookmark" Width="18" Height="18">
                                             <Image Width="18" Height="18">
                                                 <Image.Source>
-                                                    <SvgImageSource UriSource="ms-appx:///Assets/MovieDetails/exclude.svg" />
+                                                    <SvgImageSource UriSource="ms-appx:///Assets/MovieDetails/bookmark.svg" />
                                                 </Image.Source>
                                             </Image>
-                                            <FontIcon VerticalAlignment="Center" FontSize="14" Glyph="" Visibility="Collapsed" />
+                                            <FontIcon x:Name="WatchlistGlyph" VerticalAlignment="Center" FontSize="14" Glyph="" Visibility="Collapsed" />
                                         </Grid>
-                                        <TextBlock x:Name="ExcludeText" VerticalAlignment="Center" />
+                                        <TextBlock x:Name="WatchlistText" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Button>
-                                <Button x:Name="ClearPreferenceButton" Click="ClearPreferenceButton_Click" Style="{StaticResource DetailsButtonStyle}" />
                             </StackPanel>
                         </StackPanel>
                     </StackPanel>
@@ -488,27 +487,9 @@
                         </StackPanel>
                     </Grid>
                     <Border BorderBrush="{ThemeResource FigmaBorderDefaultBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0" x:Name="MetadataFooter">
-                        <StackPanel Spacing="12">
-                            <StackPanel Orientation="Horizontal" Spacing="12">
-                                <TextBlock x:Name="MetadataStatusText" Style="{StaticResource DetailsStatusStyle}" TextWrapping="Wrap" />
-                                <TextBlock x:Name="MatchedIdentityText" Style="{StaticResource DetailsSmallStyle}" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Spacing="8" x:Name="MaintenanceActionsPanel" Orientation="Vertical">
-                                <Button x:Name="MatchButton" Click="MatchButton_Click" Style="{StaticResource DetailsButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon x:Name="MatchGlyph" VerticalAlignment="Center" FontSize="14" Glyph="" />
-                                        <ProgressRing x:Name="MatchProgress" Width="14" Height="14" VerticalAlignment="Center" IsActive="False" Visibility="Collapsed" />
-                                        <TextBlock x:Name="MatchText" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
-                                <Button x:Name="ChangeMatchButton" Click="ChangeMatchButton_Click" Style="{StaticResource DetailsButtonStyle}">
-                                    <StackPanel Orientation="Horizontal" Spacing="8">
-                                        <FontIcon Glyph="" />
-                                        <TextBlock x:Name="ChangeMatchText" />
-                                    </StackPanel>
-                                </Button>
-                                <Button x:Name="MoveToSeriesButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Click="MoveToSeriesButton_Click" Style="{StaticResource DetailsButtonStyle}" />
-                            </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <TextBlock x:Name="MetadataStatusText" Style="{StaticResource DetailsStatusStyle}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="MatchedIdentityText" Style="{StaticResource DetailsSmallStyle}" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
                 </StackPanel>

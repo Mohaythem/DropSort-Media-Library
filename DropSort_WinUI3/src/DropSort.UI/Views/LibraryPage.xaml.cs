@@ -1,8 +1,13 @@
 using System.Globalization;
+using System.Threading.Tasks;
 using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using XamlApplication = Microsoft.UI.Xaml.Application;
 
 namespace DropSort.UI.Views;
@@ -678,4 +683,12 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
             ShowSelected?.Invoke(this, item.Show);
         }
     }
+
+    private void LibraryGrid_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
+    {
+        if (sender is GridView grid)
+            MediaCardContextMenu.ShowForContext(grid, e, _viewMode == LibraryViewMode.Compact,
+                onChanged: () => { InvalidateCatalog(); Refresh(); });
+    }
+
 }

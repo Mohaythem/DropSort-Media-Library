@@ -14,8 +14,8 @@ namespace DropSort.UI.Views;
 /// <summary>
 /// My Lists.
 /// <para>
-/// The two system lists are Watch Later (the persisted Watchlist membership) and Favorites (the persisted
-/// Liked preference). Every further tab is a user-created custom list. A custom list is a real catalog row
+/// System lists include Watch Later, Favorites, active viewings and completed viewing history.
+/// Every further tab is a user-created custom list. A custom list is a real catalog row
 /// (custom_lists) with a stable id; its display name is
 /// only a label, so a rename keeps the list's movies. Membership (custom_list_members) is keyed on that
 /// id, so a movie can belong to any number of lists and appears here right after it is added.
@@ -32,6 +32,9 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     /// <summary>The members of the selected list for this visit, so search filters in memory.</summary>
     private IReadOnlyList<ListMediaItem>? _sectionItems;
     private string? _sectionKey;
+    private IReadOnlyList<HomeActivityCard>? _continueItems;
+    private IReadOnlyList<WatchHistoryCardRecord>? _historyItems;
+    private Exception? _activityReadError;
 
     /// <summary>The custom-list tabs created in code, so a rebuild can remove exactly its own tabs.</summary>
     private readonly List<(RadioButton Tab, TextBlock Label, TextBlock Count, int ListId)> _dynamicTabs = [];
@@ -70,6 +73,9 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         _customLists = LoadCustomLists();
         _sectionItems = null;
         _sectionKey = null;
+        _continueItems = null;
+        _historyItems = null;
+        _activityReadError = null;
     }
 
     private static IReadOnlyList<CustomList> LoadCustomLists()
@@ -94,7 +100,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         Refresh();
     }
 
-    /// <summary>The lists on the strip: the two system sections, then one per user-created custom list.</summary>
+    /// <summary>The built-in sections, then one per user-created custom list.</summary>
     private IReadOnlyList<MediaListDefinition> Definitions
     {
         get
@@ -103,6 +109,8 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             [
                 new("watch-later", "WatchLater", true),
                 new("favorites", "Favorites", true),
+                new("continue-watching", "ContinueWatching", true),
+                new("recently-watched", "RecentlyWatched", true),
             ];
 
             foreach (var list in _customLists)
@@ -125,12 +133,16 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     [
         (WatchLaterItem, WatchLaterLabel, WatchLaterCount, "watch-later"),
         (FavoritesItem, FavoritesLabel, FavoritesCount, "favorites"),
+        (ContinueWatchingItem, ContinueWatchingLabel, ContinueWatchingCount, "continue-watching"),
+        (RecentlyWatchedItem, RecentlyWatchedLabel, RecentlyWatchedCount, "recently-watched"),
     ];
 
     private void LocalizeSystemTabs()
     {
         FavoritesLabel.Text = LocalizationService.Text("Favorites");
         WatchLaterLabel.Text = LocalizationService.Text("WatchLater");
+        ContinueWatchingLabel.Text = LocalizationService.Text("ContinueWatching");
+        RecentlyWatchedLabel.Text = LocalizationService.Text("RecentlyWatched");
     }
 
     /// <summary>
@@ -189,12 +201,48 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         _selectedKey = definition.Key;
         SyncSelectedTab();
 
+        _activityReadError = null;
+        var isActivity = definition.Key is "continue-watching" or "recently-watched";
         var isCustom = !definition.IsSystem;
         ListNameText.Text = isCustom ? definition.LabelKey : LocalizationService.Text(definition.LabelKey);
-        AddMoviesButton.Visibility = Visibility.Visible;
+        AddMoviesButton.Visibility = isActivity ? Visibility.Collapsed : Visibility.Visible;
         RenameListButton.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
         DeleteListButton.Visibility = isCustom ? Visibility.Visible : Visibility.Collapsed;
 
+        if (isActivity)
+        {
+            ListGrid.Visibility = Visibility.Collapsed;
+            ContinueGrid.Visibility = definition.Key == "continue-watching" ? Visibility.Visible : Visibility.Collapsed;
+            HistoryGrid.Visibility = definition.Key == "recently-watched" ? Visibility.Visible : Visibility.Collapsed;
+            if (definition.Key == "continue-watching")
+            {
+                var activity = BuildContinueItems();
+                var filtered = FilterActivity(activity).ToArray();
+                ContinueGrid.ItemsSource = filtered;
+                var filteredCount = filtered.Length;
+                ContinueGrid.Visibility = filteredCount == 0 ? Visibility.Collapsed : Visibility.Visible;
+                ListCountText.Text = FormatCount(filteredCount);
+                EmptyState.Visibility = filteredCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+                SetActivityEmptyState(filteredCount);
+                UpdateSystemCounts(definition.Key, filteredCount);
+            }
+            else
+            {
+                var history = BuildHistoryItems();
+                var filtered = FilterActivity(history).ToArray();
+                HistoryGrid.ItemsSource = filtered;
+                var filteredCount = filtered.Length;
+                HistoryGrid.Visibility = filteredCount == 0 ? Visibility.Collapsed : Visibility.Visible;
+                ListCountText.Text = FormatCount(filteredCount);
+                EmptyState.Visibility = filteredCount == 0 ? Visibility.Visible : Visibility.Collapsed;
+                SetActivityEmptyState(filteredCount);
+                UpdateSystemCounts(definition.Key, filteredCount);
+            }
+            return;
+        }
+
+        ContinueGrid.Visibility = Visibility.Collapsed;
+        HistoryGrid.Visibility = Visibility.Collapsed;
         var items = BuildItems(definition);
         ListGrid.ItemsSource = items;
         ListCountText.Text = items.Count == 1
@@ -271,6 +319,114 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
                 item.Title.Contains(_query, StringComparison.CurrentCultureIgnoreCase)
                 || item.Year.ToString(CultureInfo.InvariantCulture).Contains(_query, StringComparison.Ordinal)),
         ];
+    }
+
+    private string FormatCount(int count) => count == 1
+        ? $"{LocalizationService.Number(count)} {LocalizationService.Text("ItemSingular")}"
+        : $"{LocalizationService.Number(count)} {LocalizationService.Text("Items")}";
+
+    private void UpdateSystemCounts(string activeKey, int activeCount)
+    {
+        foreach (var (_, _, count, key) in SystemTabs)
+            count.Text = key == activeKey ? LocalizationService.Number(activeCount) : string.Empty;
+        foreach (var (_, _, count, id) in _dynamicTabs) count.Text = string.Empty;
+    }
+
+    private void SetActivityEmptyState(int count)
+    {
+        if (count != 0) return;
+        if (_activityReadError is { } error)
+        {
+            EmptyState.Title = LocalizationService.Text("Failed");
+            EmptyState.Message = MetadataErrorText.For(error);
+            EmptyState.ActionText = LocalizationService.Text("Retry");
+            EmptyState.IsActionVisible = true;
+            return;
+        }
+        var searching = _query.Length > 0;
+        var continuing = _selectedKey == "continue-watching";
+        EmptyState.Title = LocalizationService.Text(searching ? "NoResults" : continuing ? "NothingToContinue" : "NothingWatched");
+        EmptyState.Message = LocalizationService.Text(searching ? "NoResultsHelp" : continuing ? "NothingToContinueHelp" : "NothingWatchedHelp");
+        EmptyState.ActionText = searching ? LocalizationService.Text("ClearSearch") : string.Empty;
+        EmptyState.IsActionVisible = searching;
+    }
+
+    public void SelectSystemList(string key)
+    {
+        if (key is not ("continue-watching" or "recently-watched")) return;
+        _selectedKey = key;
+        _query = string.Empty;
+        SearchBox.Text = string.Empty;
+        Refresh();
+    }
+
+    private IReadOnlyList<HomeActivityCard> BuildContinueItems()
+    {
+        if (_continueItems is not null) return _continueItems;
+        try { return _continueItems = [.. AppServices.ViewingActivity.ListActive(int.MaxValue).Select(item => new HomeActivityCard(item))]; }
+        catch (Exception error) { _activityReadError = error; return []; }
+    }
+
+    private IReadOnlyList<WatchHistoryCardRecord> BuildHistoryItems()
+    {
+        if (_historyItems is not null) return _historyItems;
+        try { return _historyItems = [.. AppServices.ViewingActivity.ListRecentCompleted(int.MaxValue).Select(ToHistoryCard)]; }
+        catch (Exception error) { _activityReadError = error; return []; }
+    }
+
+    private IEnumerable<object> FilterActivity<T>(IReadOnlyList<T> source) where T : class
+    {
+        if (_query.Length == 0) return source.Cast<object>();
+        return source.Where(item => item switch
+        {
+            HomeActivityCard card => card.Title.Contains(_query, StringComparison.CurrentCultureIgnoreCase)
+                || card.SecondaryLine.Contains(_query, StringComparison.CurrentCultureIgnoreCase),
+            WatchHistoryCardRecord card => card.Title.Contains(_query, StringComparison.CurrentCultureIgnoreCase) || card.Context.Contains(_query, StringComparison.CurrentCultureIgnoreCase),
+            _ => false,
+        }).Cast<object>();
+    }
+
+    private static WatchHistoryCardRecord ToHistoryCard(WatchHistoryItem item) => new(
+        item.Id, item.MediaKind, item.MovieId, item.ShowId,
+        item.MediaKind == WatchEventMediaKind.Episode && !string.IsNullOrWhiteSpace(item.ShowTitle) ? item.ShowTitle : item.Title,
+        item.MediaKind == WatchEventMediaKind.Episode && item.SeasonNumber is int season && item.EpisodeNumber is int episode
+            ? LocalizationService.Digits(LocalizationService.Format("HomeContinueEpisodeFormat", season, episode, item.Title))
+            : item.Year is int year ? LocalizationService.Digits(year.ToString(CultureInfo.InvariantCulture)) : string.Empty,
+        LocalizationService.Digits(item.WatchedAt.ToLocalTime().ToString("d", LocalizationService.Culture)), item.IsAvailable,
+        item.IsAvailable ? string.Empty : LocalizationService.Text("Unavailable"),
+        [item.BackdropReference, item.ArtworkReference, item.PosterReference]);
+
+    private async void ActivityGrid_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        try
+        {
+            if (e.ClickedItem is not (HomeActivityCard or WatchHistoryCardRecord)) return;
+            (int? MovieId, int? ShowId) identity = e.ClickedItem switch
+            {
+                HomeActivityCard activity => (activity.MovieId, activity.ShowId),
+                WatchHistoryCardRecord { IsAvailable: true } history => (
+                    history.MediaKind == WatchEventMediaKind.Movie ? history.MovieId : null,
+                    history.MediaKind == WatchEventMediaKind.Episode ? history.ShowId : null),
+                _ => (null, null),
+            };
+            if (identity.MovieId is int movieId &&
+                AppServices.Library.ListMovies().FirstOrDefault(movie => movie.Id == movieId) is { } movie)
+            {
+                MovieSelected?.Invoke(this, LibraryProjection.ToCard(movie));
+                return;
+            }
+            if (identity.ShowId is int showId &&
+                AppServices.Tv.ListShows().FirstOrDefault(show => show.Id == showId) is { } show)
+            {
+                ShowSelected?.Invoke(this, TvProjection.ToCard(show));
+                return;
+            }
+            await ShowMessageAsync(LocalizationService.Text("Unavailable"), LocalizationService.Text("HistoryUnavailableHelp"));
+        }
+        catch (Exception error)
+        {
+            await ReportAsync(error);
+        }
     }
 
     /// <summary>The members of the selected list, read on first use for this visit and reused afterwards.</summary>
@@ -388,6 +544,11 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
 
     private void EmptyStateAction_Click(object sender, RoutedEventArgs e)
     {
+        if (_activityReadError is not null)
+        {
+            Refresh();
+            return;
+        }
         if (_query.Length > 0)
         {
             SearchBox.Text = string.Empty;
@@ -396,7 +557,8 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             return;
         }
 
-        // Every list accepts explicit movie/show membership through the same picker.
+        if (_selectedKey is "continue-watching" or "recently-watched") return;
+        // Membership lists accept explicit movie/show membership through the same picker.
         _ = ShowAddMediaAsync();
     }
 
@@ -417,27 +579,23 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         }
     }
 
-    /// <summary>
-    /// A right-tap (or press-and-hold) offers removal from the selected list. The item is resolved from
-    /// the tapped element's data context, so the menu targets the exact movie or show.
-    /// </summary>
-    private void ListGrid_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    private void MediaGrid_ContextRequested(UIElement sender, ContextRequestedEventArgs e)
     {
-        if ((e.OriginalSource as FrameworkElement)?.DataContext is not ListMediaItem item)
-        {
-            return;
-        }
-
-        var remove = new MenuFlyoutItem
-        {
-            Text = LocalizationService.Text("RemoveFromList"),
-            FlowDirection = LocalizationService.FlowDirection,
-        };
+        if (sender is not FrameworkElement grid) return;
         var destinationKey = _selectedKey;
-        remove.Click += (_, _) => RemoveFromSelectedList(item, destinationKey);
-        var menu = new MenuFlyout();
-        menu.Items.Add(remove);
-        menu.ShowAt(ListGrid, new FlyoutShowOptions { Position = e.GetPosition(ListGrid) });
+        var resolved = ResolveCard(e) as ListMediaItem;
+        var remove = resolved is not null && (destinationKey is "watch-later" or "favorites" || destinationKey.StartsWith("custom:", StringComparison.Ordinal))
+            ? new Action(() => RemoveFromSelectedList(resolved!, destinationKey))
+            : null;
+        MediaCardContextMenu.ShowForContext(grid, e, horizontalMovies: grid == ContinueGrid || grid == HistoryGrid,
+            onChanged: () => { Invalidate(); Refresh(); }, removeFromList: remove);
+    }
+
+    private static object? ResolveCard(ContextRequestedEventArgs e)
+    {
+        var element = e.OriginalSource as DependencyObject;
+        while (element is not null && element is not GridViewItem) element = VisualTreeHelper.GetParent(element);
+        return (element as FrameworkElement)?.DataContext;
     }
 
     private void RemoveFromSelectedList(ListMediaItem item, string destinationKey)
@@ -600,6 +758,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     /// </summary>
     private async Task ShowAddMediaAsync()
     {
+        if (_selectedKey is "continue-watching" or "recently-watched") return;
         var destinationKey = _selectedKey;
         var destinationListId = ParseCustomKey(destinationKey);
         var definition = Definitions.FirstOrDefault(item => item.Key == destinationKey);

@@ -14,8 +14,8 @@ public sealed class Phase3UiSourceContractTests
         Assert.Contains("ListActive", code);
         Assert.Contains("HistoryUnavailableHelp", code);
         Assert.Contains("HistoryCard_Click", code);
-        // Compact completed-viewing cards prefer portrait artwork and retain their episode context.
-        Assert.Contains("[item.PosterReference, item.ArtworkReference, item.BackdropReference]", code);
+        // Landscape completed-viewing cards prefer wide artwork and retain the poster fallback.
+        Assert.Contains("[item.BackdropReference, item.ArtworkReference, item.PosterReference]", code);
         Assert.Contains("HomeContinueEpisodeFormat", code);
         Assert.Contains("item.ShowTitle", code);
     }

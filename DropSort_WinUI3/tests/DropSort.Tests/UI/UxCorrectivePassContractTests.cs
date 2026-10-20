@@ -398,7 +398,7 @@ public sealed class UxCorrectivePassContractTests
         var code = File.ReadAllText(Path.Combine(UiRoot, "Views", "MyListsPage.xaml.cs"));
         Assert.Contains("ShowAddMediaAsync", code);               // Add media action (movies + shows)
         Assert.Contains("AddMediaToListDialog", code);            // library picker
-        Assert.Contains("RemoveFromList", code);                  // remove-from-list path
+        Assert.Contains("RemoveFromList", File.ReadAllText(Path.Combine(UiRoot, "Services", "MediaCardContextMenu.cs")));                  // remove-from-list path
         Assert.Contains("RemoveMovieFromCustomList", code);
         Assert.Contains("RemoveShowFromCustomList", code);
 

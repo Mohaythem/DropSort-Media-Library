@@ -1,30 +1,35 @@
-# DropSort 0.10.0-rc.2 — Windows x64 Pre-release
+# DropSort 0.10.0-rc.4 — Windows x64
 
-- Version: `0.10.0-rc.2`; numeric assembly/file/installer version: `0.10.0.0`.
-- Branch: `codex`. The user authorized a new tag and GitHub pre-release on 2026-10-14. Never target `main` or overwrite prior tags/releases.
-- Exact source commit, payload inventory, SHA256 values, packaging commands, and final runtime results are recorded in the artifact-side `BUILD_MANIFEST.json` and `VERIFICATION.md`.
-- The older `v1.0.0` tag belongs to the frozen Python application. The active WinUI release line previously published `v0.9.0-preview`.
+- الإصدار: `0.10.0-rc.4`؛ رقم ملف التطبيق والمثبت: `0.10.0.4`، ورقم التجميعة: `0.10.0.0`.
+- الفرع: `codex`. نشر المستخدم التحديث على GitHub مصرح به بتاريخ 2026-10-20. لا يستهدف هذا الإصدار فرع `main` ولا يغير الإصدارات أو الوسوم السابقة.
+- الوسم المقصود: `v0.10.0-rc.4`، كإصدار تجريبي. وسم `v1.0.0` القديم يخص تطبيق Python المجمد.
+- يحدد `BUILD_MANIFEST.json` المرفق بالحزمة مصدر البناء الكامل وبصمات الملفات. لا تستخدم بصمات rc.3 القديمة لهذا الإصدار.
 
-## Scope
+## نطاق التحديث
 
-- Folder Watcher and Smart Relink are permanently removed, including navigation, background monitors, configuration/persistence services, candidate matching, cache integration, and feature-specific tests.
-- The original Check Library checks and manual file selection remain. Movie/TV Details, Media Files, watch history, custom lists, metadata, and posters remain.
-- Add Media, Smart TV Batch Import, compact grouped review, and the clickable native Add Media Folder Picker remain.
-- TMDB movie reuse attaches distinct editions to the existing movie identity and rejects repeated registration of the same path.
-- Schema v15 is unchanged. No migration or deletion of installed-profile watcher/verification JSON is introduced.
+- تحسين الكروت العريضة، ونسبة الحلقات المحلية إلى الإجمالية، وتباين الألوان.
+- صفوف هوم ثابتة الحجم، وقوائم كاملة لإكمال المشاهدة وآخر مشاهدة.
+- قوائم كليك يمين مشتركة وعارض للصورة كاملة بإطار رفيع.
+- تبسيط أزرار الفيلم وإعادة تصميم صفحة المسلسل ببوستر أكبر وأزرار مناسبة للمحتوى ومواسم مغلقة عند الدخول.
+- حد أدنى لحجم النافذة واختصار Ctrl + , للإعدادات.
+- لا يضيف هذا التحديث ترحيلًا جديدًا لقاعدة البيانات؛ الإصدار الحالي للمخطط هو 17. الإصدارات القديمة التي لا تدعم v16/v17 لا تفتح القاعدة بعد ترقيتها.
 
-## Verification and packaging
+## التحقق
 
-- Full Debug .NET suite: **737 passed, 0 failed, 0 skipped** on 2026-10-14.
-- Focused import, availability, reconciliation, and UI tests: **125 passed, 0 failed, 0 skipped**.
-- Independent Luna review completed. Two dead namespace imports were corrected and the correction was reviewed. No outstanding actionable findings were reported.
-- Final release verification must use a new export of the exact source commit with no inherited bin/obj output, followed by Visual Studio 18 MSBuild Rebuild: Release, x64, win-x64, SelfContained=true, WindowsAppSDKSelfContained=true.
-- Package the Release build output, not the nested publish directory. Preserve PRI/XBF, .NET/Windows App SDK runtime, and SQLite dependencies.
-- Inno Setup 6 retains the established per-user AppId. Its PayloadDir override allows packaging the exact fresh portable payload.
-- PDBs, nested publish output, databases, credentials, logs, and QA/test files are excluded.
-- New artifacts live only in `artifacts/release/0.10.0-rc.2/`: installer, portable ZIP, portable directory, release notes, checksums, and build/verification manifests.
-- Accepted `0.10.0-rc.1` artifacts remain unchanged. Test and build evidence is stored under `artifacts/qa/remove-features-rc2-20261014/`.
+- الاختبارات الكاملة على المصدر المعد للنشر: **797 ناجح، 0 فاشل، 0 متخطى** بتاريخ 2026-10-20. شملت الجولة اختبار مخزن بيانات الاعتماد المعزول بصلاحيات تسمح به.
+- مراجعة مصدر مستقلة عبر Luna لم تجد عائقًا جوهريًا للنشر.
+- وافق المستخدم على واجهة التحديث خلال المراجعة اليدوية. لا تمثل هذه الموافقة اختبار تثبيت على جهاز نظيف.
+- نتائج بناء Release وتشغيل الحزمة المعزول وبصماتها النهائية تحفظ في `VERIFICATION.md` و`BUILD_MANIFEST.json` المرفقين بملفات الإصدار.
 
-## Limits
+## متطلبات الحزمة
 
-Unsigned pre-release; no stable-release or signing claim. Clean-machine/VM testing, broader Windows hardware, physical SMB/removable-drive scenarios, and real video decoding remain unexecuted. Existing deferred roadmap issues remain open. Automated QA uses isolated databases and synthetic media; production data and real media are not modified.
+- تصدير Git جديد من المصدر المحدد، دون إعادة استخدام bin/obj أو بيانات التجارب.
+- بناء Visual Studio 18 MSBuild: Release / x64 / win-x64 / SelfContained=true / WindowsAppSDKSelfContained=true.
+- الحزمة من مخرجات Build، وليس مجلد publish، وتحتوي على PRI وXBF و.NET وWindows App SDK وSQLite.
+- يستبعد المثبت والملف المحمول PDBs وpublish وقواعد البيانات والسجلات وملفات التجارب والمحتوى الشخصي.
+- المثبت Inno Setup 6 يستخدم AppId القائم وتثبيتًا لكل مستخدم. بيانات المكتبة تظل في `%LOCALAPPDATA%\DropSort` خارج مجلد تثبيت البرنامج.
+- الملفات: `DropSortSetup.exe` و`DropSort-0.10.0-rc.4-win-x64.zip` و`SHA256SUMS.txt` مع معلومات البناء والتحقق.
+
+## حدود التحقق
+
+إصدار تجريبي غير موقع رقميًا. لم ينفذ اختبار تثبيت/إزالة على جهاز نظيف مستقل أو اختبار شامل لمختلف الأجهزة والشبكات. تحذير NU1900، إذا ظهر أثناء الاستعادة أو البناء، يعني تعذر جلب معلومات ثغرات الحزم ولا يثبت خلوها من الثغرات.

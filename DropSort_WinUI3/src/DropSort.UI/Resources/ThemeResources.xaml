@@ -44,8 +44,8 @@
     <x:Double x:Key="LibraryHorizontalFallbackCellWidth">332</x:Double>
     <x:Double x:Key="LibraryHorizontalCardMinWidth">320</x:Double>
     <x:Double x:Key="LibraryHorizontalCardMaxWidth">420</x:Double>
-    <x:Double x:Key="LibraryHorizontalCardHeight">184</x:Double>
-    <x:Double x:Key="LibraryHorizontalCellHeight">196</x:Double>
+    <x:Double x:Key="LibraryHorizontalCardHeight">200</x:Double>
+    <x:Double x:Key="LibraryHorizontalCellHeight">212</x:Double>
     <x:Double x:Key="LibraryHorizontalGap">12</x:Double>
     <x:Double x:Key="LibraryHorizontalPosterWidth">96</x:Double>
     <x:Double x:Key="LibraryHorizontalPosterHeight">144</x:Double>
@@ -75,8 +75,13 @@
     -->
     <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
+            <!-- Dark uses a neutral near-black surface. Slate applies its tinted palette locally
+                 from MainWindow, so these values must not be shared with the Slate surface. -->
             <SolidColorBrush x:Key="LandscapeCardTextBrush" Color="#FFF8F9FB" />
             <SolidColorBrush x:Key="LandscapeCardSecondaryTextBrush" Color="#FFE1E6EB" />
+            <!-- Artwork badges sit over poster imagery. Keep a solid scrim so text remains legible. -->
+            <SolidColorBrush x:Key="ArtworkBadgeBackgroundBrush" Color="#CC080F16" />
+            <SolidColorBrush x:Key="ArtworkBadgeForegroundBrush" Color="#FFF8F9FB" />
             <LinearGradientBrush x:Key="LandscapeCardScrimBrush" StartPoint="0,0" EndPoint="0,1">
                 <GradientStop Offset="0" Color="#10080F16" />
                 <GradientStop Offset="0.35" Color="#33080F16" />
@@ -115,23 +120,28 @@
             <SolidColorBrush x:Key="AccentControlBorderBrush" Color="#7A60CDFF" />
 
             <!-- Figma Approved Theme Tokens: Slate / Dark Default -->
-            <SolidColorBrush x:Key="FigmaSurfaceAppBrush" Color="#FF20272E" />
-            <SolidColorBrush x:Key="FigmaSurfaceSecondaryBrush" Color="#FF1A2026" />
-            <SolidColorBrush x:Key="FigmaSurfaceControlBrush" Color="#FF293139" />
-            <SolidColorBrush x:Key="FigmaBorderDefaultBrush" Color="#FF414B54" />
-            <SolidColorBrush x:Key="FigmaTextPrimaryBrush" Color="#FFF4F2EF" />
-            <SolidColorBrush x:Key="FigmaTextSecondaryBrush" Color="#FFB2BAC1" />
-            <SolidColorBrush x:Key="FigmaTextTertiaryBrush" Color="#FF8C98A2" />
+            <SolidColorBrush x:Key="FigmaSurfaceAppBrush" Color="#FF111111" />
+            <SolidColorBrush x:Key="FigmaSurfaceSecondaryBrush" Color="#FF181818" />
+            <SolidColorBrush x:Key="FigmaSurfaceControlBrush" Color="#FF242424" />
+            <SolidColorBrush x:Key="FigmaBorderDefaultBrush" Color="#FF454545" />
+            <SolidColorBrush x:Key="FigmaTextPrimaryBrush" Color="#FFF5F5F5" />
+            <SolidColorBrush x:Key="FigmaTextSecondaryBrush" Color="#FFCACACA" />
+            <SolidColorBrush x:Key="FigmaTextTertiaryBrush" Color="#FF9E9E9E" />
             <SolidColorBrush x:Key="FigmaAccentButtonBrush" Color="#FF44C4F6" />
-            <SolidColorBrush x:Key="FigmaAccentForegroundBrush" Color="#FF231A16" />
+            <SolidColorBrush x:Key="FigmaAccentForegroundBrush" Color="#FF111111" />
             <SolidColorBrush x:Key="FigmaAccentSelectedSurfaceBrush" Color="#FF203E4B" />
             <SolidColorBrush x:Key="FigmaStatusAvailableBrush" Color="#FFA5C8AD" />
             <SolidColorBrush x:Key="FigmaStatusStorageGoldBrush" Color="#FFE6BB70" />
+            <SolidColorBrush x:Key="ArtworkViewerFrameBrush" Color="#FF000000" />
+            <SolidColorBrush x:Key="ArtworkViewerCanvasBrush" Color="#FF000000" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
             <SolidColorBrush x:Key="LandscapeCardTextBrush" Color="#FFF8F9FB" />
             <SolidColorBrush x:Key="LandscapeCardSecondaryTextBrush" Color="#FFE1E6EB" />
+            <!-- White artwork text needs a dark, opaque enough plate in the Light theme. -->
+            <SolidColorBrush x:Key="ArtworkBadgeBackgroundBrush" Color="#D9000000" />
+            <SolidColorBrush x:Key="ArtworkBadgeForegroundBrush" Color="#FFFFFFFF" />
             <LinearGradientBrush x:Key="LandscapeCardScrimBrush" StartPoint="0,0" EndPoint="0,1">
                 <GradientStop Offset="0" Color="#10080F16" />
                 <GradientStop Offset="0.35" Color="#33080F16" />
@@ -182,11 +192,15 @@
             <SolidColorBrush x:Key="FigmaAccentSelectedSurfaceBrush" Color="#FFDDF4FF" />
             <SolidColorBrush x:Key="FigmaStatusAvailableBrush" Color="#FF2DA44E" />
             <SolidColorBrush x:Key="FigmaStatusStorageGoldBrush" Color="#FFBF8700" />
+            <SolidColorBrush x:Key="ArtworkViewerFrameBrush" Color="#FF202020" />
+            <SolidColorBrush x:Key="ArtworkViewerCanvasBrush" Color="#FF202020" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="HighContrast">
             <SolidColorBrush x:Key="LandscapeCardTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="LandscapeCardSecondaryTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ArtworkBadgeBackgroundBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="ArtworkBadgeForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="LandscapeCardScrimBrush" Color="{ThemeResource SystemColorWindowColor}" />
 
             <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -224,6 +238,8 @@
             <SolidColorBrush x:Key="FigmaAccentSelectedSurfaceBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="FigmaStatusAvailableBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="FigmaStatusStorageGoldBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ArtworkViewerFrameBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="ArtworkViewerCanvasBrush" Color="{ThemeResource SystemColorWindowColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

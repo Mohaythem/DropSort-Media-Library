@@ -124,9 +124,9 @@ public sealed record MovieRecord(
 
     public Visibility YearVisibility => Year > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-    public string HorizontalSummaryLine => LocalizationService.Format(
-        FileCount > 1 ? "MovieFilesSummaryFormat" : "MovieSummaryFormat",
-        FileCount);
+    public string HorizontalSummaryLine => FileCount > 1
+        ? LocalizationService.Format("FilesCountFormat", FileCount)
+        : string.Empty;
 
     public bool IsLiked => string.Equals(Preference, "liked", StringComparison.OrdinalIgnoreCase);
 

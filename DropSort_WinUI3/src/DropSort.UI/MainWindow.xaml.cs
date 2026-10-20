@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
     private readonly TVShowDetailsPage _showDetailsPage = new();
     private string _detailsReturnDestination = "library";
     private AppWindow? _appWindow;
+    private MinimumWindowSize? _minimumWindowSize;
     private Page? _currentPage;
     private NavigationPaneState _navigationPane = new(true);
     private long _paneOpenCallbackToken;
@@ -43,6 +44,17 @@ public sealed partial class MainWindow : Window
         LocalizationService.Restore(language);
 
         InitializeComponent();
+        var settingsShortcut = new KeyboardAccelerator
+        {
+            Key = (Windows.System.VirtualKey)0xBC, // VK_OEM_COMMA
+            Modifiers = Windows.System.VirtualKeyModifiers.Control,
+        };
+        settingsShortcut.Invoked += (_, args) =>
+        {
+            Navigate("settings");
+            args.Handled = true;
+        };
+        RootGrid.KeyboardAccelerators.Add(settingsShortcut);
         _navigationPane = new NavigationPaneState(AppSettingsStore.ReadWideNavigationPaneOpen());
         AppServices.UiDispatcherQueue = this.DispatcherQueue;
         _uiSettings.ColorValuesChanged += OnSystemColorsChanged;
@@ -72,6 +84,7 @@ public sealed partial class MainWindow : Window
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         Closed -= OnWindowClosed;
+        _minimumWindowSize?.Dispose();
         ShellNavigation.SizeChanged -= ShellNavigation_SizeChanged;
         ShellNavigation.UnregisterPropertyChangedCallback(NavigationView.IsPaneOpenProperty, _paneOpenCallbackToken);
         LocalizationService.LanguageChanged -= OnLanguageChanged;
@@ -115,7 +128,10 @@ public sealed partial class MainWindow : Window
         WindowHandle = windowHandle;
         var windowId = Win32Interop.GetWindowIdFromWindow(windowHandle);
         _appWindow = AppWindow.GetFromWindowId(windowId);
-        _appWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
+        _minimumWindowSize = new MinimumWindowSize(windowHandle);
+        var minimum = _minimumWindowSize.MinimumOuterSize;
+        _appWindow.Resize(new Windows.Graphics.SizeInt32(
+            Math.Max(1360, minimum.Width), Math.Max(860, minimum.Height)));
     }
 
     /// <summary>
@@ -129,6 +145,11 @@ public sealed partial class MainWindow : Window
         _homePage.MovieSelected += OpenMovie;
         _homePage.ShowSelected += OpenShow;
         _homePage.LibraryRequested += (_, _) => Navigate("library");
+        _homePage.ActivityListRequested += (_, key) =>
+        {
+            Navigate("lists");
+            _myListsPage.SelectSystemList(key);
+        };
         _libraryPage.MovieSelected += OpenMovie;
         _libraryPage.ShowSelected += OpenShow;
         _myListsPage.MovieSelected += OpenMovie;
@@ -447,58 +468,6 @@ public sealed partial class MainWindow : Window
         UpdateTitleBarColors();
     }
 
-    private static ResourceDictionary CreateSlatePaletteResources()
-    {
-        var resources = new ResourceDictionary();
-
-        static SolidColorBrush Brush(byte r, byte g, byte b, byte alpha = 0xFF) =>
-            new(ColorHelper.FromArgb(alpha, r, g, b));
-
-        // Deep navy shell, with a small peach accent reserved for actions and selection.
-        resources["ApplicationPageBackgroundThemeBrush"] = Brush(0x18, 0x22, 0x2D);
-        resources["SlateBackgroundBrush"] = Brush(0x18, 0x22, 0x2D);
-        resources["ShellPaneBackgroundBrush"] = Brush(0x11, 0x18, 0x22, 0xE6);
-        resources["ShellContentBackgroundBrush"] = Brush(0x20, 0x2B, 0x35, 0xB8);
-        resources["ShellPaneSeparatorBrush"] = Brush(0x8B, 0xA8, 0xC7, 0x45);
-
-        // Raised card/control surfaces and fine borders.
-        resources["CardBackgroundFillColorDefaultBrush"] = Brush(0x29, 0x36, 0x41);
-        resources["CardStrokeColorDefaultBrush"] = Brush(0x83, 0x92, 0xA6, 0x55);
-        resources["ControlFillColorDefaultBrush"] = Brush(0x24, 0x32, 0x42);
-        resources["ControlFillColorSecondaryBrush"] = Brush(0x2B, 0x3A, 0x4B);
-        resources["ControlFillColorTertiaryBrush"] = Brush(0x32, 0x43, 0x55);
-        resources["ControlStrongStrokeColorDefaultBrush"] = Brush(0x8B, 0xA8, 0xC7, 0xD0);
-
-        // Peach is intentionally limited to primary/secondary/tertiary accent states.
-        resources["AccentFillColorDefaultBrush"] = Brush(0xF2, 0xB5, 0x9A);
-        resources["AccentFillColorSecondaryBrush"] = Brush(0xD9, 0x9A, 0x7C);
-        resources["AccentFillColorTertiaryBrush"] = Brush(0xB9, 0x78, 0x60);
-        resources["AccentFillColorDisabledBrush"] = Brush(0xF2, 0xB5, 0x9A, 0x52);
-        resources["AccentTextFillColorPrimaryBrush"] = Brush(0xFF, 0xC9, 0xB5);
-        resources["AccentTextFillColorSecondaryBrush"] = Brush(0xF2, 0xB5, 0x9A);
-        resources["TextOnAccentFillColorPrimaryBrush"] = Brush(0x2A, 0x1D, 0x1A);
-        resources["TextOnAccentFillColorSecondaryBrush"] = Brush(0x2A, 0x1D, 0x1A);
-
-        // Native templates consume these aliases directly; replacing the underlying accent
-        // brush alone cannot replace aliases already resolved in the WinUI resource dictionary.
-        resources["AccentButtonBackground"] = resources["AccentFillColorDefaultBrush"];
-        resources["AccentButtonBackgroundPointerOver"] = resources["AccentFillColorSecondaryBrush"];
-        resources["AccentButtonBackgroundPressed"] = resources["AccentFillColorTertiaryBrush"];
-        resources["AccentButtonBackgroundDisabled"] = resources["AccentFillColorDisabledBrush"];
-        resources["AccentButtonForeground"] = resources["TextOnAccentFillColorPrimaryBrush"];
-        resources["AccentButtonForegroundPointerOver"] = resources["TextOnAccentFillColorPrimaryBrush"];
-        resources["AccentButtonForegroundPressed"] = resources["TextOnAccentFillColorSecondaryBrush"];
-        resources["NavigationViewSelectionIndicatorForeground"] = resources["AccentFillColorDefaultBrush"];
-        resources["NavigationViewItemBackgroundSelected"] = Brush(0xF2, 0xB5, 0x9A, 0x20);
-        resources["NavigationViewItemBackgroundSelectedPointerOver"] = Brush(0xF2, 0xB5, 0x9A, 0x30);
-        resources["NavigationViewItemBackgroundSelectedPressed"] = Brush(0xF2, 0xB5, 0x9A, 0x18);
-        resources["ButtonBackgroundPointerOver"] = resources["ControlFillColorSecondaryBrush"];
-        resources["ButtonBackgroundPressed"] = resources["ControlFillColorTertiaryBrush"];
-        resources["ButtonBorderBrushPointerOver"] = Brush(0xF2, 0xB5, 0x9A, 0xC0);
-
-        return resources;
-    }
-
     private void OnSystemColorsChanged(Windows.UI.ViewManagement.UISettings sender, object args) =>
         RootGrid.DispatcherQueue.TryEnqueue(ApplyTheme);
 
@@ -550,6 +519,73 @@ public sealed partial class MainWindow : Window
         titleBar.ButtonHoverForegroundColor = foreground;
         titleBar.ButtonPressedBackgroundColor = ColorHelper.FromArgb(0x33, foreground.R, foreground.G, foreground.B);
         titleBar.ButtonPressedForegroundColor = foreground;
+    }
+
+    private static ResourceDictionary CreateSlatePaletteResources()
+    {
+        var resources = new ResourceDictionary();
+
+        static SolidColorBrush Brush(byte r, byte g, byte b, byte alpha = 0xFF) =>
+            new(ColorHelper.FromArgb(alpha, r, g, b));
+
+        // Deep navy shell, with a small peach accent reserved for actions and selection.
+        resources["ApplicationPageBackgroundThemeBrush"] = Brush(0x18, 0x22, 0x2D);
+        resources["SlateBackgroundBrush"] = Brush(0x18, 0x22, 0x2D);
+        resources["ShellPaneBackgroundBrush"] = Brush(0x11, 0x18, 0x22, 0xE6);
+        resources["ShellContentBackgroundBrush"] = Brush(0x20, 0x2B, 0x35, 0xB8);
+        resources["ShellPaneSeparatorBrush"] = Brush(0x8B, 0xA8, 0xC7, 0x45);
+
+        // Raised card/control surfaces and fine borders.
+        resources["CardBackgroundFillColorDefaultBrush"] = Brush(0x29, 0x36, 0x41);
+        resources["CardStrokeColorDefaultBrush"] = Brush(0x83, 0x92, 0xA6, 0x55);
+        resources["ControlFillColorDefaultBrush"] = Brush(0x24, 0x32, 0x42);
+        resources["ControlFillColorSecondaryBrush"] = Brush(0x2B, 0x3A, 0x4B);
+        resources["ControlFillColorTertiaryBrush"] = Brush(0x32, 0x43, 0x55);
+        resources["ControlStrongStrokeColorDefaultBrush"] = Brush(0x8B, 0xA8, 0xC7, 0xD0);
+
+        // Peach is intentionally limited to primary/secondary/tertiary accent states.
+        resources["AccentFillColorDefaultBrush"] = Brush(0xF2, 0xB5, 0x9A);
+        resources["AccentFillColorSecondaryBrush"] = Brush(0xD9, 0x9A, 0x7C);
+        resources["AccentFillColorTertiaryBrush"] = Brush(0xB9, 0x78, 0x60);
+        resources["AccentFillColorDisabledBrush"] = Brush(0xF2, 0xB5, 0x9A, 0x52);
+        resources["AccentTextFillColorPrimaryBrush"] = Brush(0xFF, 0xC9, 0xB5);
+        resources["AccentTextFillColorSecondaryBrush"] = Brush(0xF2, 0xB5, 0x9A);
+        resources["TextOnAccentFillColorPrimaryBrush"] = Brush(0x2A, 0x1D, 0x1A);
+        resources["TextOnAccentFillColorSecondaryBrush"] = Brush(0x2A, 0x1D, 0x1A);
+
+        // Native templates consume these aliases directly; replacing the underlying accent
+        // brush alone cannot replace aliases already resolved in the WinUI resource dictionary.
+        resources["AccentButtonBackground"] = resources["AccentFillColorDefaultBrush"];
+        resources["AccentButtonBackgroundPointerOver"] = resources["AccentFillColorSecondaryBrush"];
+        resources["AccentButtonBackgroundPressed"] = resources["AccentFillColorTertiaryBrush"];
+        resources["AccentButtonBackgroundDisabled"] = resources["AccentFillColorDisabledBrush"];
+        resources["AccentButtonForeground"] = resources["TextOnAccentFillColorPrimaryBrush"];
+        resources["AccentButtonForegroundPointerOver"] = resources["TextOnAccentFillColorPrimaryBrush"];
+        resources["AccentButtonForegroundPressed"] = resources["TextOnAccentFillColorSecondaryBrush"];
+        resources["NavigationViewSelectionIndicatorForeground"] = resources["AccentFillColorDefaultBrush"];
+        resources["NavigationViewItemBackgroundSelected"] = Brush(0xF2, 0xB5, 0x9A, 0x20);
+        resources["NavigationViewItemBackgroundSelectedPointerOver"] = Brush(0xF2, 0xB5, 0x9A, 0x30);
+        resources["NavigationViewItemBackgroundSelectedPressed"] = Brush(0xF2, 0xB5, 0x9A, 0x18);
+        resources["ButtonBackgroundPointerOver"] = resources["ControlFillColorSecondaryBrush"];
+        resources["ButtonBackgroundPressed"] = resources["ControlFillColorTertiaryBrush"];
+        resources["ButtonBorderBrushPointerOver"] = Brush(0xF2, 0xB5, 0x9A, 0xC0);
+
+        // Figma semantic surfaces are shared by the details pages. Keep their Slate tint in
+        // this window-local overlay; the Default dictionary remains the neutral Dark palette.
+        resources["FigmaSurfaceAppBrush"] = Brush(0x20, 0x27, 0x2E);
+        resources["FigmaSurfaceSecondaryBrush"] = Brush(0x1A, 0x20, 0x26);
+        resources["FigmaSurfaceControlBrush"] = Brush(0x29, 0x31, 0x39);
+        resources["FigmaBorderDefaultBrush"] = Brush(0x41, 0x4B, 0x54);
+        resources["FigmaTextPrimaryBrush"] = Brush(0xF4, 0xF2, 0xEF);
+        resources["FigmaTextSecondaryBrush"] = Brush(0xB2, 0xBA, 0xC1);
+        resources["FigmaTextTertiaryBrush"] = Brush(0x8C, 0x98, 0xA2);
+        resources["FigmaAccentButtonBrush"] = Brush(0x44, 0xC4, 0xF6);
+        resources["FigmaAccentForegroundBrush"] = Brush(0x23, 0x1A, 0x16);
+        resources["FigmaAccentSelectedSurfaceBrush"] = Brush(0x20, 0x3E, 0x4B);
+        resources["FigmaStatusAvailableBrush"] = Brush(0xA5, 0xC8, 0xAD);
+        resources["FigmaStatusStorageGoldBrush"] = Brush(0xE6, 0xBB, 0x70);
+
+        return resources;
     }
 
     private void OnThemeChanged(object? sender, EventArgs e) => ApplyTheme();

@@ -26,6 +26,8 @@
     <Compile Include="..\..\src\DropSort.UI\Services\LibraryViewMode.cs" Link="UI\LibraryViewMode.cs" />
     <Compile Include="..\..\src\DropSort.UI\Services\LibraryActivityOrdering.cs" Link="UI\LibraryActivityOrdering.cs" />
     <Compile Include="..\..\src\DropSort.UI\Services\NavigationPaneState.cs" Link="UI\NavigationPaneState.cs" />
+    <Compile Include="..\..\src\DropSort.UI\Services\MinimumWindowSize.cs" Link="UI\MinimumWindowSize.cs" />
+    <Compile Include="..\..\src\DropSort.UI\Services\ArtworkViewerLayout.cs" Link="UI\ArtworkViewerLayout.cs" />
     <ProjectReference Include="..\..\src\DropSort.Domain\DropSort.Domain.csproj" />
     <ProjectReference Include="..\..\src\DropSort.Application\DropSort.Application.csproj" />
     <ProjectReference Include="..\..\src\DropSort.Infrastructure\DropSort.Infrastructure.csproj" />

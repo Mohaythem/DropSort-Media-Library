@@ -6,6 +6,7 @@ using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 
 namespace DropSort.UI.Views;
 
@@ -20,11 +21,16 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
     private IReadOnlyList<MovieRecord> _movies = [];
     private IReadOnlyList<TVShowRecord> _shows = [];
     private IReadOnlyList<WatchHistoryItem> _history = [];
+    private IReadOnlyList<HomeActivityCard> _continueSource = [];
+    private IReadOnlyList<WatchHistoryCardRecord> _historyCards = [];
     private readonly PostHandoffRequestLifetime _playbackRequests = new();
 
     public HomePage()
     {
         this.InitializeComponent();
+        ContinueRowGrid.SizeChanged += HomePage_SizeChanged;
+        RecentRowGrid.SizeChanged += RecentRowGrid_SizeChanged;
+        ContextRequested += Home_ContextRequested;
         ApplyLocalization();
         Activate();
     }
@@ -35,17 +41,20 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
 
     public event EventHandler? LibraryRequested;
 
+    public event EventHandler<string>? ActivityListRequested;
+
     public void Activate()
     {
         _movies = LoadMovies();
         _shows = LoadShows();
         _history = LoadHistory();
         StatsRepeater.ItemsSource = BuildStats();
-        ContinueRepeater.ItemsSource = BuildContinueWatching();
-        HistoryRepeater.ItemsSource = BuildHistoryCards();
-        RecentGrid.ItemsSource = _movies.Take(8).ToArray();
+        _continueSource = BuildContinueWatching();
+        ContinueRepeater.ItemsSource = _continueSource;
+        _historyCards = BuildHistoryCards();
         UpdateContinueVisibility();
         UpdateHistoryVisibility();
+        UpdateActivityShelves();
     }
 
     public void Deactivate() => _playbackRequests.Cancel();
@@ -65,11 +74,19 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
         HistoryHeadingText.Text = LocalizationService.Text("RecentlyWatched");
         RecentHeadingText.Text = LocalizationService.Text("RecentlyAdded");
         SeeAllButton.Content = LocalizationService.Text("SeeAll");
+        ContinueSeeAllButton.Content = LocalizationService.Text("SeeAll");
+        HistorySeeAllButton.Content = LocalizationService.Text("SeeAll");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ContinueSeeAllButton,
+            $"{LocalizationService.Text("SeeAll")}: {LocalizationService.Text("ContinueWatching")}");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(HistorySeeAllButton,
+            $"{LocalizationService.Text("SeeAll")}: {LocalizationService.Text("RecentlyWatched")}");
         StatsRepeater.ItemsSource = BuildStats();
-        ContinueRepeater.ItemsSource = BuildContinueWatching();
-        HistoryRepeater.ItemsSource = BuildHistoryCards();
+        _continueSource = BuildContinueWatching();
+        ContinueRepeater.ItemsSource = _continueSource;
+        _historyCards = BuildHistoryCards();
         UpdateContinueVisibility();
         UpdateHistoryVisibility();
+        UpdateActivityShelves();
     }
 
     /// <summary>A catalog read failure leaves Home with zero movies rather than taking the page down.</summary>
@@ -102,7 +119,7 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
     {
         try
         {
-            return AppServices.ViewingActivity.ListRecentCompleted(8);
+            return AppServices.ViewingActivity.ListRecentCompleted(20);
         }
         catch (Exception)
         {
@@ -117,7 +134,7 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
     {
         try
         {
-            return [.. AppServices.ViewingActivity.ListActive(6).Select(item => new HomeActivityCard(item))];
+            return [.. AppServices.ViewingActivity.ListActive(20).Select(item => new HomeActivityCard(item))];
         }
         catch { return []; }
     }
@@ -142,9 +159,12 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
             item.IsAvailable ? string.Empty : LocalizationService.Text("Unavailable"),
             HistoryArtwork(item)))];
 
-    // Compact completed-viewing cards prefer portrait artwork.
+    // Completed-viewing cards use the same landscape artwork priority as Continue Watching.
     private static IEnumerable<string?> HistoryArtwork(WatchHistoryItem item) =>
-        [item.PosterReference, item.ArtworkReference, item.BackdropReference];
+        [item.BackdropReference, item.ArtworkReference, item.PosterReference];
+
+    public static string HistoryMetaLine(string watchedAt, WatchEventMediaKind mediaKind) =>
+        $"{watchedAt} · {HistoryTypeLabel(mediaKind)}";
 
     private static string HistoryTitle(WatchHistoryItem item)
     {
@@ -188,6 +208,10 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
             : Microsoft.UI.Xaml.Visibility.Visible;
         ContinueEmptyState.Title = LocalizationService.Text("NothingToContinue");
         ContinueEmptyState.Message = LocalizationService.Text("NothingToContinueHelp");
+        if (!hasAny)
+        {
+            ContinueSeeAllButton.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void UpdateHistoryVisibility()
@@ -197,6 +221,57 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
         HistoryEmptyState.Visibility = hasAny ? Visibility.Collapsed : Visibility.Visible;
         HistoryEmptyState.Title = LocalizationService.Text("NothingWatched");
         HistoryEmptyState.Message = LocalizationService.Text("NothingWatchedHelp");
+        if (!hasAny)
+        {
+            HistorySeeAllButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void Home_ContextRequested(UIElement sender, Microsoft.UI.Xaml.Input.ContextRequestedEventArgs e)
+        => MediaCardContextMenu.ShowForContext(this, e, onChanged: Activate);
+
+    private void HomePage_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateActivityShelves();
+
+    private void RecentRowGrid_SizeChanged(object sender, SizeChangedEventArgs e) => UpdateRecentShelf();
+
+    private void UpdateRecentShelf()
+    {
+        var width = RecentRowGrid.ActualWidth;
+        if (!double.IsFinite(width) || width <= 0) return;
+        var cellWidth = (double)Microsoft.UI.Xaml.Application.Current.Resources["MediaCardItemWidth"];
+        RecentRowGrid.Clip = new RectangleGeometry
+            { Rect = new Windows.Foundation.Rect(0, 0, width, RecentRowGrid.ActualHeight) };
+        RecentGrid.ItemsSource = _movies.Take(HomeActivityLayout.CalculateItemsToRender(width, _movies.Count, cellWidth, 0)).ToArray();
+        SeeAllButton.Visibility = HomeActivityLayout.ShouldShowSeeAll(width, _movies.Count, cellWidth, 0)
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateActivityShelves()
+    {
+        var availableWidth = ContinueRowGrid.ActualWidth;
+        if (!double.IsFinite(availableWidth) || availableWidth <= 0)
+            availableWidth = ActualWidth;
+
+        if (double.IsFinite(availableWidth) && availableWidth > 0)
+        {
+            var clipRect = new Windows.Foundation.Rect(0, 0, availableWidth, 196);
+            ContinueRowGrid.Clip = new RectangleGeometry { Rect = clipRect };
+            HistoryRowGrid.Clip = new RectangleGeometry { Rect = clipRect };
+        }
+
+        var continueRender = HomeActivityLayout.CalculateItemsToRender(availableWidth, _continueSource.Count);
+        var historyRender = HomeActivityLayout.CalculateItemsToRender(availableWidth, _historyCards.Count);
+
+        ContinueRepeater.ItemsSource = _continueSource.Take(continueRender).ToArray();
+        HistoryRepeater.ItemsSource = _historyCards.Take(historyRender).ToArray();
+
+        ContinueSeeAllButton.Visibility = HomeActivityLayout.ShouldShowSeeAll(availableWidth, _continueSource.Count)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        HistorySeeAllButton.Visibility = HomeActivityLayout.ShouldShowSeeAll(availableWidth, _history.Count)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        UpdateRecentShelf();
     }
 
     private IReadOnlyList<StatCardRecord> BuildStats()
@@ -347,4 +422,10 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
 
     private void SeeAllButton_Click(object sender, Microsoft.UI.Xaml.RoutedEventArgs e) =>
         LibraryRequested?.Invoke(this, EventArgs.Empty);
+
+    private void ContinueSeeAllButton_Click(object sender, RoutedEventArgs e) =>
+        ActivityListRequested?.Invoke(this, "continue-watching");
+
+    private void HistorySeeAllButton_Click(object sender, RoutedEventArgs e) =>
+        ActivityListRequested?.Invoke(this, "recently-watched");
 }

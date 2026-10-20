@@ -175,14 +175,13 @@ public sealed class LibraryViewModeTests
 
         Assert.Equal(96, ResourceDouble(theme, x, "LibraryHorizontalPosterWidth"));
         Assert.Equal(144, ResourceDouble(theme, x, "LibraryHorizontalPosterHeight"));
-        Assert.Equal(184, ResourceDouble(theme, x, "LibraryHorizontalCardHeight"));
-        Assert.Equal(196, ResourceDouble(theme, x, "LibraryHorizontalCellHeight"));
+        Assert.Equal(200, ResourceDouble(theme, x, "LibraryHorizontalCardHeight"));
+        Assert.Equal(212, ResourceDouble(theme, x, "LibraryHorizontalCellHeight"));
         Assert.Equal(12, ResourceDouble(theme, x, "LibraryHorizontalGap"));
         Assert.Equal(320, ResourceDouble(theme, x, "LibraryHorizontalCardMinWidth"));
         Assert.Equal(420, ResourceDouble(theme, x, "LibraryHorizontalCardMaxWidth"));
         Assert.Equal(332, ResourceDouble(theme, x, "LibraryHorizontalFallbackCellWidth"));
-        Assert.Equal(184, ResourceDouble(theme, x, "LibraryHorizontalPosterHeight")
-            + 32 + 2 + 6);
+        Assert.Equal(200, ResourceDouble(theme, x, "LibraryHorizontalCardHeight"));
 
         var style = styles.Descendants().Single(e => e.Name.LocalName == "Style" && (string?)e.Attribute(x + "Key") == "MediaHorizontalGridViewItemStyle");
         Assert.Equal("{StaticResource LibraryHorizontalCardHeight}", Setter(style, "Height"));
@@ -199,18 +198,17 @@ public sealed class LibraryViewModeTests
         }
         Assert.Contains("UseSystemFocusVisuals", style.ToString(), StringComparison.Ordinal);
         Assert.Contains("FocusVisualMargin", style.ToString(), StringComparison.Ordinal);
-        Assert.Contains("Property=\"Padding\" Value=\"16\"", style.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Property=\"Padding\" Value=\"0\"", style.ToString(), StringComparison.Ordinal);
         Assert.Contains("Margin=\"{TemplateBinding Padding}\"", style.ToString(), StringComparison.Ordinal);
 
         var templates = XDocument.Parse(ReadUi("Resources", "Templates.xaml"));
         foreach (var key in new[] { "HorizontalMovieCardTemplate", "HorizontalShowCardTemplate" })
         {
             var template = FindTemplate(templates, x, key);
-            Assert.Contains("Grid.ColumnDefinitions", template.ToString(), StringComparison.Ordinal);
-            Assert.Contains("LibraryHorizontalPosterWidth", template.ToString(), StringComparison.Ordinal);
-            Assert.Contains("LibraryHorizontalPosterHeight", template.ToString(), StringComparison.Ordinal);
+            Assert.Contains("HorizontalArtworkSource", template.ToString(), StringComparison.Ordinal);
+            Assert.Contains("PosterSource", template.ToString(), StringComparison.Ordinal);
             Assert.Contains("MaxLines=\"2\"", template.ToString(), StringComparison.Ordinal);
-            Assert.Contains("CornerRadius=\"4\"", template.ToString(), StringComparison.Ordinal);
+            Assert.Contains("CornerRadius=\"{ThemeResource ControlCornerRadius}\"", template.ToString(), StringComparison.Ordinal);
             Assert.Contains("YearVisibility", template.ToString(), StringComparison.Ordinal);
             Assert.Contains(key.Contains("Movie", StringComparison.Ordinal) ? "HorizontalSummaryLine" : "SeasonLine", template.ToString(), StringComparison.Ordinal);
         }
@@ -226,20 +224,16 @@ public sealed class LibraryViewModeTests
         var originalMovie = FindTemplate(templates, x, "MovieCardTemplate");
         var originalShow = FindTemplate(templates, x, "ShowCardTemplate");
 
-        Assert.Contains("LibraryHorizontalPosterWidth", compactMovie.ToString(), StringComparison.Ordinal);
-        Assert.Contains("LibraryHorizontalPosterHeight", compactMovie.ToString(), StringComparison.Ordinal);
+        Assert.Contains("HorizontalArtworkSource", compactMovie.ToString(), StringComparison.Ordinal);
+        Assert.Contains("PosterSource", compactMovie.ToString(), StringComparison.Ordinal);
         Assert.Contains("ReviewMatchLabel", compactMovie.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("MultiFileBadgeText", compactMovie.ToString(), StringComparison.Ordinal);
         Assert.Contains("SeasonLine", compactShow.ToString(), StringComparison.Ordinal);
         Assert.Contains("YearText", compactShow.ToString(), StringComparison.Ordinal);
         foreach (var compact in new[] { compactMovie, compactShow })
         {
-            var root = compact.Elements().Single();
-            var columns = root.Elements().Single(element => element.Name.LocalName == "Grid.ColumnDefinitions");
-            // ColumnDefinition.Width requires GridLength; an x:Double resource is not a valid substitute.
-            Assert.Equal(new[] { "96", "*" }, columns.Elements().Select(element => (string?)element.Attribute("Width")));
+            Assert.Contains("LandscapeCardScrimBrush", compact.ToString(), StringComparison.Ordinal);
             Assert.Contains("YearText", compact.ToString(), StringComparison.Ordinal);
-            Assert.Contains("IsPosterMissing", compact.ToString(), StringComparison.Ordinal);
             Assert.Contains("MaxLines=\"2\"", compact.ToString(), StringComparison.Ordinal);
             if (ReferenceEquals(compact, compactShow))
             {
@@ -294,6 +288,16 @@ public sealed class LibraryViewModeTests
         Assert.Equal(columns, metrics.Columns);
         Assert.Equal(available, metrics.CellWidth * columns, precision: 6);
         Assert.InRange(metrics.CardWidth, 320, 420);
+    }
+
+    [Fact]
+    public void Minimum_window_content_width_fits_two_horizontal_or_four_poster_cards()
+    {
+        // 960 DIP minimum client width minus a 64 DIP rail, 64 DIP page padding and a 16 DIP scrollbar.
+        const double usableWidth = 816;
+
+        Assert.True(LibraryHorizontalLayout.Calculate(usableWidth).Columns >= 2);
+        Assert.True(LibraryPosterLayout.Calculate(usableWidth).Columns >= 4);
     }
 
     [Theory]

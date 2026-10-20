@@ -23,8 +23,8 @@ public static class LibraryHorizontalLayout
     public const double MinCardWidth = 320;
     public const double MaxCardWidth = 420;
     public const double InterCardGap = 12;
-    public const double CardHeight = 184;
-    public const double CellHeight = 196;
+    public const double CardHeight = 200;
+    public const double CellHeight = 212;
     public const double PosterWidth = 96;
     public const double PosterHeight = 144;
     public const double FallbackCellWidth = 332;
@@ -73,5 +73,52 @@ public static class LibraryPosterLayout
         var posterHeight = posterWidth * AspectRatio;
         return new Metrics(posterWidth, posterHeight, cellWidth,
             posterHeight + MovieExtraHeight, posterHeight + ShowExtraHeight, columns);
+    }
+}
+
+/// <summary>Pure sizing rules for the single-row activity shelves on Home.</summary>
+public static class HomeActivityLayout
+{
+    public const double CardWidth = 320;
+    public const double CardHeight = 196;
+    public const double CardMinWidth = LibraryHorizontalLayout.MinCardWidth;
+    public const double Gap = LibraryHorizontalLayout.InterCardGap;
+    public const double TrailingButtonWidth = 108;
+
+    public static int CalculateFullyVisibleCount(double availableWidth, double cardWidth = CardWidth, double gap = Gap)
+    {
+        if (!double.IsFinite(availableWidth) || availableWidth <= 0)
+            return 0;
+
+        return Math.Max(0, (int)Math.Floor((availableWidth + gap) / (cardWidth + gap)));
+    }
+
+    public static bool ShouldShowSeeAll(double availableWidth, int totalItems, double cardWidth = CardWidth, double gap = Gap)
+    {
+        if (totalItems <= 0)
+            return false;
+
+        var fullyVisible = CalculateFullyVisibleCount(availableWidth, cardWidth, gap);
+        return totalItems > fullyVisible;
+    }
+
+    public static int CalculateItemsToRender(double availableWidth, int totalItems, double cardWidth = CardWidth, double gap = Gap)
+    {
+        if (totalItems <= 0)
+            return 0;
+
+        var fullyVisible = CalculateFullyVisibleCount(availableWidth, cardWidth, gap);
+        return Math.Min(totalItems, fullyVisible + 1);
+    }
+
+    public static int CalculateVisibleCount(double availableWidth, int itemCount) =>
+        CalculateItemsToRender(availableWidth, itemCount);
+
+    public static double CalculateRepeaterWidth(double availableWidth, int visibleCount)
+    {
+        if (visibleCount <= 0)
+            return 0;
+
+        return visibleCount * CardMinWidth + Math.Max(0, visibleCount - 1) * Gap;
     }
 }

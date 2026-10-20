@@ -139,8 +139,8 @@ public sealed record ShowCardItem(TVShowRecord Show, string SecondaryLine) : INo
         ? LocalizationService.Format("SeasonCountFormat", Show.SeasonCount)
         : LocalizationService.Format("SeasonsCountFormat", Show.SeasonCount);
 
-    public string LocalEpisodesLine => LocalizationService.Format(
-        "HorizontalEpisodesOnDiskFormat", Show.LocalEpisodeCount, Show.EpisodeCount);
+    public string LocalEpisodesLine => LocalizationService.Digits(
+        $"{Show.LocalEpisodeCount}/{Show.EpisodeCount}");
 
     /// <summary>Show artwork, null until a backend supplies it. See MovieRecord.PosterSource.</summary>
     public ImageSource? PosterSource

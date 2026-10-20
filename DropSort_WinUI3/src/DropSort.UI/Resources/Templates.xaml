@@ -176,6 +176,13 @@
                        Source="{x:Bind PosterSource, Mode=OneWay}" Stretch="Uniform"
                        Visibility="{x:Bind HorizontalPosterVisibility, Mode=OneWay}" FlowDirection="LeftToRight" />
                 <Border Background="{ThemeResource LandscapeCardScrimBrush}" />
+                <Border Margin="12" Padding="6,2" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                        Background="{ThemeResource ArtworkBadgeBackgroundBrush}"
+                        CornerRadius="{ThemeResource ControlCornerRadius}" FlowDirection="LeftToRight">
+                    <TextBlock Foreground="{ThemeResource ArtworkBadgeForegroundBrush}"
+                               Style="{StaticResource CaptionTextBlockStyle}" Text="{x:Bind LocalEpisodesLine}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind LocalEpisodesLine}" />
+                </Border>
                 <StackPanel Margin="14" VerticalAlignment="Bottom" Spacing="2">
                     <TextBlock Foreground="{ThemeResource LandscapeCardTextBrush}"
                                Style="{StaticResource BodyStrongTextBlockStyle}" Text="{x:Bind Title}"
@@ -185,10 +192,7 @@
                                Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind YearText}"
                                TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Visibility="{x:Bind YearVisibility}" />
                     <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
-                               Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind SeasonLine}"
-                               TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-                    <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
-                               Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind LocalEpisodesLine}"
+                               Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind SeasonLine}" Margin="0,0,100,0"
                                TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
                 </StackPanel>
             </Grid>

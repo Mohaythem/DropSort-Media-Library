@@ -276,7 +276,8 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         AddToListText.Text = LocalizationService.Text("AddToList");
         OrganizeText.Text = LocalizationService.Text("OrganizationRename");
         MoveMovieText.Text = LocalizationService.Text("MovieMoveAction");
-        ChangeMatchText.Text = LocalizationService.Text("DetailsChangeMatch");
+        RefreshMetadataMenuItem.Text = LocalizationService.Text("RefreshMetadata");
+        ChangeMatchButton.Text = LocalizationService.Text("DetailsChangeMatch");
         MoveToSeriesButton.Content = LocalizationService.Text("AddOrMoveToSeries");
         RemoveFromLibraryButton.Content = LocalizationService.Text("RemoveFromLibrary");
         MoreButton.SetValue(AutomationProperties.NameProperty, LocalizationService.Text("DetailsMoreActions"));
@@ -294,9 +295,6 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
 
         ActivityTitleText.Text = LocalizationService.Text("DetailsWatchActivity");
         ActivityHelpText.Text = LocalizationService.Text("ActivityHelp");
-        LikeText.Text = LocalizationService.Text(_preference == "liked" ? "InFavorites" : "AddToFavorites");
-        ExcludeText.Text = LocalizationService.Text("Exclude");
-        ClearPreferenceButton.Content = LocalizationService.Text("ClearPreference");
         WatchingTitleText.Text = LocalizationService.Text("Watching");
         MarkWatchedText.Text = LocalizationService.Text("MarkWatched");
         WatchedDateLabel.Text = LocalizationService.Text("WatchedDate");
@@ -488,6 +486,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         PlayButton.IsEnabled = canAct;
         OpenFolderButton.IsEnabled = canAct;
         MatchButton.IsEnabled = !isOrganizing && !_isMatching;
+        RefreshMetadataMenuItem.IsEnabled = !isOrganizing && !_isMatching;
         ChangeMatchButton.IsEnabled = !isOrganizing && !_isMatching;
         MoveToSeriesButton.IsEnabled = !isOrganizing;
         MoreButton.IsEnabled = !isOrganizing;
@@ -540,13 +539,8 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         });
     }
 
-    private void LikeButton_Click(object sender, RoutedEventArgs e) =>
+    private void FavoriteButton_Click(object sender, RoutedEventArgs e) =>
         WritePreference(_preference == "liked" ? null : "liked");
-
-    private void ExcludeButton_Click(object sender, RoutedEventArgs e) =>
-        WritePreference(_preference == "blacklisted" ? null : "blacklisted");
-
-    private void ClearPreferenceButton_Click(object sender, RoutedEventArgs e) => WritePreference(null);
 
     /// <summary>
     /// Writes the preference through the personal library and then redraws from the snapshot the
@@ -802,14 +796,11 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     /// <summary>Active states use the native accent / critical button styles, never literal colors.</summary>
     private void UpdatePreferenceVisuals()
     {
-        LikeText.Text = LocalizationService.Text(_preference == "liked" ? "InFavorites" : "AddToFavorites");
-        ToolTipService.SetToolTip(LikeButton, LocalizationService.Text(_preference == "liked" ? "RemoveFromFavorites" : "AddToFavorites"));
-        LikeButton.Style = (Style)Resources[
+        FavoriteText.Text = LocalizationService.Text(_preference == "liked" ? "InFavorites" : "AddToFavorites");
+        ToolTipService.SetToolTip(FavoriteButton, LocalizationService.Text(_preference == "liked" ? "RemoveFromFavorites" : "AddToFavorites"));
+        FavoriteButton.Style = (Style)Resources[
             _preference == "liked" ? "DetailsSelectedButtonStyle" : "DetailsButtonStyle"];
-        LikeGlyph.Glyph = _preference == "liked" ? "\uEB52" : "\uEB51";
-        ExcludeButton.Style = (Style)Resources[
-            _preference == "blacklisted" ? "DetailsSelectedButtonStyle" : "DetailsButtonStyle"];
-        ClearPreferenceButton.IsEnabled = _preference is not null;
+        FavoriteGlyph.Glyph = _preference == "liked" ? "\uEB52" : "\uEB51";
         UpdateDetailsIcons();
     }
 
@@ -1029,8 +1020,9 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     private void SetMatchingState(bool isMatching)
     {
         _isMatching = isMatching;
-        ChangeMatchButton.IsEnabled = !isMatching && !_isOrganizing;
         MatchButton.IsEnabled = !isMatching && !_isOrganizing;
+        RefreshMetadataMenuItem.IsEnabled = !isMatching && !_isOrganizing;
+        ChangeMatchButton.IsEnabled = !isMatching && !_isOrganizing;
         MatchProgress.IsActive = isMatching;
         MatchProgress.Visibility = isMatching ? Visibility.Visible : Visibility.Collapsed;
         MatchGlyph.Visibility = isMatching ? Visibility.Collapsed : Visibility.Visible;
@@ -1046,6 +1038,13 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
 
     private async void MatchButton_Click(object sender, RoutedEventArgs e)
     {
+        RefreshMetadataMenuItem_Click(sender, e);
+        await Task.CompletedTask;
+    }
+
+    private async void RefreshMetadataMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (_isOrganizing || _isMatching) return;
         if (!AppServices.Settings.IsTmdbConfigured())
         {
             await ShowMessageAsync(
@@ -1054,31 +1053,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
             return;
         }
 
-        if (HasExternalId())
-        {
-            var flyout = new MenuFlyout();
-
-            var refreshItem = new MenuFlyoutItem
-            {
-                Text = LocalizationService.Text("RefreshMetadata"),
-                Icon = new FontIcon { Glyph = "\uE72C" }
-            };
-            refreshItem.Click += async (_, _) => await RefreshMovieMetadataAsync();
-
-            var fixMatchItem = new MenuFlyoutItem
-            {
-                Text = LocalizationService.Text("FixMatch"),
-                Icon = new FontIcon { Glyph = "\uE721" }
-            };
-            fixMatchItem.Click += async (_, _) => await FixMovieMatchAsync();
-
-            flyout.Items.Add(refreshItem);
-            flyout.Items.Add(fixMatchItem);
-            flyout.ShowAt(MatchButton);
-            return;
-        }
-
-        await FixMovieMatchAsync();
+        await RefreshMovieMetadataAsync();
     }
 
     private async void ChangeMatchButton_Click(object sender, RoutedEventArgs e)

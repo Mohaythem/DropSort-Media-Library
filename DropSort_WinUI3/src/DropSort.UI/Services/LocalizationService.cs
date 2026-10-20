@@ -271,6 +271,7 @@ public static class LocalizationService
         ["SelectMedia"] = "Select media",
         ["DuplicateListName"] = "A list with this name already exists.",
         ["NoCustomLists"] = "No custom lists yet",
+        ["ListsUnavailable"] = "Lists are unavailable",
         // Add Media
         ["TvEpisodesTab"] = "TV Episodes",
         ["AddMediaScanHeading"] = "Scan your media",
@@ -489,6 +490,9 @@ public static class LocalizationService
         ["ActivityHelp"] = "Preferences and watch history stay on this device.",
         ["Preference"] = "Preference",
         ["Like"] = "Like",
+        ["Unlike"] = "Unlike",
+        ["RemoveFromWatchlist"] = "Remove from watchlist",
+        ["ViewImage"] = "View image",
         ["Exclude"] = "Exclude",
         ["ClearPreference"] = "Clear",
         ["AddToWatchlist"] = "Add to Watchlist",
@@ -871,6 +875,7 @@ public static class LocalizationService
         ["SelectMedia"] = "اختر الوسائط",
         ["DuplicateListName"] = "توجد قائمة بهذا الاسم بالفعل.",
         ["NoCustomLists"] = "لا توجد قوائم مخصصة بعد",
+        ["ListsUnavailable"] = "تعذر تحميل القوائم",
 
         // Add Media
         ["TvEpisodesTab"] = "حلقات المسلسلات",
@@ -1091,6 +1096,9 @@ public static class LocalizationService
         ["ActivityHelp"] = "تبقى التفضيلات وسجل المشاهدة على هذا الجهاز.",
         ["Preference"] = "التفضيل",
         ["Like"] = "إعجاب",
+        ["Unlike"] = "إزالة الإعجاب",
+        ["RemoveFromWatchlist"] = "إزالة من قائمة المشاهدة",
+        ["ViewImage"] = "عرض الصورة",
         ["Exclude"] = "استبعاد",
         ["ClearPreference"] = "مسح",
         ["AddToWatchlist"] = "إضافة إلى قائمة المشاهدة",
