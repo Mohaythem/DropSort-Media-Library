@@ -12,6 +12,11 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     private bool _editingCredential;
     private bool _credentialBusy;
     private CancellationTokenSource? _credentialRequest;
+    private CancellationTokenSource? _traktAuthCts;
+    private CancellationTokenSource? _traktActionCts;
+    private string? _validatedVerificationUrl;
+    private int _traktGeneration;
+    private bool _traktBusy;
 
     public void Deactivate()
     {
@@ -19,6 +24,14 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         _editingCredential = false;
         TokenBox.Password = string.Empty;
         TmdbFeedback.IsOpen = false;
+        Interlocked.Increment(ref _traktGeneration);
+        _traktAuthCts?.Cancel();
+        _traktActionCts?.Cancel();
+        _traktAuthCts = null;
+        _traktActionCts = null;
+        _traktBusy = false;
+        TraktDeviceAuthPanel.Visibility = Visibility.Collapsed;
+        TraktFeedback.IsOpen = false;
     }
 
     /// <summary>
@@ -57,6 +70,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         SyncSelectors();
         RefreshFolders();
         RefreshTmdbStatus();
+        RefreshTraktStatus();
     }
 
     public void ApplyLocalization()
@@ -97,6 +111,20 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         TestConnectionButton.Content = LocalizationService.Text("TestConnection");
         SetupGuideButton.Content = LocalizationService.Text("SetupGuide");
 
+        TraktHeadingText.Text = LocalizationService.Text("Trakt");
+        TraktClientIdLabelText.Text = LocalizationService.Text("TraktClientIdLabel");
+        TraktClientIdHelpText.Text = LocalizationService.Text("TraktClientIdHelp");
+        TraktRedirectUriLabelText.Text = LocalizationService.Text("TraktRedirectUriLabel");
+        TraktRedirectUriHelpText.Text = LocalizationService.Text("TraktRedirectUriHelp");
+        TraktSaveConfigButton.Content = LocalizationService.Text("TraktSaveConfig");
+        TraktConnectButton.Content = LocalizationService.Text("TraktConnectDevice");
+        TraktSyncNowButton.Content = LocalizationService.Text("TraktSyncNow");
+        TraktDisconnectButton.Content = LocalizationService.Text("TraktDisconnect");
+        TraktCancelAuthButton.Content = LocalizationService.Text("TraktCancelLogin");
+        TraktDeviceAuthHeadingText.Text = LocalizationService.Text("TraktDeviceAuthHeading");
+        TraktDeviceAuthInstructionsText.Text = LocalizationService.Text("TraktDeviceAuthInstructions");
+        TraktOpenVerificationUrlButton.Content = LocalizationService.Text("TraktOpenVerificationUrl");
+
         HistoryHeadingText.Text = LocalizationService.Text("HistoryRecovery");
         ViewLogLabelText.Text = LocalizationService.Text("OperationsLog");
         HistoryHelpText.Text = LocalizationService.Text("OperationsLogHelp");
@@ -113,6 +141,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         SyncSelectors();
         RefreshFolders();
         RefreshTmdbStatus();
+        RefreshTraktStatus();
     }
 
     private void SyncSelectors()
@@ -531,4 +560,439 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
 
         await ContentDialogCoordinator.ShowAsync(dialog);
     }
+
+    #region Trakt Integration Controls
+
+    private async void RefreshTraktStatus()
+    {
+        var generation = _traktGeneration;
+
+        try
+        {
+            var (config, state, isConfigured) = await Task.Run(() =>
+            {
+                var cfg = AppServices.TraktConfig;
+                var trakt = AppServices.Trakt;
+                var st = trakt?.GetSyncState();
+                return (cfg, st, trakt is not null);
+            });
+
+            if (generation != _traktGeneration) return;
+
+            if (string.IsNullOrEmpty(TraktClientIdBox.Text))
+                TraktClientIdBox.Text = config.ClientId;
+            if (string.IsNullOrEmpty(TraktRedirectUriBox.Text))
+                TraktRedirectUriBox.Text = config.RedirectUri;
+
+            if (!isConfigured || state is null)
+            {
+                TraktConnectedDot.Visibility = Visibility.Collapsed;
+                TraktSyncingDot.Visibility = Visibility.Collapsed;
+                TraktDisconnectedDot.Visibility = Visibility.Visible;
+                TraktStatusText.Text = LocalizationService.Text("TraktStatusNotConfigured");
+                TraktAccountInfoText.Text = LocalizationService.Text("TraktNotConfiguredPrompt");
+                TraktSyncInfoText.Text = string.Empty;
+                TraktErrorText.Visibility = Visibility.Collapsed;
+
+                TraktSaveConfigButton.IsEnabled = !_traktBusy;
+                TraktConnectButton.IsEnabled = !_traktBusy && !string.IsNullOrWhiteSpace(config.ClientId) && !string.IsNullOrWhiteSpace(config.RedirectUri);
+                TraktConnectButton.Visibility = Visibility.Visible;
+                TraktSyncNowButton.Visibility = Visibility.Collapsed;
+                TraktDisconnectButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            if (state.IsSyncing)
+            {
+                TraktConnectedDot.Visibility = Visibility.Collapsed;
+                TraktSyncingDot.Visibility = Visibility.Visible;
+                TraktDisconnectedDot.Visibility = Visibility.Collapsed;
+                TraktStatusText.Text = LocalizationService.Text("TraktStatusSyncing");
+                TraktConnectButton.Visibility = Visibility.Collapsed;
+                TraktSyncNowButton.IsEnabled = false;
+                TraktDisconnectButton.IsEnabled = false;
+            }
+            else if (state.AuthState.IsConnected)
+            {
+                TraktConnectedDot.Visibility = Visibility.Visible;
+                TraktSyncingDot.Visibility = Visibility.Collapsed;
+                TraktDisconnectedDot.Visibility = Visibility.Collapsed;
+                TraktStatusText.Text = LocalizationService.Text("TraktStatusConnected");
+                TraktAccountInfoText.Text = string.Format(LocalizationService.Text("TraktConnectedAccountFormat"), state.CurrentAccountId ?? "Trakt User");
+                TraktConnectButton.Visibility = Visibility.Collapsed;
+                TraktSyncNowButton.Visibility = Visibility.Visible;
+                TraktSyncNowButton.IsEnabled = !_traktBusy;
+                TraktDisconnectButton.Visibility = Visibility.Visible;
+                TraktDisconnectButton.IsEnabled = !_traktBusy;
+            }
+            else if (!string.IsNullOrWhiteSpace(state.LastAccountId))
+            {
+                TraktConnectedDot.Visibility = Visibility.Collapsed;
+                TraktSyncingDot.Visibility = Visibility.Collapsed;
+                TraktDisconnectedDot.Visibility = Visibility.Visible;
+                TraktStatusText.Text = LocalizationService.Text("TraktStatusOfflineCache");
+                TraktAccountInfoText.Text = string.Format(LocalizationService.Text("TraktOfflineAccountFormat"), state.LastAccountId);
+                TraktConnectButton.Visibility = Visibility.Visible;
+                TraktConnectButton.IsEnabled = !_traktBusy;
+                TraktSyncNowButton.Visibility = Visibility.Collapsed;
+                TraktDisconnectButton.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                TraktConnectedDot.Visibility = Visibility.Collapsed;
+                TraktSyncingDot.Visibility = Visibility.Collapsed;
+                TraktDisconnectedDot.Visibility = Visibility.Visible;
+                TraktStatusText.Text = LocalizationService.Text("TraktStatusDisconnected");
+                TraktAccountInfoText.Text = string.Empty;
+                TraktConnectButton.Visibility = Visibility.Visible;
+                TraktConnectButton.IsEnabled = !_traktBusy;
+                TraktSyncNowButton.Visibility = Visibility.Collapsed;
+                TraktDisconnectButton.Visibility = Visibility.Collapsed;
+            }
+
+            if (state.LastSyncSuccessAt.HasValue)
+            {
+                TraktSyncInfoText.Text = string.Format(LocalizationService.Text("TraktLastSyncFormat"), state.LastSyncSuccessAt.Value.ToLocalTime().ToString("g"));
+            }
+            else
+            {
+                TraktSyncInfoText.Text = LocalizationService.Text("TraktNeverSynced");
+            }
+
+            if (!string.IsNullOrWhiteSpace(state.LastSyncError))
+            {
+                TraktErrorText.Text = string.Format(LocalizationService.Text("TraktLastSyncErrorFormat"), state.LastSyncError);
+                TraktErrorText.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                TraktErrorText.Visibility = Visibility.Collapsed;
+            }
+
+            TraktSaveConfigButton.IsEnabled = !_traktBusy;
+        }
+        catch (Exception)
+        {
+            if (generation != _traktGeneration) return;
+            TraktConnectedDot.Visibility = Visibility.Collapsed;
+            TraktSyncingDot.Visibility = Visibility.Collapsed;
+            TraktDisconnectedDot.Visibility = Visibility.Visible;
+            TraktSaveConfigButton.IsEnabled = !_traktBusy;
+            TraktStatusText.Text = LocalizationService.Text("TraktStatusReadError");
+        }
+    }
+
+    private async void TraktSaveConfigButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_traktBusy) return;
+
+        var clientId = TraktClientIdBox.Text?.Trim() ?? string.Empty;
+        var redirectUri = TraktRedirectUriBox.Text?.Trim() ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(clientId))
+        {
+            var text = LocalizationService.Text("TraktClientIdRequired");
+            ShowTraktFeedback(text == "TraktClientIdRequired" ? "Client ID cannot be empty." : text, InfoBarSeverity.Error);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(redirectUri) || !Uri.TryCreate(redirectUri, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+        {
+            var text = LocalizationService.Text("TraktRedirectUriInvalid");
+            ShowTraktFeedback(text == "TraktRedirectUriInvalid" ? "A valid HTTPS redirect URI is required (e.g. https://localhost)." : text, InfoBarSeverity.Error);
+            return;
+        }
+
+        _traktBusy = true;
+        TraktSaveConfigButton.IsEnabled = false;
+        var generation = Interlocked.Increment(ref _traktGeneration);
+        var cts = new CancellationTokenSource();
+        _traktActionCts = cts;
+
+        try
+        {
+            await Task.Run(async () =>
+            {
+                await AppServices.ConfigureTraktAsync(clientId, redirectUri, cts.Token).ConfigureAwait(false);
+            }, cts.Token);
+
+            if (generation == _traktGeneration)
+            {
+                ShowTraktFeedback(LocalizationService.Text("TraktConfigSaved"), InfoBarSeverity.Success);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (generation == _traktGeneration)
+            {
+                ShowTraktFeedback(ex.Message, InfoBarSeverity.Error);
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_traktActionCts, cts))
+            {
+                _traktActionCts = null;
+            }
+            cts.Dispose();
+            if (generation == _traktGeneration)
+            {
+                _traktBusy = false;
+                TraktSaveConfigButton.IsEnabled = true;
+                RefreshTraktStatus();
+            }
+        }
+    }
+
+    private async void TraktConnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_traktBusy) return;
+
+        var trakt = AppServices.Trakt;
+        if (trakt is null)
+        {
+            ShowTraktFeedback(LocalizationService.Text("TraktNotConfiguredPrompt"), InfoBarSeverity.Warning);
+            return;
+        }
+
+        _traktBusy = true;
+        var generation = Interlocked.Increment(ref _traktGeneration);
+
+        _traktAuthCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _traktAuthCts = cts;
+
+        TraktConnectButton.IsEnabled = false;
+        TraktDeviceAuthPanel.Visibility = Visibility.Visible;
+        TraktFeedback.IsOpen = false;
+
+        try
+        {
+            var deviceCode = await Task.Run(async () =>
+            {
+                return await trakt.BeginAuthAsync(cts.Token).ConfigureAwait(false);
+            }, cts.Token);
+
+            if (generation != _traktGeneration) return;
+
+            TraktUserCodeText.Text = deviceCode.UserCode;
+
+            // Validate HTTPS Trakt host before user clicks link; no automatic browser launch during generation.
+            _validatedVerificationUrl = ValidateTraktVerificationUrl(deviceCode.VerificationUrl);
+            TraktOpenVerificationUrlButton.IsEnabled = _validatedVerificationUrl is not null;
+
+            var authState = await Task.Run(async () =>
+            {
+                return await trakt.CompleteAuthAsync(deviceCode, cts.Token).ConfigureAwait(false);
+            }, cts.Token);
+
+            if (generation != _traktGeneration) return;
+
+            if (authState.IsConnected)
+            {
+                TraktDeviceAuthPanel.Visibility = Visibility.Collapsed;
+                ShowTraktFeedback(LocalizationService.Text("TraktAuthSuccess"), InfoBarSeverity.Success);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            if (generation == _traktGeneration)
+            {
+                TraktDeviceAuthPanel.Visibility = Visibility.Collapsed;
+            }
+        }
+        catch (Exception ex)
+        {
+            if (generation == _traktGeneration)
+            {
+                TraktDeviceAuthPanel.Visibility = Visibility.Collapsed;
+                ShowTraktFeedback(ex.Message, InfoBarSeverity.Error);
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_traktAuthCts, cts))
+            {
+                _traktAuthCts = null;
+            }
+            cts.Dispose();
+            if (generation == _traktGeneration)
+            {
+                _traktBusy = false;
+                TraktConnectButton.IsEnabled = true;
+                RefreshTraktStatus();
+            }
+        }
+    }
+
+    private async void TraktOpenVerificationUrlButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (_validatedVerificationUrl is not null &&
+                Uri.TryCreate(_validatedVerificationUrl, UriKind.Absolute, out var uri) &&
+                uri.Scheme == Uri.UriSchemeHttps &&
+                IsTraktHost(uri.Host))
+            {
+                await Windows.System.Launcher.LaunchUriAsync(uri);
+            }
+        }
+        catch (Exception ex)
+        {
+            var msg = LocalizationService.Text("TraktLaunchUrlError");
+            ShowTraktFeedback(msg == "TraktLaunchUrlError" ? ex.Message : msg, InfoBarSeverity.Error);
+        }
+    }
+
+    private void TraktCancelAuthButton_Click(object sender, RoutedEventArgs e)
+    {
+        Interlocked.Increment(ref _traktGeneration);
+        _traktAuthCts?.Cancel();
+        _traktAuthCts = null;
+        _traktBusy = false;
+        TraktDeviceAuthPanel.Visibility = Visibility.Collapsed;
+        TraktConnectButton.IsEnabled = true;
+        TraktSaveConfigButton.IsEnabled = true;
+        RefreshTraktStatus();
+    }
+
+    private async void TraktSyncNowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_traktBusy) return;
+
+        var trakt = AppServices.Trakt;
+        if (trakt is null) return;
+
+        _traktBusy = true;
+        var generation = Interlocked.Increment(ref _traktGeneration);
+        var cts = new CancellationTokenSource();
+        _traktActionCts = cts;
+
+        TraktSyncNowButton.IsEnabled = false;
+        RefreshTraktStatus();
+
+        try
+        {
+            var result = await Task.Run(async () =>
+            {
+                return await trakt.SyncAsync(cts.Token).ConfigureAwait(false);
+            }, cts.Token);
+
+            if (generation == _traktGeneration)
+            {
+                if (result.Success)
+                {
+                    ShowTraktFeedback(LocalizationService.Text("TraktSyncSuccess") ?? "Trakt synchronization completed successfully.", InfoBarSeverity.Success);
+                }
+                else
+                {
+                    ShowTraktFeedback(result.AbortReason ?? "Synchronization did not complete.", InfoBarSeverity.Warning);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (generation == _traktGeneration)
+            {
+                ShowTraktFeedback(ex.Message, InfoBarSeverity.Error);
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_traktActionCts, cts))
+            {
+                _traktActionCts = null;
+            }
+            cts.Dispose();
+            if (generation == _traktGeneration)
+            {
+                _traktBusy = false;
+                TraktSyncNowButton.IsEnabled = true;
+                RefreshTraktStatus();
+            }
+        }
+    }
+
+    private async void TraktDisconnectButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_traktBusy) return;
+
+        var trakt = AppServices.Trakt;
+        if (trakt is null) return;
+
+        _traktBusy = true;
+        var generation = Interlocked.Increment(ref _traktGeneration);
+        var cts = new CancellationTokenSource();
+        _traktActionCts = cts;
+
+        TraktDisconnectButton.IsEnabled = false;
+
+        try
+        {
+            await Task.Run(async () =>
+            {
+                await trakt.DisconnectAsync(cts.Token).ConfigureAwait(false);
+            }, cts.Token);
+
+            if (generation == _traktGeneration)
+            {
+                ShowTraktFeedback(LocalizationService.Text("TraktDisconnectedFeedback") ?? "Disconnected from Trakt. Offline cache is retained.", InfoBarSeverity.Informational);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            if (generation == _traktGeneration)
+            {
+                ShowTraktFeedback(ex.Message, InfoBarSeverity.Error);
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_traktActionCts, cts))
+            {
+                _traktActionCts = null;
+            }
+            cts.Dispose();
+            if (generation == _traktGeneration)
+            {
+                _traktBusy = false;
+                TraktDisconnectButton.IsEnabled = true;
+                RefreshTraktStatus();
+            }
+        }
+    }
+
+    private void ShowTraktFeedback(string message, InfoBarSeverity severity)
+    {
+        TraktFeedback.Message = message;
+        TraktFeedback.Severity = severity;
+        TraktFeedback.IsOpen = _hasBeenShown && Visibility == Visibility.Visible;
+    }
+
+    private static bool IsTraktHost(string host) =>
+        host.Equals("trakt.tv", StringComparison.OrdinalIgnoreCase) ||
+        host.EndsWith(".trakt.tv", StringComparison.OrdinalIgnoreCase);
+
+    private static string? ValidateTraktVerificationUrl(string? rawUrl)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl)) return null;
+        if (Uri.TryCreate(rawUrl.Trim(), UriKind.Absolute, out var uri) &&
+            uri.Scheme == Uri.UriSchemeHttps &&
+            IsTraktHost(uri.Host))
+        {
+            return uri.AbsoluteUri;
+        }
+        return null;
+    }
+
+    #endregion
 }

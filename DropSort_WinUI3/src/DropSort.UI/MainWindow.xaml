@@ -160,6 +160,11 @@
                         <FontIcon Glyph="&#xE73E;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem x:Name="TraktNavItem" Tag="trakt">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE90A;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
 
             <NavigationView.FooterMenuItems>

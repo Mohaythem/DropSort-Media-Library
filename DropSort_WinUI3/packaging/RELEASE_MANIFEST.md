@@ -1,41 +1,13 @@
-# DropSort 0.10.0 — Windows x64
+# DropSort 0.11.0 — Windows x64
 
-- الإصدار: `0.10.0`؛ رقم ملف التطبيق والمثبت: `0.10.0.5`، ورقم التجميعة: `0.10.0.0`.
-- الفرع: `codex`. نشر المستخدم التحديث على GitHub مصرح به بتاريخ 2026-10-20. لا يستهدف هذا الإصدار فرع `main` ولا يغير الإصدارات أو الوسوم السابقة.
-- الوسم المقصود: `v0.10.0`، كإصدار كامل (prerelease=false) ومحدد Latest. وسم `v1.0.0` القديم يخص تطبيق Python المجمد.
-- يحدد `BUILD_MANIFEST.json` المرفق بالحزمة مصدر البناء الكامل وبصمات الملفات. لا تستخدم بصمات rc.3 القديمة لهذا الإصدار.
-
-## نطاق التحديث
-
-- تحسين الكروت العريضة، ونسبة الحلقات المحلية إلى الإجمالية، وتباين الألوان.
-- صفوف هوم ثابتة الحجم، وقوائم كاملة لإكمال المشاهدة وآخر مشاهدة.
-- قوائم كليك يمين مشتركة وعارض للصورة كاملة بإطار رفيع.
-- تبسيط أزرار الفيلم وإعادة تصميم صفحة المسلسل ببوستر أكبر وأزرار مناسبة للمحتوى ومواسم مغلقة عند الدخول.
-- حد أدنى لحجم النافذة واختصار Ctrl + , للإعدادات.
-- لا يضيف هذا التحديث ترحيلًا جديدًا لقاعدة البيانات؛ الإصدار الحالي للمخطط هو 17. الإصدارات القديمة التي لا تدعم v16/v17 لا تفتح القاعدة بعد ترقيتها.
-
-## التحقق
-
-- الاختبارات الكاملة على مصدر rc.4 السابق، الذي لا تختلف وظائف هذا الإصدار عنه: **797 ناجح، 0 فاشل، 0 متخطى** بتاريخ 2026-10-20. شملت الجولة اختبار مخزن بيانات الاعتماد المعزول بصلاحيات تسمح به.
-- مراجعة مصدر مستقلة عبر Luna لم تجد عائقًا جوهريًا للنشر.
-- وافق المستخدم على واجهة التحديث خلال المراجعة اليدوية. لا تمثل هذه الموافقة اختبار تثبيت على جهاز نظيف.
-- نتائج بناء Release وتشغيل الحزمة المعزول وبصماتها النهائية تحفظ في `VERIFICATION.md` و`BUILD_MANIFEST.json` المرفقين بملفات الإصدار.
-
-## متطلبات الحزمة
-
-- تصدير Git جديد من المصدر المحدد، دون إعادة استخدام bin/obj أو بيانات التجارب.
-- بناء Visual Studio 18 MSBuild: Release / x64 / win-x64 / SelfContained=true / WindowsAppSDKSelfContained=true.
-- الحزمة من مخرجات Build، وليس مجلد publish، وتحتوي على PRI وXBF و.NET وWindows App SDK وSQLite.
-- يستبعد المثبت والملف المحمول PDBs وpublish وقواعد البيانات والسجلات وملفات التجارب والمحتوى الشخصي.
-- المثبت Inno Setup 6 يستخدم AppId القائم وتثبيتًا لكل مستخدم. بيانات المكتبة تظل في `%LOCALAPPDATA%\DropSort` خارج مجلد تثبيت البرنامج.
-- الملفات: `DropSortSetup.exe` و`DropSort-0.10.0-win-x64.zip` و`SHA256SUMS.txt` مع معلومات البناء والتحقق.
-
-## حدود التحقق
-
-إصدار كامل غير موقع رقميًا. لم ينفذ اختبار تثبيت/إزالة على جهاز نظيف مستقل أو اختبار شامل لمختلف الأجهزة والشبكات. تحذير NU1900، إذا ظهر أثناء الاستعادة أو البناء، يعني تعذر جلب معلومات ثغرات الحزم ولا يثبت خلوها من الثغرات.
-
-## ترقية الإصدار الكامل
-
-- التغيير عن commit rc.4 هو هوية الإصدار والتغليف والتوثيق فقط؛ لا تغيير في وظائف التطبيق أو الاعتماديات أو مخطط قاعدة البيانات.
-- رقم الملف 0.10.0.5 أعلى من 0.10.0.4 لضمان تقدم هوية ملفات Windows عند التحديث.
-- تاريخ النشر المصرح به: 2026-10-20. نتائج البناء الجديد والتشغيل والبصمات تسجل مع الحزمة.
+- Version: 0.11.0. Assembly/file/installer numeric version: 0.11.0.0.
+- Authorized publication: 2026-10-21. Branch: codex. Intended new tag: v0.11.0. Preserve main and existing tags/releases.
+- Scope: read-only Trakt Phase 1, schema18 isolated account/resource cache, protected authentication, remote viewer, review fixes, Trakt empty-state hit testing, Home empty-shelf sizing.
+- Keep unrelated modified/deleted/untracked user content outside the release commit. No synthetic profiles, database files, credentials, logs, proposal artifacts or personal files belong in the runtime payload.
+- Build from a fresh Git export of the release source commit. Record the exact commit and per-file SHA-256 inventory in BUILD_MANIFEST.json.
+- Use Visual Studio MSBuild Release/x64/win-x64 with SelfContained=true and WindowsAppSDKSelfContained=true. Package Build output, including PRI/XBF, .NET, Windows App SDK and SQLite.
+- Use existing Inno Setup AppId and per-user install location. Produce DropSortSetup.exe, DropSort-0.11.0-win-x64.zip, SHA256SUMS.txt, release notes, manifest and verification record.
+- Network operations are read-only data import plus OAuth requests. No remote scrobbling, data writes or two-way sync. Local Library/history/lists remain separate.
+- Prior current-worktree evidence:973 broader tests passed excluding native TMDB credential tests, then25 Home tests passed after sizing adjustment. Final release-source test/build/package evidence is recorded with the artifacts; do not imply prior counts are a new release-source run.
+- No agent UI inspection/automation. Live Trakt login/native credential persistence, maximum-resource performance and clean-machine installer lifecycle remain unverified. Existing vulnerability-feed/analyzer warnings must be reported if present.
+- No digital signing certificate is configured. Package is unsigned. Runtime startup migrates the local database to schema18 through existing backup/validation gates; no agent test accesses or migrates the real profile.

@@ -131,7 +131,7 @@ public sealed class NavigationPaneStateTests
         Assert.Equal("240", (string?)navigation.Attribute("OpenPaneLength"));
         Assert.Equal("64", (string?)navigation.Attribute("CompactPaneLength"));
         Assert.Equal("Left", (string?)navigation.Attribute("PaneDisplayMode"));
-        Assert.Equal(new[] { "home", "library", "lists", "add", "check", "settings" },
+        Assert.Equal(new[] { "home", "library", "lists", "add", "check", "trakt", "settings" },
             navigation.Descendants().Where(e => e.Name.LocalName == "NavigationViewItem")
                 .Select(e => (string?)e.Attribute("Tag")).ToArray());
         Assert.Single(navigation.Descendants().Where(e => e.Name.LocalName == "NavigationView.FooterMenuItems")

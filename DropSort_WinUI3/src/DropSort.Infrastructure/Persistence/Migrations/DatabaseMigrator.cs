@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 17;
+    public const int LatestVersion = 18;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -606,6 +606,23 @@ public class DatabaseMigrator
             );
             CREATE INDEX idx_tv_show_personal_state_favorite ON tv_show_personal_state(is_favorite);
             CREATE INDEX idx_tv_show_personal_state_watch_later ON tv_show_personal_state(watch_later_added_at);
+        ",
+        // v18: account-scoped complete Trakt resources. No local catalog or watch-state relations.
+        @"
+            CREATE TABLE trakt_resource_cache (
+                account_id TEXT NOT NULL,
+                resource_key TEXT NOT NULL,
+                payload_json TEXT,
+                succeeded_at TEXT,
+                attempted_at TEXT NOT NULL,
+                error_code TEXT,
+                PRIMARY KEY (account_id, resource_key),
+                CHECK (length(trim(account_id)) > 0),
+                CHECK (length(trim(resource_key)) > 0),
+                CHECK (length(trim(attempted_at)) > 0),
+                CHECK (payload_json IS NULL OR json_valid(payload_json) = 1)
+            );
+            CREATE INDEX idx_trakt_resource_cache_account ON trakt_resource_cache(account_id);
         "
     };
 
@@ -663,7 +680,8 @@ public class DatabaseMigrator
                 // Adding a migration must not weaken the prior rollback boundary on a corrupt schema.
                 if (i + 1 >= 14 && targetVersion == LatestVersion)
                     ValidateSchema(connection, tx, includeActivity: i + 1 >= 15,
-                        includeViewing: i + 1 >= 16, includeShowPersonal: i + 1 >= 17);
+                        includeViewing: i + 1 >= 16, includeShowPersonal: i + 1 >= 17,
+                        includeTrakt: i + 1 >= 18);
 
                 cmd.CommandText = $"PRAGMA user_version = {i + 1};";
                 cmd.ExecuteNonQuery();
@@ -687,7 +705,8 @@ public class DatabaseMigrator
     }
 
     private static void ValidateSchema(SqliteConnection connection, SqliteTransaction? transaction = null,
-        bool includeActivity = true, bool includeViewing = true, bool includeShowPersonal = true)
+        bool includeActivity = true, bool includeViewing = true, bool includeShowPersonal = true,
+        bool includeTrakt = true)
     {
         var requiredTables = new[]
         {
@@ -723,6 +742,13 @@ public class DatabaseMigrator
                 RequireSchemaObject(connection, "index", index, transaction);
             RequireTableColumns(connection, "tv_show_personal_state", transaction,
                 "show_id", "is_favorite", "watch_later_added_at", "created_at", "updated_at");
+        }
+        if (includeTrakt)
+        {
+            RequireSchemaObject(connection, "table", "trakt_resource_cache", transaction);
+            RequireSchemaObject(connection, "index", "idx_trakt_resource_cache_account", transaction);
+            RequireTableColumns(connection, "trakt_resource_cache", transaction,
+                "account_id", "resource_key", "payload_json", "succeeded_at", "attempted_at", "error_code");
         }
         // Column-level guard: user_version alone cannot detect a table left on an older shape by a
         // migration script that was edited after it had already been stamped (the drift that made

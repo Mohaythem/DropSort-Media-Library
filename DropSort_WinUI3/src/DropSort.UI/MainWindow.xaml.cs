@@ -20,6 +20,7 @@ public sealed partial class MainWindow : Window
     private readonly MyListsPage _myListsPage = new();
     private readonly AddMediaPage _addMediaPage = new();
     private readonly CheckLibraryPage _checkLibraryPage = new();
+    private readonly TraktPage _traktPage = new();
     private readonly SettingsPage _settingsPage = new();
     private readonly OperationsLogPage _operationsLogPage = new();
     private readonly MovieDetailsPage _movieDetailsPage = new();
@@ -105,6 +106,7 @@ public sealed partial class MainWindow : Window
             _libraryPage,
             _myListsPage,
             _addMediaPage,
+            _traktPage,
             _checkLibraryPage,
             _settingsPage,
             _operationsLogPage,
@@ -159,6 +161,9 @@ public sealed partial class MainWindow : Window
         _movieDetailsPage.ShowRequested += OpenShowById;
         _showDetailsPage.BackRequested += (_, _) => Navigate(_detailsReturnDestination);
         _checkLibraryPage.MovieReviewRequested += OpenMovieForReview;
+        _traktPage.MovieSelected += (_, movieId) => OpenMovieById("trakt", movieId);
+        _traktPage.ShowSelected += (_, showId) => OpenShowById("trakt", showId);
+        _traktPage.SettingsRequested += (_, _) => Navigate("settings");
         _settingsPage.OperationsLogRequested += (_, _) => Navigate("operations");
         _settingsPage.LibraryDataChanged += (_, _) =>
         {
@@ -166,6 +171,10 @@ public sealed partial class MainWindow : Window
             _libraryPage.Activate();
             _homePage.Activate();
             _myListsPage.Activate();
+            if (ReferenceEquals(_currentPage, _traktPage))
+            {
+                _traktPage.Activate();
+            }
         };
         _operationsLogPage.BackRequested += (_, _) => Navigate("settings");
 
@@ -236,9 +245,21 @@ public sealed partial class MainWindow : Window
     /// </summary>
     private void OpenShowById(object? sender, int showId)
     {
+        if (sender is string origin)
+        {
+            _detailsReturnDestination = origin;
+        }
         _showDetailsPage.SetReturnDestination(_detailsReturnDestination);
         _showDetailsPage.LoadShow(showId);
         Navigate("show");
+    }
+
+    private void OpenMovieById(string origin, int movieId)
+    {
+        _detailsReturnDestination = origin;
+        _movieDetailsPage.SetReturnDestination(origin);
+        _movieDetailsPage.LoadMovie(movieId);
+        Navigate("details");
     }
 
     /// <summary>
@@ -257,6 +278,7 @@ public sealed partial class MainWindow : Window
     {
         _ when ReferenceEquals(sender, _homePage) => "home",
         _ when ReferenceEquals(sender, _myListsPage) => "lists",
+        _ when ReferenceEquals(sender, _traktPage) => "trakt",
         _ => "library",
     };
 
@@ -354,6 +376,7 @@ public sealed partial class MainWindow : Window
         Page page = destination switch
         {
             "library" => _libraryPage,
+            "trakt" => _traktPage,
             "lists" => _myListsPage,
             "add" => _addMediaPage,
             "check" => _checkLibraryPage,
@@ -383,6 +406,7 @@ public sealed partial class MainWindow : Window
         var selected = destination switch
         {
             "library" or "details" or "show" => LibraryNavItem,
+            "trakt" => TraktNavItem,
             "lists" => MyListsNavItem,
             "add" => AddMediaNavItem,
             "check" => CheckLibraryNavItem,
@@ -397,6 +421,7 @@ public sealed partial class MainWindow : Window
                 "home" => HomeNavItem,
                 "lists" => MyListsNavItem,
                 "check" => CheckLibraryNavItem,
+                "trakt" => TraktNavItem,
                 _ => LibraryNavItem,
             };
         }
@@ -428,6 +453,7 @@ public sealed partial class MainWindow : Window
         SetNavigationItemText(MyListsNavItem, "MyLists");
         SetNavigationItemText(AddMediaNavItem, "AddMedia");
         SetNavigationItemText(CheckLibraryNavItem, "CheckLibrary");
+        SetNavigationItemText(TraktNavItem, "NavTrakt");
         SetNavigationItemText(SettingsNavItem, "Settings");
     }
 
@@ -608,6 +634,7 @@ public sealed partial class MainWindow : Window
             _libraryPage,
             _myListsPage,
             _addMediaPage,
+            _traktPage,
             _checkLibraryPage,
             _settingsPage,
             _operationsLogPage,

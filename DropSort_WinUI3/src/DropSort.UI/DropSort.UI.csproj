@@ -15,7 +15,7 @@
 
     <!--
       Desktop app identity for the unpackaged EXE and the installer. There is no authoritative legal
-      publisher, so Company/Product use the project name. This is the 0.10.0 desktop release,
+      publisher, so Company/Product use the project name. This is the 0.11.0 desktop release,
       not a 1.0 declaration. Numeric file/assembly versions follow Windows versioning.
     -->
     <ApplicationIcon>Assets\DropSort.ico</ApplicationIcon>
@@ -23,9 +23,9 @@
     <AssemblyTitle>DropSort</AssemblyTitle>
     <Company>DropSort</Company>
     <Authors>DropSort</Authors>
-    <Version>0.10.0</Version>
-    <AssemblyVersion>0.10.0.0</AssemblyVersion>
-    <FileVersion>0.10.0.5</FileVersion>
+    <Version>0.11.0</Version>
+    <AssemblyVersion>0.11.0.0</AssemblyVersion>
+    <FileVersion>0.11.0.0</FileVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Copyright>Copyright © DropSort</Copyright>
   </PropertyGroup>

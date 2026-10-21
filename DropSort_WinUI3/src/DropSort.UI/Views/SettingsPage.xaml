@@ -232,6 +232,85 @@
                     </Border>
                 </StackPanel>
 
+                <!--  Trakt  -->
+                <StackPanel Spacing="12">
+                    <TextBlock x:Name="TraktHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />
+                    <Border Style="{StaticResource CardBorderStyle}">
+                        <StackPanel Spacing="16">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border
+                                    x:Name="TraktStatusPill"
+                                    HorizontalAlignment="Left"
+                                    Style="{StaticResource StatusPillStyle}">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <Grid Width="8" Height="8" VerticalAlignment="Center">
+                                            <Ellipse x:Name="TraktConnectedDot" Fill="{ThemeResource SystemFillColorSuccessBrush}" Visibility="Collapsed" />
+                                            <Ellipse x:Name="TraktSyncingDot" Fill="{ThemeResource AccentTextFillColorPrimaryBrush}" Visibility="Collapsed" />
+                                            <Ellipse x:Name="TraktDisconnectedDot" Fill="{ThemeResource SystemFillColorCautionBrush}" Visibility="Visible" />
+                                        </Grid>
+                                        <TextBlock x:Name="TraktStatusText" Style="{StaticResource SecondaryCaptionTextStyle}" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock x:Name="TraktAccountInfoText" Style="{StaticResource SecondaryBodyTextStyle}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="TraktSyncInfoText" Style="{StaticResource SecondaryCaptionTextStyle}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="TraktErrorText" Style="{StaticResource SecondaryCaptionTextStyle}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
+                            </StackPanel>
+
+                            <Border Style="{StaticResource HairlineDividerStyle}" />
+
+                            <!-- Non-secret registration parameters: ClientId and HTTPS RedirectUri ONLY -->
+                            <StackPanel Spacing="12">
+                                <StackPanel Spacing="4">
+                                    <TextBlock x:Name="TraktClientIdLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock x:Name="TraktClientIdHelpText" Style="{StaticResource SecondaryCaptionTextStyle}" TextWrapping="Wrap" />
+                                    <TextBox x:Name="TraktClientIdBox" Style="{StaticResource FormInputTextBoxStyle}" />
+                                </StackPanel>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock x:Name="TraktRedirectUriLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock x:Name="TraktRedirectUriHelpText" Style="{StaticResource SecondaryCaptionTextStyle}" TextWrapping="Wrap" />
+                                    <TextBox x:Name="TraktRedirectUriBox" Style="{StaticResource FormInputTextBoxStyle}" />
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button x:Name="TraktSaveConfigButton" Click="TraktSaveConfigButton_Click" Style="{StaticResource AccentControlButtonStyle}" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Device Code Authorization Panel (Active during device flow) -->
+                            <StackPanel x:Name="TraktDeviceAuthPanel" Spacing="12" Visibility="Collapsed">
+                                <Border Style="{StaticResource HairlineDividerStyle}" />
+                                <TextBlock x:Name="TraktDeviceAuthHeadingText" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                <TextBlock x:Name="TraktDeviceAuthInstructionsText" Style="{StaticResource SecondaryBodyTextStyle}" TextWrapping="Wrap" />
+                                <Border Background="{ThemeResource LayerFillColorAltBrush}" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1" CornerRadius="{ThemeResource ControlCornerRadius}" Padding="16,8" HorizontalAlignment="Left">
+                                    <TextBlock x:Name="TraktUserCodeText" Style="{StaticResource SubtitleTextBlockStyle}" FontFamily="Consolas, Cascadia Mono, monospace" IsTextSelectionEnabled="True" />
+                                </Border>
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button x:Name="TraktOpenVerificationUrlButton" Click="TraktOpenVerificationUrlButton_Click" Style="{StaticResource TextActionButtonStyle}" />
+                                    <Button x:Name="TraktCancelAuthButton" Click="TraktCancelAuthButton_Click" Style="{StaticResource SubtleControlButtonStyle}" />
+                                </StackPanel>
+                                <ProgressBar x:Name="TraktAuthPollingProgressBar" IsIndeterminate="True" Height="2" />
+                            </StackPanel>
+
+                            <InfoBar x:Name="TraktFeedback" IsOpen="False" Severity="Informational" IsClosable="True" />
+
+                            <!-- Action Buttons -->
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="TraktConnectButton" Click="TraktConnectButton_Click" Style="{StaticResource AccentControlButtonStyle}" />
+                                <Button x:Name="TraktSyncNowButton" Click="TraktSyncNowButton_Click" Style="{StaticResource SubtleControlButtonStyle}" />
+                                <Button x:Name="TraktDisconnectButton" Click="TraktDisconnectButton_Click" Style="{StaticResource DangerControlButtonStyle}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
                 <!--  History and recovery  -->
                 <StackPanel Spacing="12">
                     <TextBlock x:Name="HistoryHeadingText" Style="{StaticResource SubtitleTextBlockStyle}" />

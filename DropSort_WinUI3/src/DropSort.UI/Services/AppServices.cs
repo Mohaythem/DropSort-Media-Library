@@ -14,6 +14,9 @@ using DropSort.Infrastructure.Persistence.Repositories;
 using DropSort.Infrastructure.Metadata.Cache;
 using DropSort.Infrastructure.Metadata.Tmdb;
 using DropSort.Infrastructure.Security;
+using DropSort.Application.Trakt;
+using DropSort.Infrastructure.Trakt;
+using System.Text.Json;
 
 namespace DropSort.UI.Services;
 
@@ -121,6 +124,50 @@ internal static class AppServices
     public static MetadataMatchingService Matching => Require(_matching);
 
     public static TmdbClient TmdbClient => Require(_tmdbClient);
+
+    #region Trakt Composition Accessors
+
+    public static ITraktUiActions? Trakt => _trakt;
+    private static ITraktUiActions? _trakt;
+
+    public static (string ClientId, string RedirectUri) TraktConfig
+    {
+        get
+        {
+            var store = _settingsRepository;
+            if (store is null) return (string.Empty, string.Empty);
+            try
+            {
+                var json = store.Get("trakt_api_config");
+                if (string.IsNullOrWhiteSpace(json)) return (string.Empty, string.Empty);
+                var dto = JsonSerializer.Deserialize<TraktConfigDto>(json, TraktJsonOptions);
+                if (dto is not null && !string.IsNullOrWhiteSpace(dto.ClientId) && !string.IsNullOrWhiteSpace(dto.RedirectUri))
+                {
+                    return (dto.ClientId.Trim(), dto.RedirectUri.Trim());
+                }
+            }
+            catch
+            {
+            }
+            return (string.Empty, string.Empty);
+        }
+    }
+
+    public static ITraktLocalSnapshotBuilder? TraktLocalSnapshot => _traktLocalSnapshot;
+    private static ITraktLocalSnapshotBuilder? _traktLocalSnapshot;
+
+    public static ITraktProjectionService? TraktProjection => _traktProjection;
+    private static ITraktProjectionService? _traktProjection;
+
+    private static TraktAuthClient? _traktAuthClient;
+    private static TraktDataClient? _traktDataClient;
+    private static TraktSyncService? _traktSyncService;
+    private static readonly SemaphoreSlim TraktReconfigGate = new(1, 1);
+    private static readonly JsonSerializerOptions TraktJsonOptions = new() { PropertyNameCaseInsensitive = true };
+
+    private sealed record TraktConfigDto(string ClientId, string RedirectUri);
+
+    #endregion
 
     /// <summary>
     /// The raw settings table, for the UI's own configuration - the scan folders and the user's
@@ -278,7 +325,12 @@ internal static class AppServices
     private static OrganizationService? _organization;
     private static TvLibraryService? _tv;
     private static SettingsRepository? _settingsRepository;
+    private static IMovieRepository? _movies;
     private static IMediaFileRepository? _mediaFiles;
+    private static ITvShowRepository? _tvShows;
+    private static ITvSeasonRepository? _tvSeasons;
+    private static ITvEpisodeRepository? _tvEpisodes;
+    private static string? _connectionString;
     private static IAvailabilityInspector? _availabilityInspector;
     private static DiskPosterCache? _posterCache;
     private static TmdbClient? _tmdbClient;
@@ -352,6 +404,7 @@ internal static class AppServices
             {
                 Directory.CreateDirectory(DataFolder);
                 var connectionString = LibraryConnectionString();
+                _connectionString = connectionString;
 
                 // Become the single owner of this library before anything touches it. If another DropSort
                 // process already owns it, do not migrate or recover: a second recovery pass over the same
@@ -397,17 +450,24 @@ internal static class AppServices
                     fileValidator: new ImportFileValidator());
                 var availabilityInspector = new AvailabilityInspector();
                 var reconciliation = new ReconciliationService(mediaFiles, availabilityInspector, movies);
+                var tvShows = new UnitOfWorkTvShowRepository(catalogFactory);
+                var tvSeasons = new UnitOfWorkTvSeasonRepository(catalogFactory);
+                var tvEpisodes = new UnitOfWorkTvEpisodeRepository(catalogFactory);
                 var tv = new TvLibraryService(
-                    new UnitOfWorkTvShowRepository(catalogFactory),
-                    new UnitOfWorkTvSeasonRepository(catalogFactory),
-                    new UnitOfWorkTvEpisodeRepository(catalogFactory),
+                    tvShows,
+                    tvSeasons,
+                    tvEpisodes,
                     personal,
                     tmdbClient);
                 var watchHistory = new WatchHistoryService(personal);
                 var history = new OperationHistoryService(operations, coordinator, mediaFiles, movies);
                 var organization = new OrganizationService(mediaFiles, coordinator);
                 var repair = new LibraryRepairService(catalogFactory, fileOperations: operations);
+                _movies = movies;
                 _mediaFiles = mediaFiles;
+                _tvShows = tvShows;
+                _tvSeasons = tvSeasons;
+                _tvEpisodes = tvEpisodes;
                 _availabilityInspector = availabilityInspector;
                 _settingsRepository = settingsRepository;
                 _operationStore = operations;
@@ -429,6 +489,8 @@ internal static class AppServices
                 _metadataProvider = tmdbClient;
                 _matching = matching;
                 _repair = repair;
+
+                TryRestoreTraktOnStartup(settingsRepository, connectionString, movies, mediaFiles, tvShows, tvSeasons, tvEpisodes, availabilityInspector);
 
                 InitializationError = null;
                 _initialized = true;
@@ -456,6 +518,9 @@ internal static class AppServices
         lock (Gate)
         {
             _closed = true;
+            _traktSyncService?.Dispose();
+            _traktAuthClient?.Dispose();
+            _traktDataClient?.Dispose();
             _coordinator?.Dispose();
             _operationStore?.Dispose();
             Clear();
@@ -474,6 +539,20 @@ internal static class AppServices
     /// <summary>Drops every published service. The caller holds <see cref="Gate" />.</summary>
     private static void Clear()
     {
+        _traktSyncService?.Dispose();
+        _traktSyncService = null;
+        _trakt = null;
+        _traktAuthClient?.Dispose();
+        _traktAuthClient = null;
+        _traktDataClient?.Dispose();
+        _traktDataClient = null;
+        _traktLocalSnapshot = null;
+        _traktProjection = null;
+        _movies = null;
+        _tvShows = null;
+        _tvSeasons = null;
+        _tvEpisodes = null;
+        _connectionString = null;
         _library = null;
         _catalogFactory = null;
         _personal = null;
@@ -549,6 +628,152 @@ internal static class AppServices
         catch
         {
             // Interrupted recovery pass must never crash application startup
+        }
+    }
+
+    /// <summary>
+    /// Persists nonsecret Trakt configuration and instantiates the single Trakt service graph.
+    /// If an active coordinator is already running under previous configuration, it is disconnected
+    /// before instantiating the new graph.
+    /// </summary>
+    public static async Task ConfigureTraktAsync(string clientId, string redirectUri, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(redirectUri);
+        var candidateConfig = new TraktAuthConfig(clientId.Trim(), redirectUri.Trim());
+        if (!IsAvailable) throw new InvalidOperationException("The local library is unavailable.");
+
+        await TraktReconfigGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        TraktAuthClient? candidateAuth = null;
+        TraktDataClient? candidateData = null;
+        TraktSyncService? candidateSync = null;
+        var published = false;
+        try
+        {
+            ITraktUiActions? oldCoordinator;
+            lock (Gate)
+            {
+                ObjectDisposedException.ThrowIf(_closed, typeof(AppServices));
+                oldCoordinator = _trakt;
+            }
+            if (oldCoordinator is not null)
+                await oldCoordinator.DisconnectAsync(cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var connectionString = _connectionString ?? throw new InvalidOperationException("The local library is unavailable.");
+            var cache = new TraktCacheRepository(connectionString);
+            var credentials = new WindowsTraktCredentialStore(Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"));
+            candidateAuth = new TraktAuthClient();
+            var auth = new TraktAuthService(candidateAuth, credentials, candidateConfig);
+            candidateData = new TraktDataClient();
+            candidateSync = new TraktSyncService(auth, candidateData, cache, candidateConfig, Require(_settingsRepository));
+            var snapshot = new TraktLocalSnapshotBuilder(Require(_movies), Require(_mediaFiles),
+                Require(_tvShows), Require(_tvSeasons), Require(_tvEpisodes), Require(_availabilityInspector));
+            var projection = new TraktProjectionService();
+            var json = JsonSerializer.Serialize(new TraktConfigDto(candidateConfig.ClientId, candidateConfig.RedirectUri));
+
+            TraktSyncService? oldSync;
+            TraktAuthClient? oldAuth;
+            TraktDataClient? oldData;
+            lock (Gate)
+            {
+                ObjectDisposedException.ThrowIf(_closed, typeof(AppServices));
+                cancellationToken.ThrowIfCancellationRequested();
+                Require(_settingsRepository).Set("trakt_api_config", json, DateTimeOffset.UtcNow);
+                oldSync = _traktSyncService;
+                oldAuth = _traktAuthClient;
+                oldData = _traktDataClient;
+                _traktSyncService = candidateSync;
+                _trakt = candidateSync;
+                _traktAuthClient = candidateAuth;
+                _traktDataClient = candidateData;
+                _traktLocalSnapshot = snapshot;
+                _traktProjection = projection;
+                published = true;
+            }
+            oldSync?.Dispose();
+            oldAuth?.Dispose();
+            oldData?.Dispose();
+        }
+        finally
+        {
+            if (!published)
+            {
+                candidateSync?.Dispose();
+                candidateAuth?.Dispose();
+                candidateData?.Dispose();
+            }
+            TraktReconfigGate.Release();
+        }
+    }
+    private static void TryRestoreTraktOnStartup(
+        ISettingsRepository settingsRepository,
+        string connectionString,
+        IMovieRepository movies,
+        IMediaFileRepository mediaFiles,
+        ITvShowRepository tvShows,
+        ITvSeasonRepository tvSeasons,
+        ITvEpisodeRepository tvEpisodes,
+        IAvailabilityInspector availabilityInspector)
+    {
+        TraktAuthClient? startupAuth = null;
+        TraktDataClient? startupData = null;
+        TraktSyncService? startupSync = null;
+        try
+        {
+            var configJson = settingsRepository.Get("trakt_api_config");
+            if (string.IsNullOrWhiteSpace(configJson)) return;
+
+            var dto = JsonSerializer.Deserialize<TraktConfigDto>(configJson, TraktJsonOptions);
+            if (dto is null || string.IsNullOrWhiteSpace(dto.ClientId) || string.IsNullOrWhiteSpace(dto.RedirectUri))
+                return;
+
+            var trimmedClientId = dto.ClientId.Trim();
+            var trimmedRedirectUri = dto.RedirectUri.Trim();
+
+            if (!Uri.TryCreate(trimmedRedirectUri, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
+                return;
+
+            var authConfig = new TraktAuthConfig(trimmedClientId, trimmedRedirectUri);
+            var cacheRepo = new TraktCacheRepository(connectionString);
+            var credentialStore = new WindowsTraktCredentialStore(
+                isolatedProfileRoot: Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"));
+            var authClient = startupAuth = new TraktAuthClient();
+            var authService = new TraktAuthService(authClient, credentialStore, authConfig);
+            var dataClient = startupData = new TraktDataClient();
+            var syncService = startupSync = new TraktSyncService(authService, dataClient, cacheRepo, authConfig, settingsRepository);
+
+            _traktAuthClient = authClient;
+            _traktDataClient = dataClient;
+            _traktSyncService = syncService;
+            _trakt = syncService;
+
+            _traktLocalSnapshot = new TraktLocalSnapshotBuilder(
+                movies,
+                mediaFiles,
+                tvShows,
+                tvSeasons,
+                tvEpisodes,
+                availabilityInspector);
+            _traktProjection = new TraktProjectionService();
+        }
+        catch
+        {
+            // Dispose locally allocated clients even if construction failed before publication.
+            startupSync?.Dispose();
+            startupAuth?.Dispose();
+            startupData?.Dispose();
+            // Trakt initialization failure must not make local Library startup fail
+            _traktSyncService?.Dispose();
+            _traktSyncService = null;
+            _trakt = null;
+            _traktAuthClient?.Dispose();
+            _traktAuthClient = null;
+            _traktDataClient?.Dispose();
+            _traktDataClient = null;
+            _traktLocalSnapshot = null;
+            _traktProjection = null;
         }
     }
 

@@ -200,7 +200,7 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
     private void UpdateContinueVisibility()
     {
         var hasAny = ContinueRepeater.ItemsSource is IEnumerable<HomeActivityCard> records && records.Any();
-        ContinueRepeater.Visibility = hasAny
+        ContinueRowGrid.Visibility = hasAny
             ? Microsoft.UI.Xaml.Visibility.Visible
             : Microsoft.UI.Xaml.Visibility.Collapsed;
         ContinueEmptyState.Visibility = hasAny
@@ -217,7 +217,7 @@ public sealed partial class HomePage : Page, ILocalizableView, IActivatableView,
     private void UpdateHistoryVisibility()
     {
         var hasAny = _history.Count > 0;
-        HistoryRepeater.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
+        HistoryRowGrid.Visibility = hasAny ? Visibility.Visible : Visibility.Collapsed;
         HistoryEmptyState.Visibility = hasAny ? Visibility.Collapsed : Visibility.Visible;
         HistoryEmptyState.Title = LocalizationService.Text("NothingWatched");
         HistoryEmptyState.Message = LocalizationService.Text("NothingWatchedHelp");

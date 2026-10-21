@@ -157,7 +157,7 @@
                     -->
                     <controls:EmptyStateCard
                         x:Name="ContinueEmptyState"
-                        MinHeight="200"
+                        Height="196"
                         HorizontalAlignment="Stretch"
                         IsFrameless="True"
                         Glyph="&#xE768;"
@@ -226,7 +226,7 @@
                     </Grid>
                     <controls:EmptyStateCard
                         x:Name="HistoryEmptyState"
-                        MinHeight="200"
+                        Height="196"
                         HorizontalAlignment="Stretch"
                         IsFrameless="True"
                         Glyph="&#xE81C;"
