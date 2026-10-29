@@ -14,7 +14,7 @@ public partial class App : Microsoft.UI.Xaml.Application
         UnhandledException += OnUnhandledException;
     }
 
-    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
         // Claim single-instance ownership before any window exists. A second DropSort process must not
         // open a normal (empty) window it can never fill: the library is already owned, so migration,
@@ -30,6 +30,10 @@ public partial class App : Microsoft.UI.Xaml.Application
             Environment.Exit(0);
             return;
         }
+
+        // Keep ownership on this UI thread. Complete migrations and journal recovery before any
+        // pages can issue actions, but let the dispatcher run while large files are verified.
+        await Task.Run(AppServices.Initialize);
 
         _window = new MainWindow();
         _window.Activate();

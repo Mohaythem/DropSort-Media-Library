@@ -160,6 +160,94 @@ public sealed class TvBatchAnalysisTests : IDisposable
     }
 
     [Fact]
+    public void Bare_numeric_filename_in_season_folder_resolves_to_season_episode()
+    {
+        FileAt("Breaking Bad/Season 01/05.mkv");
+        var result = Scan("Breaking Bad");
+        Assert.Empty(result.RemainingMovies);
+        var file = Assert.Single(result.AllFiles);
+        Assert.True(file.IsResolved);
+        Assert.True(file.CanImport);
+        Assert.Equal("Breaking Bad", file.Title);
+        Assert.Equal(1, file.SeasonNumber);
+        Assert.Equal(5, file.EpisodeNumber);
+    }
+
+    [Fact]
+    public void Infer_season_episode_uses_season_folder_context()
+    {
+        var infer1 = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Breaking Bad", "Season 02", "05.mkv"));
+        Assert.NotNull(infer1);
+        Assert.Equal(2, infer1.Value.Season);
+        Assert.Equal(5, infer1.Value.Episode);
+
+        var infer2 = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Breaking Bad", "Season 03", "Episode 12.mkv"));
+        Assert.NotNull(infer2);
+        Assert.Equal(3, infer2.Value.Season);
+        Assert.Equal(12, infer2.Value.Episode);
+    }
+
+    [Fact]
+    public void Explicit_filename_season_takes_precedence_over_conflicting_season_folder()
+    {
+        // Filename says S03E05, but parent folder says Season 02
+        var infer = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Breaking Bad", "Season 02", "Breaking.Bad.S03E05.mkv"));
+        Assert.NotNull(infer);
+        Assert.Equal(3, infer.Value.Season); // Explicit filename season must win!
+        Assert.Equal(5, infer.Value.Episode);
+
+        var inferAlt = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Breaking Bad", "Season 02", "Breaking.Bad.3x05.mkv"));
+        Assert.NotNull(inferAlt);
+        Assert.Equal(3, inferAlt.Value.Season);
+        Assert.Equal(5, inferAlt.Value.Episode);
+    }
+
+    [Fact]
+    public void Movie_sequels_in_season_folder_are_not_converted_to_tv_episodes()
+    {
+        // Movie sequels have titles like "Toy Story 2" or "The Godfather Part 2"
+        var toyStory = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Animation", "Season 01", "Toy Story 2.mkv"));
+        Assert.Null(toyStory);
+
+        var godfather = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Classics", "Season 01", "The Godfather Part 2.mkv"));
+        Assert.Null(godfather);
+
+        var avatar = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "SciFi", "Season 01", "Avatar 2.mkv"));
+        Assert.Null(avatar);
+    }
+
+    [Fact]
+    public void Resolution_and_ambiguous_numbering_fixtures_return_null()
+    {
+        // 720 is a known resolution
+        var resInfer = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Movies", "Season 01", "Movie 720.mkv"));
+        Assert.Null(resInfer);
+
+        // Standalone BB - 105 without season folder is ambiguous (could be Anime absolute 105 or Western S01E05)
+        var bbInfer = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Anime", "BB - 105.mkv"));
+        Assert.Null(bbInfer);
+    }
+
+    [Fact]
+    public void Bare_numeric_and_explicit_keyword_fixtures_resolve_correctly()
+    {
+        var bracketInfer = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Anime", "Season 02", "[05].mkv"));
+        Assert.NotNull(bracketInfer);
+        Assert.Equal(2, bracketInfer.Value.Season);
+        Assert.Equal(5, bracketInfer.Value.Episode);
+
+        var parenInfer = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Anime", "Season 02", "(05).mkv"));
+        Assert.NotNull(parenInfer);
+        Assert.Equal(2, parenInfer.Value.Season);
+        Assert.Equal(5, parenInfer.Value.Episode);
+
+        var arabicInfer = MediaDiscoveryService.InferSeasonEpisode(Path.Combine(_root, "Series", "Season 04", "الحلقة 07.mkv"));
+        Assert.NotNull(arabicInfer);
+        Assert.Equal(4, arabicInfer.Value.Season);
+        Assert.Equal(7, arabicInfer.Value.Episode);
+    }
+
+    [Fact]
     public void Discovery_error_remains_non_importable()
     {
         var item = DiscoveredMedia.Error(Path.Combine(_root, "missing.mkv"),

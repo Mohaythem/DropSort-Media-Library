@@ -161,6 +161,7 @@ public class UiFacingContractTests
 
         public Movie UpdateMetadata(int id, MovieCatalogData data, DateTimeOffset now) => throw new NotSupportedException();
         public void SetReviewMatch(int id, bool value) { }
+        public void SetCustomDisplayTitle(int id, string? customDisplayTitle) { }
 
         public void Delete(int id)
         {

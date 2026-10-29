@@ -1,4 +1,6 @@
 using System.Collections.Immutable;
+using DropSort.Application.Services;
+using DropSort.Tests.Application;
 using DropSort.Domain.Core.Operations;
 using DropSort.Domain.Library.Movies;
 using DropSort.Domain.Library.Personal;
@@ -7,6 +9,7 @@ using DropSort.Infrastructure.Persistence.Migrations;
 using DropSort.Infrastructure.Persistence.Repositories;
 using Microsoft.Data.Sqlite;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace DropSort.Tests.Infrastructure;
 
@@ -16,9 +19,11 @@ public sealed class RepositoryParityTests : IDisposable
     private readonly string _directory = Path.Combine(Path.GetTempPath(), $"dropsort_repository_{Guid.NewGuid():N}");
     private readonly string _databasePath;
     private readonly string _connectionString;
+    private readonly ITestOutputHelper _output;
 
-    public RepositoryParityTests()
+    public RepositoryParityTests(ITestOutputHelper output)
     {
+        _output = output;
         Directory.CreateDirectory(_directory);
         _databasePath = Path.Combine(_directory, "repository.db");
         _connectionString = $"Data Source={_databasePath}";
@@ -228,6 +233,33 @@ public sealed class RepositoryParityTests : IDisposable
         Assert.Single(personal.ListMovies(PersonalLibrarySection.Liked));
     }
 
+    [Theory]
+    [InlineData(PersonalLibrarySection.Watchlist)]
+    [InlineData(PersonalLibrarySection.Liked)]
+    [InlineData(PersonalLibrarySection.Blacklisted)]
+    public void PersonalListProjection_CountsDistinctMissingFilesAcrossRepeatedViews(PersonalLibrarySection section)
+    {
+        var movieId = SeedMovie("repeated-view-counts");
+        using (var unit = new CatalogUnitOfWork(_connectionString))
+        {
+            unit.MediaFiles.Add(Facts("present.mkv"), movieId);
+            var missing = unit.MediaFiles.Add(Facts("missing.mkv"), movieId);
+            unit.MediaFiles.MarkMissing(missing.Id, Now);
+            unit.Commit();
+        }
+        var personal = new PersonalLibraryRepository(_connectionString);
+        personal.AddToWatchlist(movieId, Now);
+        personal.SetPreference(movieId, section == PersonalLibrarySection.Blacklisted
+            ? PersonalPreference.Blacklisted : PersonalPreference.Liked, Now);
+        for (var i = 0; i < 3; i++) personal.AddWatchEvent(movieId, Now.AddDays(i), Now.AddDays(i));
+
+        var summary = Assert.Single(personal.ListMovies(section));
+        Assert.Equal(2, summary.MediaFileCount);
+        Assert.Equal(1, summary.MissingFileCount);
+        Assert.Equal(3, summary.WatchCount);
+        Assert.Equal(Now.AddDays(2), summary.LastWatched);
+    }
+
     [Fact]
     public void RecordOpened_PersistsUtcForMovieAndShow_WithoutChangingCatalogOrPersonalState()
     {
@@ -329,6 +361,73 @@ public sealed class RepositoryParityTests : IDisposable
         var movie = unit.Movies.Create(Data(externalId, externalId), Now);
         unit.Commit();
         return movie.Id;
+    }
+
+    [Fact]
+    public void TvSummaryQuery_MatchesHierarchyCountsIncludingEmptySeasonsAndMultipleCopies()
+    {
+        var factory = new CatalogUnitOfWorkFactory(_connectionString);
+        int showId;
+        using (var unit = factory.Begin())
+        {
+            unit.TvShows.Create(new TvShowCatalogData(null, null, "Empty Show"), Now);
+            var show = unit.TvShows.Create(new TvShowCatalogData("tmdb", "55", "Canonical Show", year: 2005), Now.AddDays(1));
+            showId = show.Id;
+            unit.TvShows.SetCustomDisplayTitle(showId, "My Show");
+            unit.TvShows.RecordOpened(showId, Now.AddDays(2));
+            var season = unit.TvSeasons.Create(showId, 1, null, null, Now);
+            unit.TvSeasons.Create(showId, 2, "Empty Season", null, Now);
+            var mixed = unit.TvEpisodes.Create(season.Id, 1, "Mixed", null, null, null, Now);
+            var missing = unit.TvEpisodes.Create(season.Id, 2, "Missing", null, null, null, Now);
+            unit.TvEpisodes.Create(season.Id, 3, "No File", null, null, null, Now);
+            foreach (var (episodeId, name, isMissing) in new[] {
+                (mixed.Id, "mixed-present.mkv", false), (mixed.Id, "mixed-missing.mkv", true),
+                (missing.Id, "missing-a.mkv", true), (missing.Id, "missing-b.mkv", true) })
+            {
+                var file = unit.MediaFiles.Add(Facts(name));
+                unit.TvEpisodes.LinkMediaFile(episodeId, file.Id, Now);
+                if (isMissing) unit.MediaFiles.MarkMissing(file.Id, Now);
+            }
+            unit.Commit();
+        }
+        var baseline = new TvLibraryService(new PerCallTvShowRepository(factory),
+            new PerCallTvSeasonRepository(factory), new PerCallTvEpisodeRepository(factory)).ListShows();
+        using var connection = Open();
+        // Null hierarchy readers prove the optimized service never falls back to per-show queries.
+        var optimized = new TvLibraryService(new TvShowRepository(connection), null!, null!).ListShows();
+        Assert.Equal(baseline, optimized);
+        var card = Assert.Single(optimized, row => row.Id == showId);
+        Assert.Equal(2, card.SeasonCount);
+        Assert.Equal(3, card.EpisodeCount);
+        Assert.Equal(1, card.EpisodesWithLocalFile);
+        Assert.Equal(1, card.MissingEpisodeCount);
+        Assert.Equal("My Show", card.Title);
+        Assert.Equal("Canonical Show", card.CanonicalTitle);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(250)]
+    public void TvSummaryQuery_DoesNotReadPerShowHierarchyAtScale(int showCount)
+    {
+        using (var unit = new CatalogUnitOfWork(_connectionString))
+        {
+            for (var i = 0; i < showCount; i++)
+                unit.TvShows.Create(new TvShowCatalogData(null, null, $"Show {i}"), Now);
+            unit.Commit();
+        }
+        using var connection = Open();
+        var timer = System.Diagnostics.Stopwatch.StartNew();
+        var rows = new TvLibraryService(new TvShowRepository(connection), null!, null!).ListShows();
+        var summaryMilliseconds = timer.Elapsed.TotalMilliseconds;
+        var factory = new CatalogUnitOfWorkFactory(_connectionString);
+        timer.Restart();
+        var baseline = new TvLibraryService(new PerCallTvShowRepository(factory),
+            new PerCallTvSeasonRepository(factory), new PerCallTvEpisodeRepository(factory)).ListShows();
+        _output.WriteLine($"TV summary fixture: shows={showCount}, bulk={summaryMilliseconds:F2}ms, hierarchy={timer.Elapsed.TotalMilliseconds:F2}ms");
+        Assert.Equal(baseline, rows);
+        Assert.Equal(showCount, rows.Count);
+        Assert.All(rows, row => { Assert.Equal(0, row.SeasonCount); Assert.Equal(0, row.EpisodeCount); });
     }
 
     private MovieCatalogData Data(string externalId, string title, params string[] genres) => new(

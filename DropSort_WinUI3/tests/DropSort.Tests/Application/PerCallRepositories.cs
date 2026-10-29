@@ -49,6 +49,12 @@ internal sealed class PerCallMovieRepository(ICatalogUnitOfWorkFactory factory) 
         return null;
     });
 
+    public void SetCustomDisplayTitle(int id, string? customDisplayTitle) => Write<object?>(movies =>
+    {
+        movies.SetCustomDisplayTitle(id, customDisplayTitle);
+        return null;
+    });
+
     public void RecordOpened(int id, DateTimeOffset openedAt) => Write<object?>(movies =>
     {
         movies.RecordOpened(id, openedAt);
@@ -164,6 +170,12 @@ internal sealed class PerCallTvShowRepository(ICatalogUnitOfWorkFactory factory)
     public DropSort.Domain.Library.Shows.TvShow UpdateMetadata(
         int id, DropSort.Domain.Library.Shows.TvShowCatalogData data, DateTimeOffset now) =>
         Write(shows => shows.UpdateMetadata(id, data, now));
+
+    public void SetCustomDisplayTitle(int id, string? customDisplayTitle) => Write<object?>(shows =>
+    {
+        shows.SetCustomDisplayTitle(id, customDisplayTitle);
+        return null;
+    });
 
     public void Delete(int id) => Write<object?>(shows =>
     {

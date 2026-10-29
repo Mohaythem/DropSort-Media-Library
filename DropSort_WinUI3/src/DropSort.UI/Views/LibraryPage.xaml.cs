@@ -89,6 +89,8 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     {
         _movies = null;
         _shows = null;
+        _showsLoadError = false;
+        _showsLoadGeneration++;
         _showCards.Clear();
     }
 
@@ -128,6 +130,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     public void SetState(LibraryViewState state)
     {
         _state = state;
+        if (state == LibraryViewState.Ready) _showsLoadError = false;
         Refresh();
     }
 
@@ -367,6 +370,16 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
 
         var count = isShows ? PopulateShows() : PopulateMovies();
 
+        if (isShows && _showsLoading)
+        {
+            LoadingPanel.Visibility = Visibility.Visible;
+            MoviesGrid.Visibility = Visibility.Collapsed;
+            ShowsGrid.Visibility = Visibility.Collapsed;
+            EmptyState.Visibility = Visibility.Collapsed;
+            CountText.Text = string.Empty;
+            return;
+        }
+
         // The catalog read can fail after the visibility above was applied; show the error instead
         // of an empty grid that would read as "your library is empty".
         if (_state == LibraryViewState.Error)
@@ -486,32 +499,51 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     /// </summary>
     private IReadOnlyList<TVShowRecord>? _shows;
     private long _showsRevision = -1;
+    private bool _showsLoading;
+    private bool _showsLoadError;
+    private int _showsLoadGeneration;
 
     /// <summary>Reads the shows grid from the catalog; a failure is the page's error state.</summary>
     private IReadOnlyList<TVShowRecord> LoadShows()
     {
-        if (_shows is not null)
+        if (_shows is not null) return _shows;
+        if (_showsLoadError)
         {
-            return _shows;
-        }
-
-        try
-        {
-            var revision = AppServices.CatalogRevision;
-            var rows = AppServices.Tv.ListShows().Select(TvProjection.ToCard).ToArray();
-            _shows = rows;
-            _showCards.Clear();
-            _showsRevision = revision;
-            if (_showsRevision != AppServices.CatalogRevision)
-                _shows = null;
-            return rows;
-        }
-        catch (Exception)
-        {
-            _shows = null;
             _state = LibraryViewState.Error;
             return [];
         }
+
+        if (!_showsLoading) _ = LoadShowsAsync();
+        return [];
+    }
+
+    private async Task LoadShowsAsync()
+    {
+        _showsLoading = true;
+        var generation = _showsLoadGeneration;
+        var revision = AppServices.CatalogRevision;
+        try
+        {
+            // Always return to the caller before publishing a completed load/refresh.
+            await Task.Yield();
+            var service = AppServices.Tv;
+            var rows = await Task.Run(() => service.ListShows());
+            if (generation == _showsLoadGeneration && revision == AppServices.CatalogRevision)
+            {
+                _shows = rows.Select(TvProjection.ToCard).ToArray();
+                _showCards.Clear();
+                _showsRevision = revision;
+            }
+        }
+        catch (Exception)
+        {
+            if (generation == _showsLoadGeneration) _showsLoadError = true;
+        }
+        finally
+        {
+            _showsLoading = false;
+        }
+        Refresh();
     }
 
     private int PopulateShows()
@@ -570,6 +602,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     private bool MatchesMovie(MovieRecord movie) =>
         _query.Length == 0
         || Contains(movie.Title)
+        || Contains(movie.CanonicalTitle)
         || Contains(movie.OriginalTitle)
         || Contains(movie.Year.ToString(CultureInfo.InvariantCulture))
         || movie.Genres.Any(Contains);
@@ -577,6 +610,7 @@ public sealed partial class LibraryPage : Page, ILocalizableView, IActivatableVi
     private bool MatchesShow(TVShowRecord show) =>
         _query.Length == 0
         || Contains(show.Title)
+        || Contains(show.CanonicalTitle)
         || Contains(show.Year.ToString(CultureInfo.InvariantCulture))
         || show.Genres.Any(Contains);
 

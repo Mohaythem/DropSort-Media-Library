@@ -20,6 +20,7 @@ public sealed class LibraryRepairService(
     private readonly ICatalogUnitOfWorkFactory _uowFactory =
         uowFactory ?? throw new ArgumentNullException(nameof(uowFactory));
     private readonly Func<DateTimeOffset> _clock = clock ?? (() => DateTimeOffset.UtcNow);
+    private readonly IFileOperationStore? _fileOperations = fileOperations;
 
     public MoveToSeriesResult MoveMovieToSeries(int movieId, int showId, int seasonNumber, int episodeNumber)
     {
@@ -73,7 +74,7 @@ public sealed class LibraryRepairService(
         var files = uow.TvEpisodes.ListMediaFilesByShow(showId).Values
             .SelectMany(files => files).DistinctBy(file => file.Id).ToList();
         var fileIds = files.Select(file => file.Id).ToHashSet();
-        if (fileOperations?.ListNonterminal().Any(operation =>
+        if (_fileOperations?.ListNonterminal().Any(operation =>
                 operation.MediaFileId is int id && fileIds.Contains(id)) == true)
             throw new InvalidOperationException("Cannot remove a TV show while its files have pending operations.");
 
@@ -95,14 +96,23 @@ public sealed class LibraryRepairService(
         _ = uow.Movies.GetById(movieId)
             ?? throw new InvalidOperationException($"Movie {movieId} was not found.");
 
+        // Capture registrations and check for pending nonterminal file operations before mutation.
+        var files = uow.MediaFiles.GetByMovieId(movieId);
+        var fileIds = files.Select(file => file.Id).ToHashSet();
+        if (_fileOperations?.ListNonterminal().Any(operation =>
+                operation.MediaFileId is int id && fileIds.Contains(id)) == true)
+            throw new InvalidOperationException("Cannot remove a movie while its files have pending operations.");
+
         // Remove the catalog rows only. Deleting a media-file row never touches the file on disk; deleting
         // the movie cascades its personal state and list membership and orphans its watch history.
-        foreach (var file in uow.MediaFiles.GetByMovieId(movieId))
+        uow.Movies.Delete(movieId);
+        foreach (var file in files)
         {
-            uow.MediaFiles.Delete(file.Id);
+            // Keep a registration if it also belongs to an episode.
+            if (uow.TvEpisodes.GetEpisodeIdForMediaFile(file.Id) is null)
+                uow.MediaFiles.Delete(file.Id);
         }
 
-        uow.Movies.Delete(movieId);
         uow.Commit();
     }
 }

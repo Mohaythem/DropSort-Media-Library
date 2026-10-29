@@ -152,7 +152,7 @@ internal sealed class MovieOrganizationDialog : ContentDialog
             ToolTipService.SetToolTip(_current, Path.GetFileName(file.CurrentPath));
             _name.MaxLength = Math.Max(1, 255 - Path.GetExtension(file.CurrentPath).Length);
             _name.Text = _move ? Path.GetFileNameWithoutExtension(file.CurrentPath)
-                : MovieOrganizationNaming.SuggestBaseName(_movie.Title, _movie.Year, _movie.HasTrustworthyMetadata, Path.GetFileName(file.CurrentPath));
+                : MovieOrganizationNaming.SuggestBaseName(_movie.CanonicalTitle ?? _movie.Title, _movie.Year, _movie.HasTrustworthyMetadata, Path.GetFileName(file.CurrentPath));
             _extension.Text = LocalizationService.Format("OrganizationExtensionFormat", Path.GetExtension(file.CurrentPath));
         }
         _name.IsEnabled = File is not null;

@@ -66,6 +66,11 @@ public class ApplicationServiceTests
         }
         public void Delete(int id) => Storage.Remove(id);
         public void SetReviewMatch(int id, bool value) { }
+        public void SetCustomDisplayTitle(int id, string? customDisplayTitle)
+        {
+            if (Storage.TryGetValue(id, out var movie))
+                Storage[id] = new Movie(movie.Id, movie.Data, movie.DateAdded, movie.CreatedAt, movie.UpdatedAt, movie.ReviewMatch, movie.LastOpenedAt, customDisplayTitle);
+        }
     }
 
     private class FakeMediaFileRepo : IMediaFileRepository

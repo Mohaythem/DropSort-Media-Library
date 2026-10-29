@@ -11,7 +11,7 @@ using DropSort.Domain.Library.Personal;
 
 namespace DropSort.Application.Dto;
 
-public record MovieListItem(int Id, string Title, int? Year, string? PosterReference, bool IsMissing, bool HasPendingMetadata, int FileCount = 1, bool ReviewMatch = false, DateTimeOffset DateAdded = default, DateTimeOffset? LastOpenedAt = null, string? BackdropReference = null);
+public record MovieListItem(int Id, string Title, int? Year, string? PosterReference, bool IsMissing, bool HasPendingMetadata, int FileCount = 1, bool ReviewMatch = false, DateTimeOffset DateAdded = default, DateTimeOffset? LastOpenedAt = null, string? BackdropReference = null, string? CustomDisplayTitle = null, string? CanonicalTitle = null);
 
 /// <summary>
 /// A user-created custom list for the UI. Identity is the stable <paramref name="Id" />; the UI shows the
@@ -30,7 +30,9 @@ public record CustomListItem(
     string Title,
     int? Year,
     string? PosterReference,
-    bool IsMissing);
+    bool IsMissing,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null);
 
 public record MovieDetails(
     int Id,
@@ -44,7 +46,9 @@ public record MovieDetails(
     string? PosterReference,
     IReadOnlyList<MediaFile> MediaFiles,
     bool ReviewMatch = false,
-    bool HasTrustworthyMetadata = false);
+    bool HasTrustworthyMetadata = false,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null);
 
 public record MovieFileIngestionResult(Movie Movie, MediaFile MediaFile, bool AlreadyRegistered = false);
 

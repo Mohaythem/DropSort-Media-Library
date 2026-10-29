@@ -79,6 +79,16 @@ internal sealed class FakeTvShowRepo : ITvShowRepository
         return updated;
     }
 
+    public void SetCustomDisplayTitle(int id, string? customDisplayTitle)
+    {
+        var index = _shows.FindIndex(show => show.Id == id);
+        if (index >= 0)
+        {
+            var show = _shows[index];
+            _shows[index] = new TvShow(show.Id, show.Data, show.DateAdded, show.CreatedAt, show.UpdatedAt, show.LastOpenedAt, customDisplayTitle);
+        }
+    }
+
     public void Delete(int id) => _shows.RemoveAll(show => show.Id == id);
 }
 

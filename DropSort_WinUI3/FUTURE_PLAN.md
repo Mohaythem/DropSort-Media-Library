@@ -2,6 +2,8 @@
 
 This is the authoritative forward plan for the WinUI rewrite as of 2026-09-24. Historical phase reports explain how the current system was built; they do not override this roadmap. Product Phase 3 is **closed and manually accepted**; the revised release direction below supersedes the earlier Phase 4–9 ordering, whose detailed scope is retained for reference.
 
+**Release 1 / Release 2 boundary:** This file remains the source of truth for Release 1 / 1.0 correctness, scope, and release hardening. Future Release 2 ideas are recorded in [RELEASE_2_V2_ROADMAP.md](RELEASE_2_V2_ROADMAP.md). That document authorizes no implementation and closes no Release 1 gate.
+
 ## Baseline and boundaries
 
 - Product stack: C#, .NET 10, WinUI 3, Windows App SDK, and SQLite through `Microsoft.Data.Sqlite`.
@@ -69,7 +71,7 @@ These contracts remain in force unless a later explicit Goal changes them.
 
 **B. Required stabilization before 1.0 (no new major features).** Data / File Trust Pass; narrow drive-aware availability; automatic pre-migration database backup; UX corrective pass; scale QA (~1K/5K/10K); installer + clean-machine + installed-app verification; Arabic/RTL release-quality pass.
 
-**C. Post-1.0 (recorded, must not block 1.0).** Library Health, Smart Relink Suggestions, richer Drive intelligence/analytics, Copy Intelligence, Local Subtitle Intelligence, Organize Templates, Portable Local Backup / Manifest.
+**C. Post-1.0 (recorded, must not block 1.0).** Library Health, Smart Relink Suggestions, richer Drive intelligence/analytics, Copy Intelligence, Local Subtitle Intelligence, Organize Templates, Portable Local Backup / Manifest. These, together with the 2026-09-28 idea set (multiple versions, duplicate intelligence, smart TV batch import, folder watching, watch-system extras, smart lists, advanced search, metadata tools, local metadata editing, library views, artwork viewer, user-facing backup/restore), are expanded, merged, and prioritized in **Post-1.0 Feature Backlog — prioritized (added 2026-09-28)** below.
 
 **D. Out of scope / avoid.** Discover expansion, ratings/reviews/social, analytics-heavy expansion, Letterboxd-style direction, large recommendation systems, and any generic media-tracking that does not depend on local filesystem intelligence.
 
@@ -109,7 +111,68 @@ These contracts remain in force unless a later explicit Goal changes them.
 
 ### Preserved future product priorities (recorded; not scheduled)
 
-Retain, without implementing now: Library Health, Smart Relink Suggestions, Drive Awareness, Copy Intelligence, Local Subtitle Intelligence, Organize Templates, Portable Local Backup / Manifest. Each is subject to the prioritization rule above.
+Retain, without implementing now: Library Health, Smart Relink Suggestions, Drive Awareness, Copy Intelligence, Local Subtitle Intelligence, Organize Templates, Portable Local Backup / Manifest. Each is subject to the prioritization rule above. These are expanded, merged with newly proposed ideas, and prioritized in the backlog below.
+
+### Post-1.0 Feature Backlog — prioritized (added 2026-09-28)
+
+The backlog below is retained as the earlier post-1.0 proposal. Use [RELEASE_2_V2_ROADMAP.md](RELEASE_2_V2_ROADMAP.md) for current V2 grouping and prioritization where they differ. Release 1 scope and correctness requirements in this file remain authoritative.
+
+This backlog integrates the 2026-09-28 idea set with the existing post-1.0 priorities. It does **not** enlarge 1.0: the freeze holds, and every item here is After 1.0, Later, or Avoid unless it is a pure correctness prerequisite already tracked as a release blocker. Ordering within a tier follows the prioritization rule — features that deepen understanding of local media, real files, storage, identity, or local viewing state rank above features that would work equally well as a generic website. Nothing here changes DropSort's identity: local-first native media library with real-file intelligence and safe file management — not a social, streaming, or recommendation-first product.
+
+#### Tier 0 — Before 1.0 (correctness only; already tracked, no new surface)
+
+These are not new features; they are the correctness foundations several backlog items depend on, and they are already release blockers or accepted bugs. Listed here only to record the dependency.
+
+- **Logical movie identity — one Movie, many MediaFiles.** The same title with more than one local file must resolve to a single Movie with multiple associated files, never a second empty/duplicate card. This is the correctness base for *Multiple Versions* and *Duplicate & Version Intelligence* below. Tracked as the duplicate-movie/empty-card correctness work; consistent with the existing identity contract (logical media identity is separate from physical file/path identity).
+- **Stable TV import identity + honest unsupported-TV classification.** Release blockers 2 and 3. These are the correctness half of *Smart TV Batch Import*; the batch efficiency/UX is deferred to Tier 1.
+
+#### Tier 1 — After 1.0, near-term (real-file / local-media intelligence; highest post-1.0 priority)
+
+Ranked; earlier items unblock later ones.
+
+- **Multiple Versions.** One Movie holds multiple version files (1080p, 4K, Extended, Director's Cut, alternate encodes) with a user-preferred version. *Depends on:* Tier 0 logical movie identity. *Schema:* additive version metadata on media files.
+- **Duplicate & Version Intelligence.** Detect duplicate files, different encodes, and the same movie across multiple drives; offer **safe merge suggestions** (never automatic destructive merges). *Depends on:* Multiple Versions; file fingerprints. Merges the existing duplicate-intelligence intent.
+- **Smart TV Batch Import.** Identify the show once, parse `SxxEyy`, map local files to episodes, fetch episode metadata efficiently, **bulk-add matched episodes**, and route only ambiguous ones to review. Its own phase (kept separate per prior direction). *Depends on:* Tier 0 TV identity + honest classification. Confirms the existing 1.0 TV model (one show = one card; Show → Seasons → Episodes) rather than replacing it.
+- **Automatic Library Monitoring (Folder Watcher).** Watch approved roots for new media, wait until copy/download completes, then send items through the **normal Review/import pipeline** (no silent auto-add). Merges the recorded *Copy Intelligence*. *Depends on:* import pipeline; copy-complete detection.
+- **Smart Relink.** Find moved/renamed files by filename, size, and fingerprints; especially for external drives. Merges *Smart Relink Suggestions*; extends today's manual relink. *Depends on:* fingerprints; drive-aware availability (done).
+- **Storage Intelligence.** Usage by drive, Movies vs TV, largest media, offline/removable drives, low-space awareness. Merges *Drive Awareness / richer drive analytics*. *Depends on:* drive-aware availability (done).
+- **Library Health dashboard.** One surface for missing files, offline drives, duplicates, missing metadata/posters, unmatched files, broken episode mappings, and stale cache. Merges *Library Health*; extends today's Check Library. *Depends on:* duplicate intelligence, drive-aware (done).
+- **Local Subtitle Intelligence.** Detect local subtitle files, identify language, associate them with the movie/episode, and show availability/missing state. Merges the recorded *Local Subtitle Intelligence*. *Depends on:* real-file scan.
+- **Metadata management.** Refresh metadata, refresh poster only, change match (exists today), and **metadata lock**. *Depends on:* none major; lock is the prerequisite for safe local editing.
+- **Local metadata editing.** Edit local Title / Overview / Year / Poster for rare or non-TMDB titles. *Depends on:* metadata lock (so a later refresh cannot clobber local edits).
+- **User-facing Backup / Restore.** A strong backup/restore for the database, lists, watch history, local metadata edits, and preferences — **never the video files**. Merges *Portable Local Backup / Manifest*; builds on the shipped verified pre-migration backup + backend restore primitive. *Depends on:* existing backup primitive (done).
+- **Advanced search filters.** Year, genre, type, watched state, resolution, drive, metadata state, date added; optionally saved as Smart Lists. *Depends on:* indexed metadata/file/watch state.
+- **Smart Lists.** Rule-based lists beside custom lists (Unwatched, Recently Added, 4K, Missing Metadata, Missing Files, Favorites, specific drive, …). *Depends on:* Advanced search predicates; watched + file/metadata state. Extends existing custom lists.
+- **Safe Organize / Rename Templates.** File organization must not assume that the user's media belongs in one central library folder. DropSort supports libraries spread across multiple folders, drives, removable media, and network locations. The default Organize action should therefore be **Rename in current location**, preserving the file's existing parent folder. Moving is an explicit secondary choice: **Move to another folder...**, optionally combined with rename. Movie and TV naming templates may suggest clean filenames, but the user sees a full source → destination preview before any filesystem mutation. All operations continue through the journaled safe-file pipeline with no overwrite, source identity validation, destination verification, and recoverable failure handling. Future batch organize must support Preview / Dry Run and never silently consolidate media into a single root. *Depends on:* journaled organize (exists).
+- **Operation history + safe Undo.** Track Move / Rename / Relink / Merge and allow safe Undo where reversible. Extends today's Operations Log + organize-undo. *Depends on:* Relink and Merge features above.
+
+#### Tier 2 — After 1.0, experience/UI (useful, lower priority; nearer the "generic-website" line)
+
+- **Add Media Review UX.** Expand Add Media to use the available Library content width instead of keeping the scan/review workflow in a narrow left-side column. The page should prioritize media that requires user attention: new items, Ready to Add items, metadata matches, and items needing review. Files already registered in the Library should not dominate repeated scans of the same folder. Move **Already in Library** results into a separate section at the end of the review flow, collapsed by default and showing a count such as `265 items already in Library`. The user may expand that section when needed. Provide a dedicated **Refresh metadata** action for existing items, with an explicit confirmation before refreshing a large batch. Refreshing metadata must never modify, move, rename, re-register, or otherwise mutate the physical media files. Preserve selective import, mixed Movie/TV review, path-identity duplicate detection, virtualization, and conservative metadata matching.
+- **Library Views: Poster Grid ↔ Horizontal Cards.** Provide two persistent Library presentation modes: the existing large Poster Grid and real landscape Horizontal Cards with a portrait poster, title/year, and lightweight local-library status. Horizontal Cards must remain a distinct Fluent card surface rather than a compact list item. Switching modes preserves search, filters, sorting, virtualization, lazy artwork loading, and scroll state where practical. Movie and TV use the same presentation concept, with media-specific lightweight summaries. The selected mode persists across restart. RTL mirrors card composition without mirroring artwork. *Status:* initial V2 implementation completed and manually accepted for continued use; further visual polish remains non-blocking.
+- **Artwork Viewer.** Clicking a poster opens an in-app image viewer: zoom (`Ctrl +`, `Ctrl -`, mouse wheel), Fit to window, 100%, reset zoom, and pan while zoomed. *Depends on:* poster cache (exists).
+- **Watch-system extras.** Explicit Watched/Unwatched toggle and **Up Next for TV**. The 1.0 watch model (watch history, Recently Watched, Continue Watching, Play ≠ Mark Watched, logical-media semantics) already ships; these extend it. *Depends on:* TV episode model; watch events (exist).
+
+#### Tier 3 — Later (needs a bigger design or an integrated/observed player; revisit after the above)
+
+- **Resume position.** Accurate resume/Continue-Watching by playback position requires an integrated player or a reliable way to observe an external player's position; deferred until that design exists.
+- **Artwork Viewer — Poster/Backdrop navigation** and **manual artwork selection** (choosing among multiple provider images).
+- **Letterboxd import/export.** Data interop only (import/export lists/history), explicitly **not** social/ratings features. Kept Later and narrowly scoped so it does not pull DropSort toward a tracking/social product.
+
+#### Tier 4 — Avoid / only if a concrete need appears
+
+Consistent with the frozen "Out of scope / avoid" list.
+
+- **Viewing statistics / analytics-heavy dashboards** beyond simple local counts — risks analytics-first drift.
+- **Richer Discover / catalog browsing** — discovery-first direction, out of the local-first identity.
+- **Provider/plugin architecture** — only if a real second-provider need materializes; do not build speculative extensibility.
+- **Any social/ratings/reviews/recommendation-first surface** — already out of scope; restated so backlog growth cannot reintroduce it.
+
+#### Proposed order (post-1.0)
+
+Tier 0 correctness lands with/inside 1.0 hardening. Then, post-1.0: **(1)** Multiple Versions → **(2)** Duplicate & Version Intelligence → **(3)** Smart TV Batch Import → **(4)** Automatic Library Monitoring → **(5)** Smart Relink → **(6)** Storage Intelligence → **(7)** Library Health → **(8)** Local Subtitle Intelligence → **(9)** Metadata management → **(10)** Local metadata editing → **(11)** User-facing Backup/Restore → **(12)** Advanced search → **(13)** Smart Lists → **(14)** Organize Templates → **(15)** Operation history + Undo, with Tier 2 experience items slotted opportunistically between file-intelligence phases. Tier 3/4 are revisited only when their prerequisites or a concrete need exist. Each phase stays gated: one explicit Goal, one verified commit, then STOP.
+
+
 
 ## Ordered roadmap
 

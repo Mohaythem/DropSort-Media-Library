@@ -213,7 +213,37 @@
                         <StackPanel x:Name="HeroCopyPanel" Grid.Column="1" Grid.Row="0" Spacing="20" FlowDirection="LeftToRight">
                             <TextBlock x:Name="KindText" Style="{StaticResource SecondaryCaptionTextStyle}" />
                             <StackPanel x:Name="ReadingPane" Spacing="20" FlowDirection="LeftToRight">
-                                <TextBlock x:Name="ShowTitleText" Style="{StaticResource TvDetailsTitleStyle}" TextWrapping="Wrap" />
+                                <Grid x:Name="ShowTitleContainer" VerticalAlignment="Center">
+                                    <StackPanel x:Name="ShowTitleViewPanel" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <TextBlock x:Name="ShowTitleText"
+                                                   Style="{StaticResource TvDetailsTitleStyle}"
+                                                   TextWrapping="Wrap"
+                                                   IsTextSelectionEnabled="False"
+                                                   PointerPressed="ShowTitleText_PointerPressed"
+                                                   DoubleTapped="ShowTitleText_DoubleTapped"
+                                                   KeyDown="ShowTitleText_KeyDown"
+                                                   IsTabStop="True" />
+                                        <Border x:Name="ShowTitleCopiedBadge"
+                                                Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}"
+                                                CornerRadius="4"
+                                                Padding="6,2"
+                                                VerticalAlignment="Center"
+                                                Visibility="Collapsed">
+                                            <TextBlock x:Name="ShowTitleCopiedText"
+                                                       Text="Copied!"
+                                                       FontSize="12"
+                                                       Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBox x:Name="ShowTitleEditBox"
+                                             FontSize="28"
+                                             FontWeight="SemiBold"
+                                             MaxLength="500"
+                                             Visibility="Collapsed"
+                                             VerticalAlignment="Center"
+                                             KeyDown="ShowTitleEditBox_KeyDown"
+                                             LostFocus="ShowTitleEditBox_LostFocus" />
+                                </Grid>
                                 <TextBlock x:Name="ShowMetaText" Style="{StaticResource SecondaryBodyTextStyle}" TextWrapping="Wrap" />
                                 <TextBlock x:Name="OverviewText" HorizontalAlignment="Left" MaxWidth="{StaticResource ProseMaxWidth}" Style="{StaticResource TvDetailsOverviewStyle}" TextWrapping="Wrap" />
                                 <StackPanel Orientation="Horizontal" Spacing="8">

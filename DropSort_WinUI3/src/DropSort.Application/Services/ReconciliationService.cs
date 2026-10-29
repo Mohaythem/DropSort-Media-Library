@@ -5,6 +5,7 @@ using DropSort.Application.External;
 using DropSort.Application.Repositories;
 using DropSort.Domain.Library.Availability;
 using DropSort.Domain.Library.Movies;
+using DropSort.Domain.Media;
 
 namespace DropSort.Application.Services;
 
@@ -133,6 +134,8 @@ public sealed class ReconciliationService : IReconciliationUiActions
         if (string.IsNullOrWhiteSpace(candidatePath) || !Path.IsPathFullyQualified(candidatePath))
             throw new ArgumentException("Candidate path must be absolute.", nameof(candidatePath));
         var canonical = Path.GetFullPath(candidatePath);
+        if (!MediaFormatPolicy.IsSupportedVideoPath(canonical))
+            throw new InvalidOperationException($"Unsupported media extension: '{Path.GetExtension(canonical)}'.");
         var inspection = _inspector.Inspect(canonical);
         if (isCancelled()) throw new OperationCanceledException();
         if (inspection.Status != AvailabilityInspectionStatus.Present)
@@ -158,6 +161,8 @@ public sealed class ReconciliationService : IReconciliationUiActions
         if (current.Status != MediaFileStatus.Missing ||
             !StringComparer.OrdinalIgnoreCase.Equals(Path.GetFullPath(current.CurrentPath), prepared.ExpectedPath))
             throw new InvalidOperationException("Media record changed after relink preview.");
+        if (!MediaFormatPolicy.IsSupportedVideoPath(prepared.CandidatePath))
+            throw new InvalidOperationException($"Candidate file changed after relink preview: unsupported extension '{Path.GetExtension(prepared.CandidatePath)}'.");
         var inspection = _inspector.Inspect(prepared.CandidatePath);
         if (isCancelled()) throw new OperationCanceledException();
         if (inspection.Status != AvailabilityInspectionStatus.Present || inspection.Size != prepared.FileSize)

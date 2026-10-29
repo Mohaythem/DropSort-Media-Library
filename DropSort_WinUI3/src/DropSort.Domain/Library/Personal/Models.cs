@@ -189,4 +189,6 @@ public record CustomListMember(
     string Title,
     int? Year,
     string? PosterReference,
-    bool IsMissing);
+    bool IsMissing,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null);

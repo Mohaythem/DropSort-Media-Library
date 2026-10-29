@@ -44,7 +44,9 @@ public sealed record MovieRecord(
     bool HasPendingMetadata = false,
     DateTimeOffset DateAdded = default,
     DateTimeOffset? LastOpenedAt = null,
-    string? BackdropReference = null) : INotifyPropertyChanged
+    string? BackdropReference = null,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null) : INotifyPropertyChanged
 {
     public DateTimeOffset? LastOpenedAt { get; private set; } = LastOpenedAt;
 
@@ -280,6 +282,8 @@ public sealed record ListMediaItem : INotifyPropertyChanged
     public string TypeLabel => LocalizationService.Text(IsShow ? "TvShow" : "HomeMovieType");
 
     public string Title => Movie?.Title ?? Show?.Title ?? string.Empty;
+
+    public string CanonicalTitle => Movie?.CanonicalTitle ?? Show?.CanonicalTitle ?? Title;
 
     public int Year => Movie?.Year ?? Show?.Year ?? 0;
 

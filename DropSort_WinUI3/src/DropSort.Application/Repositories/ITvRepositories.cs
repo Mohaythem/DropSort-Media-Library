@@ -5,6 +5,14 @@ using DropSort.Domain.Library.Shows;
 
 namespace DropSort.Application.Repositories;
 
+/// <summary>Optional bulk read used by library cards without loading each show's hierarchy.</summary>
+public interface ITvShowSummaryReader
+{
+    IReadOnlyList<TvShowSummary> ListSummaries();
+}
+
+public sealed record TvShowSummary(TvShow Show, int Seasons, int Episodes, int LocalEpisodes, int MissingEpisodes);
+
 public interface ITvShowRepository
 {
     TvShow? GetById(int id);
@@ -40,6 +48,8 @@ public interface ITvShowRepository
     TvShow Create(TvShowCatalogData data, DateTimeOffset now);
 
     TvShow UpdateMetadata(int id, TvShowCatalogData data, DateTimeOffset now);
+
+    void SetCustomDisplayTitle(int id, string? customDisplayTitle);
 
     void Delete(int id);
 }

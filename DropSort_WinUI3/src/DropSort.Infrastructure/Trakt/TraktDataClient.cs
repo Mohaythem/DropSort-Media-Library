@@ -17,7 +17,7 @@ namespace DropSort.Infrastructure.Trakt;
 /// Production HTTP GET client for Trakt API v2.
 /// Implements whitelisted endpoints, strict pagination, rate limiting, and memory bounds.
 /// </summary>
-public sealed class TraktDataClient : ITraktDataClient, IDisposable
+public sealed partial class TraktDataClient : ITraktDataClient, ITraktListWriter, IDisposable
 {
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
@@ -331,6 +331,7 @@ public sealed class TraktDataClient : ITraktDataClient, IDisposable
         while (true)
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            TraktRequestHeaders.IdentifyApplication(request);
             request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
             request.Headers.Add("trakt-api-key", clientId);
@@ -449,9 +450,12 @@ public sealed class TraktDataClient : ITraktDataClient, IDisposable
             delay = TimeSpan.Zero;
         }
 
-        // Add randomized jitter (50ms - 250ms)
+        // Reject server waits above the cap without shortening the server's minimum.
+        // Jitter must not make an otherwise allowed wait exceed that cap.
+        if (delay > _options.MaxRateLimitDelayOrDefault) return delay;
         var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(50, 250));
-        return delay + jitter;
+        var remaining = _options.MaxRateLimitDelayOrDefault - delay;
+        return delay + (jitter < remaining ? jitter : remaining);
     }
 
     private static async Task<byte[]> ReadBoundedStreamAsync(

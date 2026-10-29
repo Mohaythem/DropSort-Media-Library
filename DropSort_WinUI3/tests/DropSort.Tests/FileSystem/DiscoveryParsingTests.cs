@@ -50,6 +50,38 @@ public sealed class DiscoveryParsingTests : IDisposable
         Assert.Equal(2024, item.ParsedMedia.Year);
     }
 
+    [Theory]
+    [InlineData("1917 (2019).mkv", "1917", 2019)]
+    [InlineData("1917.2019.1080p.mkv", "1917", 2019)]
+    [InlineData("2001 A Space Odyssey (1968).mkv", "2001 A Space Odyssey", 1968)]
+    [InlineData("2001.A.Space.Odyssey.1968.mkv", "2001 A Space Odyssey", 1968)]
+    [InlineData("1984.mkv", "1984", null)]
+    [InlineData("1917 1080p.mkv", "1917", null)]
+    [InlineData("2001 A Space Odyssey.mkv", "2001 A Space Odyssey", null)]
+    public void Numeric_movie_titles_are_not_release_years(string fileName, string title, int? year)
+    {
+        var parsed = DiscoverOne(fileName).ParsedMedia!;
+        Assert.Equal(MediaType.Movie, parsed.MediaType);
+        Assert.Equal(title, parsed.Title);
+        Assert.Equal(year, parsed.Year);
+    }
+
+    [Theory]
+    [InlineData("Doctor Who (2005) S01E01.mkv", "Doctor Who", 2005)]
+    [InlineData("Doctor.Who.2005.1x01.mkv", "Doctor Who", 2005)]
+    [InlineData("1899 (2022) S01E01.mkv", "1899", 2022)]
+    [InlineData("1984 S01E01.mkv", "1984", null)]
+    [InlineData("Doctor Who S01E01 Christmas 2005.mkv", "Doctor Who", null)]
+    public void Show_release_year_is_read_only_before_episode_marker(string fileName, string title, int? year)
+    {
+        var parsed = DiscoverOne(fileName).ParsedMedia!;
+        Assert.Equal(MediaType.TvEpisode, parsed.MediaType);
+        Assert.Equal(title, parsed.Title);
+        Assert.Equal(year, parsed.Year);
+        Assert.Equal(1, parsed.SeasonNumber);
+        Assert.Equal(1, parsed.EpisodeNumber);
+    }
+
     [Fact]
     public void Release_tags_become_the_files_verified_facts()
     {

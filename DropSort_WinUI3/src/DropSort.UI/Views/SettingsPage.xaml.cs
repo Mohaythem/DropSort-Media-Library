@@ -17,12 +17,16 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     private string? _validatedVerificationUrl;
     private int _traktGeneration;
     private bool _traktBusy;
+    private bool _editingTraktConfig;
 
     public void Deactivate()
     {
         _credentialRequest?.Cancel();
         _editingCredential = false;
         TokenBox.Password = string.Empty;
+        _editingTraktConfig = false;
+        TraktClientIdBox.Password = string.Empty;
+        TraktRedirectUriBox.Text = string.Empty;
         TmdbFeedback.IsOpen = false;
         Interlocked.Increment(ref _traktGeneration);
         _traktAuthCts?.Cancel();
@@ -117,6 +121,8 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         TraktRedirectUriLabelText.Text = LocalizationService.Text("TraktRedirectUriLabel");
         TraktRedirectUriHelpText.Text = LocalizationService.Text("TraktRedirectUriHelp");
         TraktSaveConfigButton.Content = LocalizationService.Text("TraktSaveConfig");
+        TraktCancelConfigButton.Content = LocalizationService.Text("Cancel");
+        TraktEditConfigButton.Content = LocalizationService.Text("TraktEditConfig");
         TraktConnectButton.Content = LocalizationService.Text("TraktConnectDevice");
         TraktSyncNowButton.Content = LocalizationService.Text("TraktSyncNow");
         TraktDisconnectButton.Content = LocalizationService.Text("TraktDisconnect");
@@ -579,10 +585,21 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
 
             if (generation != _traktGeneration) return;
 
-            if (string.IsNullOrEmpty(TraktClientIdBox.Text))
-                TraktClientIdBox.Text = config.ClientId;
-            if (string.IsNullOrEmpty(TraktRedirectUriBox.Text))
-                TraktRedirectUriBox.Text = config.RedirectUri;
+            var hasSavedConfig = !string.IsNullOrWhiteSpace(config.ClientId) && !string.IsNullOrWhiteSpace(config.RedirectUri);
+            TraktConfigSummaryPanel.Visibility = hasSavedConfig && !_editingTraktConfig ? Visibility.Visible : Visibility.Collapsed;
+            TraktConfigInputPanel.Visibility = hasSavedConfig && !_editingTraktConfig ? Visibility.Collapsed : Visibility.Visible;
+            TraktEditConfigButton.Visibility = hasSavedConfig && !_editingTraktConfig ? Visibility.Visible : Visibility.Collapsed;
+            TraktCancelConfigButton.Visibility = hasSavedConfig && _editingTraktConfig ? Visibility.Visible : Visibility.Collapsed;
+            TraktConfigSummaryText.Text = hasSavedConfig ? LocalizationService.Text("TraktConfigConfigured") : string.Empty;
+            TraktClientIdMaskedText.Text = hasSavedConfig
+                ? string.Format(LocalizationService.Text("TraktClientIdMaskedFormat"), MaskTraktClientId(config.ClientId))
+                : string.Empty;
+            if (hasSavedConfig && !_editingTraktConfig)
+            {
+                // Do not retain saved values in input controls after returning to the ordinary view.
+                TraktClientIdBox.Password = string.Empty;
+                TraktRedirectUriBox.Text = string.Empty;
+            }
 
             if (!isConfigured || state is null)
             {
@@ -686,7 +703,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     {
         if (_traktBusy) return;
 
-        var clientId = TraktClientIdBox.Text?.Trim() ?? string.Empty;
+        var clientId = TraktClientIdBox.Password?.Trim() ?? string.Empty;
         var redirectUri = TraktRedirectUriBox.Text?.Trim() ?? string.Empty;
 
         if (string.IsNullOrWhiteSpace(clientId))
@@ -718,6 +735,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
 
             if (generation == _traktGeneration)
             {
+                _editingTraktConfig = false;
                 ShowTraktFeedback(LocalizationService.Text("TraktConfigSaved"), InfoBarSeverity.Success);
             }
         }
@@ -745,6 +763,40 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
                 RefreshTraktStatus();
             }
         }
+    }
+
+    private void TraktEditConfigButton_Click(object sender, RoutedEventArgs e)
+    {
+        var config = AppServices.TraktConfig;
+        if (string.IsNullOrWhiteSpace(config.ClientId) || string.IsNullOrWhiteSpace(config.RedirectUri))
+        {
+            return;
+        }
+
+        _editingTraktConfig = true;
+        TraktClientIdBox.Password = config.ClientId;
+        TraktRedirectUriBox.Text = config.RedirectUri;
+        RefreshTraktStatus();
+        TraktClientIdBox.Focus(FocusState.Programmatic);
+    }
+
+    private void TraktCancelConfigButton_Click(object sender, RoutedEventArgs e)
+    {
+        _editingTraktConfig = false;
+        TraktClientIdBox.Password = string.Empty;
+        TraktRedirectUriBox.Text = string.Empty;
+        RefreshTraktStatus();
+    }
+
+    private static string MaskTraktClientId(string clientId)
+    {
+        var value = clientId.Trim();
+        if (value.Length <= 4)
+        {
+            return new string('•', Math.Max(4, value.Length));
+        }
+
+        return new string('•', value.Length - 4) + value[^4..];
     }
 
     private async void TraktConnectButton_Click(object sender, RoutedEventArgs e)

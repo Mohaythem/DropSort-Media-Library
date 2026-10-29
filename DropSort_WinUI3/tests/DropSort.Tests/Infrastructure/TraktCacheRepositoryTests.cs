@@ -398,10 +398,10 @@ public sealed class TraktCacheRepositoryTests : IDisposable
             Assert.Equal(1L, Scalar(saved, "SELECT COUNT(*) FROM custom_list_members"));
         }
 
-        // 3. Verify user_version is 18
+        // 3. Verify user_version is at latest version (>= 18)
         using (var db = Open())
         {
-            Assert.Equal(18L, Scalar(db, "PRAGMA user_version"));
+            Assert.Equal((long)DatabaseMigrator.LatestVersion, Scalar(db, "PRAGMA user_version"));
             Assert.Equal("Fight Club", Scalar(db, "SELECT title FROM movies WHERE id=1"));
             Assert.Equal("dark", Scalar(db, "SELECT value FROM settings WHERE key='ui_theme'"));
             Assert.Equal("Favorites", Scalar(db, "SELECT display_name FROM custom_lists WHERE id=1"));

@@ -16,6 +16,7 @@ public interface ILibraryUiActions
     MovieListItem GetMovieItem(int movieId);
     MovieDetails GetMovieDetails(int movieId);
     DateTimeOffset RecordMovieOpened(int movieId);
+    void SetCustomDisplayTitle(int movieId, string? customDisplayTitle);
 }
 
 /// <summary>
@@ -163,6 +164,8 @@ public interface ITvLibraryUiActions
     DateTimeOffset RecordShowOpened(int showId);
 
     TvShowDetails GetShowDetails(int showId);
+
+    void SetCustomDisplayTitle(int showId, string? customDisplayTitle);
 
     /// <summary>
     /// Provider-confirmed season/episode enrichment, fetched asynchronously so it never blocks opening a

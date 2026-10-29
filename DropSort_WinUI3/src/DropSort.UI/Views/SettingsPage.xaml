@@ -265,12 +265,18 @@
 
                             <Border Style="{StaticResource HairlineDividerStyle}" />
 
-                            <!-- Non-secret registration parameters: ClientId and HTTPS RedirectUri ONLY -->
-                            <StackPanel Spacing="12">
+                            <!-- Registration parameters stay hidden after saving. They are shown only for first-time setup or explicit edit. -->
+                            <StackPanel x:Name="TraktConfigSummaryPanel" Spacing="6" Visibility="Collapsed">
+                                <TextBlock x:Name="TraktConfigSummaryText" Style="{StaticResource SecondaryBodyTextStyle}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="TraktClientIdMaskedText" Style="{StaticResource SecondaryCaptionTextStyle}" TextWrapping="Wrap" />
+                                <Button x:Name="TraktEditConfigButton" Click="TraktEditConfigButton_Click" Style="{StaticResource SubtleControlButtonStyle}" HorizontalAlignment="Left" />
+                            </StackPanel>
+
+                            <StackPanel x:Name="TraktConfigInputPanel" Spacing="12">
                                 <StackPanel Spacing="4">
                                     <TextBlock x:Name="TraktClientIdLabelText" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                     <TextBlock x:Name="TraktClientIdHelpText" Style="{StaticResource SecondaryCaptionTextStyle}" TextWrapping="Wrap" />
-                                    <TextBox x:Name="TraktClientIdBox" Style="{StaticResource FormInputTextBoxStyle}" />
+                                    <PasswordBox x:Name="TraktClientIdBox" PasswordRevealMode="Hidden" Style="{StaticResource FormInputPasswordBoxStyle}" />
                                 </StackPanel>
 
                                 <StackPanel Spacing="4">
@@ -281,6 +287,7 @@
 
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <Button x:Name="TraktSaveConfigButton" Click="TraktSaveConfigButton_Click" Style="{StaticResource AccentControlButtonStyle}" />
+                                    <Button x:Name="TraktCancelConfigButton" Click="TraktCancelConfigButton_Click" Style="{StaticResource SubtleControlButtonStyle}" Visibility="Collapsed" />
                                 </StackPanel>
                             </StackPanel>
 

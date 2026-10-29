@@ -13,11 +13,11 @@ namespace DropSort.Infrastructure.Persistence.Repositories;
 /// strings, and identity is the row id - never a position in a list.
 /// </summary>
 public sealed class TvShowRepository(SqliteConnection connection, SqliteTransaction? transaction = null)
-    : ITvShowRepository
+    : ITvShowRepository, ITvShowSummaryReader
 {
     private const string Columns =
         "id, provider, external_id, title, sort_title, original_title, year, overview, genres, "
-        + "poster_path, metadata_status, date_added, created_at, updated_at, backdrop_path, rating, tagline, last_opened_at";
+        + "poster_path, metadata_status, date_added, created_at, updated_at, backdrop_path, rating, tagline, last_opened_at, custom_display_title";
 
     public TvShow? GetById(int id)
     {
@@ -107,6 +107,37 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
         return Convert.ToInt32(command.ExecuteScalar());
     }
 
+    public IReadOnlyList<TvShowSummary> ListSummaries()
+    {
+        // Aggregate files per episode first: several copies of an episode count once, and one
+        // present copy takes precedence over missing copies. Empty seasons/shows remain visible.
+        var showColumns = string.Join(", ", Columns.Split(", ").Select(column => "sh." + column));
+        using var command = Command($"""
+            WITH episode_availability AS (
+                SELECT e.id, e.season_id, COUNT(f.id) AS files,
+                       MAX(CASE WHEN f.status = 'PRESENT' THEN 1 ELSE 0 END) AS present
+                  FROM tv_episodes e
+                  LEFT JOIN episode_media_files link ON link.episode_id = e.id
+                  LEFT JOIN media_files f ON f.id = link.media_file_id
+                 GROUP BY e.id
+            )
+            SELECT {showColumns}, COUNT(DISTINCT s.id), COUNT(e.id),
+                   COALESCE(SUM(e.present), 0),
+                   COALESCE(SUM(CASE WHEN e.files > 0 AND e.present = 0 THEN 1 ELSE 0 END), 0)
+              FROM tv_shows sh
+              LEFT JOIN tv_seasons s ON s.show_id = sh.id
+              LEFT JOIN episode_availability e ON e.season_id = s.id
+             GROUP BY sh.id
+             ORDER BY datetime(sh.date_added) DESC, sh.id DESC;
+            """);
+        using var reader = command.ExecuteReader();
+        var result = new List<TvShowSummary>();
+        while (reader.Read())
+            result.Add(new TvShowSummary(Map(reader), reader.GetInt32(19), reader.GetInt32(20),
+                reader.GetInt32(21), reader.GetInt32(22)));
+        return result;
+    }
+
     public TvShow Create(TvShowCatalogData data, DateTimeOffset now)
     {
         using var command = Command($"""
@@ -150,6 +181,16 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
         AddShowParameters(command, data, now);
         command.Parameters.AddWithValue("$id", id);
         return ReadOne(command) ?? throw new KeyNotFoundException($"TV show {id} was not found.");
+    }
+
+    public void SetCustomDisplayTitle(int id, string? customDisplayTitle)
+    {
+        if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
+        var trimmed = string.IsNullOrWhiteSpace(customDisplayTitle) ? null : customDisplayTitle.Trim();
+        using var command = Command("UPDATE tv_shows SET custom_display_title = $title WHERE id = $id;");
+        command.Parameters.AddWithValue("$title", (object?)trimmed ?? DBNull.Value);
+        command.Parameters.AddWithValue("$id", id);
+        if (command.ExecuteNonQuery() != 1) throw new KeyNotFoundException($"TV show {id} was not found.");
     }
 
     public void Delete(int id)
@@ -221,5 +262,6 @@ public sealed class TvShowRepository(SqliteConnection connection, SqliteTransact
         MovieRepository.ParseTimestamp(reader.GetString(11)),
         MovieRepository.ParseTimestamp(reader.GetString(12)),
         MovieRepository.ParseTimestamp(reader.GetString(13)),
-        reader.IsDBNull(17) ? null : MovieRepository.ParseTimestamp(reader.GetString(17)));
+        reader.IsDBNull(17) ? null : MovieRepository.ParseTimestamp(reader.GetString(17)),
+        customDisplayTitle: reader.FieldCount > 18 && !reader.IsDBNull(18) ? reader.GetString(18) : null);
 }

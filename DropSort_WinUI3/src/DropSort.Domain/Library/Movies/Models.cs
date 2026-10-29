@@ -146,8 +146,10 @@ public record Movie
     /// movie is still Ready and fully usable — this is not "missing metadata".
     /// </summary>
     public bool ReviewMatch { get; }
+    public string? CustomDisplayTitle { get; }
+    public string DisplayTitle => !string.IsNullOrWhiteSpace(CustomDisplayTitle) ? CustomDisplayTitle : Title;
 
-    public Movie(int id, MovieCatalogData data, DateTimeOffset dateAdded, DateTimeOffset createdAt, DateTimeOffset updatedAt, bool reviewMatch = false, DateTimeOffset? lastOpenedAt = null)
+    public Movie(int id, MovieCatalogData data, DateTimeOffset dateAdded, DateTimeOffset createdAt, DateTimeOffset updatedAt, bool reviewMatch = false, DateTimeOffset? lastOpenedAt = null, string? customDisplayTitle = null)
     {
         if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id), "id must be a positive integer");
 
@@ -158,6 +160,7 @@ public record Movie
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
         ReviewMatch = reviewMatch;
+        CustomDisplayTitle = string.IsNullOrWhiteSpace(customDisplayTitle) ? null : customDisplayTitle.Trim();
     }
 
     public string? Provider => Data.Provider;

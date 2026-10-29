@@ -66,7 +66,9 @@ public sealed record TVShowRecord(
     MetadataStatus MetadataStatus = MetadataStatus.Pending,
     DateTimeOffset DateAdded = default,
     DateTimeOffset? LastOpenedAt = null,
-    string? BackdropReference = null)
+    string? BackdropReference = null,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null)
 {
     public DateTimeOffset? LastOpenedAt { get; private set; } = LastOpenedAt;
 

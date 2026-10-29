@@ -33,7 +33,9 @@ internal static class LibraryProjection
         ReviewMatch: item.ReviewMatch,
         HasPendingMetadata: item.HasPendingMetadata,
         DateAdded: item.DateAdded,
-        LastOpenedAt: item.LastOpenedAt);
+        LastOpenedAt: item.LastOpenedAt,
+        CustomDisplayTitle: item.CustomDisplayTitle,
+        CanonicalTitle: item.CanonicalTitle);
 
     /// <summary>
     /// The details hero, file block, personal state and watch history for one movie. The watch
@@ -81,7 +83,9 @@ internal static class LibraryProjection
             PosterReference: details.PosterReference,
             FileCount: details.MediaFiles.Count,
             MediaFiles: mediaFiles,
-            ReviewMatch: details.ReviewMatch);
+            ReviewMatch: details.ReviewMatch,
+            CustomDisplayTitle: details.CustomDisplayTitle,
+            CanonicalTitle: details.CanonicalTitle);
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using DropSort.Application.Dto;
+using DropSort.Domain.Media;
 using DropSort.UI.Models;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
@@ -388,7 +389,10 @@ public sealed partial class CheckLibraryPage : Page, ILocalizableView, IActivata
         try
         {
             var picker = new Windows.Storage.Pickers.FileOpenPicker();
-            picker.FileTypeFilter.Add("*");
+            foreach (var extension in MediaFormatPolicy.SupportedVideoExtensions)
+            {
+                picker.FileTypeFilter.Add(extension);
+            }
             WinRT.Interop.InitializeWithWindow.Initialize(picker, MainWindow.WindowHandle);
 
             var picked = await picker.PickSingleFileAsync();

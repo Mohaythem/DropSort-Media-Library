@@ -188,8 +188,9 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
             SELECT m.id, m.provider, m.external_id, m.title, m.original_title, m.year, m.overview,
                    m.runtime_minutes, m.rating, m.poster_path, m.date_added, m.created_at, m.updated_at,
                    m.genres, m.metadata_status, m.backdrop_path, m.tagline, m.review_match, m.last_opened_at,
+                   m.custom_display_title,
                    COUNT(DISTINCT mf.id),
-                   COALESCE(SUM(CASE WHEN mf.status = 'MISSING' THEN 1 ELSE 0 END), 0),
+                   COUNT(DISTINCT CASE WHEN mf.status = 'MISSING' THEN mf.id END),
                    ps.preference,
                    CASE WHEN ps.watchlist_added_at IS NULL THEN 0 ELSE 1 END,
                    COUNT(DISTINCT we.id),
@@ -213,12 +214,12 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         {
             result.Add(new PersonalMovieSummary(
                 MovieRepository.Map(reader),
-                 reader.GetInt32(19),
                  reader.GetInt32(20),
-                 ParsePreference(reader.GetString(21)),
-                 reader.GetInt32(22) != 0,
-                 reader.GetInt32(23),
-                 reader.IsDBNull(24) ? null : MovieRepository.ParseTimestamp(reader.GetString(24))));
+                 reader.GetInt32(21),
+                 ParsePreference(reader.GetString(22)),
+                 reader.GetInt32(23) != 0,
+                 reader.GetInt32(24),
+                 reader.IsDBNull(25) ? null : MovieRepository.ParseTimestamp(reader.GetString(25))));
         }
         return result;
     }
@@ -387,16 +388,18 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         using var connection = SqliteConnections.Open(_connectionString);
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT kind, id, title, year, poster, is_missing FROM (
-                SELECT 'MOVIE' AS kind, m.id AS id, m.title AS title, m.year AS year, m.poster_path AS poster,
+            SELECT kind, id, title, year, poster, is_missing, custom_title, canonical_title FROM (
+                SELECT 'MOVIE' AS kind, m.id AS id, COALESCE(NULLIF(m.custom_display_title, ''), m.title) AS title, m.year AS year, m.poster_path AS poster,
                        CASE WHEN EXISTS (SELECT 1 FROM media_files mf WHERE mf.movie_id = m.id AND mf.status = 'PRESENT')
                             THEN 0 ELSE 1 END AS is_missing,
+                       m.custom_display_title AS custom_title,
+                       m.title AS canonical_title,
                        clm.added_at AS added_at
                   FROM custom_list_members clm
                   JOIN movies m ON m.id = clm.movie_id
                  WHERE clm.list_id = $list AND clm.media_kind = 'MOVIE'
                 UNION ALL
-                SELECT 'SHOW', s.id, s.title, s.year, s.poster_path,
+                SELECT 'SHOW', s.id, COALESCE(NULLIF(s.custom_display_title, ''), s.title) AS title, s.year, s.poster_path,
                        CASE WHEN EXISTS (
                            SELECT 1 FROM episode_media_files emf
                              JOIN media_files mf ON mf.id = emf.media_file_id
@@ -404,6 +407,8 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
                              JOIN tv_seasons se ON se.id = e.season_id
                             WHERE se.show_id = s.id AND mf.status = 'PRESENT')
                             THEN 0 ELSE 1 END,
+                       s.custom_display_title AS custom_title,
+                       s.title AS canonical_title,
                        clm.added_at
                   FROM custom_list_members clm
                   JOIN tv_shows s ON s.id = clm.show_id
@@ -425,7 +430,9 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
                 reader.GetString(2),
                 reader.IsDBNull(3) ? null : reader.GetInt32(3),
                 reader.IsDBNull(4) ? null : reader.GetString(4),
-                reader.GetInt32(5) != 0));
+                reader.GetInt32(5) != 0,
+                reader.IsDBNull(6) ? null : reader.GetString(6),
+                reader.IsDBNull(7) ? null : reader.GetString(7)));
         }
         return result;
     }
@@ -609,9 +616,9 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
                         ELSE CASE WHEN e.id IS NOT NULL AND EXISTS (
                             SELECT 1 FROM episode_media_files emf JOIN media_files mf ON mf.id = emf.media_file_id
                              WHERE emf.episode_id = e.id AND mf.status = 'PRESENT') THEN 1 ELSE 0 END END AS available,
-                   COALESCE(m.title, w.title_snapshot), COALESCE(m.year, w.year_snapshot),
+                   COALESCE(NULLIF(m.custom_display_title, ''), m.title, w.title_snapshot), COALESCE(m.year, w.year_snapshot),
                    se.show_id,
-                   COALESCE(s.title, w.show_title_snapshot), COALESCE(e.episode_number, w.episode_number_snapshot),
+                   COALESCE(NULLIF(s.custom_display_title, ''), s.title, w.show_title_snapshot), COALESCE(e.episode_number, w.episode_number_snapshot),
                    COALESCE(w.artwork_reference, e.still_path, m.backdrop_path),
                    COALESCE(w.backdrop_reference, s.backdrop_path),
                    COALESCE(w.poster_reference, m.poster_path, s.poster_path)

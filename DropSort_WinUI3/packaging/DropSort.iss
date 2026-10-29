@@ -9,10 +9,10 @@
 ; uninstall leave user data and media untouched.
 ;
 ; Build:  ISCC.exe packaging\DropSort.iss
-; Output: artifacts\release\0.11.0\DropSortSetup.exe
+; Output: artifacts\release\0.11.1\DropSortSetup.exe
 
 #define MyAppName "DropSort"
-#define MyAppVersion "0.11.0"
+#define MyAppVersion "0.11.1"
 #define MyAppPublisher "DropSort"
 #define MyAppExeName "DropSort.UI.exe"
 ; Payload = the self-contained Release BUILD output for win-x64. We package the build output, not the
@@ -29,7 +29,7 @@
 AppId={{1A127282-7849-4212-A5F1-A8FD87661B8D}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-VersionInfoVersion=0.11.0.0
+VersionInfoVersion=0.11.1.0
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={localappdata}\Programs\{#MyAppName}

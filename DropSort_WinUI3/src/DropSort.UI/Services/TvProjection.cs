@@ -38,7 +38,9 @@ internal static class TvProjection
         BackdropReference: item.BackdropReference,
         MetadataStatus: item.MetadataStatus,
         DateAdded: item.DateAdded,
-        LastOpenedAt: item.LastOpenedAt);
+        LastOpenedAt: item.LastOpenedAt,
+        CustomDisplayTitle: item.CustomDisplayTitle,
+        CanonicalTitle: item.CanonicalTitle);
 
     /// <summary>The full hierarchy of one show: seasons in order, each with its episodes in order.</summary>
     public static TVShowRecord ToDetails(TvShowDetails details) => new(
@@ -55,7 +57,9 @@ internal static class TvProjection
         ],
         PosterReference: details.PosterReference,
         ExternalId: details.ExternalId,
-        MetadataStatus: details.MetadataStatus);
+        MetadataStatus: details.MetadataStatus,
+        CustomDisplayTitle: details.CustomDisplayTitle,
+        CanonicalTitle: details.CanonicalTitle);
 
     private static EpisodeRecord ToEpisode(int seasonNumber, TvEpisodeDetails episode)
     {

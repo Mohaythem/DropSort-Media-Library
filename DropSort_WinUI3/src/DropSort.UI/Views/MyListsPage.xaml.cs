@@ -21,7 +21,7 @@ namespace DropSort.UI.Views;
 /// id, so a movie can belong to any number of lists and appears here right after it is added.
 /// </para>
 /// </summary>
-public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableView
+public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableView, IDeactivatableView
 {
     private string _selectedKey = "watch-later";
     private string _query = string.Empty;
@@ -62,6 +62,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     /// <summary>Every arrival re-reads the custom lists and the selected section from the catalog.</summary>
     public void Activate()
     {
+        _traktActive = true;
         Invalidate();
         RebuildTabs();
         Refresh();
@@ -90,6 +91,8 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         FlowDirection = LocalizationService.FlowDirection;
         PageTitleText.Text = LocalizationService.Text("MyLists");
         NewListButtonText.Text = LocalizationService.Text("NewList");
+        TraktListsButtonText.Text = LocalizationService.Text("TraktLists");
+        SyncTraktButtonText.Text = LocalizationService.Text("SyncTraktList");
         AddMoviesButtonText.Text = LocalizationService.Text("AddMedia");
         RenameListButton.Content = LocalizationService.Text("Rename");
         DeleteListButton.Content = LocalizationService.Text("Delete");
@@ -191,11 +194,22 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         }
 
         _rebuilding = false;
+        RebuildTraktTabs();
     }
 
     // APPEND_MARKER2
     private void Refresh()
     {
+        if (IsTraktKey(_selectedKey))
+        {
+            RefreshTrakt();
+            return;
+        }
+        CancelTraktDisplay();
+        TraktGrid.Visibility = Visibility.Collapsed;
+        SyncTraktButton.Visibility = Visibility.Collapsed;
+        AddMoviesButtonText.Text = LocalizationService.Text("AddMedia");
+        AddMoviesButton.IsEnabled = true;
         var definitions = Definitions;
         var definition = definitions.FirstOrDefault(list => list.Key == _selectedKey) ?? definitions[0];
         _selectedKey = definition.Key;
@@ -316,8 +330,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         return
         [
             .. all.Where(item =>
-                item.Title.Contains(_query, StringComparison.CurrentCultureIgnoreCase)
-                || item.Year.ToString(CultureInfo.InvariantCulture).Contains(_query, StringComparison.Ordinal)),
+                MediaTitleSearch.Matches(item.Title, item.CanonicalTitle, item.Year, _query)),
         ];
     }
 
@@ -354,6 +367,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     public void SelectSystemList(string key)
     {
         if (key is not ("continue-watching" or "recently-watched")) return;
+        CancelTraktDisplay();
         _selectedKey = key;
         _query = string.Empty;
         SearchBox.Text = string.Empty;
@@ -504,13 +518,15 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         if (item.Kind == CustomListMediaKind.Show)
         {
             var show = new TVShowRecord(
-                item.Id, item.Title, item.Year ?? 0, [], string.Empty, [], PosterReference: item.PosterReference);
+                item.Id, item.Title, item.Year ?? 0, [], string.Empty, [], PosterReference: item.PosterReference,
+                CustomDisplayTitle: item.CustomDisplayTitle, CanonicalTitle: item.CanonicalTitle);
             return new ListMediaItem(show, false, !item.IsMissing, badgeText);
         }
 
         var movie = new MovieRecord(
             item.Id, item.Title, item.Year ?? 0, string.Empty, 0, [], string.Empty,
-            HasLocalFile: !item.IsMissing, PosterReference: item.PosterReference);
+            HasLocalFile: !item.IsMissing, PosterReference: item.PosterReference,
+            CustomDisplayTitle: item.CustomDisplayTitle, CanonicalTitle: item.CanonicalTitle);
         return new ListMediaItem(movie, false, !item.IsMissing, badgeText);
     }
 
@@ -758,6 +774,11 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
     /// </summary>
     private async Task ShowAddMediaAsync()
     {
+        if (IsTraktKey(_selectedKey))
+        {
+            await ShowAddTraktAsync();
+            return;
+        }
         if (_selectedKey is "continue-watching" or "recently-watched") return;
         var destinationKey = _selectedKey;
         var destinationListId = ParseCustomKey(destinationKey);

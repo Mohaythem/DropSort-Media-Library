@@ -2,6 +2,8 @@ using System;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -37,7 +39,9 @@ public sealed class TraktAuthClient : ITraktAuthClient, IDisposable
 
     public async Task<TraktDeviceCode> GenerateDeviceCodeAsync(string clientId, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
+        clientId = clientId.Trim();
 
         var requestUri = new Uri($"{FixedAuthBaseUrl}/oauth/device/code");
         var requestDto = new DeviceCodeRequestDto(clientId);
@@ -48,16 +52,22 @@ public sealed class TraktAuthClient : ITraktAuthClient, IDisposable
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        TraktRequestHeaders.IdentifyApplication(request);
         request.Headers.Add("trakt-api-key", clientId);
         request.Headers.Add("trakt-api-version", "2");
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        // ResponseHeadersRead permits a bounded failure-body read. Keep the existing HTTP timeout
+        // covering both headers and content, including successful device-code responses.
+        using var requestCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        requestCts.CancelAfter(_httpClient.Timeout);
+        var requestToken = requestCts.Token;
+        using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, requestToken);
         if (!response.IsSuccessStatusCode)
         {
-            throw new TraktAuthException($"Trakt device code request failed with HTTP status {(int)response.StatusCode}.");
+            throw await DeviceCodeFailureAsync(response, clientId, requestToken);
         }
 
-        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+        var responseJson = await response.Content.ReadAsStringAsync(requestToken);
         DeviceCodeResponseDto? parsed;
         try
         {
@@ -82,6 +92,83 @@ public sealed class TraktAuthClient : ITraktAuthClient, IDisposable
             DateTimeOffset.UtcNow);
     }
 
+    private static async Task<TraktAuthException> DeviceCodeFailureAsync(
+        HttpResponseMessage response, string clientId, CancellationToken cancellationToken)
+    {
+        // Never display raw response text: gateways and OAuth errors can echo credentials.
+        // Bound the diagnostic read even for chunked responses, preserving caller cancellation.
+        var buffer = new byte[4096];
+        var count = 0;
+        var bodyAvailable = true;
+        using var readCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        readCts.CancelAfter(TimeSpan.FromSeconds(5));
+        try
+        {
+            using var stream = await response.Content.ReadAsStreamAsync(readCts.Token);
+            while (count < buffer.Length)
+            {
+                var read = await stream.ReadAsync(buffer.AsMemory(count), readCts.Token);
+                if (read == 0) break;
+                count += read;
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { bodyAvailable = false; }
+        catch (IOException) { bodyAvailable = false; }
+        catch (HttpRequestException) { bodyAvailable = false; }
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var mediaType = response.Content.Headers.ContentType?.MediaType ?? string.Empty;
+        var text = Encoding.UTF8.GetString(buffer, 0, count).TrimStart();
+        var kind = bodyAvailable ? "non-JSON" : "body unavailable";
+        string? errorCode = null;
+        if (bodyAvailable && (mediaType.Contains("html", StringComparison.OrdinalIgnoreCase) || text.StartsWith('<')))
+            kind = "HTML/gateway";
+        else if (bodyAvailable && (mediaType.Contains("json", StringComparison.OrdinalIgnoreCase) || text.StartsWith('{')))
+        {
+            kind = "unreadable JSON";
+            try
+            {
+                using var json = JsonDocument.Parse(buffer.AsMemory(0, count), new JsonDocumentOptions { MaxDepth = 8 });
+                kind = "JSON";
+                if (json.RootElement.ValueKind == JsonValueKind.Object &&
+                    json.RootElement.TryGetProperty("error", out var value) && value.ValueKind == JsonValueKind.String)
+                {
+                    // Only known protocol codes are safe. Descriptions and arbitrary codes are omitted.
+                    var code = value.GetString();
+                    if (code is "invalid_client" or "invalid_api_key" or "unauthorized_client" or
+                        "access_denied" or "unapproved_app" or "invalid_request")
+                        errorCode = string.Equals(code, clientId, StringComparison.OrdinalIgnoreCase) ? null : code;
+                }
+            }
+            catch (JsonException) { }
+        }
+
+        var correlation = string.Empty;
+        if (response.Headers.TryGetValues("X-Request-ID", out var ids))
+        {
+            var id = ids.FirstOrDefault();
+            if (id is { Length: <= 36 } && Guid.TryParseExact(id, "D", out var parsed) &&
+                !id.Contains(clientId, StringComparison.OrdinalIgnoreCase))
+                correlation = $"; request_id={parsed:D}";
+        }
+        if (response.Headers.TryGetValues("CF-Ray", out var rays))
+        {
+            var ray = rays.FirstOrDefault();
+            if (ray is { Length: >= 20 and <= 22 } && ray[16] == '-' &&
+                ray[..16].All(Uri.IsHexDigit) && ray[17..].All(c => c is >= 'A' and <= 'Z') &&
+                !ray.Contains(clientId, StringComparison.OrdinalIgnoreCase))
+                correlation += $"; cf_ray={ray}";
+        }
+
+        var advice = response.StatusCode == HttpStatusCode.Forbidden
+            ? " Verify the Trakt API Client ID and app approval/status in the developer dashboard. A 403 alone does not identify the cause."
+            : string.Empty;
+        return new TraktAuthException(
+            $"Trakt device code request failed with HTTP status {(int)response.StatusCode}.{advice} " +
+            $"[POST {FixedAuthBaseUrl}/oauth/device/code; response={kind}" +
+            (errorCode is null ? string.Empty : $"; error={errorCode}") + correlation + "]");
+    }
+
     public async Task<TraktPollResponse> PollDeviceTokenAsync(string deviceCode, string clientId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(deviceCode);
@@ -96,6 +183,7 @@ public sealed class TraktAuthClient : ITraktAuthClient, IDisposable
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        TraktRequestHeaders.IdentifyApplication(request);
         request.Headers.Add("trakt-api-key", clientId);
         request.Headers.Add("trakt-api-version", "2");
 
@@ -134,6 +222,7 @@ public sealed class TraktAuthClient : ITraktAuthClient, IDisposable
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        TraktRequestHeaders.IdentifyApplication(request);
         request.Headers.Add("trakt-api-key", clientId);
         request.Headers.Add("trakt-api-version", "2");
 

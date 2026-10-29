@@ -60,6 +60,12 @@ internal sealed class UnitOfWorkMovieRepository(ICatalogUnitOfWorkFactory factor
         return null;
     });
 
+    public void SetCustomDisplayTitle(int id, string? customDisplayTitle) => Write<object?>(movies =>
+    {
+        movies.SetCustomDisplayTitle(id, customDisplayTitle);
+        return null;
+    });
+
     public void Delete(int id) => Write<object?>(movies =>
     {
         movies.Delete(id);
@@ -120,7 +126,7 @@ internal sealed class UnitOfWorkMediaFileRepository(ICatalogUnitOfWorkFactory fa
 }
 
 /// <summary>Show half of the TV catalog; same one-call-one-transaction rule as the movie adapters.</summary>
-internal sealed class UnitOfWorkTvShowRepository(ICatalogUnitOfWorkFactory factory) : ITvShowRepository
+internal sealed class UnitOfWorkTvShowRepository(ICatalogUnitOfWorkFactory factory) : ITvShowRepository, ITvShowSummaryReader
 {
     public void RecordOpened(int id, DateTimeOffset openedAt) => Write<object?>(shows =>
     {
@@ -159,12 +165,21 @@ internal sealed class UnitOfWorkTvShowRepository(ICatalogUnitOfWorkFactory facto
 
     public IReadOnlyList<TvShow> ListAll() => Read(shows => shows.ListAll());
 
+    public IReadOnlyList<TvShowSummary> ListSummaries() =>
+        Read(shows => ((ITvShowSummaryReader)shows).ListSummaries());
+
     public int CountAll() => Read(shows => shows.CountAll());
 
     public TvShow Create(TvShowCatalogData data, DateTimeOffset now) => Write(shows => shows.Create(data, now));
 
     public TvShow UpdateMetadata(int id, TvShowCatalogData data, DateTimeOffset now) =>
         Write(shows => shows.UpdateMetadata(id, data, now));
+
+    public void SetCustomDisplayTitle(int id, string? customDisplayTitle) => Write<object?>(shows =>
+    {
+        shows.SetCustomDisplayTitle(id, customDisplayTitle);
+        return null;
+    });
 
     public void Delete(int id) => Write<object?>(shows =>
     {

@@ -1,5 +1,6 @@
 using System.IO;
 using DropSort.UI.Models;
+using DropSort.Application.Services;
 using DropSort.UI.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -34,11 +35,68 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     private readonly PostHandoffRequestLifetime _enrichmentRequests = new();
     private readonly PostHandoffRequestLifetime _availabilityRequests = new();
     private readonly PostHandoffRequestLifetime _actionRequests = new();
+    private readonly TitleInteractionController _titleController;
 
     public TVShowDetailsPage()
     {
         InitializeComponent();
+        _titleController = new TitleInteractionController(
+            new WindowsClipboardService(this.DispatcherQueue),
+            uiDispatcher: action =>
+            {
+                if (DispatcherQueue.HasThreadAccess)
+                {
+                    action();
+                }
+                else
+                {
+                    DispatcherQueue.TryEnqueue(() => action());
+                }
+            });
+        _titleController.OnError = error =>
+        {
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error);
+        };
+        _titleController.ErrorMessageProvider = key => LocalizationService.Text(key);
         Unloaded += (_, _) => Deactivate();
+        _titleController.OnDisplayTitleChanged = title =>
+        {
+            ShowTitleText.Text = title;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ShowTitleText, title);
+        };
+        _titleController.OnEditModeChanged = editing =>
+        {
+            if (editing)
+            {
+                ShowTitleViewPanel.Visibility = Visibility.Collapsed;
+                ShowTitleEditBox.Visibility = Visibility.Visible;
+                ShowTitleEditBox.Text = _titleController.DisplayTitle;
+                ShowTitleEditBox.PlaceholderText = _titleController.CanonicalTitle;
+                ShowTitleEditBox.Focus(FocusState.Programmatic);
+                ShowTitleEditBox.SelectAll();
+            }
+            else
+            {
+                ShowTitleEditBox.Visibility = Visibility.Collapsed;
+                ShowTitleViewPanel.Visibility = Visibility.Visible;
+                ShowTitleText.Focus(FocusState.Programmatic);
+            }
+        };
+        _titleController.OnCopyBadgeVisibilityChanged = visible =>
+        {
+            ShowTitleCopiedBadge.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        };
+        _titleController.SaveHandler = customTitle =>
+        {
+            if (_show.Id <= 0) return false;
+            AppServices.Tv.SetCustomDisplayTitle(_show.Id, customTitle);
+            _show = _show with
+            {
+                CustomDisplayTitle = customTitle,
+                Title = !string.IsNullOrWhiteSpace(customTitle) ? customTitle : (_show.CanonicalTitle ?? _show.Title)
+            };
+            return true;
+        };
         SetShow(_show);
     }
 
@@ -51,6 +109,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         _enrichmentRequests.Cancel();
         _availabilityRequests.Cancel();
         _actionRequests.Cancel();
+        _titleController.Dispose();
     }
 
     public void SetReturnDestination(string destination)
@@ -88,7 +147,11 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         SetMatchingState(false);
         _show = show;
         ReloadShowPersonalState();
-        ShowTitleText.Text = show.Title;
+        _titleController.Initialize(show.CanonicalTitle ?? show.Title, show.CustomDisplayTitle);
+        ShowTitleText.Text = _titleController.DisplayTitle;
+        ShowTitleCopiedText.Text = LocalizationService.Text("TitleCopied");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(ShowTitleText, _titleController.DisplayTitle);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ShowTitleText, LocalizationService.Text("CustomTitleAccessibleHelp"));
         OverviewText.Text = show.Overview;
 
         // A show registered from file names has no overview yet; a heading with nothing under it reads
@@ -111,6 +174,8 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
 
         UpdateBackLabel();
         KindText.Text = LocalizationService.Text("TvShow");
+        ShowTitleCopiedText.Text = LocalizationService.Text("TitleCopied");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(ShowTitleText, LocalizationService.Text("CustomTitleAccessibleHelp"));
         ProgressLabelText.Text = LocalizationService.Text("EpisodesOnDisk");
         PlayNextText.Text = LocalizationService.Text("PlayNextEpisode");
         AddToListText.Text = LocalizationService.Text("AddToList");
@@ -775,7 +840,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     {
         var showId = _show.Id;
         var request = _metadataRequests.Begin();
-        var candidate = await MatchMediaDialog.ShowForTvShowAsync(this, _show.Title, _show.Year > 0 ? _show.Year : null);
+        var candidate = await MatchMediaDialog.ShowForTvShowAsync(this, _show.CanonicalTitle ?? _show.Title, _show.Year > 0 ? _show.Year : null);
         if (!request.IsCurrent) return;
         if (candidate != null)
         {
@@ -794,5 +859,52 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
                 if (request.IsCurrent) SetMatchingState(false);
             }
         }
+    }
+
+    private void ShowTitleText_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse &&
+            !e.GetCurrentPoint((UIElement)sender).Properties.IsLeftButtonPressed)
+            return;
+        _titleController.HandleSingleClick();
+    }
+
+    private void ShowTitleText_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        _titleController.HandleDoubleClick();
+    }
+
+    private void ShowTitleText_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.F2)
+        {
+            _titleController.HandleKeyF2();
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.C &&
+                 Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+        {
+            _titleController.HandleKeyCtrlC();
+            e.Handled = true;
+        }
+    }
+
+    private void ShowTitleEditBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            _titleController.HandleKeyEnter(ShowTitleEditBox.Text);
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            _titleController.HandleKeyEscape();
+            e.Handled = true;
+        }
+    }
+
+    private void ShowTitleEditBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        _titleController.HandleBlur(ShowTitleEditBox.Text);
     }
 }

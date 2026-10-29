@@ -50,3 +50,10 @@ Thumbs.db
 # Audit and remote-inspection scratch space
 .audit-*/
 .remote-main-inspect/
+
+# Local artifacts and scratch space
+artifacts/
+DropSort_WinUI3/artifacts/
+unstream-proxy/
+.archify/
+DropSort_WinUI3/*.txt

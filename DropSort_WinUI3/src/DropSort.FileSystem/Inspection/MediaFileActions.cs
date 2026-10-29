@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using DropSort.Application.External;
 using DropSort.Domain.Library.Availability;
+using DropSort.Domain.Media;
 
 namespace DropSort.FileSystem.Inspection;
 
@@ -35,6 +36,9 @@ public sealed class MediaFileActions
             {
                 if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
                     return new FileActionResult(AvailabilityInspectionStatus.Error, "InvalidPath");
+
+                if (!selectFile && !directory && !MediaFormatPolicy.IsSupportedVideoPath(path))
+                    return new FileActionResult(AvailabilityInspectionStatus.Error, "UnsupportedMediaType");
 
                 var status = directory ? InspectFolder(path, token) : _inspector.Inspect(path).Status;
                 token.ThrowIfCancellationRequested();

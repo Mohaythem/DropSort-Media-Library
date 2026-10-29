@@ -76,6 +76,11 @@ public class MetadataMatchingServiceTests
             if (Storage.TryGetValue(id, out var m))
                 Storage[id] = new Movie(m.Id, m.Data, m.DateAdded, m.CreatedAt, m.UpdatedAt, value);
         }
+        public void SetCustomDisplayTitle(int id, string? customDisplayTitle)
+        {
+            if (Storage.TryGetValue(id, out var m))
+                Storage[id] = new Movie(m.Id, m.Data, m.DateAdded, m.CreatedAt, m.UpdatedAt, m.ReviewMatch, m.LastOpenedAt, customDisplayTitle);
+        }
     }
 
     private sealed class MockMetadataProvider : IMetadataProvider

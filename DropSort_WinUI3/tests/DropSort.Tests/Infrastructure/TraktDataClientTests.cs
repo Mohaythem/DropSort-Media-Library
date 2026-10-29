@@ -16,6 +16,52 @@ namespace DropSort.Tests.Infrastructure;
 
 public sealed class TraktDataClientTests
 {
+    [Theory]
+    [InlineData(60, false)]
+    [InlineData(60, true)]
+    [InlineData(61, false)]
+    [InlineData(61, true)]
+    public async Task RetryAfter_AtCapRetries_AboveCapFailsWithoutWaiting(int seconds, bool useDate)
+    {
+        var handler = new FakeHttpMessageHandler();
+        var clock = new FakeTimeProvider();
+        var delays = new List<TimeSpan>();
+        handler.Enqueue(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+            response.Headers.RetryAfter = useDate
+                ? new RetryConditionHeaderValue(clock.GetUtcNow().AddSeconds(seconds))
+                : new RetryConditionHeaderValue(TimeSpan.FromSeconds(seconds));
+            return response;
+        });
+        handler.Enqueue(_ =>
+        {
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("[]") };
+            response.Headers.Add("X-Pagination-Page", "1");
+            response.Headers.Add("X-Pagination-Limit", "250");
+            response.Headers.Add("X-Pagination-Page-Count", "1");
+            response.Headers.Add("X-Pagination-Item-Count", "0");
+            return response;
+        });
+        using var http = new HttpClient(handler);
+        using var client = new TraktDataClient(http, clock,
+            delayAsync: (delay, _) => { delays.Add(delay); return Task.CompletedTask; });
+        if (seconds == 60)
+        {
+            await client.GetResourceAsync(TraktResourceSpec.Watchlist(), TestClientId, TestAccessToken);
+            Assert.Equal(TimeSpan.FromSeconds(60), Assert.Single(delays));
+            Assert.Equal(2, handler.CapturedRequests.Count);
+        }
+        else
+        {
+            var failure = await Assert.ThrowsAsync<TraktClientException>(() =>
+                client.GetResourceAsync(TraktResourceSpec.Watchlist(), TestClientId, TestAccessToken));
+            Assert.Equal(TraktFailureKind.RateLimited, failure.FailureKind);
+            Assert.Empty(delays);
+            Assert.Single(handler.CapturedRequests);
+        }
+    }
+
     [Fact]
     public async Task Watched_shows_requests_progress_on_every_page_and_projects_nested_episodes()
     {
@@ -25,6 +71,10 @@ public sealed class TraktDataClientTests
             var currentPage = page;
             handler.Enqueue(request =>
             {
+                var product = Assert.Single(request.Headers.UserAgent).Product;
+                Assert.NotNull(product);
+                Assert.Equal("DropSort", product.Name);
+                Assert.True(Version.TryParse(product.Version, out _));
                 Assert.Contains("extended=progress", request.RequestUri!.Query);
                 Assert.Contains($"page={currentPage}", request.RequestUri.Query);
                 var response = new HttpResponseMessage(HttpStatusCode.OK)

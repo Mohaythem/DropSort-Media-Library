@@ -114,7 +114,7 @@ public sealed class ViewingActivityRepository(string connectionString) : IViewin
 
     // Resolve current catalog locations, so a supported rename/move cannot leave Home playing a stale path.
     private const string ActiveQuery = """
-        SELECT a.movie_id, se.show_id, a.episode_id, COALESCE(m.title, s.title, a.title_snapshot),
+        SELECT a.movie_id, se.show_id, a.episode_id, COALESCE(NULLIF(m.custom_display_title, ''), m.title, NULLIF(s.custom_display_title, ''), s.title, a.title_snapshot),
                COALESCE(m.year, s.year, a.year_snapshot), COALESCE(se.season_number, a.season_number_snapshot),
                COALESCE(e.episode_number, a.episode_number_snapshot), COALESCE(e.title, a.episode_title_snapshot),
                COALESCE(CASE WHEN played.status = 'PRESENT' THEN played.current_path END,
@@ -171,8 +171,8 @@ public sealed class ViewingActivityRepository(string connectionString) : IViewin
                 ORDER BY julianday(w.watched_at) DESC, w.id DESC) AS viewing_rank
               FROM watch_events w)
         SELECT w.id, w.media_kind, w.movie_id, w.episode_id, se.show_id,
-               COALESCE(m.title, w.title_snapshot), COALESCE(m.year, w.year_snapshot),
-               COALESCE(s.title, w.show_title_snapshot), COALESCE(se.season_number, w.season_number_snapshot),
+               COALESCE(NULLIF(m.custom_display_title, ''), m.title, w.title_snapshot), COALESCE(m.year, w.year_snapshot),
+               COALESCE(NULLIF(s.custom_display_title, ''), s.title, w.show_title_snapshot), COALESCE(se.season_number, w.season_number_snapshot),
                COALESCE(e.episode_number, w.episode_number_snapshot),
                COALESCE(w.artwork_reference, e.still_path, m.backdrop_path),
                COALESCE(w.backdrop_reference, s.backdrop_path), COALESCE(w.poster_reference, m.poster_path, s.poster_path),

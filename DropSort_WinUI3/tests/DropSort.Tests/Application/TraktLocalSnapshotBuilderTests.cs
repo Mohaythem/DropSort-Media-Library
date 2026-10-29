@@ -506,6 +506,7 @@ public sealed class TraktLocalSnapshotBuilderTests
         public Movie Create(MovieCatalogData data, DateTimeOffset now) => throw new NotImplementedException();
         public Movie UpdateMetadata(int id, MovieCatalogData data, DateTimeOffset now) => throw new NotImplementedException();
         public void SetReviewMatch(int id, bool value) => throw new NotImplementedException();
+        public void SetCustomDisplayTitle(int id, string? customDisplayTitle) => throw new NotImplementedException();
         public void RecordOpened(int id, DateTimeOffset openedAt) => throw new NotImplementedException();
         public void Delete(int id) => throw new NotImplementedException();
     }
@@ -555,6 +556,7 @@ public sealed class TraktLocalSnapshotBuilderTests
         public int CountAll() => _shows.Count;
         public TvShow Create(TvShowCatalogData data, DateTimeOffset now) => throw new NotImplementedException();
         public TvShow UpdateMetadata(int id, TvShowCatalogData data, DateTimeOffset now) => throw new NotImplementedException();
+        public void SetCustomDisplayTitle(int id, string? customDisplayTitle) => throw new NotImplementedException();
         public void Delete(int id) => throw new NotImplementedException();
     }
 

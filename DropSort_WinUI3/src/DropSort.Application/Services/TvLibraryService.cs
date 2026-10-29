@@ -42,6 +42,13 @@ public sealed class TvLibraryService(
     }
     public IReadOnlyList<TvShowListItem> ListShows()
     {
+        if (shows is ITvShowSummaryReader summaries)
+            return summaries.ListSummaries().Select(summary => new TvShowListItem(
+                summary.Show.Id, summary.Show.DisplayTitle, summary.Show.Year, summary.Show.PosterReference,
+                summary.Seasons, summary.Episodes, summary.LocalEpisodes, summary.MissingEpisodes,
+                summary.Show.DateAdded, summary.Show.LastOpenedAt, summary.Show.MetadataStatus,
+                summary.Show.BackdropReference, summary.Show.CustomDisplayTitle, summary.Show.Title)).ToArray();
+
         var result = new List<TvShowListItem>();
 
         foreach (var show in shows.ListAll())
@@ -68,7 +75,7 @@ public sealed class TvLibraryService(
 
             result.Add(new TvShowListItem(
                 show.Id,
-                show.Title,
+                show.DisplayTitle,
                 show.Year,
                 show.PosterReference,
                 showSeasons.Count,
@@ -78,10 +85,17 @@ public sealed class TvLibraryService(
                 show.DateAdded,
                 show.LastOpenedAt,
                 show.MetadataStatus,
-                show.BackdropReference));
+                show.BackdropReference,
+                show.CustomDisplayTitle,
+                show.Title));
         }
 
         return result;
+    }
+
+    public void SetCustomDisplayTitle(int showId, string? customDisplayTitle)
+    {
+        shows.SetCustomDisplayTitle(showId, customDisplayTitle);
     }
 
     /// <summary>
@@ -119,8 +133,9 @@ public sealed class TvLibraryService(
     }
 
     private static TvShowDetails ComposeDetails(TvShow show, IReadOnlyList<TvSeasonDetails> seasonDetails) =>
-        new(show.Id, show.Title, show.Data.OriginalTitle, show.Year, show.Overview, show.Genres,
-            show.PosterReference, seasonDetails, show.ExternalId, show.MetadataStatus);
+        new(show.Id, show.DisplayTitle, show.Data.OriginalTitle, show.Year, show.Overview, show.Genres,
+            show.PosterReference, seasonDetails, show.ExternalId, show.MetadataStatus,
+            show.CustomDisplayTitle, show.Title);
 
     private readonly record struct ShowGraph(
         TvShow Show,
@@ -150,9 +165,10 @@ public sealed class TvLibraryService(
             if (next is null) continue;
             var season = seasons.GetById(next.SeasonId);
             result.Add(new TvContinueWatchingItem(
-                show.Id, show.Title, show.PosterReference, show.BackdropReference,
+                show.Id, show.DisplayTitle, show.PosterReference, show.BackdropReference,
                 next.Id, season?.Number ?? 0, next.Number, next.Title,
-                next.StillReference ?? show.BackdropReference ?? show.PosterReference, true));
+                next.StillReference ?? show.BackdropReference ?? show.PosterReference, true,
+                show.CustomDisplayTitle, show.Title));
             if (result.Count >= limit) break;
         }
         return result;

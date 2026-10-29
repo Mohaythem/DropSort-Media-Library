@@ -6,7 +6,7 @@ namespace DropSort.Infrastructure.Persistence.Migrations;
 
 public class DatabaseMigrator
 {
-    public const int LatestVersion = 18;
+    public const int LatestVersion = 19;
     private readonly string _connectionString;
 
     public DatabaseMigrator(string connectionString)
@@ -623,6 +623,11 @@ public class DatabaseMigrator
                 CHECK (payload_json IS NULL OR json_valid(payload_json) = 1)
             );
             CREATE INDEX idx_trakt_resource_cache_account ON trakt_resource_cache(account_id);
+        ",
+        // v19: custom display title overrides for movies and TV shows.
+        @"
+            ALTER TABLE movies ADD COLUMN custom_display_title TEXT NULL;
+            ALTER TABLE tv_shows ADD COLUMN custom_display_title TEXT NULL;
         "
     };
 
@@ -681,7 +686,7 @@ public class DatabaseMigrator
                 if (i + 1 >= 14 && targetVersion == LatestVersion)
                     ValidateSchema(connection, tx, includeActivity: i + 1 >= 15,
                         includeViewing: i + 1 >= 16, includeShowPersonal: i + 1 >= 17,
-                        includeTrakt: i + 1 >= 18);
+                        includeTrakt: i + 1 >= 18, includeCustomTitle: i + 1 >= 19);
 
                 cmd.CommandText = $"PRAGMA user_version = {i + 1};";
                 cmd.ExecuteNonQuery();
@@ -706,7 +711,7 @@ public class DatabaseMigrator
 
     private static void ValidateSchema(SqliteConnection connection, SqliteTransaction? transaction = null,
         bool includeActivity = true, bool includeViewing = true, bool includeShowPersonal = true,
-        bool includeTrakt = true)
+        bool includeTrakt = true, bool includeCustomTitle = true)
     {
         var requiredTables = new[]
         {
@@ -762,6 +767,11 @@ public class DatabaseMigrator
         {
             RequireTableColumns(connection, "movies", transaction, "last_opened_at");
             RequireTableColumns(connection, "tv_shows", transaction, "last_opened_at");
+        }
+        if (includeCustomTitle)
+        {
+            RequireTableColumns(connection, "movies", transaction, "custom_display_title");
+            RequireTableColumns(connection, "tv_shows", transaction, "custom_display_title");
         }
         EnsureForeignKeyIntegrity(connection, transaction, "Database schema");
     }

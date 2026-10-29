@@ -259,25 +259,105 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
             return null;
         }
 
+        var dir = Path.GetDirectoryName(fileNameOrPath);
+        int? folderSeason = null;
+        if (!string.IsNullOrEmpty(dir))
+        {
+            var folderName = Path.GetFileName(dir);
+            if (DropSort.Application.Services.TvBatchAnalysisService.TryExtractSeasonFolder(folderName, out var s))
+            {
+                folderSeason = s;
+            }
+        }
+
+        var stem = Path.GetFileNameWithoutExtension(fileNameOrPath);
         var parsed = Parse(fileNameOrPath);
+
+        var hasExplicitSeason = EpisodePattern().IsMatch(stem) || AlternateEpisodePattern().IsMatch(stem);
+
         if (parsed.MediaType == MediaType.TvEpisode
-            && parsed.SeasonNumber is int season
             && parsed.EpisodeNumber is int episode)
         {
+            // Explicit season from filename marker (e.g. S03E05, 3x05) must take precedence
+            // over conflicting season folder. Only fallback to folderSeason if filename carries no explicit season (e.g. Episode 05).
+            var season = hasExplicitSeason && parsed.SeasonNumber.HasValue
+                ? parsed.SeasonNumber.Value
+                : (folderSeason ?? parsed.SeasonNumber ?? 1);
             return (season, episode);
         }
 
-        if (DropSort.Application.Services.TvSeriesGrouping.TryDeriveEpisode(
-                Path.GetFileNameWithoutExtension(fileNameOrPath), out _, out var trailingEpisode))
+        // Under an explicit season folder, extract episode only if stem is a genuine bare episode number
+        // or explicit episode prefix - NEVER for movie sequels, resolution, or ambiguous titles.
+        if (folderSeason.HasValue
+            && DropSort.Application.Services.TvBatchAnalysisService.TryExtractBareNumericEpisode(stem, out var seasonFolderEp))
         {
-            return (1, trailingEpisode);
+            return (folderSeason.Value, seasonFolderEp);
+        }
+
+        // For flat standalone filenames, check TvSeriesGrouping trailing episode, but conservatively
+        // exclude movie sequels ("Part 2", "Vol 2", "Toy Story 2"), known resolutions (720, 1080),
+        // and ambiguous 3-digit numbers ("BB - 105").
+        if (DropSort.Application.Services.TvSeriesGrouping.TryDeriveEpisode(
+                stem, out var baseTitle, out var trailingEpisode))
+        {
+            if (IsAmbiguousOrMovieSequel(baseTitle, trailingEpisode, stem))
+            {
+                return null;
+            }
+
+            return (folderSeason ?? 1, trailingEpisode);
         }
 
         return null;
     }
 
+    private static bool IsAmbiguousOrMovieSequel(string baseTitle, int trailingNumber, string fullStem)
+    {
+        // 1. Video resolutions are never episodes
+        if (trailingNumber is 480 or 576 or 720 or 1080 or 2160)
+        {
+            return true;
+        }
+
+        // If stem contains an explicit episode keyword (Episode, Ep, الحلقة, حلقة), it is not a sequel
+        var hasEpisodeKeyword = fullStem.Contains("episode", StringComparison.OrdinalIgnoreCase)
+            || fullStem.Contains("ep", StringComparison.OrdinalIgnoreCase)
+            || fullStem.Contains("الحلقة", StringComparison.Ordinal)
+            || fullStem.Contains("حلقة", StringComparison.Ordinal);
+
+        if (hasEpisodeKeyword)
+        {
+            return false;
+        }
+
+        // 2. Part / Volume sequel markers (e.g. "The Godfather Part 2", "Kill Bill Vol 2")
+        var trimmedBase = baseTitle.TrimEnd(' ', '.', '_', '-', ':');
+        if (trimmedBase.EndsWith("Part", StringComparison.OrdinalIgnoreCase)
+            || trimmedBase.EndsWith("Vol", StringComparison.OrdinalIgnoreCase)
+            || trimmedBase.EndsWith("Volume", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        // 3. 3-digit numbers without episode keyword (e.g. "BB - 105") are ambiguous between S01E05 and anime E105
+        if (trailingNumber is >= 100 and <= 999)
+        {
+            return true;
+        }
+
+        // 4. Single-digit numbers (< 10) on multi-character titles without episode keyword are typical movie sequels
+        // (e.g. "Toy Story 2", "Avatar 2", "Iron Man 3", "Deadpool 2", "Spider-Man 3")
+        if (trailingNumber < 10)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     private static ParsedMedia Parse(string path)
-    {        var original = Path.GetFileName(path);
+    {
+        var original = Path.GetFileName(path);
         var stem = Path.GetFileNameWithoutExtension(path);
 
         // Two episode forms are recognized, both anchored so they cannot match part of a longer number:
@@ -295,9 +375,11 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
             : wordMatch.Success ? wordMatch
             : Match.Empty;
         var isEpisode = marker.Success;
-        var yearMatch = YearPattern().Match(stem);
+        // Episode titles/tags after the marker cannot supply the show's release year.
+        var titleStem = isEpisode ? stem[..marker.Index] : stem;
+        var yearMatch = FindReleaseYear(titleStem);
         int? year = yearMatch.Success ? int.Parse(yearMatch.Value, System.Globalization.CultureInfo.InvariantCulture) : null;
-        var titlePart = yearMatch.Success ? stem[..yearMatch.Index] : stem;
+        var titlePart = yearMatch.Success ? titleStem[..yearMatch.Index] : titleStem;
         var title = CleanReleaseTitle(titlePart);
 
         // "Dune Part Two (2024) 1080p" leaves the opening bracket behind once the year is cut off, so
@@ -329,7 +411,7 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
         // The show name is the part before the marker, cleaned the way a movie title is. An empty result
         // stays null: the file is then an episode the parser could not resolve, not a show named after
         // its own file name.
-        var showPart = CleanReleaseTitle(stem[..marker.Index]);
+        var showPart = yearMatch.Success ? title : CleanReleaseTitle(titleStem);
         var numbers = episodeMatch.Success || altMatch.Success
             ? ReadEpisodeNumbers(marker)
             : ReadWordEpisodeNumber(marker);
@@ -338,13 +420,32 @@ public sealed partial class MediaDiscoveryService : IMediaDiscoveryService
             original,
             MediaType.TvEpisode,
             showPart.Length == 0 ? null : showPart,
-            null,
+            year,
             resolution,
             source,
             codec,
             Path.GetExtension(path),
             numbers?.Season,
             numbers?.Episode);
+    }
+
+    private static Match FindReleaseYear(string titleStem)
+    {
+        Match fallback = Match.Empty;
+        foreach (Match candidate in YearPattern().Matches(titleStem))
+        {
+            // A year-shaped title at the beginning (1917, 1984, 2001...) is not a release year.
+            var prefix = CleanReleaseTitle(titleStem[..candidate.Index])
+                .Trim(' ', '(', ')', '[', ']', '{', '}', '-', '_', '.', ',');
+            if (prefix.Length == 0) continue;
+            if (!fallback.Success) fallback = candidate;
+            var end = candidate.Index + candidate.Length;
+            if (candidate.Index > 0 && end < titleStem.Length
+                && ((titleStem[candidate.Index - 1] == '(' && titleStem[end] == ')')
+                    || (titleStem[candidate.Index - 1] == '[' && titleStem[end] == ']')))
+                return candidate;
+        }
+        return fallback;
     }
 
     /// <summary>

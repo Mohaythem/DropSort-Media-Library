@@ -32,6 +32,12 @@ public sealed class TvBatchAnalysisService : ITvBatchAnalysisService
         @"(?i)(?:(?<![A-Za-z0-9])S(?<season>\d{1,3})E(?<episode>\d{1,3})(?![A-Za-z0-9])|(?<![\dx])(?<season>\d{1,3})x(?<episode>\d{1,3})(?![\dx]))",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
+    private static readonly Regex BareNumericEpisodePattern = new(
+        @"^(?:(?:\[|\()?\s*(?<num>\d{1,3})\s*(?:\]|\))?|(?:(?:(?:ال)?حلق[ةه]|episode|ep)[\s._\-:]*)(?<num>\d{1,3}))\s*$",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    private static readonly HashSet<int> KnownResolutions = [480, 576, 720, 1080, 2160];
+
     private static readonly HashSet<string> GenericFolderNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "downloads",
@@ -133,6 +139,7 @@ public sealed class TvBatchAnalysisService : ITvBatchAnalysisService
             var hasFolderSeason = folderSeason.HasValue;
             var parsed = item.ParsedMedia;
             var hasTvMarker = parsed?.MediaType == MediaType.TvEpisode;
+            var stem = Path.GetFileNameWithoutExtension(item.Path);
 
             // An ordinary movie candidate with no credible TV evidence remains a movie.
             if (isMovieClassification && !hasFolderSeason && !hasTvMarker)
@@ -141,7 +148,6 @@ public sealed class TvBatchAnalysisService : ITvBatchAnalysisService
                 continue;
             }
 
-            var stem = Path.GetFileNameWithoutExtension(item.Path);
             var hasExplicitSeason = ExplicitSeasonMarkerPattern.IsMatch(FoldArabicDigits(stem));
 
             var warnings = new List<TvBatchWarning>();
@@ -184,11 +190,19 @@ public sealed class TvBatchAnalysisService : ITvBatchAnalysisService
                 ? TvEvidenceSource.Filename
                 : TvEvidenceSource.None;
 
+            if (!effectiveEpisode.HasValue && hasFolderSeason && TryExtractTrailingEpisodeNumber(stem, out var derivedEpisode))
+            {
+                effectiveEpisode = derivedEpisode;
+                episodeSource = TvEvidenceSource.Filename;
+            }
+
             // Determine Title and TitleSource
             string? effectiveTitle;
             TvEvidenceSource titleSource;
 
-            if (!string.IsNullOrWhiteSpace(parsed?.Title))
+            var isBareNumericMovieTitle = isMovieClassification && hasFolderSeason && TryExtractTrailingEpisodeNumber(stem, out _);
+
+            if (!string.IsNullOrWhiteSpace(parsed?.Title) && !isBareNumericMovieTitle)
             {
                 effectiveTitle = parsed.Title.Trim();
                 titleSource = TvEvidenceSource.Filename;
@@ -233,7 +247,9 @@ public sealed class TvBatchAnalysisService : ITvBatchAnalysisService
 
             // Regenerate CurrentItem if resolved and missing title was filled or folder season applied
             DiscoveredMedia currentItem = item;
-            if (isResolved && (item.Classification == DiscoveryClassification.TvEpisodeSkipped || item.Classification == DiscoveryClassification.TvEpisodeCandidate))
+            if (isResolved && (item.Classification == DiscoveryClassification.TvEpisodeSkipped
+                || item.Classification == DiscoveryClassification.TvEpisodeCandidate
+                || (item.Classification == DiscoveryClassification.MovieCandidate && hasFolderSeason && isBareNumericMovieTitle)))
             {
                 var newParsed = new ParsedMedia(
                     originalName: parsed?.OriginalName ?? Path.GetFileName(item.Path),
@@ -578,6 +594,40 @@ public sealed class TvBatchAnalysisService : ITvBatchAnalysisService
 
         return false;
     }
+
+    public static bool TryExtractBareNumericEpisode(string stem, out int episode)
+    {
+        episode = 0;
+        if (string.IsNullOrWhiteSpace(stem))
+        {
+            return false;
+        }
+
+        var folded = FoldArabicDigits(stem.Trim());
+        var match = BareNumericEpisodePattern.Match(folded);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        var numText = match.Groups["num"].Value;
+        if (int.TryParse(numText, NumberStyles.None, CultureInfo.InvariantCulture, out var parsedEp)
+            && parsedEp is >= 0 and <= 999)
+        {
+            if (KnownResolutions.Contains(parsedEp))
+            {
+                return false;
+            }
+
+            episode = parsedEp;
+            return true;
+        }
+
+        return false;
+    }
+
+    public static bool TryExtractTrailingEpisodeNumber(string stem, out int episode) =>
+        TryExtractBareNumericEpisode(stem, out episode);
 
     public static bool IsGenericFolder(string name)
     {

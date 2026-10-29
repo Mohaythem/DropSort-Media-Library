@@ -88,7 +88,7 @@ public sealed class CatalogUnitOfWorkFactory : ICatalogUnitOfWorkFactory
 
 public sealed class MovieRepository : IMovieRepository
 {
-    private const string Columns = "id, provider, external_id, title, original_title, year, overview, runtime_minutes, rating, poster_path, date_added, created_at, updated_at, genres, metadata_status, backdrop_path, tagline, review_match, last_opened_at";
+    private const string Columns = "id, provider, external_id, title, original_title, year, overview, runtime_minutes, rating, poster_path, date_added, created_at, updated_at, genres, metadata_status, backdrop_path, tagline, review_match, last_opened_at, custom_display_title";
     private readonly SqliteConnection _connection;
     private readonly SqliteTransaction? _transaction;
 
@@ -193,6 +193,16 @@ public sealed class MovieRepository : IMovieRepository
         command.ExecuteNonQuery();
     }
 
+    public void SetCustomDisplayTitle(int id, string? customDisplayTitle)
+    {
+        if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
+        var trimmed = string.IsNullOrWhiteSpace(customDisplayTitle) ? null : customDisplayTitle.Trim();
+        using var command = Command("UPDATE movies SET custom_display_title = $title WHERE id = $id;");
+        command.Parameters.AddWithValue("$title", (object?)trimmed ?? DBNull.Value);
+        command.Parameters.AddWithValue("$id", id);
+        if (command.ExecuteNonQuery() != 1) throw new KeyNotFoundException($"Movie {id} was not found.");
+    }
+
     public void RecordOpened(int id, DateTimeOffset openedAt)
     {
         if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
@@ -268,7 +278,8 @@ public sealed class MovieRepository : IMovieRepository
             ParseTimestamp(reader.GetString(11)),
             ParseTimestamp(reader.GetString(12)),
             reviewMatch: !reader.IsDBNull(17) && reader.GetInt32(17) != 0,
-            lastOpenedAt: reader.IsDBNull(18) ? null : ParseTimestamp(reader.GetString(18)));
+            lastOpenedAt: reader.IsDBNull(18) ? null : ParseTimestamp(reader.GetString(18)),
+            customDisplayTitle: reader.FieldCount > 19 && !reader.IsDBNull(19) ? reader.GetString(19) : null);
     }
 
     internal static DateTimeOffset ParseTimestamp(string value) =>

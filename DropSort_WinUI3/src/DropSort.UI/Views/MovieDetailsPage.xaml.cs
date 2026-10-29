@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using DropSort.Application.Contracts;
+using DropSort.Application.Services;
 using DropSort.Domain.Library.Personal;
 using DropSort.UI.Models;
 using DropSort.UI.Controls;
@@ -48,6 +49,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     private readonly PostHandoffRequestLifetime _availabilityRequests = new();
     private readonly PostHandoffRequestLifetime _actionRequests = new();
     private readonly PostHandoffRequestLifetime _organizationRequests = new();
+    private readonly TitleInteractionController _titleController;
 
     private readonly Windows.UI.ViewManagement.AccessibilitySettings _accessibilitySettings = new();
     private readonly Windows.UI.ViewManagement.UISettings _uiSettings = new();
@@ -56,6 +58,24 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     public MovieDetailsPage()
     {
         InitializeComponent();
+        _titleController = new TitleInteractionController(
+            new WindowsClipboardService(this.DispatcherQueue),
+            uiDispatcher: action =>
+            {
+                if (DispatcherQueue.HasThreadAccess)
+                {
+                    action();
+                }
+                else
+                {
+                    DispatcherQueue.TryEnqueue(() => action());
+                }
+            });
+        _titleController.OnError = error =>
+        {
+            _ = ShowMessageAsync(LocalizationService.Text("Failed"), error);
+        };
+        _titleController.ErrorMessageProvider = key => LocalizationService.Text(key);
         Root.SizeChanged += (_, _) => UpdateDetailsLayout();
         ActualThemeChanged += (_, _) => UpdateDetailsIcons();
         Loaded += (_, _) =>
@@ -88,6 +108,44 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
             _watchingContrast = false;
             Deactivate();
         };
+        _titleController.OnDisplayTitleChanged = title =>
+        {
+            MovieTitleText.Text = title;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(MovieTitleText, title);
+        };
+        _titleController.OnEditModeChanged = editing =>
+        {
+            if (editing)
+            {
+                MovieTitleViewPanel.Visibility = Visibility.Collapsed;
+                MovieTitleEditBox.Visibility = Visibility.Visible;
+                MovieTitleEditBox.Text = _titleController.DisplayTitle;
+                MovieTitleEditBox.PlaceholderText = _titleController.CanonicalTitle;
+                MovieTitleEditBox.Focus(FocusState.Programmatic);
+                MovieTitleEditBox.SelectAll();
+            }
+            else
+            {
+                MovieTitleEditBox.Visibility = Visibility.Collapsed;
+                MovieTitleViewPanel.Visibility = Visibility.Visible;
+                MovieTitleText.Focus(FocusState.Programmatic);
+            }
+        };
+        _titleController.OnCopyBadgeVisibilityChanged = visible =>
+        {
+            MovieTitleCopiedBadge.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        };
+        _titleController.SaveHandler = customTitle =>
+        {
+            if (_movie.Id <= 0) return false;
+            AppServices.Library.SetCustomDisplayTitle(_movie.Id, customTitle);
+            _movie = _movie with
+            {
+                CustomDisplayTitle = customTitle,
+                Title = !string.IsNullOrWhiteSpace(customTitle) ? customTitle : (_movie.CanonicalTitle ?? _movie.Title)
+            };
+            return true;
+        };
         SetMovie(_movie);
     }
 
@@ -101,6 +159,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         _availabilityRequests.Cancel();
         _actionRequests.Cancel();
         _organizationRequests.Cancel();
+        _titleController.Dispose();
     }
 
     /// <summary>Raised after a manual "Move to series" so the shell can open the target show.</summary>
@@ -155,8 +214,12 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         _preference = movie.Preference;
         _inWatchlist = movie.InWatchlist;
 
-        MovieTitleText.Text = movie.Title;
-        MatchedIdentityText.Text = movie.HasPendingMetadata ? string.Empty : movie.Title + (movie.Year > 0 ? " (" + movie.Year.ToString(CultureInfo.InvariantCulture) + ")" : string.Empty);
+        _titleController.Initialize(movie.CanonicalTitle ?? movie.Title, movie.CustomDisplayTitle);
+        MovieTitleText.Text = _titleController.DisplayTitle;
+        MovieTitleCopiedText.Text = LocalizationService.Text("TitleCopied");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(MovieTitleText, _titleController.DisplayTitle);
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(MovieTitleText, LocalizationService.Text("CustomTitleAccessibleHelp"));
+        MatchedIdentityText.Text = movie.HasPendingMetadata ? string.Empty : (movie.CanonicalTitle ?? movie.Title) + (movie.Year > 0 ? " (" + movie.Year.ToString(CultureInfo.InvariantCulture) + ")" : string.Empty);
         MovieMetaText.Text = LocalizationService.Digits(string.Join(" · ", new[]
         {
             movie.Year > 0 ? movie.Year.ToString(CultureInfo.InvariantCulture) : null,
@@ -263,6 +326,8 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
 
         UpdateBackLabel();
         KindText.Text = LocalizationService.Text("DetailsLibraryIdentity");
+        MovieTitleCopiedText.Text = LocalizationService.Text("TitleCopied");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetHelpText(MovieTitleText, LocalizationService.Text("CustomTitleAccessibleHelp"));
         Root.Language = LocalizationService.Culture.Name;
         OriginalTitleText.Text = string.IsNullOrWhiteSpace(_movie.OriginalTitle)
             ? string.Empty
@@ -1098,7 +1163,7 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
     {
         var movieId = _movie.Id;
         var request = _metadataRequests.Begin();
-        var candidate = await MatchMediaDialog.ShowForMovieAsync(this, _movie.Title, _movie.Year > 0 ? _movie.Year : null);
+        var candidate = await MatchMediaDialog.ShowForMovieAsync(this, _movie.CanonicalTitle ?? _movie.Title, _movie.Year > 0 ? _movie.Year : null);
         if (!request.IsCurrent) return;
         if (candidate != null)
         {
@@ -1217,5 +1282,52 @@ public sealed partial class MovieDetailsPage : Page, ILocalizableView, IDeactiva
         {
             ReportFailure(error);
         }
+    }
+
+    private void MovieTitleText_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse &&
+            !e.GetCurrentPoint((UIElement)sender).Properties.IsLeftButtonPressed)
+            return;
+        _titleController.HandleSingleClick();
+    }
+
+    private void MovieTitleText_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        _titleController.HandleDoubleClick();
+    }
+
+    private void MovieTitleText_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.F2)
+        {
+            _titleController.HandleKeyF2();
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.C &&
+                 Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control).HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down))
+        {
+            _titleController.HandleKeyCtrlC();
+            e.Handled = true;
+        }
+    }
+
+    private void MovieTitleEditBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == Windows.System.VirtualKey.Enter)
+        {
+            _titleController.HandleKeyEnter(MovieTitleEditBox.Text);
+            e.Handled = true;
+        }
+        else if (e.Key == Windows.System.VirtualKey.Escape)
+        {
+            _titleController.HandleKeyEscape();
+            e.Handled = true;
+        }
+    }
+
+    private void MovieTitleEditBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        _titleController.HandleBlur(MovieTitleEditBox.Text);
     }
 }

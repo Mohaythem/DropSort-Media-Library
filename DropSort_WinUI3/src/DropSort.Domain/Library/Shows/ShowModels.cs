@@ -211,13 +211,18 @@ public record TvShow
 
     public DateTimeOffset UpdatedAt { get; }
 
+    public string? CustomDisplayTitle { get; }
+
+    public string DisplayTitle => !string.IsNullOrWhiteSpace(CustomDisplayTitle) ? CustomDisplayTitle : Title;
+
     public TvShow(
         int id,
         TvShowCatalogData data,
         DateTimeOffset dateAdded,
         DateTimeOffset createdAt,
         DateTimeOffset updatedAt,
-        DateTimeOffset? lastOpenedAt = null)
+        DateTimeOffset? lastOpenedAt = null,
+        string? customDisplayTitle = null)
     {
         if (id <= 0)
         {
@@ -230,6 +235,7 @@ public record TvShow
         LastOpenedAt = lastOpenedAt;
         CreatedAt = createdAt;
         UpdatedAt = updatedAt;
+        CustomDisplayTitle = string.IsNullOrWhiteSpace(customDisplayTitle) ? null : customDisplayTitle.Trim();
     }
 
     public string? Provider => Data.Provider;

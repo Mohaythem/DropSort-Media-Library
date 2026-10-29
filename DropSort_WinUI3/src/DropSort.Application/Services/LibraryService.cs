@@ -50,9 +50,16 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
         var movie = _movies.GetById(movieId) ?? throw new ArgumentException($"Movie {movieId} not found");
         var files = _mediaFiles.GetByMovieId(movieId);
         return new MovieDetails(
-            movie.Id, movie.Title, movie.OriginalTitle, movie.Year, movie.Overview,
+            movie.Id, movie.DisplayTitle, movie.OriginalTitle, movie.Year, movie.Overview,
             movie.Genres, movie.RuntimeMinutes, movie.Rating, movie.PosterReference, files, movie.ReviewMatch,
-            MovieOrganizationNaming.HasTrustworthyMetadata(movie));
+            MovieOrganizationNaming.HasTrustworthyMetadata(movie),
+            movie.CustomDisplayTitle,
+            movie.Title);
+    }
+
+    public void SetCustomDisplayTitle(int movieId, string? customDisplayTitle)
+    {
+        _movies.SetCustomDisplayTitle(movieId, customDisplayTitle);
     }
 
     public DateTimeOffset RecordMovieOpened(int movieId)
@@ -73,7 +80,7 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
         bool pending = movie.MetadataStatus is MetadataStatus.Pending
             or MetadataStatus.NeedsMatch
             or MetadataStatus.Failed;
-        return new MovieListItem(movie.Id, movie.Title, movie.Year, movie.PosterReference, !hasPresentFile, pending, fileCount, movie.ReviewMatch, movie.DateAdded, movie.LastOpenedAt, movie.BackdropReference);
+        return new MovieListItem(movie.Id, movie.DisplayTitle, movie.Year, movie.PosterReference, !hasPresentFile, pending, fileCount, movie.ReviewMatch, movie.DateAdded, movie.LastOpenedAt, movie.BackdropReference, movie.CustomDisplayTitle, movie.Title);
     }
 
     public PersonalMovieSnapshot GetPersonalSnapshot(int movieId)
@@ -171,7 +178,8 @@ public class LibraryService : ILibraryUiActions, IPersonalLibraryUiActions
     public IReadOnlyList<CustomListItem> ListCustomListItems(int listId) =>
         _personal.ListCustomListItems(listId)
             .Select(member => new CustomListItem(
-                member.Kind, member.Id, member.Title, member.Year, member.PosterReference, member.IsMissing))
+                member.Kind, member.Id, member.Title, member.Year, member.PosterReference, member.IsMissing,
+                member.CustomDisplayTitle, member.CanonicalTitle))
             .ToList();
 
     private PersonalMovieSnapshot MapSnapshot(PersonalMovieState state) =>

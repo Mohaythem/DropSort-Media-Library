@@ -161,7 +161,37 @@
                 <StackPanel Spacing="32" x:Name="ReadingPane" Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2">
                     <StackPanel Spacing="28" x:Name="HeroCopyPanel">
                         <TextBlock x:Name="KindText" Style="{StaticResource DetailsCaptionStyle}" />
-                        <TextBlock x:Name="MovieTitleText" Style="{StaticResource DetailsTitleStyle}" TextWrapping="Wrap" />
+                        <Grid x:Name="MovieTitleContainer" VerticalAlignment="Center">
+                            <StackPanel x:Name="MovieTitleViewPanel" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                <TextBlock x:Name="MovieTitleText"
+                                           Style="{StaticResource DetailsTitleStyle}"
+                                           TextWrapping="Wrap"
+                                           IsTextSelectionEnabled="False"
+                                           PointerPressed="MovieTitleText_PointerPressed"
+                                           DoubleTapped="MovieTitleText_DoubleTapped"
+                                           KeyDown="MovieTitleText_KeyDown"
+                                           IsTabStop="True" />
+                                <Border x:Name="MovieTitleCopiedBadge"
+                                        Background="{ThemeResource SystemFillColorSuccessBackgroundBrush}"
+                                        CornerRadius="4"
+                                        Padding="6,2"
+                                        VerticalAlignment="Center"
+                                        Visibility="Collapsed">
+                                    <TextBlock x:Name="MovieTitleCopiedText"
+                                               Text="Copied!"
+                                               FontSize="12"
+                                               Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                                </Border>
+                            </StackPanel>
+                            <TextBox x:Name="MovieTitleEditBox"
+                                     FontSize="28"
+                                     FontWeight="SemiBold"
+                                     MaxLength="500"
+                                     Visibility="Collapsed"
+                                     VerticalAlignment="Center"
+                                     KeyDown="MovieTitleEditBox_KeyDown"
+                                     LostFocus="MovieTitleEditBox_LostFocus" />
+                        </Grid>
                         <Grid ColumnSpacing="14" x:Name="MovieIdentityGrid">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />

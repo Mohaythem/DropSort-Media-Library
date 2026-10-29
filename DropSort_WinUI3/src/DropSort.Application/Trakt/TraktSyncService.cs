@@ -16,7 +16,7 @@ namespace DropSort.Application.Trakt;
 /// thread-safe generation checks, immediate network cancellation on disconnect,
 /// active session isolation, and safe error tracking without touching local catalog rows.
 /// </summary>
-public sealed class TraktSyncService : ITraktUiActions, IDisposable
+public sealed partial class TraktSyncService : ITraktUiActions, ITraktListActions, IDisposable
 {
     private const string LastAccountIdSettingsKey = "trakt_last_account_id";
 

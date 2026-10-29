@@ -18,7 +18,9 @@ public record TvShowListItem(
     DateTimeOffset DateAdded = default,
     DateTimeOffset? LastOpenedAt = null,
     MetadataStatus MetadataStatus = MetadataStatus.Pending,
-    string? BackdropReference = null);
+    string? BackdropReference = null,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null);
 
 public record TvContinueWatchingItem(
     int ShowId,
@@ -30,7 +32,9 @@ public record TvContinueWatchingItem(
     int EpisodeNumber,
     string? EpisodeTitle,
     string? ArtworkReference,
-    bool IsAvailable);
+    bool IsAvailable,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null);
 
 /// <summary>The whole hierarchy of one show, read in one call.</summary>
 public record TvShowDetails(
@@ -43,7 +47,9 @@ public record TvShowDetails(
     string? PosterReference,
     IReadOnlyList<TvSeasonDetails> Seasons,
     string? ExternalId = null,
-    MetadataStatus MetadataStatus = MetadataStatus.Pending);
+    MetadataStatus MetadataStatus = MetadataStatus.Pending,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null);
 
 public record TvSeasonDetails(
     int Id,
