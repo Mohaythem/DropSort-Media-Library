@@ -1,0 +1,199 @@
+<Window
+    x:Class="DropSort.UI.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="DropSort Media Library">
+
+    <!--
+        Shell root. The window paints one background; the navigation pane and the content area are
+        both transparent so a theme change only has to swap this single brush. Page padding lives
+        on each page's ScrollViewer (PageScrollViewerStyle) - never on the shell - so nothing can
+        shift the content right or push a search box outside the viewport.
+
+        The background is a {ThemeResource}, so Light and Dark are handled by the framework the
+        moment RootGrid.RequestedTheme changes. Code must never assign this brush: resolving
+        ApplicationPageBackgroundThemeBrush from Application.Resources in code returns the brush for
+        the *process* theme, which is what used to leave the whole shell dark behind light-themed
+        controls when Light was selected. The Slate theme is a tint drawn on top instead (see
+        SlateSurface), so it needs no code-resolved brush either.
+    -->
+    <Grid x:Name="RootGrid" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" KeyboardAcceleratorPlacementMode="Hidden">
+        <!--
+            Esc is a shell-wide Back accelerator. It runs the same navigation as the visible Back
+            action (GoBack), so keyboard and pointer stay consistent. PlacementMode is Hidden so the
+            accelerator never surfaces an "Esc" tooltip/badge while the user clicks or focuses cards. It
+            only fires for Esc that reaches the shell unhandled: an open dialog, flyout, menu or picker
+            handles Esc itself, so those keep their normal dismiss behavior and no page navigation is
+            forced under them. On a root page GoBack returns false, the accelerator leaves the key
+            unhandled, and nothing closes the window.
+        -->
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="Escape" Invoked="EscAccelerator_Invoked" />
+        </Grid.KeyboardAccelerators>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!--
+            The Slate theme, exactly like the design's [data-theme='slate'] rule, is the dark palette
+            with a cooler shell tint - so it is one opaque surface drawn under everything and never
+            takes input. Visibility is the only thing the theme code touches.
+        -->
+        <Border
+            x:Name="SlateSurface"
+            Grid.RowSpan="2"
+            Background="{ThemeResource SlateBackgroundBrush}"
+            IsHitTestVisible="False"
+            Visibility="Collapsed" />
+
+        <!--
+            The caption buttons are always drawn top-right by Windows, so this row stays
+            left-to-right in every language and only the brand name (never translated) sits in it.
+        -->
+        <Grid
+            x:Name="TitleBarDragRegion"
+            Background="Transparent"
+            FlowDirection="LeftToRight">
+            <StackPanel
+                Margin="16,0,0,0"
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="10">
+                <FontIcon
+                    FontFamily="{StaticResource SymbolThemeFontFamily}"
+                    FontSize="14"
+                    Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                    Glyph="&#xE714;" />
+                <TextBlock
+                    x:Name="WindowTitleText"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource BodyStrongTextBlockStyle}"
+                    Text="DropSort" />
+            </StackPanel>
+        </Grid>
+
+        <NavigationView
+            x:Name="ShellNavigation"
+            Grid.Row="1"
+            Background="{ThemeResource ShellPaneBackgroundBrush}"
+            CompactPaneLength="64"
+            IsBackButtonVisible="Collapsed"
+            IsPaneOpen="True"
+            IsPaneToggleButtonVisible="True"
+            IsSettingsVisible="False"
+            IsTitleBarAutoPaddingEnabled="False"
+            OpenPaneLength="240"
+            PaneDisplayMode="Left"
+            ItemInvoked="ShellNavigation_ItemInvoked">
+
+            <NavigationView.Resources>
+                <ResourceDictionary>
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Default">
+                            <!-- ApplyTheme binds these colors to the existing Slate/native shell surface. -->
+                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SolidBackgroundFillColorBase}" />
+                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="Light">
+                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SolidBackgroundFillColorBase}" />
+                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="Transparent" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="HighContrast">
+                            <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
+                            <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="{ThemeResource SystemColorWindowColor}" />
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
+                <!--
+                    Slate uses the same opaque shell surface for inline and overlay panes. Other
+                    themes keep their native overlay surface and existing inline appearance.
+                    NavigationViewContentBackground is
+                    Transparent for the same reason: the elevated content surface is painted by the
+                    Border around ContentHost with ShellContentBackgroundBrush, which is what makes
+                    the pane read as the darker of the two. A {ThemeResource} colour reference cannot
+                    live in this plain dictionary - it takes the XAML load down at startup - which is
+                    why every theme-aware value here is a brush reference, never a colour.
+                -->
+                <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
+                <Thickness x:Key="NavigationViewContentGridBorderThickness">0</Thickness>
+                <CornerRadius x:Key="NavigationViewContentGridCornerRadius">0</CornerRadius>
+
+                <!--
+                    Selected-state strength (the active page used to read as "nothing is selected" on
+                    this transparent pane) is set by overriding NavigationView's own lightweight-styling
+                    brush keys - NavigationViewItemBackgroundSelected and friends - in
+                    ThemeResources.xaml, inside ResourceDictionary.ThemeDictionaries. They cannot live
+                    here: a {ThemeResource} colour reference is only resolvable from inside a theme
+                    dictionary, and declaring these brushes in this plain dictionary took the whole XAML
+                    load down at startup (STATUS_STOWED_EXCEPTION, before the managed handler runs).
+                -->
+
+                <Style TargetType="NavigationViewItem">
+                    <Setter Property="MinHeight" Value="40" />
+                </Style>
+                </ResourceDictionary>
+            </NavigationView.Resources>
+
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="HomeNavItem" Tag="home">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE80F;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="LibraryNavItem" Tag="library">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8F1;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="MyListsNavItem" Tag="lists">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8FD;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="AddMediaNavItem" Tag="add">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE710;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="CheckLibraryNavItem" Tag="check">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE73E;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="TraktNavItem" Tag="trakt">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE90A;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem x:Name="SettingsNavItem" Tag="settings">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE713;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
+            <!--
+                Every page is parented here once and navigation only flips Visibility, so page state
+                (scroll offset, selected tab, typed search text) survives navigation and no page is
+                ever torn down and rebuilt. Only one page is Visible at a time; the collapsed ones
+                cost no layout and are skipped by the tab order.
+
+                The hairline on the leading edge is the pane/content boundary. It lives on the content
+                side so it always sits exactly at the pane edge, whatever the pane's current width
+                (expanded, medium or compact), and BorderThickness mirrors with the flow direction, so
+                in Arabic it is drawn on the right without a second value. The background is the
+                elevated shell surface, one step lighter than the pane behind it.
+            -->
+            <Border
+                Background="{ThemeResource ShellContentBackgroundBrush}"
+                BorderBrush="{ThemeResource ShellPaneSeparatorBrush}"
+                BorderThickness="1,0,0,0">
+                <Grid x:Name="ContentHost" />
+            </Border>
+        </NavigationView>
+    </Grid>
+
+</Window>

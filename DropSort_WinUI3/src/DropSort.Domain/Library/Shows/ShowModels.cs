@@ -1,0 +1,264 @@
+using System;
+using System.Collections.Immutable;
+using System.Linq;
+using DropSort.Domain.Library.Movies;
+
+namespace DropSort.Domain.Library.Shows;
+
+/// <summary>
+/// What the catalog can say about an episode's local media, derived only from the files registered for
+/// it. A registered file that is gone from disk keeps its registration, so an episode is Missing rather
+/// than unregistered - that is the product contract, and it is what Check Library reports.
+/// </summary>
+public enum EpisodeAvailability
+{
+    /// <summary>No media file has been registered for this episode yet.</summary>
+    NoFile,
+
+    /// <summary>At least one registered file is present on disk.</summary>
+    Present,
+
+    /// <summary>Every registered file for this episode is missing from disk.</summary>
+    Missing,
+}
+
+/// <summary>
+/// The catalog facts of a TV show. A show registered from file names carries a title and nothing else:
+/// there is no metadata provider in this build, so every optional field stays null instead of being
+/// guessed.
+/// </summary>
+public record TvShowCatalogData
+{
+    public string? Provider { get; }
+
+    public string? ExternalId { get; }
+
+    public string Title { get; }
+
+    /// <summary>
+    /// The normalized title the catalog matches on. Registration uses it to decide whether a file
+    /// belongs to a show that already exists, so it must be derived the same way every time; see
+    /// <see cref="NormalizeTitle" />.
+    /// </summary>
+    public string SortTitle { get; }
+
+    public string? OriginalTitle { get; }
+
+    public int? Year { get; }
+
+    public string? Overview { get; }
+
+    public ImmutableArray<string> Genres { get; }
+
+    public string? PosterReference { get; }
+
+    public MetadataStatus MetadataStatus { get; }
+
+    public double? Rating { get; }
+
+    public string? BackdropReference { get; }
+
+    public string? Tagline { get; }
+
+    public TvShowCatalogData(
+        string? provider,
+        string? externalId,
+        string title,
+        string? originalTitle = null,
+        int? year = null,
+        string? overview = null,
+        ImmutableArray<string>? genres = null,
+        string? posterReference = null,
+        MetadataStatus metadataStatus = MetadataStatus.Pending,
+        double? rating = null,
+        string? backdropReference = null,
+        string? tagline = null)
+    {
+        if ((provider == null) != (externalId == null))
+        {
+            throw new ArgumentException("provider and external_id must both be populated or both be null");
+        }
+
+        if (provider != null)
+        {
+            if (string.IsNullOrWhiteSpace(provider))
+            {
+                throw new ArgumentException("provider must be a non-empty string");
+            }
+
+            if (string.IsNullOrWhiteSpace(externalId))
+            {
+                throw new ArgumentException("external_id must be a non-empty string");
+            }
+
+            Provider = provider.Trim();
+            ExternalId = externalId.Trim();
+        }
+
+        if (!Enum.IsDefined(typeof(MetadataStatus), metadataStatus))
+        {
+            throw new ArgumentException("metadata_status must be a valid MetadataStatus");
+        }
+
+        if (metadataStatus == MetadataStatus.Ready && provider == null)
+        {
+            throw new ArgumentException("READY metadata requires a populated external identity");
+        }
+
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            throw new ArgumentException("title must be a non-empty string");
+        }
+
+        if (originalTitle != null && string.IsNullOrWhiteSpace(originalTitle))
+        {
+            throw new ArgumentException("original_title must be null or a non-empty string");
+        }
+
+        if (year != null && (year < 1 || year > 9999))
+        {
+            throw new ArgumentOutOfRangeException(nameof(year), "year must be an integer from 1 through 9999");
+        }
+
+        if (overview != null && string.IsNullOrWhiteSpace(overview))
+        {
+            throw new ArgumentException("overview must be null or a non-empty string");
+        }
+
+        var resolvedGenres = genres ?? ImmutableArray<string>.Empty;
+
+        if (resolvedGenres.IsDefault || resolvedGenres.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new ArgumentException("genres must contain non-empty strings");
+        }
+
+        if (posterReference != null && string.IsNullOrWhiteSpace(posterReference))
+        {
+            throw new ArgumentException("poster_reference must be null or a non-empty string");
+        }
+
+        if (rating != null && (double.IsNaN(rating.Value) || double.IsInfinity(rating.Value) || rating < 0.0 || rating > 10.0))
+        {
+            throw new ArgumentOutOfRangeException(nameof(rating), "rating must be a finite number from 0 through 10");
+        }
+
+        if (backdropReference != null && string.IsNullOrWhiteSpace(backdropReference))
+        {
+            throw new ArgumentException("backdrop_reference must be null or a non-empty string", nameof(backdropReference));
+        }
+
+        if (tagline != null && string.IsNullOrWhiteSpace(tagline))
+        {
+            throw new ArgumentException("tagline must be null or a non-empty string", nameof(tagline));
+        }
+
+        Title = title.Trim();
+        SortTitle = NormalizeTitle(Title);
+        OriginalTitle = originalTitle?.Trim();
+        Year = year;
+        Overview = overview?.Trim();
+        Genres = [.. resolvedGenres.Select(genre => genre.Trim())];
+        PosterReference = posterReference?.Trim();
+        MetadataStatus = metadataStatus;
+        Rating = rating;
+        BackdropReference = backdropReference?.Trim();
+        Tagline = tagline?.Trim();
+
+        if (SortTitle.Length == 0)
+        {
+            throw new ArgumentException("title must contain at least one letter or digit", nameof(title));
+        }
+    }
+
+    /// <summary>
+    /// Folds a show title down to the key the catalog matches on: lower case, letters and digits only.
+    /// "Breaking Bad", "breaking.bad" and "Breaking  Bad" are the same show; anything that differs by a
+    /// real word is not.
+    /// </summary>
+    public static string NormalizeTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title))
+        {
+            return string.Empty;
+        }
+
+        var builder = new System.Text.StringBuilder(title.Length);
+
+        foreach (var character in title)
+        {
+            if (char.IsLetterOrDigit(character))
+            {
+                builder.Append(char.ToLowerInvariant(character));
+            }
+        }
+
+        return builder.ToString();
+    }
+}
+
+/// <summary>A registered TV show. <see cref="Id" /> is the catalog's stable identity.</summary>
+public record TvShow
+{
+    public int Id { get; }
+
+    public TvShowCatalogData Data { get; }
+
+    public DateTimeOffset DateAdded { get; }
+
+    public DateTimeOffset? LastOpenedAt { get; }
+
+    public DateTimeOffset CreatedAt { get; }
+
+    public DateTimeOffset UpdatedAt { get; }
+
+    public string? CustomDisplayTitle { get; }
+
+    public string DisplayTitle => !string.IsNullOrWhiteSpace(CustomDisplayTitle) ? CustomDisplayTitle : Title;
+
+    public TvShow(
+        int id,
+        TvShowCatalogData data,
+        DateTimeOffset dateAdded,
+        DateTimeOffset createdAt,
+        DateTimeOffset updatedAt,
+        DateTimeOffset? lastOpenedAt = null,
+        string? customDisplayTitle = null)
+    {
+        if (id <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(id), "id must be a positive integer");
+        }
+
+        Id = id;
+        Data = data ?? throw new ArgumentNullException(nameof(data));
+        DateAdded = dateAdded;
+        LastOpenedAt = lastOpenedAt;
+        CreatedAt = createdAt;
+        UpdatedAt = updatedAt;
+        CustomDisplayTitle = string.IsNullOrWhiteSpace(customDisplayTitle) ? null : customDisplayTitle.Trim();
+    }
+
+    public string? Provider => Data.Provider;
+
+    public string? ExternalId => Data.ExternalId;
+
+    public string Title => Data.Title;
+
+    public string SortTitle => Data.SortTitle;
+
+    public int? Year => Data.Year;
+
+    public string? Overview => Data.Overview;
+
+    public ImmutableArray<string> Genres => Data.Genres;
+
+    public string? PosterReference => Data.PosterReference;
+
+    public MetadataStatus MetadataStatus => Data.MetadataStatus;
+
+    public double? Rating => Data.Rating;
+
+    public string? BackdropReference => Data.BackdropReference;
+
+    public string? Tagline => Data.Tagline;
+}

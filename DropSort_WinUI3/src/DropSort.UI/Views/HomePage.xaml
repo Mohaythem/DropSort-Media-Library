@@ -1,0 +1,274 @@
+<Page
+    x:Class="DropSort.UI.Views.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:DropSort.UI.Controls"
+    xmlns:local="using:DropSort.UI.Views"
+    xmlns:models="using:DropSort.UI.Models"
+    Background="Transparent">
+
+    <Page.Resources>
+        <ResourceDictionary>
+            <Style x:Key="HomeHeroButtonStyle" TargetType="Button" BasedOn="{StaticResource CardActionButtonStyle}">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            </Style>
+        </ResourceDictionary>
+    </Page.Resources>
+
+    <!--
+        Padding lives on the ScrollViewer and the content is a single stretched column, so Home fills
+        the whole area left of the sidebar. Media shelves keep one row of fixed-size cards, clipped
+        at the viewport edge. There is deliberately no content MaxWidth here - one used to cap the page at
+        1040 epx, which is what left the right half of a wide window empty.
+    -->
+    <ScrollViewer x:Name="Root" Style="{StaticResource PageScrollViewerStyle}">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Spacing="32">
+                <StackPanel Spacing="4">
+                    <TextBlock x:Name="PageTitleText" Style="{StaticResource TitleTextBlockStyle}" />
+                    <TextBlock x:Name="PageSubtitleText" Style="{StaticResource SecondaryBodyTextStyle}" />
+                </StackPanel>
+
+                <!--
+                    No MinItemHeight: UniformGridLayout then takes the measured height of the first
+                    tile, so the caption can never be clipped when the type ramp or the user's text
+                    scale grows. MaximumRowsOrColumns caps the row at the four stats so they fill
+                    the content width instead of leaving a gap where a fifth column would go.
+                -->
+                <ItemsRepeater x:Name="StatsRepeater">
+                    <ItemsRepeater.Layout>
+                        <UniformGridLayout
+                            ItemsStretch="Fill"
+                            MaximumRowsOrColumns="4"
+                            MinColumnSpacing="12"
+                            MinItemWidth="180"
+                            MinRowSpacing="12" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="models:StatCardRecord">
+                            <Border Style="{StaticResource CardBorderStyle}">
+                                <Grid ColumnSpacing="12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="40" VerticalAlignment="Center"
+                                            Background="{ThemeResource ControlFillColorDefaultBrush}"
+                                            CornerRadius="{ThemeResource ControlCornerRadius}">
+                                        <FontIcon FontSize="22" Glyph="{x:Bind Glyph}"
+                                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                                        <TextBlock Style="{StaticResource SubtitleTextBlockStyle}" Text="{x:Bind Value}" />
+                                        <TextBlock Style="{StaticResource SecondaryCaptionTextStyle}" Text="{x:Bind Label}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+
+                <StackPanel Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ContinueHeadingText" VerticalAlignment="Center" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <Button x:Name="ContinueSeeAllButton" Grid.Column="1" VerticalAlignment="Center" Click="ContinueSeeAllButton_Click" Style="{StaticResource TextBlockButtonStyle}" />
+                    </Grid>
+                    <Grid x:Name="ContinueRowGrid" Height="196">
+                        <ItemsRepeater x:Name="ContinueRepeater" HorizontalAlignment="Left">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Horizontal" Spacing="12" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:HomeActivityCard">
+                                    <Grid Width="320" Height="196">
+                                        <Button
+                                            Width="320" Height="196"
+                                            AutomationProperties.AutomationId="{x:Bind DetailsAutomationId}"
+                                            AutomationProperties.Name="{x:Bind AccessibleName}"
+                                            Click="ContinueDetails_Click"
+                                            Style="{StaticResource HomeHeroButtonStyle}"
+                                            Tag="{x:Bind}"
+                                            ToolTipService.ToolTip="{x:Bind Title}">
+                                            <Border CornerRadius="{ThemeResource ControlCornerRadius}">
+                                                <Grid Width="320" Height="196" Background="{ThemeResource PosterMoviePlaceholderBrush}">
+                                                    <FontIcon Margin="0,0,0,64" FontSize="40" Glyph="&#xE8B2;"
+                                                              Foreground="{ThemeResource PosterGlyphForegroundBrush}" />
+                                                    <Image Height="196" Source="{x:Bind ArtworkSource, Mode=OneWay}"
+                                                           Stretch="UniformToFill" />
+                                                    <Image Width="96" Height="144" Margin="12,8,12,0"
+                                                           HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                           Source="{x:Bind PosterSource, Mode=OneWay}"
+                                                           Visibility="{x:Bind PosterVisibility, Mode=OneWay}"
+                                                           Stretch="Uniform" />
+                                                    <Border Background="{ThemeResource LandscapeCardScrimBrush}" />
+                                                    <Grid Margin="14,68,14,14" ColumnSpacing="12" VerticalAlignment="Bottom">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Spacing="3">
+                                                            <TextBlock Foreground="{ThemeResource LandscapeCardTextBrush}"
+                                                                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                                       Text="{x:Bind Title}" MaxLines="2"
+                                                                       TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
+                                                            <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                                                                       Style="{StaticResource SecondaryCaptionTextStyle}"
+                                                                       Text="{x:Bind SecondaryLine}"
+                                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                            <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                                                                       Style="{StaticResource SecondaryCaptionTextStyle}"
+                                                                       Text="{x:Bind TypeLabel}" />
+                                                        </StackPanel>
+                                                        <!-- Reserves the real Play button's space in both LTR and RTL. -->
+                                                        <Border Grid.Column="1" MinWidth="76" />
+                                                    </Grid>
+                                                </Grid>
+                                            </Border>
+                                        </Button>
+                                        <Button Margin="16" AutomationProperties.AutomationId="{x:Bind PlayAutomationId}"
+                                                AutomationProperties.Name="{x:Bind PlayLabel}" Click="ContinuePlay_Click"
+                                                HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                IsEnabled="{x:Bind PlayEnabled, Mode=OneWay}"
+                                                Style="{StaticResource AccentControlButtonStyle}"
+                                                Tag="{x:Bind}" ToolTipService.ToolTip="{x:Bind PlayLabel}">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <FontIcon FontSize="12" Glyph="&#xE768;" />
+                                                <TextBlock Text="{x:Bind PlayLabel}" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </Grid>
+
+                    <!--
+                        Active viewing starts only after a successful Play action.
+                    -->
+                    <controls:EmptyStateCard
+                        x:Name="ContinueEmptyState"
+                        Height="196"
+                        HorizontalAlignment="Stretch"
+                        IsFrameless="True"
+                        Glyph="&#xE768;"
+                        Visibility="Collapsed" />
+                </StackPanel>
+
+                <StackPanel x:Name="HistorySection" Spacing="12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="HistoryHeadingText" VerticalAlignment="Center" Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <Button x:Name="HistorySeeAllButton" Grid.Column="1" VerticalAlignment="Center" Click="HistorySeeAllButton_Click" Style="{StaticResource TextBlockButtonStyle}" />
+                    </Grid>
+                    <Grid x:Name="HistoryRowGrid" Height="196">
+                        <ItemsRepeater x:Name="HistoryRepeater" HorizontalAlignment="Left">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Horizontal" Spacing="12" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:WatchHistoryCardRecord">
+                                    <Grid Width="320" Height="196">
+                                        <Button
+                                            Width="320" Height="196"
+                                            AutomationProperties.AutomationId="{x:Bind local:HomePage.HistoryAutomationId(EventId)}"
+                                            AutomationProperties.Name="{x:Bind AccessibleName}"
+                                            Click="HistoryCard_Click"
+                                            Style="{StaticResource HomeHeroButtonStyle}"
+                                            Tag="{x:Bind}">
+                                            <Border CornerRadius="{ThemeResource ControlCornerRadius}">
+                                                <Grid Width="320" Height="196" Background="{ThemeResource PosterMoviePlaceholderBrush}">
+                                                    <FontIcon Margin="0,0,0,64" FontSize="40"
+                                                              Foreground="{ThemeResource PosterGlyphForegroundBrush}"
+                                                              Glyph="&#xE8B2;" />
+                                                    <Image Height="196" Source="{x:Bind ArtworkSource, Mode=OneWay}"
+                                                           Stretch="UniformToFill" />
+                                                    <Border Background="{ThemeResource LandscapeCardScrimBrush}" />
+                                                    <Grid Margin="14,68,14,14" VerticalAlignment="Bottom">
+                                                        <StackPanel Spacing="3">
+                                                            <TextBlock Foreground="{ThemeResource LandscapeCardTextBrush}"
+                                                                       Style="{StaticResource BodyStrongTextBlockStyle}"
+                                                                       Text="{x:Bind Title}" MaxLines="2"
+                                                                       TextTrimming="CharacterEllipsis" TextWrapping="Wrap" />
+                                                            <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                                                                       Style="{StaticResource SecondaryCaptionTextStyle}"
+                                                                       Text="{x:Bind Context}"
+                                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                            <TextBlock Foreground="{ThemeResource LandscapeCardSecondaryTextBrush}"
+                                                                       Style="{StaticResource TertiaryCaptionTextStyle}"
+                                                                       Text="{x:Bind local:HomePage.HistoryMetaLine(WatchedAt, MediaKind)}"
+                                                                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                                                            <TextBlock Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                                                       Style="{StaticResource CaptionTextBlockStyle}"
+                                                                       Text="{x:Bind AvailabilityText}"
+                                                                       Visibility="{x:Bind local:HomePage.UnavailableVisibility(IsAvailable)}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Grid>
+                                            </Border>
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </Grid>
+                    <controls:EmptyStateCard
+                        x:Name="HistoryEmptyState"
+                        Height="196"
+                        HorizontalAlignment="Stretch"
+                        IsFrameless="True"
+                        Glyph="&#xE81C;"
+                        Visibility="Collapsed" />
+                </StackPanel>
+
+                <StackPanel Spacing="12">
+                    <Grid ColumnSpacing="12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            x:Name="RecentHeadingText"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource SubtitleTextBlockStyle}" />
+                        <Button
+                            x:Name="SeeAllButton"
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            Click="SeeAllButton_Click"
+                            Style="{StaticResource TextBlockButtonStyle}" />
+                    </Grid>
+                    <Grid x:Name="RecentRowGrid" Height="{StaticResource MediaCardItemHeight}">
+                    <GridView
+                        x:Name="RecentGrid"
+                        ItemClick="RecentGrid_ItemClick"
+                        ItemTemplate="{StaticResource MovieCardTemplate}"
+                        Style="{StaticResource MediaGridViewStyle}">
+                        <GridView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <ItemsWrapGrid
+                                    ItemHeight="{StaticResource MediaCardItemHeight}"
+                                    ItemWidth="{StaticResource MediaCardItemWidth}"
+                                    MaximumRowsOrColumns="1"
+                                    Orientation="Vertical" />
+                            </ItemsPanelTemplate>
+                        </GridView.ItemsPanel>
+                    </GridView>
+                    </Grid>
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Page>
