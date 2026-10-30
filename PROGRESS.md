@@ -1,26 +1,26 @@
-# Progress & Status
+# External Progress Checkpoint
 
 ## Current Goal
-- Establish a rock-solid, verified Golden Checkpoint milestone before transitioning sessions/models.
+Publish and deploy DropSort v0.11.1 official release.
 
 ## Completed Work
-- Completed full test suite verification: 1,147 unit tests passed with 0 failures on net10.0.
-- Implemented Trakt two-way list actions (`ITraktListActions`, `ITraktListWriter`, `TraktSyncService.ListActions`).
-- Hardened Trakt API clients against 403 / User-Agent requirements (`TraktRequestHeaders`).
-- Added Title Interaction Controller & Media Title Search for WinUI 3 pages.
-- Fixed P2 library scale, catalog projection, and UI test contracts.
-- Created `HANDOFF.md` with guidelines, architecture map, build/test commands, and strict safety rules.
-- Added scratch/temporary test outputs to `.gitignore`.
+1. **Stage 1 & 2 Modernization**:
+   - UI Kit 8pt spacing alignment, status pill badges, and library switcher polish.
+   - Fixed Arabic RTL alignments across detail screens.
 
-## Remaining Work
-- Create Golden Milestone commit.
-- Tag repository as `v0.11.0-checkpoint-golden`.
-- Create branch `backup/golden-baseline`.
-- Push to remote origin.
+2. **Trakt Integration & DPAPI Security**:
+   - Protected DPAPI Windows credential persistence for Trakt and TMDB tokens.
+   - Global Trakt playlists sync action.
+   - Excluded already-added media from list item selection.
 
-## Important Decisions
-- Branch `backup/golden-baseline` serves as the frozen safety net.
-- Tag `v0.11.0-checkpoint-golden` represents the verifiable baseline.
+3. **TV Show Details Polish**:
+   - Preserved expander state across episode updates.
+   - Added episode watch/unwatch toggle (`RemoveEpisodeWatch`).
+   - Implemented silent background file reconciliation without UI interruptions.
 
-## Latest Verification
-- `dotnet test DropSort_WinUI3\tests\DropSort.Tests\DropSort.Tests.csproj --no-restore -c Debug` -> 1,147 Passed, 0 Failed, 0 Skipped.
+4. **Release Verification & Artifact Packaging**:
+   - Unit test suite: 1,153 passed (0 failed, 0 skipped).
+   - Compiled Inno Setup installer (`DropSortSetup.exe`, 34.9 MB).
+   - Packaged self-contained portable archive (`DropSort-0.11.1-win-x64.zip`, 48.0 MB).
+   - Generated SHA-256 checksums (`SHA256SUMS.txt`), release notes, and manifests.
+   - Local installation deployed to `%LOCALAPPDATA%\Programs\DropSort\` and `portable\`.

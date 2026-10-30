@@ -37,6 +37,9 @@ public sealed partial class TraktSyncService : ITraktUiActions, ITraktListAction
     private volatile TraktSyncState _syncState;
     private volatile bool _disposed;
 
+    /// <inheritdoc />
+    public event EventHandler? SyncCompleted;
+
     // Minimum internal test seams for deterministic verification of gate boundary races
     internal Func<Task>? BeforeSyncRegistrationAsync { get; set; }
     internal Func<Task>? BeforeCompleteAuthRegistrationAsync { get; set; }
@@ -570,6 +573,11 @@ public sealed partial class TraktSyncService : ITraktUiActions, ITraktListAction
                     error: overallSuccess ? null : $"Sync completed with {failedCount} failed resource(s).",
                     clearError: overallSuccess,
                     failureKind: overallSuccess ? TraktSyncFailureKind.None : TraktSyncFailureKind.NetworkError);
+
+                if (overallSuccess || completedCount > 0)
+                {
+                    try { SyncCompleted?.Invoke(this, EventArgs.Empty); } catch { }
+                }
 
                 return new TraktSyncResult(overallSuccess, uuid, completedCount, failedCount, outcomes);
             }

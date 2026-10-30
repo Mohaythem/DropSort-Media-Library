@@ -260,6 +260,35 @@ public sealed partial class TraktPage : Page, ILocalizableView, IActivatableView
         });
     }
 
+    public void SelectResource(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return;
+
+        if (key == "trakt:watchlist" || key == "watchlist")
+        {
+            if (ResourceSelector.Items.Count > 0)
+            {
+                ResourceSelector.SelectedIndex = 0;
+                ReloadCurrentResource();
+            }
+            return;
+        }
+
+        if (key.StartsWith("trakt:list:", StringComparison.Ordinal)
+            && long.TryParse(key.AsSpan("trakt:list:".Length), out var listId))
+        {
+            foreach (var item in ResourceSelector.Items)
+            {
+                if (item is ComboBoxItem cb && cb.Tag is long id && id == listId)
+                {
+                    ResourceSelector.SelectedItem = cb;
+                    ReloadCurrentResource();
+                    return;
+                }
+            }
+        }
+    }
+
     private void ResourceSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_isActivated || _isRebuildingResourceSelector) return;

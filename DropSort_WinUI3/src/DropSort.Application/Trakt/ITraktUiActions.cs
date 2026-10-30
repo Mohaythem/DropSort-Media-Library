@@ -12,6 +12,11 @@ namespace DropSort.Application.Trakt;
 public interface ITraktUiActions
 {
     /// <summary>
+    /// Raised whenever Trakt synchronization completes and the local cache has been updated.
+    /// </summary>
+    event System.EventHandler? SyncCompleted;
+
+    /// <summary>
     /// Gets the current immutable synchronization and authentication state snapshot.
     /// Thread-safe and lock-free.
     /// </summary>

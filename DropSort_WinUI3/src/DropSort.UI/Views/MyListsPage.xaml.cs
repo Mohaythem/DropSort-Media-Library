@@ -91,8 +91,8 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         FlowDirection = LocalizationService.FlowDirection;
         PageTitleText.Text = LocalizationService.Text("MyLists");
         NewListButtonText.Text = LocalizationService.Text("NewList");
-        TraktListsButtonText.Text = LocalizationService.Text("TraktLists");
-        SyncTraktButtonText.Text = LocalizationService.Text("SyncTraktList");
+        SyncTraktButtonText.Text = LocalizationService.Text("TraktSyncNow");
+        UpdateTraktSyncVisibility();
         AddMoviesButtonText.Text = LocalizationService.Text("AddMedia");
         RenameListButton.Content = LocalizationService.Text("Rename");
         DeleteListButton.Content = LocalizationService.Text("Delete");
@@ -146,6 +146,7 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         WatchLaterLabel.Text = LocalizationService.Text("WatchLater");
         ContinueWatchingLabel.Text = LocalizationService.Text("ContinueWatching");
         RecentlyWatchedLabel.Text = LocalizationService.Text("RecentlyWatched");
+        TraktTabLabel.Text = LocalizationService.Text("Trakt") ?? "Trakt";
     }
 
     /// <summary>
@@ -206,8 +207,9 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             return;
         }
         CancelTraktDisplay();
-        TraktGrid.Visibility = Visibility.Collapsed;
-        SyncTraktButton.Visibility = Visibility.Collapsed;
+        TraktPlaylistsScroll.Visibility = Visibility.Collapsed;
+        TraktTabCount.Text = string.Empty;
+        UpdateTraktSyncVisibility();
         AddMoviesButtonText.Text = LocalizationService.Text("AddMedia");
         AddMoviesButton.IsEnabled = true;
         var definitions = Definitions;
@@ -314,6 +316,11 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
         foreach (var (tab, _, _, id) in _dynamicTabs)
         {
             if (CustomKey(id) == _selectedKey && tab.IsChecked != true) tab.IsChecked = true;
+        }
+
+        if (IsTraktKey(_selectedKey) && TraktTabItem.IsChecked != true)
+        {
+            TraktTabItem.IsChecked = true;
         }
 
         _syncing = false;
@@ -543,7 +550,13 @@ public sealed partial class MyListsPage : Page, ILocalizableView, IActivatableVi
             return;
         }
 
-        if (sender is not RadioButton { Tag: string key } || key == _selectedKey)
+        if (sender is not RadioButton { Tag: string rawKey })
+        {
+            return;
+        }
+
+        var key = rawKey == "trakt" ? _selectedTraktKey : rawKey;
+        if (key == _selectedKey)
         {
             return;
         }

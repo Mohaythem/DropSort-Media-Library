@@ -88,6 +88,12 @@
                 <GradientStop Offset="0.65" Color="#CC080F16" />
                 <GradientStop Offset="1" Color="#F5080F16" />
             </LinearGradientBrush>
+            <LinearGradientBrush x:Key="HeroBackdropScrimBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0.0" Color="#00111111" />
+                <GradientStop Offset="0.45" Color="#66111111" />
+                <GradientStop Offset="0.80" Color="#D9111111" />
+                <GradientStop Offset="1.0" Color="#FF111111" />
+            </LinearGradientBrush>
 
             <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="#3D000000" />
             <SolidColorBrush x:Key="ShellContentBackgroundBrush" Color="#12FFFFFF" />
@@ -134,6 +140,20 @@
             <SolidColorBrush x:Key="FigmaStatusStorageGoldBrush" Color="#FFE6BB70" />
             <SolidColorBrush x:Key="ArtworkViewerFrameBrush" Color="#FF000000" />
             <SolidColorBrush x:Key="ArtworkViewerCanvasBrush" Color="#FF000000" />
+
+            <!-- Unified UI Kit Semantic Badge Tokens: Dark -->
+            <SolidColorBrush x:Key="BadgeSuccessBackgroundBrush" Color="#1F34D399" />
+            <SolidColorBrush x:Key="BadgeSuccessForegroundBrush" Color="#FF34D399" />
+            <SolidColorBrush x:Key="BadgeSuccessBorderBrush" Color="#4D34D399" />
+            <SolidColorBrush x:Key="BadgeCautionBackgroundBrush" Color="#1FFBBF24" />
+            <SolidColorBrush x:Key="BadgeCautionForegroundBrush" Color="#FFFBBF24" />
+            <SolidColorBrush x:Key="BadgeCautionBorderBrush" Color="#4DFBBF24" />
+            <SolidColorBrush x:Key="BadgeCriticalBackgroundBrush" Color="#1FF87171" />
+            <SolidColorBrush x:Key="BadgeCriticalForegroundBrush" Color="#FFF87171" />
+            <SolidColorBrush x:Key="BadgeCriticalBorderBrush" Color="#4DF87171" />
+            <SolidColorBrush x:Key="BadgeAccentBackgroundBrush" Color="#1F38BDF8" />
+            <SolidColorBrush x:Key="BadgeAccentForegroundBrush" Color="#FF38BDF8" />
+            <SolidColorBrush x:Key="BadgeAccentBorderBrush" Color="#4D38BDF8" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Light">
@@ -147,6 +167,12 @@
                 <GradientStop Offset="0.35" Color="#33080F16" />
                 <GradientStop Offset="0.65" Color="#CC080F16" />
                 <GradientStop Offset="1" Color="#F5080F16" />
+            </LinearGradientBrush>
+            <LinearGradientBrush x:Key="HeroBackdropScrimBrush" StartPoint="0.5,0" EndPoint="0.5,1">
+                <GradientStop Offset="0.0" Color="#00F8F9FA" />
+                <GradientStop Offset="0.45" Color="#66F8F9FA" />
+                <GradientStop Offset="0.80" Color="#D9F8F9FA" />
+                <GradientStop Offset="1.0" Color="#FFF8F9FA" />
             </LinearGradientBrush>
 
             <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="#17000000" />
@@ -194,6 +220,20 @@
             <SolidColorBrush x:Key="FigmaStatusStorageGoldBrush" Color="#FFBF8700" />
             <SolidColorBrush x:Key="ArtworkViewerFrameBrush" Color="#FF202020" />
             <SolidColorBrush x:Key="ArtworkViewerCanvasBrush" Color="#FF202020" />
+
+            <!-- Unified UI Kit Semantic Badge Tokens: Light -->
+            <SolidColorBrush x:Key="BadgeSuccessBackgroundBrush" Color="#14059669" />
+            <SolidColorBrush x:Key="BadgeSuccessForegroundBrush" Color="#FF059669" />
+            <SolidColorBrush x:Key="BadgeSuccessBorderBrush" Color="#4D059669" />
+            <SolidColorBrush x:Key="BadgeCautionBackgroundBrush" Color="#14D97706" />
+            <SolidColorBrush x:Key="BadgeCautionForegroundBrush" Color="#FFD97706" />
+            <SolidColorBrush x:Key="BadgeCautionBorderBrush" Color="#4DD97706" />
+            <SolidColorBrush x:Key="BadgeCriticalBackgroundBrush" Color="#14DC2626" />
+            <SolidColorBrush x:Key="BadgeCriticalForegroundBrush" Color="#FFDC2626" />
+            <SolidColorBrush x:Key="BadgeCriticalBorderBrush" Color="#4DDC2626" />
+            <SolidColorBrush x:Key="BadgeAccentBackgroundBrush" Color="#140284C7" />
+            <SolidColorBrush x:Key="BadgeAccentForegroundBrush" Color="#FF0284C7" />
+            <SolidColorBrush x:Key="BadgeAccentBorderBrush" Color="#4D0284C7" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="HighContrast">
@@ -202,6 +242,7 @@
             <SolidColorBrush x:Key="ArtworkBadgeBackgroundBrush" Color="{ThemeResource SystemColorHighlightColor}" />
             <SolidColorBrush x:Key="ArtworkBadgeForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
             <SolidColorBrush x:Key="LandscapeCardScrimBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="HeroBackdropScrimBrush" Color="Transparent" />
 
             <SolidColorBrush x:Key="ShellPaneBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
             <SolidColorBrush x:Key="ShellContentBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
@@ -240,6 +281,20 @@
             <SolidColorBrush x:Key="FigmaStatusStorageGoldBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="ArtworkViewerFrameBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
             <SolidColorBrush x:Key="ArtworkViewerCanvasBrush" Color="{ThemeResource SystemColorWindowColor}" />
+
+            <!-- Unified UI Kit Semantic Badge Tokens: HighContrast -->
+            <SolidColorBrush x:Key="BadgeSuccessBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="BadgeSuccessForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="BadgeSuccessBorderBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="BadgeCautionBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="BadgeCautionForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="BadgeCautionBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="BadgeCriticalBackgroundBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="BadgeCriticalForegroundBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="BadgeCriticalBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="BadgeAccentBackgroundBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="BadgeAccentForegroundBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
+            <SolidColorBrush x:Key="BadgeAccentBorderBrush" Color="{ThemeResource SystemColorHighlightTextColor}" />
         </ResourceDictionary>
     </ResourceDictionary.ThemeDictionaries>
 </ResourceDictionary>

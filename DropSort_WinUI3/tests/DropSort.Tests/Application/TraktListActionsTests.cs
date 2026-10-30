@@ -72,6 +72,21 @@ public sealed class TraktListActionsTests
     }
 
     [Fact]
+    public async Task List_action_fires_sync_completed_event_on_successful_cache_refresh()
+    {
+        var auth = new AuthFake(); auth.Connect(Account);
+        var data = new DataFake { Account = Profile(Account) };
+        using var service = Create(auth, data, out _);
+        var eventFired = false;
+        service.SyncCompleted += (_, _) => eventFired = true;
+
+        var result = await service.AddMovieToListAsync(null, 10, Account);
+        Assert.True(result.IsConfirmed);
+        Assert.True(result.CacheRefreshSucceeded);
+        Assert.True(eventFired);
+    }
+
+    [Fact]
     public async Task Cancelled_before_post_does_not_write()
     {
         var auth = new AuthFake(); auth.Connect(Account);

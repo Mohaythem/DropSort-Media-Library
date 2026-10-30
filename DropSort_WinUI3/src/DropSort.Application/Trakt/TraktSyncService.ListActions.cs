@@ -178,6 +178,7 @@ public sealed partial class TraktSyncService
             return new(false, false, "Trakt returned an invalid list payload.");
         EnsureOperationValid(generation, accountId, token);
         _cacheRepository.SaveComplete(accountId, spec.ToCacheResourceKey(), payload.GetRawText(), _timeProvider.GetUtcNow(), token);
+        try { SyncCompleted?.Invoke(this, EventArgs.Empty); } catch { }
         return new(true, true);
     }
 

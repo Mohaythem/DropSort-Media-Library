@@ -35,6 +35,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     private readonly PostHandoffRequestLifetime _enrichmentRequests = new();
     private readonly PostHandoffRequestLifetime _availabilityRequests = new();
     private readonly PostHandoffRequestLifetime _actionRequests = new();
+    private readonly HashSet<int> _expandedSeasonNumbers = [];
     private readonly TitleInteractionController _titleController;
 
     public TVShowDetailsPage()
@@ -168,7 +169,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     public void ApplyLocalization()
     {
         Root.FlowDirection = LocalizationService.FlowDirection;
-        HeroGrid.FlowDirection = FlowDirection.LeftToRight;
+        HeroGrid.FlowDirection = LocalizationService.FlowDirection;
         HeroCopyPanel.FlowDirection = LocalizationService.FlowDirection;
         ReadingPane.FlowDirection = LocalizationService.FlowDirection;
 
@@ -282,13 +283,16 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     /// </summary>
     private void ProbeEpisodeStorageAvailability(TVShowRecord show)
     {
-        var paths = show.Seasons
+        var episodesWithFiles = show.Seasons
             .SelectMany(season => season.Episodes)
             .Where(episode => episode.HasLocalFile && !string.IsNullOrWhiteSpace(episode.FilePath))
+            .ToArray();
+        if (episodesWithFiles.Length == 0) return;
+
+        var paths = episodesWithFiles
             .Select(episode => episode.FilePath!)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        if (paths.Length == 0) return;
 
         var showId = show.Id;
         var request = _availabilityRequests.Begin();
@@ -300,11 +304,64 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
                 unavailable = AppServices.UnavailableStoragePaths(paths, request.Token);
             }
             catch (OperationCanceledException) { return; }
-            if (unavailable.Count == 0) return;
+
+            // Silent background verification of episode files on reachable storage
+            var missingEpisodeIds = new List<int>();
+            foreach (var ep in episodesWithFiles)
+            {
+                if (request.Token.IsCancellationRequested) return;
+                var path = ep.FilePath!;
+                if (unavailable.Contains(path)) continue; // Disconnected drive: keep present with storage-unavailable badge
+
+                try
+                {
+                    if (!File.Exists(path))
+                    {
+                        missingEpisodeIds.Add(ep.Id);
+                        var registeredFiles = SafeEpisodeFiles(ep.Id);
+                        foreach (var rf in registeredFiles)
+                        {
+                            if (rf.CurrentPath == path || string.Equals(rf.CurrentPath, path, StringComparison.OrdinalIgnoreCase))
+                            {
+                                AppServices.MarkMediaFileMissing(rf.Id);
+                            }
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (unavailable.Count == 0 && missingEpisodeIds.Count == 0) return;
+
             DispatcherQueue.TryEnqueue(() =>
             {
                 if (!request.IsCurrent || _show.Id != showId) return;
-                SeasonsRepeater.ItemsSource = BuildSeasons(_show, unavailable);
+
+                // Update storage unavailable state in-place on existing display records
+                if (SeasonsRepeater.ItemsSource is IReadOnlyList<SeasonDisplayRecord> seasonList)
+                {
+                    foreach (var s in seasonList)
+                    {
+                        foreach (var ep in s.Episodes)
+                        {
+                            var epRecord = FindEpisode(ep);
+                            if (epRecord?.FilePath is { Length: > 0 } epPath && unavailable.Contains(epPath))
+                            {
+                                ep.StorageUnavailable = true;
+                            }
+                            if (missingEpisodeIds.Contains(ep.EpisodeId))
+                            {
+                                ep.IsFileMissing = true;
+                                ep.HasLocalFile = false;
+                            }
+                        }
+                    }
+                }
+
+                foreach (var epId in missingEpisodeIds)
+                {
+                    UpdateShowEpisodeMissing(epId);
+                }
             });
         }, request.Token);
     }
@@ -475,7 +532,23 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
     {
         if (sender is Button { Tag: EpisodeDisplayRecord row })
         {
-            await PlayEpisodeAsync(FindEpisode(row));
+            await PlayEpisodeAsync(FindEpisode(row), row);
+        }
+    }
+
+    private void SeasonExpander_Expanding(Expander sender, ExpanderExpandingEventArgs args)
+    {
+        if (sender.Tag is SeasonDisplayRecord season)
+        {
+            _expandedSeasonNumbers.Add(season.Number);
+        }
+    }
+
+    private void SeasonExpander_Collapsed(Expander sender, ExpanderCollapsedEventArgs args)
+    {
+        if (sender.Tag is SeasonDisplayRecord season)
+        {
+            _expandedSeasonNumbers.Remove(season.Number);
         }
     }
 
@@ -486,13 +559,77 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         if (episode is null || !episode.HasLocalFile || episode.Id <= 0) return;
         try
         {
-            AppServices.WatchHistory.RecordEpisodeWatch(episode.Id);
-            LoadShow(_show.Id);
+            if (row.Watched)
+            {
+                AppServices.WatchHistory.RemoveEpisodeWatch(episode.Id);
+                row.Watched = false;
+                UpdateShowEpisodeWatched(episode.Id, isWatched: false);
+            }
+            else
+            {
+                AppServices.WatchHistory.RecordEpisodeWatch(episode.Id);
+                row.Watched = true;
+                UpdateShowEpisodeWatched(episode.Id, isWatched: true);
+            }
         }
         catch (Exception error)
         {
             await ShowMessageAsync(LocalizationService.Text("Failed"), MetadataErrorText.For(error));
         }
+    }
+
+    private void UpdateShowEpisodeWatched(int episodeId, bool isWatched)
+    {
+        var updatedSeasons = _show.Seasons.Select(season =>
+        {
+            var matched = season.Episodes.Any(ep => ep.Id == episodeId);
+            if (!matched) return season;
+
+            var updatedEpisodes = season.Episodes.Select(ep =>
+                ep.Id == episodeId ? ep with { Watched = isWatched } : ep).ToList();
+
+            return new SeasonRecord(season.Id, season.Number, updatedEpisodes);
+        }).ToList();
+
+        _show = _show with { Seasons = updatedSeasons };
+        UpdateShowSummary();
+    }
+
+    private void HandleEpisodeFileMissing(EpisodeDisplayRecord row, EpisodeRecord episode)
+    {
+        try
+        {
+            var files = SafeEpisodeFiles(episode.Id);
+            foreach (var file in files)
+            {
+                if (file.CurrentPath == episode.FilePath || string.Equals(file.CurrentPath, episode.FilePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    AppServices.MarkMediaFileMissing(file.Id);
+                }
+            }
+        }
+        catch { }
+
+        row.IsFileMissing = true;
+        row.HasLocalFile = false;
+        UpdateShowEpisodeMissing(episode.Id);
+    }
+
+    private void UpdateShowEpisodeMissing(int episodeId)
+    {
+        var updatedSeasons = _show.Seasons.Select(season =>
+        {
+            var matched = season.Episodes.Any(ep => ep.Id == episodeId);
+            if (!matched) return season;
+
+            var updatedEpisodes = season.Episodes.Select(ep =>
+                ep.Id == episodeId ? ep with { HasLocalFile = false, IsFileMissing = true } : ep).ToList();
+
+            return new SeasonRecord(season.Id, season.Number, updatedEpisodes);
+        }).ToList();
+
+        _show = _show with { Seasons = updatedSeasons };
+        UpdateShowSummary();
     }
 
     private async void EpisodeOpenFolder_Click(object sender, RoutedEventArgs e)
@@ -515,6 +652,10 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         {
             var result = await AppServices.MediaFileActions.OpenContainingFolderAsync(path, request.Token);
             if (!request.IsCurrent) return;
+            if (result.Status == DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.Missing)
+            {
+                HandleEpisodeFileMissing(row, episode);
+            }
             await PresentActionResultAsync(result.Status);
         }
         catch (OperationCanceledException) { }
@@ -559,7 +700,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         _ = ShowMessageAsync(LocalizationService.Text("MediaFile"), body);
     }
 
-    private async Task PlayEpisodeAsync(EpisodeRecord? episode)
+    private async Task PlayEpisodeAsync(EpisodeRecord? episode, EpisodeDisplayRecord? row = null)
     {
         if (episode?.FilePath is not { Length: > 0 } path)
         {
@@ -576,6 +717,10 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
             {
                 await ShowMessageAsync(LocalizationService.Text("Failed"), LocalizationService.Text("PlaybackActivityNotSaved"));
                 return;
+            }
+            if (result.Status == DropSort.Domain.Library.Availability.AvailabilityInspectionStatus.Missing && row is not null)
+            {
+                HandleEpisodeFileMissing(row, episode);
             }
             await PresentActionResultAsync(result.Status);
         }
@@ -635,8 +780,8 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
         await ContentDialogCoordinator.ShowAsync(dialog);
     }
 
-    /// <summary>Each season starts collapsed until the user opens it.</summary>
-    private static IReadOnlyList<SeasonDisplayRecord> BuildSeasons(TVShowRecord show, IReadOnlySet<string>? unavailablePaths = null)
+    /// <summary>Builds seasons preserving currently opened expander states.</summary>
+    private IReadOnlyList<SeasonDisplayRecord> BuildSeasons(TVShowRecord show, IReadOnlySet<string>? unavailablePaths = null)
     {
         var labels = new EpisodeActionLabels(
             LocalizationService.Text("Watched"),
@@ -645,7 +790,8 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
             LocalizationService.Text("PlayEpisode"),
             LocalizationService.Text("OpenFolder"),
             LocalizationService.Text("MoreOptions"),
-            LocalizationService.Text("StorageUnavailable"));
+            LocalizationService.Text("StorageUnavailable"),
+            LocalizationService.Text("UnmarkWatched"));
 
         return
         [
@@ -660,7 +806,7 @@ public sealed partial class TVShowDetailsPage : Page, ILocalizableView, IDeactiv
                 ShowFormatting.SeasonLabel(season.Number),
                 SeasonMeta(season),
                 season.Episodes.Count == 0 ? 0 : 100.0 * season.LocalCount / season.Episodes.Count,
-                false,
+                _expandedSeasonNumbers.Contains(season.Number),
                 [
                     .. season.Episodes.Select(episode => new EpisodeDisplayRecord(
                         show.Id,

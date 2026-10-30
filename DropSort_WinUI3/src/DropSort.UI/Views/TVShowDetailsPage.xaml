@@ -33,6 +33,7 @@
             <Setter Property="MinHeight" Value="40" />
             <Setter Property="Padding" Value="14,4" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="CornerRadius" Value="8" />
         </Style>
         <Style TargetType="Button" x:Key="TvDetailsSelectedButtonStyle" BasedOn="{StaticResource TvDetailsButtonStyle}">
             <Setter Property="Background" Value="{ThemeResource FigmaAccentSelectedSurfaceBrush}" />
@@ -43,6 +44,7 @@
             <Setter Property="Foreground" Value="{ThemeResource FigmaAccentForegroundBrush}" />
             <Setter Property="MinHeight" Value="40" />
             <Setter Property="Padding" Value="16,4" />
+            <Setter Property="CornerRadius" Value="8" />
         </Style>
     </Page.Resources>
 
@@ -193,7 +195,7 @@
                 </Button>
 
                 <Border BorderBrush="{ThemeResource ControlStrokeColorSecondaryBrush}" BorderThickness="0,0,0,1" Padding="0,0,0,32">
-                    <Grid x:Name="HeroGrid" FlowDirection="LeftToRight" ColumnSpacing="32">
+                    <Grid x:Name="HeroGrid" ColumnSpacing="32">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition x:Name="HeroPosterColumn" Width="420" />
                             <ColumnDefinition x:Name="HeroCopyColumn" Width="*" />
@@ -210,9 +212,9 @@
                             </Grid>
                         </Border>
 
-                        <StackPanel x:Name="HeroCopyPanel" Grid.Column="1" Grid.Row="0" Spacing="20" FlowDirection="LeftToRight">
+                        <StackPanel x:Name="HeroCopyPanel" Grid.Column="1" Grid.Row="0" Spacing="24">
                             <TextBlock x:Name="KindText" Style="{StaticResource SecondaryCaptionTextStyle}" />
-                            <StackPanel x:Name="ReadingPane" Spacing="20" FlowDirection="LeftToRight">
+                            <StackPanel x:Name="ReadingPane" Spacing="24">
                                 <Grid x:Name="ShowTitleContainer" VerticalAlignment="Center">
                                     <StackPanel x:Name="ShowTitleViewPanel" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                                         <TextBlock x:Name="ShowTitleText"
@@ -353,8 +355,10 @@
                                 <Expander
                                     HorizontalAlignment="Stretch"
                                     HorizontalContentAlignment="Stretch"
-                                    IsExpanded="{x:Bind IsExpanded}"
-                                    Tag="{x:Bind}">
+                                    IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}"
+                                    Tag="{x:Bind}"
+                                    Expanding="SeasonExpander_Expanding"
+                                    Collapsed="SeasonExpander_Collapsed">
                                     <Expander.Header>
                                         <!--
                                             One season component: badge, then the title block, then
@@ -370,7 +374,7 @@
                                         <Grid
                                             MinHeight="64"
                                             Margin="0,8"
-                                            ColumnSpacing="20">
+                                            ColumnSpacing="16">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
@@ -435,15 +439,16 @@
                                             <ItemsRepeater.ItemTemplate>
                                                 <DataTemplate x:DataType="models:EpisodeDisplayRecord">
                                                     <Border
+                                                        Height="66"
                                                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                                         BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                                                         BorderThickness="1"
                                                         CornerRadius="{ThemeResource ControlCornerRadius}"
                                                         Opacity="{x:Bind RowOpacity}"
                                                         Padding="12,8,12,8">
-                                                        <Grid MinHeight="52" ColumnSpacing="12">
+                                                        <Grid Height="50" ColumnSpacing="12">
                                                             <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="88" />
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" />
                                                                 <ColumnDefinition Width="Auto" />
@@ -477,7 +482,7 @@
                                                                 Orientation="Horizontal"
                                                                 Spacing="8"
                                                                 VerticalAlignment="Center">
-                                                                <Border Style="{StaticResource StatusPillStyle}" Visibility="{x:Bind Watched}">
+                                                                <Border Style="{StaticResource StatusPillStyle}" Visibility="{x:Bind Watched, Mode=OneWay}">
                                                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                                                         <FontIcon
                                                                             VerticalAlignment="Center"
@@ -490,7 +495,7 @@
                                                                             Text="{x:Bind Labels.Watched}" />
                                                                     </StackPanel>
                                                                 </Border>
-                                                                <Border Style="{StaticResource StatusPillStyle}" Visibility="{x:Bind IsMissing}">
+                                                                <Border Style="{StaticResource StatusPillStyle}" Visibility="{x:Bind IsMissing, Mode=OneWay}">
                                                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                                                         <FontIcon
                                                                             VerticalAlignment="Center"
@@ -504,7 +509,7 @@
                                                                             Text="{x:Bind Labels.Missing}" />
                                                                     </StackPanel>
                                                                 </Border>
-                                                                <Border Style="{StaticResource StatusPillStyle}" Visibility="{x:Bind StorageUnavailable}">
+                                                                <Border Style="{StaticResource StatusPillStyle}" Visibility="{x:Bind StorageUnavailable, Mode=OneWay}">
                                                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                                                         <FontIcon
                                                                             VerticalAlignment="Center"
@@ -526,18 +531,18 @@
                                                                 VerticalAlignment="Center"
                                                                 Visibility="{x:Bind HasActions}">
                                                                 <Button
-                                                                    AutomationProperties.Name="{x:Bind Labels.MarkWatched}"
+                                                                    AutomationProperties.Name="{x:Bind MarkWatchedLabel, Mode=OneWay}"
                                                                     Click="EpisodeMarkWatched_Click"
                                                                     IsEnabled="{x:Bind CanMarkWatched}"
                                                                     Style="{StaticResource SubtleIconActionButtonStyle}"
                                                                     Tag="{x:Bind}"
-                                                                    ToolTipService.ToolTip="{x:Bind Labels.MarkWatched}">
+                                                                    ToolTipService.ToolTip="{x:Bind MarkWatchedLabel, Mode=OneWay}">
                                                                     <FontIcon FontSize="14" Glyph="&#xE73E;" />
                                                                 </Button>
                                                                 <Button
                                                                     AutomationProperties.Name="{x:Bind Labels.Play}"
                                                                     Click="EpisodePlay_Click"
-                                                                    IsEnabled="{x:Bind CanOpenFile}"
+                                                                    IsEnabled="{x:Bind CanOpenFile, Mode=OneWay}"
                                                                     Style="{StaticResource SubtleIconActionButtonStyle}"
                                                                     Tag="{x:Bind}"
                                                                     ToolTipService.ToolTip="{x:Bind Labels.Play}">
@@ -546,7 +551,7 @@
                                                                 <Button
                                                                     AutomationProperties.Name="{x:Bind Labels.OpenFolder}"
                                                                     Click="EpisodeOpenFolder_Click"
-                                                                    IsEnabled="{x:Bind CanOpenFile}"
+                                                                    IsEnabled="{x:Bind CanOpenFile, Mode=OneWay}"
                                                                     Style="{StaticResource SubtleIconActionButtonStyle}"
                                                                     Tag="{x:Bind}"
                                                                     ToolTipService.ToolTip="{x:Bind Labels.OpenFolder}">

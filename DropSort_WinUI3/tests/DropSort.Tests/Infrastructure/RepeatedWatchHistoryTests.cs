@@ -115,12 +115,45 @@ public sealed class RepeatedWatchHistoryTests : IDisposable
         return connection;
     }
 
+    [Fact]
+    public void DeleteEpisodeWatchEvents_RemovesWatchEventsForEpisode()
+    {
+        new DatabaseMigrator(_connectionString).Migrate();
+        using (var connection = Open()) SeedEpisode(connection);
+
+        var repository = new PersonalLibraryRepository(_connectionString);
+        var watch = repository.AddEpisodeWatchEvent(100, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        Assert.True(watch.Id > 0);
+        Assert.Contains(100, repository.GetWatchedEpisodeIds(1));
+
+        var deleted = repository.DeleteEpisodeWatchEvents(100);
+        Assert.Equal(1, deleted);
+        Assert.DoesNotContain(100, repository.GetWatchedEpisodeIds(1));
+
+        // Idempotent: deleting again returns 0
+        Assert.Equal(0, repository.DeleteEpisodeWatchEvents(100));
+    }
+
     private static void SeedMovie(SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
         command.CommandText = """
             INSERT INTO movies(id, provider, external_id, title, date_added, created_at, updated_at, genres, metadata_status)
             VALUES (1, 'tmdb', '1', 'Movie', '2026-01-01', '2026-01-01', '2026-01-01', '[]', 'READY');
+            """;
+        command.ExecuteNonQuery();
+    }
+
+    private static void SeedEpisode(SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            INSERT INTO tv_shows(id, provider, external_id, title, sort_title, year, date_added, created_at, updated_at, genres, metadata_status)
+            VALUES (1, 'tmdb', '100', 'Show', 'show', 2026, '2026-01-01', '2026-01-01', '2026-01-01', '[]', 'READY');
+            INSERT INTO tv_seasons(id, show_id, season_number, created_at, updated_at)
+            VALUES (10, 1, 1, '2026-01-01', '2026-01-01');
+            INSERT INTO tv_episodes(id, season_id, episode_number, title, created_at, updated_at)
+            VALUES (100, 10, 1, 'Episode 1', '2026-01-01', '2026-01-01');
             """;
         command.ExecuteNonQuery();
     }

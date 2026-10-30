@@ -125,6 +125,11 @@ internal static class AppServices
 
     public static TmdbClient TmdbClient => Require(_tmdbClient);
 
+    /// <summary>
+    /// Raised whenever Trakt synchronization completes or the Trakt coordinator configuration changes.
+    /// </summary>
+    public static event EventHandler? TraktSyncCompleted;
+
     #region Trakt Composition Accessors
 
     public static ITraktUiActions? Trakt => _trakt;
@@ -180,6 +185,9 @@ internal static class AppServices
     /// file deliberately stays registered - it is a reported issue, never a deletion.
     /// </summary>
     public static IReadOnlyList<MediaFile> MissingMediaFiles() => Require(_mediaFiles).ListMissing();
+
+    public static void MarkMediaFileMissing(int mediaFileId) =>
+        Require(_mediaFiles).MarkMissing(mediaFileId, DateTimeOffset.UtcNow);
 
     /// <summary>
     /// Whether the storage root that holds <paramref name="path" /> is currently reachable. A registered
@@ -434,7 +442,8 @@ internal static class AppServices
                 var posterFolder = Path.Combine(DataFolder, "Posters");
                 var posterCache = new DiskPosterCache(posterFolder);
                 var credentialStore = new WindowsTmdbCredentialStore(
-                    isolatedProfileRoot: Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"));
+                    isolatedProfileRoot: Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"),
+                    settings: settingsRepository);
                 var settings = new SettingsService(maintenance, posterCache: posterCache,
                     settings: settingsRepository, credentialStore: credentialStore);
                 var tmdbClient = new TmdbClient(() => settings.GetTmdbToken(),
@@ -663,11 +672,12 @@ internal static class AppServices
 
             var connectionString = _connectionString ?? throw new InvalidOperationException("The local library is unavailable.");
             var cache = new TraktCacheRepository(connectionString);
-            var credentials = new WindowsTraktCredentialStore(Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"));
+            var credentials = new WindowsTraktCredentialStore(Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"), Require(_settingsRepository));
             candidateAuth = new TraktAuthClient();
             var auth = new TraktAuthService(candidateAuth, credentials, candidateConfig);
             candidateData = new TraktDataClient();
             candidateSync = new TraktSyncService(auth, candidateData, cache, candidateConfig, Require(_settingsRepository));
+            candidateSync.SyncCompleted += (_, _) => TraktSyncCompleted?.Invoke(null, EventArgs.Empty);
             var snapshot = new TraktLocalSnapshotBuilder(Require(_movies), Require(_mediaFiles),
                 Require(_tvShows), Require(_tvSeasons), Require(_tvEpisodes), Require(_availabilityInspector));
             var projection = new TraktProjectionService();
@@ -695,6 +705,7 @@ internal static class AppServices
             oldSync?.Dispose();
             oldAuth?.Dispose();
             oldData?.Dispose();
+            TraktSyncCompleted?.Invoke(null, EventArgs.Empty);
         }
         finally
         {
@@ -722,27 +733,53 @@ internal static class AppServices
         TraktSyncService? startupSync = null;
         try
         {
+            var credentialStore = new WindowsTraktCredentialStore(
+                isolatedProfileRoot: Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"),
+                settings: settingsRepository);
+
             var configJson = settingsRepository.Get("trakt_api_config");
-            if (string.IsNullOrWhiteSpace(configJson)) return;
+            string? trimmedClientId = null;
+            string? trimmedRedirectUri = null;
 
-            var dto = JsonSerializer.Deserialize<TraktConfigDto>(configJson, TraktJsonOptions);
-            if (dto is null || string.IsNullOrWhiteSpace(dto.ClientId) || string.IsNullOrWhiteSpace(dto.RedirectUri))
+            if (!string.IsNullOrWhiteSpace(configJson))
+            {
+                var dto = JsonSerializer.Deserialize<TraktConfigDto>(configJson, TraktJsonOptions);
+                if (dto is not null && !string.IsNullOrWhiteSpace(dto.ClientId) && !string.IsNullOrWhiteSpace(dto.RedirectUri))
+                {
+                    trimmedClientId = dto.ClientId.Trim();
+                    trimmedRedirectUri = dto.RedirectUri.Trim();
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(trimmedClientId))
+            {
+                var stored = credentialStore.Read();
+                if (stored is not null && !string.IsNullOrWhiteSpace(stored.ClientId))
+                {
+                    trimmedClientId = stored.ClientId.Trim();
+                    trimmedRedirectUri = "https://localhost";
+                    try
+                    {
+                        var json = JsonSerializer.Serialize(new TraktConfigDto(trimmedClientId, trimmedRedirectUri));
+                        settingsRepository.Set("trakt_api_config", json, DateTimeOffset.UtcNow);
+                    }
+                    catch { }
+                }
+            }
+
+            if (string.IsNullOrWhiteSpace(trimmedClientId) || string.IsNullOrWhiteSpace(trimmedRedirectUri))
                 return;
-
-            var trimmedClientId = dto.ClientId.Trim();
-            var trimmedRedirectUri = dto.RedirectUri.Trim();
 
             if (!Uri.TryCreate(trimmedRedirectUri, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
                 return;
 
             var authConfig = new TraktAuthConfig(trimmedClientId, trimmedRedirectUri);
             var cacheRepo = new TraktCacheRepository(connectionString);
-            var credentialStore = new WindowsTraktCredentialStore(
-                isolatedProfileRoot: Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"));
             var authClient = startupAuth = new TraktAuthClient();
             var authService = new TraktAuthService(authClient, credentialStore, authConfig);
             var dataClient = startupData = new TraktDataClient();
             var syncService = startupSync = new TraktSyncService(authService, dataClient, cacheRepo, authConfig, settingsRepository);
+            syncService.SyncCompleted += (_, _) => TraktSyncCompleted?.Invoke(null, EventArgs.Empty);
 
             _traktAuthClient = authClient;
             _traktDataClient = dataClient;
@@ -757,6 +794,7 @@ internal static class AppServices
                 tvEpisodes,
                 availabilityInspector);
             _traktProjection = new TraktProjectionService();
+            TraktSyncCompleted?.Invoke(null, EventArgs.Empty);
         }
         catch
         {

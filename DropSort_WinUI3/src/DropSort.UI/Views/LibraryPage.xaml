@@ -89,13 +89,13 @@
                         </Border>
                     </Grid>
                 </Border>
-                <TextBlock
-                    Height="{StaticResource MediaCardTitleHeight}"
-                    MaxLines="2"
-                    Style="{StaticResource BodyStrongTextBlockStyle}"
-                    Text="{x:Bind Title}"
-                    TextTrimming="CharacterEllipsis"
-                    TextWrapping="Wrap" />
+            <TextBlock
+                Height="{StaticResource MediaCardTitleHeight}"
+                MaxLines="2"
+                Style="{StaticResource BodyStrongTextBlockStyle}"
+                Text="{x:Bind Title}"
+                TextTrimming="CharacterEllipsis"
+                TextWrapping="Wrap" />
             </StackPanel>
         </DataTemplate>
 
@@ -147,14 +147,14 @@
         <StackPanel
             Grid.Row="0"
             Padding="32,32,32,0"
-            Spacing="20">
+            Spacing="24">
             <!--
                 Page header command bar: the title and result count on the leading edge, and one
                 aligned command group (Search, Sort, Filter) on the trailing edge, so the controls read
                 as one system. The title column takes the slack and trims first, so the command group
                 stays aligned as the window narrows.
             -->
-            <Grid ColumnSpacing="12">
+            <Grid ColumnSpacing="16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -163,7 +163,7 @@
                 <StackPanel
                     VerticalAlignment="Center"
                     Orientation="Horizontal"
-                    Spacing="10">
+                    Spacing="12">
                     <TextBlock
                         x:Name="PageTitleText"
                         Style="{StaticResource TitleTextBlockStyle}"
@@ -179,10 +179,10 @@
                     Grid.Column="1"
                     VerticalAlignment="Center"
                     Orientation="Horizontal"
-                    Spacing="8">
+                    Spacing="12">
                     <AutoSuggestBox
                         x:Name="SearchBox"
-                        Width="260"
+                        Width="280"
                         QueryIcon="Find"
                         Style="{StaticResource PageSearchBoxStyle}"
                         TextChanged="SearchBox_TextChanged" />

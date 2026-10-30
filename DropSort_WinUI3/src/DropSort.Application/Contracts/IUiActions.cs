@@ -105,6 +105,7 @@ public interface IWatchHistoryUiActions
 {
     IReadOnlyList<WatchHistoryItem> ListRecentWatchHistory(int limit = 50, int offset = 0);
     WatchHistoryItem RecordEpisodeWatch(int episodeId, DateTimeOffset? watchedAt = null);
+    int RemoveEpisodeWatch(int episodeId);
 
     /// <summary>
     /// Clears the entire watch history - movie, episode and orphaned events - and returns the number

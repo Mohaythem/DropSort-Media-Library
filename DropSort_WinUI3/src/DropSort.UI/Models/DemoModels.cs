@@ -287,6 +287,10 @@ public sealed record ListMediaItem : INotifyPropertyChanged
 
     public int Year => Movie?.Year ?? Show?.Year ?? 0;
 
+    public string YearText => Year > 0 ? LocalizationService.Number(Year) : string.Empty;
+
+    public Visibility YearVisibility => Year > 0 ? Visibility.Visible : Visibility.Collapsed;
+
     public ImageSource? PosterSource => Movie is not null ? Movie.PosterSource : _showCard?.PosterSource;
 
     public bool IsPosterMissing => Movie is not null ? Movie.IsPosterMissing : (_showCard?.IsPosterMissing ?? true);

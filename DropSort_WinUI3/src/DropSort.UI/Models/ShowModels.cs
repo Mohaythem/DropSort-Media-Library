@@ -213,48 +213,172 @@ public sealed record ShowCardItem(TVShowRecord Show, string SecondaryLine) : INo
 }
 
 /// <summary>One season card plus the episode thread it expands.</summary>
-public sealed record SeasonDisplayRecord(
-    int ShowId,
-    int Number,
-    string ArtLabel,
-    string Title,
-    string Meta,
-    double ProgressValue,
-    bool IsExpanded,
-    IReadOnlyList<EpisodeDisplayRecord> Episodes);
-
-public sealed record EpisodeDisplayRecord(
-    int ShowId,
-    int SeasonNumber,
-    int EpisodeNumber,
-    int EpisodeId,
-    string ThumbnailLabel,
-    string Title,
-    string Meta,
-    bool Watched,
-    bool HasLocalFile,
-    bool IsFileMissing,
-    EpisodeActionLabels Labels,
-    bool StorageUnavailable = false)
+public sealed class SeasonDisplayRecord : INotifyPropertyChanged
 {
-    /// <summary>
-    /// The caution pill is for a registered file that is gone from disk. An episode that was never
-    /// given a file is not an error, so it shows no pill at all.
-    /// </summary>
-    public bool IsMissing => IsFileMissing;
-    public bool CanMarkWatched => HasLocalFile;
+    private bool _isExpanded;
 
-    /// <summary>
-    /// File-open actions (Play, Open folder) are allowed only when the file is present and its storage
-    /// is reachable. A registered file on a disconnected drive stays PRESENT, so this also requires the
-    /// storage to be available. Mark Watched does not need the file and is not gated by this.
-    /// </summary>
-    public bool CanOpenFile => HasLocalFile && !StorageUnavailable;
+    public SeasonDisplayRecord(
+        int showId,
+        int number,
+        string artLabel,
+        string title,
+        string meta,
+        double progressValue,
+        bool isExpanded,
+        IReadOnlyList<EpisodeDisplayRecord> episodes)
+    {
+        ShowId = showId;
+        Number = number;
+        ArtLabel = artLabel;
+        Title = title;
+        Meta = meta;
+        ProgressValue = progressValue;
+        _isExpanded = isExpanded;
+        Episodes = episodes;
+    }
 
-    /// <summary>Missing/placeholder episodes have no local-file actions exposed.</summary>
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public int ShowId { get; }
+    public int Number { get; }
+    public string ArtLabel { get; }
+    public string Title { get; }
+    public string Meta { get; }
+    public double ProgressValue { get; }
+
+    public bool IsExpanded
+    {
+        get => _isExpanded;
+        set
+        {
+            if (_isExpanded != value)
+            {
+                _isExpanded = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsExpanded)));
+            }
+        }
+    }
+
+    public IReadOnlyList<EpisodeDisplayRecord> Episodes { get; }
+}
+
+public sealed class EpisodeDisplayRecord : INotifyPropertyChanged
+{
+    private bool _watched;
+    private bool _hasLocalFile;
+    private bool _isFileMissing;
+    private bool _storageUnavailable;
+
+    public EpisodeDisplayRecord(
+        int showId,
+        int seasonNumber,
+        int episodeNumber,
+        int episodeId,
+        string thumbnailLabel,
+        string title,
+        string meta,
+        bool watched,
+        bool hasLocalFile,
+        bool isFileMissing,
+        EpisodeActionLabels labels,
+        bool StorageUnavailable = false)
+    {
+        ShowId = showId;
+        SeasonNumber = seasonNumber;
+        EpisodeNumber = episodeNumber;
+        EpisodeId = episodeId;
+        ThumbnailLabel = thumbnailLabel;
+        Title = title;
+        Meta = meta;
+        _watched = watched;
+        _hasLocalFile = hasLocalFile;
+        _isFileMissing = isFileMissing;
+        Labels = labels;
+        _storageUnavailable = StorageUnavailable;
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public int ShowId { get; }
+    public int SeasonNumber { get; }
+    public int EpisodeNumber { get; }
+    public int EpisodeId { get; }
+    public string ThumbnailLabel { get; }
+    public string Title { get; }
+    public string Meta { get; }
+
+    public bool Watched
+    {
+        get => _watched;
+        set
+        {
+            if (_watched != value)
+            {
+                _watched = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Watched)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(WatchedVisibility)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(MarkWatchedLabel)));
+            }
+        }
+    }
+
+    public Visibility WatchedVisibility => _watched ? Visibility.Visible : Visibility.Collapsed;
+
+    public bool HasLocalFile
+    {
+        get => _hasLocalFile;
+        set
+        {
+            if (_hasLocalFile != value)
+            {
+                _hasLocalFile = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasLocalFile)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanOpenFile)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanMarkWatched)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(HasActions)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(RowOpacity)));
+            }
+        }
+    }
+
+    public bool IsFileMissing
+    {
+        get => _isFileMissing;
+        set
+        {
+            if (_isFileMissing != value)
+            {
+                _isFileMissing = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsFileMissing)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsMissing)));
+            }
+        }
+    }
+
+    public bool StorageUnavailable
+    {
+        get => _storageUnavailable;
+        set
+        {
+            if (_storageUnavailable != value)
+            {
+                _storageUnavailable = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(StorageUnavailable)));
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(CanOpenFile)));
+            }
+        }
+    }
+
+    public EpisodeActionLabels Labels { get; }
+
+    public string MarkWatchedLabel => _watched
+        ? (!string.IsNullOrWhiteSpace(Labels.UnmarkWatched) ? Labels.UnmarkWatched : Labels.MarkWatched)
+        : Labels.MarkWatched;
+
+    public bool IsMissing => _isFileMissing;
+    public bool CanMarkWatched => _hasLocalFile;
+    public bool CanOpenFile => _hasLocalFile && !_storageUnavailable;
     public bool HasActions => HasLocalFile;
-
-    /// <summary>Missing rows are quieter than owned episodes.</summary>
     public double RowOpacity => HasLocalFile ? 1.0 : 0.8;
 }
 
@@ -266,7 +390,8 @@ public sealed record EpisodeActionLabels(
     string Play,
     string OpenFolder,
     string More,
-    string StorageUnavailable = "");
+    string StorageUnavailable = "",
+    string UnmarkWatched = "");
 
 public sealed record StatCardRecord(string Label, string Value, string Glyph = "");
 

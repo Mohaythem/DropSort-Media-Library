@@ -131,7 +131,7 @@
     </DataTemplate>
 
     <DataTemplate x:Key="HorizontalMovieCardTemplate" x:DataType="models:MovieRecord">
-        <Border CornerRadius="{ThemeResource ControlCornerRadius}">
+        <Border CornerRadius="8">
             <Grid Background="{ThemeResource PosterMoviePlaceholderBrush}">
                 <FontIcon Margin="0,0,0,60" FontSize="36" Glyph="&#xE8B2;"
                           Foreground="{ThemeResource PosterGlyphForegroundBrush}" />
@@ -166,7 +166,7 @@
     </DataTemplate>
 
     <DataTemplate x:Key="HorizontalShowCardTemplate" x:DataType="models:ShowCardItem">
-        <Border CornerRadius="{ThemeResource ControlCornerRadius}">
+        <Border CornerRadius="8">
             <Grid Background="{ThemeResource PosterShowPlaceholderBrush}">
                 <FontIcon Margin="0,0,0,60" FontSize="36" Glyph="&#xE7F4;"
                           Foreground="{ThemeResource PosterGlyphForegroundBrush}" />

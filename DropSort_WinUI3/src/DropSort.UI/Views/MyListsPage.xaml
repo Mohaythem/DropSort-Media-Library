@@ -67,17 +67,18 @@
                     Spacing="8">
                     <AutoSuggestBox
                         x:Name="SearchBox"
-                        Width="260"
+                        Width="280"
                         QueryIcon="Find"
                         Style="{StaticResource PageSearchBoxStyle}"
                         TextChanged="SearchBox_TextChanged" />
                     <Button
-                        x:Name="TraktListsButton"
-                        Click="TraktListsButton_Click"
-                        Style="{StaticResource SubtleControlButtonStyle}">
+                        x:Name="SyncTraktButton"
+                        Click="SyncTraktButton_Click"
+                        Style="{StaticResource SubtleControlButtonStyle}"
+                        Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" FontSize="14" Glyph="&#xE72C;" />
-                            <TextBlock x:Name="TraktListsButtonText" />
+                            <TextBlock x:Name="SyncTraktButtonText" />
                         </StackPanel>
                     </Button>
                     <Button
@@ -159,8 +160,40 @@
                         <TextBlock x:Name="RecentlyWatchedCount" VerticalAlignment="Center" Style="{StaticResource SecondaryCaptionTextStyle}" />
                     </StackPanel>
                 </RadioButton>
+                <RadioButton
+                    x:Name="TraktTabItem"
+                    Checked="ListTab_Checked"
+                    GroupName="MyListsSelector"
+                    Style="{StaticResource TabStripItemStyle}"
+                    Tag="trakt">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource SymbolThemeFontFamily}"
+                            FontSize="14"
+                            Glyph="&#xE8BD;" />
+                        <TextBlock x:Name="TraktTabLabel" VerticalAlignment="Center" />
+                        <TextBlock
+                            x:Name="TraktTabCount"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource SecondaryCaptionTextStyle}" />
+                    </StackPanel>
+                </RadioButton>
             </StackPanel>
 
+            </ScrollViewer>
+
+            <ScrollViewer
+                x:Name="TraktPlaylistsScroll"
+                HorizontalScrollMode="Enabled"
+                HorizontalScrollBarVisibility="Auto"
+                VerticalScrollMode="Disabled"
+                VerticalScrollBarVisibility="Disabled"
+                Visibility="Collapsed"
+                Margin="0,2,0,2">
+                <StackPanel
+                    x:Name="TraktPlaylistsSelector"
+                    Style="{StaticResource TabStripStyle}" />
             </ScrollViewer>
 
             <!--  Active list: name + item count, with the user-list only actions on the far side.  -->
@@ -183,13 +216,6 @@
                     VerticalAlignment="Center"
                     Orientation="Horizontal"
                     Spacing="8">
-                    <Button
-                        x:Name="SyncTraktButton"
-                        Click="SyncTraktButton_Click"
-                        Style="{StaticResource SubtleControlButtonStyle}"
-                        Visibility="Collapsed">
-                        <TextBlock x:Name="SyncTraktButtonText" />
-                    </Button>
                     <Button
                         x:Name="AddMoviesButton"
                         Click="AddMoviesButton_Click"
@@ -243,33 +269,6 @@
                             Orientation="Horizontal" />
                     </ItemsPanelTemplate>
                 </GridView.ItemsPanel>
-            </GridView>
-            <GridView
-                x:Name="TraktGrid"
-                Padding="32,12,32,48"
-                HorizontalAlignment="Stretch"
-                ScrollViewer.VerticalScrollBarVisibility="Auto"
-                ScrollViewer.VerticalScrollMode="Enabled"
-                ItemClick="TraktGrid_ItemClick"
-                Style="{StaticResource MediaGridViewStyle}"
-                Visibility="Collapsed">
-                <GridView.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <ItemsWrapGrid ItemHeight="240" ItemWidth="180" Orientation="Horizontal" />
-                    </ItemsPanelTemplate>
-                </GridView.ItemsPanel>
-                <GridView.ItemTemplate>
-                    <DataTemplate>
-                        <Border Padding="12" CornerRadius="{ThemeResource ControlCornerRadius}" Background="{ThemeResource PosterMoviePlaceholderBrush}">
-                            <StackPanel Spacing="6">
-                                <TextBlock Text="{Binding Title}" Style="{StaticResource BodyStrongTextBlockStyle}" MaxLines="2" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding Year}" Style="{StaticResource SecondaryCaptionTextStyle}" />
-                                <TextBlock Text="{Binding Availability}" Style="{StaticResource TertiaryCaptionTextStyle}" />
-                                <TextBlock Text="{Binding Type}" Style="{StaticResource TertiaryCaptionTextStyle}" />
-                            </StackPanel>
-                        </Border>
-                    </DataTemplate>
-                </GridView.ItemTemplate>
             </GridView>
             <GridView x:Name="ContinueGrid" Padding="32,12,32,48" ItemClick="ActivityGrid_ItemClick" ContextRequested="MediaGrid_ContextRequested"
                       ItemContainerStyle="{StaticResource MediaHorizontalGridViewItemStyle}"

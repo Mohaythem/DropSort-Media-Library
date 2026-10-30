@@ -144,18 +144,38 @@
     </Style>
     <Style x:Key="StatusPillStyle" TargetType="Border">
         <Setter Property="MinHeight" Value="24" />
-        <Setter Property="Padding" Value="8,0,8,0" />
+        <Setter Property="Padding" Value="8,2,8,2" />
         <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
         <Setter Property="Background" Value="{ThemeResource ControlFillColorDefaultBrush}" />
         <Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style x:Key="SuccessStatusPillStyle" TargetType="Border" BasedOn="{StaticResource StatusPillStyle}">
+        <Setter Property="Background" Value="{ThemeResource BadgeSuccessBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource BadgeSuccessBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style x:Key="CautionStatusPillStyle" TargetType="Border" BasedOn="{StaticResource StatusPillStyle}">
+        <Setter Property="Background" Value="{ThemeResource BadgeCautionBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource BadgeCautionBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style x:Key="CriticalStatusPillStyle" TargetType="Border" BasedOn="{StaticResource StatusPillStyle}">
+        <Setter Property="Background" Value="{ThemeResource BadgeCriticalBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource BadgeCriticalBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style x:Key="AccentStatusPillStyle" TargetType="Border" BasedOn="{StaticResource StatusPillStyle}">
+        <Setter Property="Background" Value="{ThemeResource BadgeAccentBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource BadgeAccentBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style x:Key="GenreChipStyle" TargetType="Border" BasedOn="{StaticResource StatusPillStyle}">
         <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorSecondaryBrush}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style x:Key="PosterSurfaceStyle" TargetType="Border">
-        <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+        <Setter Property="CornerRadius" Value="8" />
         <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Background" Value="{ThemeResource PosterMoviePlaceholderBrush}" />
@@ -248,7 +268,7 @@
                     <Grid
                         x:Name="TabRoot"
                         Background="{TemplateBinding Background}"
-                        CornerRadius="{ThemeResource ControlCornerRadius}">
+                        CornerRadius="8">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
                                 <VisualState x:Name="Normal" />
@@ -353,15 +373,15 @@
                         x:Name="CardRoot"
                         Background="Transparent"
                         BorderBrush="Transparent"
-                        BorderThickness="2"
-                        CornerRadius="{ThemeResource OverlayCornerRadius}">
+                        BorderThickness="1"
+                        CornerRadius="8">
                         <VisualStateManager.VisualStateGroups>
                             <VisualStateGroup x:Name="CommonStates">
                                 <VisualState x:Name="Normal" />
                                 <VisualState x:Name="PointerOver">
                                     <VisualState.Setters>
                                         <Setter Target="CardRoot.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
-                                        <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource ControlStrongStrokeColorDefaultBrush}" />
+                                        <Setter Target="CardRoot.BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
                                         <Setter Target="CardOverlay.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
                                     </VisualState.Setters>
                                 </VisualState>
@@ -423,7 +443,7 @@
                                 x:Name="CardOverlay"
                                 Margin="{TemplateBinding Padding}"
                                 Background="Transparent"
-                                CornerRadius="{ThemeResource ControlCornerRadius}"
+                                CornerRadius="8"
                                 IsHitTestVisible="False" />
                         </Grid>
                     </Border>
@@ -503,7 +523,7 @@
                                           Content="{TemplateBinding Content}"
                                           ContentTemplate="{TemplateBinding ContentTemplate}" />
                             <Border x:Name="CardOverlay" Background="Transparent"
-                                    CornerRadius="{ThemeResource ControlCornerRadius}" IsHitTestVisible="False" />
+                                    CornerRadius="8" IsHitTestVisible="False" />
                         </Grid>
                     </Border>
                 </ControlTemplate>

@@ -71,7 +71,8 @@
                         <Setter Target="ReadingPane.(Grid.ColumnSpan)" Value="1" />
                         <Setter Target="PreferenceActionsPanel.Orientation" Value="Horizontal" />
                         <Setter Target="FileActionsPanel.Orientation" Value="Horizontal" />
-                        <Setter Target="HeroPosterColumn.Width" Value="454.7" />
+                        <Setter Target="HeroPosterColumn.Width" Value="420" />
+                        <Setter Target="PosterSurface.Width" Value="420" />
                         <Setter Target="WatchPane.(Grid.ColumnSpan)" Value="1" />
                         <Setter Target="FilesPane.(Grid.Row)" Value="0" />
                         <Setter Target="FilesPane.(Grid.Column)" Value="1" />
@@ -103,7 +104,8 @@
                         <Setter Target="ReadingPane.(Grid.ColumnSpan)" Value="1" />
                         <Setter Target="PreferenceActionsPanel.Orientation" Value="Horizontal" />
                         <Setter Target="HeroPosterColumn.Width" Value="300" />
-                        <Setter Target="PosterSurface.Height" Value="430" />
+                        <Setter Target="PosterSurface.Width" Value="300" />
+                        <Setter Target="PosterSurface.Height" Value="450" />
                         <Setter Target="AddToListButton.(Grid.Row)" Value="0" />
                         <Setter Target="AddToListButton.(Grid.Column)" Value="1" />
                         <Setter Target="MatchButton.(Grid.Row)" Value="1" />
@@ -123,16 +125,17 @@
                     <VisualState.Setters>
                         <Setter Target="HeroPosterColumn.Width" Value="*" />
                         <Setter Target="HeroGrid.ColumnSpacing" Value="0" />
-                        <Setter Target="GalleryPanel.MaxWidth" Value="454.7" />
-                        <Setter Target="PosterSurface.Height" Value="430" />
+                        <Setter Target="GalleryPanel.MaxWidth" Value="220" />
+                        <Setter Target="PosterSurface.Width" Value="220" />
+                        <Setter Target="PosterSurface.Height" Value="330" />
                         <Setter Target="PreferenceActionsPanel.Orientation" Value="Vertical" />
                         <Setter Target="WatchedDateControlsPanel.Orientation" Value="Vertical" />
-                        <Setter Target="Root.Padding" Value="24,20,24,48" />
+                        <Setter Target="Root.Padding" Value="24,24,24,48" />
                     </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
-        <StackPanel Spacing="20" x:Name="PageContent">
+        <StackPanel Spacing="24" x:Name="PageContent">
             <Grid Height="48">
                 <Button x:Name="BackButton" Click="BackButton_Click" Style="{StaticResource DetailsButtonStyle}" Padding="12,8" MinHeight="40" HorizontalAlignment="Left" VerticalAlignment="Top" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
                     <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -143,15 +146,15 @@
             </Grid>
             <Grid ColumnSpacing="40" RowSpacing="32" x:Name="HeroGrid">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="454.7" x:Name="HeroPosterColumn" />
+                    <ColumnDefinition Width="420" x:Name="HeroPosterColumn" />
                     <ColumnDefinition Width="*" x:Name="HeroCopyColumn" />
                 </Grid.ColumnDefinitions>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <Border Background="{ThemeResource FigmaSurfaceSecondaryBrush}" Padding="20" VerticalAlignment="Top" x:Name="GalleryPanel" Grid.ColumnSpan="2">
-                    <Border x:Name="PosterSurface" Height="630" Padding="0" Background="Transparent" BorderThickness="0">
+                <Border Background="{ThemeResource FigmaSurfaceSecondaryBrush}" Padding="0" CornerRadius="8" VerticalAlignment="Top" HorizontalAlignment="Left" x:Name="GalleryPanel" Grid.ColumnSpan="2">
+                    <Border x:Name="PosterSurface" Width="420" Height="630" Padding="0" CornerRadius="8" Style="{StaticResource PosterSurfaceStyle}" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Grid>
                             <Image x:Name="PosterImage" Stretch="Uniform" />
                             <FontIcon x:Name="PosterGlyph" FontSize="40" Foreground="{ThemeResource PosterGlyphForegroundBrush}" Glyph="&#xE714;" />
@@ -159,7 +162,7 @@
                     </Border>
                 </Border>
                 <StackPanel Spacing="32" x:Name="ReadingPane" Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2">
-                    <StackPanel Spacing="28" x:Name="HeroCopyPanel">
+                    <StackPanel Spacing="24" x:Name="HeroCopyPanel">
                         <TextBlock x:Name="KindText" Style="{StaticResource DetailsCaptionStyle}" />
                         <Grid x:Name="MovieTitleContainer" VerticalAlignment="Center">
                             <StackPanel x:Name="MovieTitleViewPanel" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -192,13 +195,21 @@
                                      KeyDown="MovieTitleEditBox_KeyDown"
                                      LostFocus="MovieTitleEditBox_LostFocus" />
                         </Grid>
-                        <Grid ColumnSpacing="14" x:Name="MovieIdentityGrid">
+                        <Grid ColumnSpacing="16" x:Name="MovieIdentityGrid">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock x:Name="MovieMetaText" Style="{StaticResource DetailsBodyStyle}" TextWrapping="Wrap" />
-                            <StackPanel Spacing="5" x:Name="RatingPanel" Orientation="Horizontal" Grid.Column="1">
+                            <Border x:Name="RatingPanel"
+                                    Grid.Column="1"
+                                    Style="{StaticResource StatusPillStyle}"
+                                    Background="{ThemeResource LayerFillColorAltBrush}"
+                                    BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    Padding="8,2"
+                                    VerticalAlignment="Center">
+                                <StackPanel Spacing="6" Orientation="Horizontal" VerticalAlignment="Center">
                                 <Grid Tag="DetailsIcon:star" Width="16" Height="16">
                                     <Image Width="16" Height="16">
                                         <Image.Source>
@@ -208,7 +219,8 @@
                                     <FontIcon Glyph="" FontSize="16" Foreground="{ThemeResource FigmaTextPrimaryBrush}" Visibility="Collapsed" />
                                 </Grid>
                                 <TextBlock Style="{StaticResource DetailsBodyStyle}" x:Name="RatingText" />
-                            </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </Grid>
                         <TextBlock x:Name="GenresText" Style="{StaticResource DetailsBodyStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
                         <TextBlock x:Name="OriginalTitleText" Style="{StaticResource DetailsSmallStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
@@ -219,7 +231,7 @@
                                 <Button x:Name="OverviewToggleButton" Click="OverviewToggleButton_Click" Style="{StaticResource DetailsLinkStyle}" Visibility="Collapsed" />
                             </StackPanel>
                         </Border>
-                        <Grid ColumnSpacing="10" RowSpacing="10" x:Name="DailyCommandsGrid">
+                        <Grid ColumnSpacing="8" RowSpacing="8" x:Name="DailyCommandsGrid">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />

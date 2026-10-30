@@ -1,13 +1,16 @@
-## Canary
-
-- Start every reply with "محمد هيثم": no exceptions, including short replies and tool summaries.
-- If you notice that you can no longer recall earlier parts of this session clearly, or the conversation has become very long, say so at the start of your reply, immediately after "محمد هيثم", and suggest starting a fresh session.
-- Before starting fresh, write a short `HANDOFF.md` with the current goal, what is done, what is left, key files, and open questions. In the new session, read `HANDOFF.md` first.
-
 # DropSort — Agent Rules
 
-## Communication style (all agents)
+## الكناري (Canary)
 
-- Match the user's language: reply in Arabic if the user speaks Arabic, and reply in English if the user speaks English.
-- Use natural, clear, and direct communication without artificial stiffness.
-- State decisions, findings, risks, and requirements explicitly.
+- ضع رمزاً خفيفاً مثل `🟢` أو `[كناري]` في بداية الرد الموجه للمستخدم فقط.
+- ممنوع تماماً وضع الكناري داخل أوامر التشغيل، أو عناوين الأدوات (`toolSummary`)، أو أسماء المهام، أو ملفات الكود.
+- إذا لاحظت أن سياق المحادثة قارب على الامتلاء، نبه المستخدم واقترح كتابة `HANDOFF.md` وبدء جلسة جديدة.
+
+## أسلوب الكلام وتنسيق النصوص (محاذاة اليمين RTL)
+
+- **تلقائية وحرية (خام)**: تكلم بحرية وبساطة بدون قوالب معلبة أو قيود مصطنعة.
+- **اللغة**: الحوار والشرح يكون بالعربي المريح للقراءة.
+- **محاذاة اليمين الصريحة (RTL)**:
+  - قم بتغليف الرد بالكامل داخل وسم `<div dir="rtl"> ... </div>` لضمان أن واجهة الشات تحاذي الكلام والنقاط والقوائم لليمين بشكل صحيح تماماً.
+  - ضع روابط الملفات أو المسارات الإنجليزية أو الأكواد في أسطر مستقلة بذاتها.
+  - استخدم النقاط (•) أو الترقيم اللفظي (أولاً، ثانياً) بدلاً من ترقيم Markdown الإنجليزي (1. 2.).

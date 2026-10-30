@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using DropSort.Application.External;
+using DropSort.Application.Repositories;
 
 namespace DropSort.Infrastructure.Security;
 
@@ -13,9 +14,11 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
     private const int NotFound = 1168;
     private const int MaxBlob = 2560;
     private readonly string _target;
+    private readonly ISettingsRepository? _settings;
 
-    public WindowsTmdbCredentialStore(string? isolatedProfileRoot = null)
+    public WindowsTmdbCredentialStore(string? isolatedProfileRoot = null, ISettingsRepository? settings = null)
     {
+        _settings = settings;
         if (string.IsNullOrWhiteSpace(isolatedProfileRoot))
         {
             _target = "DropSort/TMDB";
@@ -32,31 +35,70 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
 
     public string? Read()
     {
-        if (!CredReadW(_target, Generic, 0, out var pointer))
+        string? nativeToken = null;
+        if (CredReadW(_target, Generic, 0, out var pointer))
         {
-            if (Marshal.GetLastWin32Error() == NotFound) return null;
-            throw StorageError();
-        }
-        try
-        {
-            var credential = Marshal.PtrToStructure<Credential>(pointer);
-            if (credential.CredentialBlobSize == 0 || credential.CredentialBlobSize > MaxBlob
-                || credential.CredentialBlob == IntPtr.Zero)
-                throw StorageError();
-            var bytes = new byte[(int)credential.CredentialBlobSize];
             try
             {
-                Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
-                return new UTF8Encoding(false, true).GetString(bytes);
+                var credential = Marshal.PtrToStructure<Credential>(pointer);
+                if (credential.CredentialBlobSize > 0 && credential.CredentialBlobSize <= MaxBlob
+                    && credential.CredentialBlob != IntPtr.Zero)
+                {
+                    var bytes = new byte[(int)credential.CredentialBlobSize];
+                    try
+                    {
+                        Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
+                        nativeToken = new UTF8Encoding(false, true).GetString(bytes);
+                    }
+                    catch (DecoderFallbackException) { throw StorageError(); }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(bytes);
+                        Marshal.Copy(bytes, 0, credential.CredentialBlob, bytes.Length);
+                    }
+                }
             }
-            catch (DecoderFallbackException) { throw StorageError(); }
-            finally
-            {
-                CryptographicOperations.ZeroMemory(bytes);
-                Marshal.Copy(bytes, 0, credential.CredentialBlob, bytes.Length);
-            }
+            finally { CredFree(pointer); }
         }
-        finally { CredFree(pointer); }
+        else
+        {
+            var err = Marshal.GetLastWin32Error();
+            if (err != NotFound) throw StorageError();
+        }
+
+        if (!string.IsNullOrWhiteSpace(nativeToken))
+        {
+            if (_settings is not null)
+            {
+                try
+                {
+                    if (string.IsNullOrWhiteSpace(_settings.Get("tmdb_credential_dpapi")))
+                    {
+                        var cipher = EncryptDpapi(nativeToken);
+                        if (cipher is not null) _settings.Set("tmdb_credential_dpapi", cipher, DateTimeOffset.UtcNow);
+                    }
+                }
+                catch { }
+            }
+            return nativeToken;
+        }
+
+        if (_settings is not null)
+        {
+            try
+            {
+                var cipher = _settings.Get("tmdb_credential_dpapi");
+                var recovered = DecryptDpapi(cipher);
+                if (!string.IsNullOrWhiteSpace(recovered))
+                {
+                    try { Write(recovered); } catch { }
+                    return recovered;
+                }
+            }
+            catch { }
+        }
+
+        return null;
     }
 
     public void Write(string credential)
@@ -79,6 +121,16 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
                 UserName = "DropSort",
             };
             if (!CredWriteW(ref native, 0)) throw StorageError();
+
+            if (_settings is not null)
+            {
+                try
+                {
+                    var cipher = EncryptDpapi(credential);
+                    if (cipher is not null) _settings.Set("tmdb_credential_dpapi", cipher, DateTimeOffset.UtcNow);
+                }
+                catch { }
+            }
         }
         finally
         {
@@ -93,8 +145,36 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
 
     public void Delete()
     {
+        if (_settings is not null)
+        {
+            try { _settings.Delete("tmdb_credential_dpapi"); } catch { }
+        }
         if (!CredDeleteW(_target, Generic, 0) && Marshal.GetLastWin32Error() != NotFound)
             throw StorageError();
+    }
+
+    private static string? EncryptDpapi(string plain)
+    {
+        if (string.IsNullOrEmpty(plain)) return null;
+        try
+        {
+            var raw = Encoding.UTF8.GetBytes(plain);
+            var enc = ProtectedData.Protect(raw, null, DataProtectionScope.CurrentUser);
+            return Convert.ToBase64String(enc);
+        }
+        catch { return null; }
+    }
+
+    private static string? DecryptDpapi(string? cipher)
+    {
+        if (string.IsNullOrWhiteSpace(cipher)) return null;
+        try
+        {
+            var raw = Convert.FromBase64String(cipher);
+            var dec = ProtectedData.Unprotect(raw, null, DataProtectionScope.CurrentUser);
+            return Encoding.UTF8.GetString(dec);
+        }
+        catch { return null; }
     }
 
     private static InvalidOperationException StorageError() => new("Credential storage unavailable.");

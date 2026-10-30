@@ -516,6 +516,27 @@ public sealed class PersonalLibraryRepository : IPersonalLibraryRepository, IWat
         return entry;
     }
 
+    public int DeleteEpisodeWatchEvents(int episodeId)
+    {
+        ValidateId(episodeId, nameof(episodeId));
+        using var gate = DatabaseWriteGate.Enter(_connectionString);
+        using var connection = SqliteConnections.Open(_connectionString);
+        using var transaction = connection.BeginTransaction(deferred: false);
+        using var command = Command(connection, transaction, """
+            DELETE FROM watch_events
+             WHERE media_kind = 'EPISODE' AND episode_id = $episode;
+            """);
+        command.Parameters.AddWithValue("$episode", episodeId);
+        var removed = command.ExecuteNonQuery();
+        using (var active = Command(connection, transaction, "DELETE FROM active_viewings WHERE episode_id = $episode;"))
+        {
+            active.Parameters.AddWithValue("$episode", episodeId);
+            active.ExecuteNonQuery();
+        }
+        transaction.Commit();
+        return removed;
+    }
+
     public int ClearWatchHistory()
     {
         using var gate = DatabaseWriteGate.Enter(_connectionString);

@@ -25,6 +25,8 @@ public sealed class WatchHistoryService : IWatchHistoryUiActions
     public WatchHistoryItem RecordEpisodeWatch(int episodeId, DateTimeOffset? watchedAt = null) =>
         Map(_history.AddEpisodeWatchEvent(episodeId, watchedAt ?? _clock(), _clock()));
 
+    public int RemoveEpisodeWatch(int episodeId) => _history.DeleteEpisodeWatchEvents(episodeId);
+
     public int ClearWatchHistory() => _history.ClearWatchHistory();
 
     private static WatchHistoryItem Map(WatchHistoryEntry entry) => new(

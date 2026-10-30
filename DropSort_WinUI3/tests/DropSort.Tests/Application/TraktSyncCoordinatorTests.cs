@@ -89,6 +89,22 @@ public sealed class TraktSyncCoordinatorTests : IDisposable
         Assert.True((await service.SyncAsync()).Success);
     }
 
+    [Fact]
+    public async Task SyncAsync_fires_SyncCompleted_event_on_success()
+    {
+        _authService.SetConnected("uuid-123", "token");
+        _dataClient.AccountToReturn = JsonDocument.Parse("""{"user":{"ids":{"uuid":"uuid-123"}}}""").RootElement;
+        _dataClient.AsyncResourceHandler = (_, _) => Task.FromResult(JsonDocument.Parse("[]").RootElement);
+
+        using var service = CreateService();
+        var syncCompletedFired = false;
+        service.SyncCompleted += (_, _) => syncCompletedFired = true;
+
+        var result = await service.SyncAsync();
+        Assert.True(result.Success);
+        Assert.True(syncCompletedFired);
+    }
+
     private sealed class MemoryCredentials : ITraktCredentialStore
     {
         private TraktCredentialPayload? _value;
