@@ -1,4 +1,4 @@
-; DropSort Windows installer (Inno Setup 6).
+﻿; DropSort Windows installer (Inno Setup 6).
 ;
 ; Why Inno Setup: DropSort is an unpackaged WinUI 3 / Windows App SDK desktop app
 ; (WindowsPackageType=None), self-contained win-x64. Inno produces exactly one polished Setup EXE,
@@ -56,6 +56,10 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
+[InstallDelete]
+Type: files; Name: "{autodesktop}\DropSort.lnk"
+Type: files; Name: "{group}\DropSort.lnk"
+
 [Files]
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion; Excludes: "*.pdb,publish\*,\publish"
 
@@ -65,3 +69,4 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent
+
