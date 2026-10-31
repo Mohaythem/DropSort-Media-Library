@@ -9,10 +9,10 @@
 ; uninstall leave user data and media untouched.
 ;
 ; Build:  ISCC.exe packaging\TBD Movies.iss
-; Output: artifacts\release\0.11.1\TBDMoviesSetup.exe
+; Output: artifacts\release\0.11.11\TBDMoviesSetup.exe
 
 #define MyAppName "TBD Movies"
-#define MyAppVersion "0.11.1"
+#define MyAppVersion "0.11.11"
 #define MyAppPublisher "TBD Movies"
 #define MyAppExeName "TBD-Movies.exe"
 ; Payload = the self-contained Release BUILD output for win-x64. We package the build output, not the
@@ -29,7 +29,7 @@
 AppId={{1A127282-7849-4212-A5F1-A8FD87661B8D}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-VersionInfoVersion=0.11.1.0
+VersionInfoVersion=0.11.11.0
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={localappdata}\Programs\{#MyAppName}
