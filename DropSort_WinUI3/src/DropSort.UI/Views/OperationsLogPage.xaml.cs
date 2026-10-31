@@ -177,7 +177,7 @@ public sealed partial class OperationsLogPage : Page, ILocalizableView, IActivat
     private void SaveLogButton_Click(object sender, RoutedEventArgs e)
     {
         var folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var path = Path.Combine(folder, "dropsort-operations-log.txt");
+        var path = Path.Combine(folder, "tbd-movies-operations-log.txt");
 
         try
         {

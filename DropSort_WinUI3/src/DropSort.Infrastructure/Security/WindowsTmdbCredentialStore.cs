@@ -14,6 +14,7 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
     private const int NotFound = 1168;
     private const int MaxBlob = 2560;
     private readonly string _target;
+    private readonly string? _legacyTarget;
     private readonly ISettingsRepository? _settings;
 
     public WindowsTmdbCredentialStore(string? isolatedProfileRoot = null, ISettingsRepository? settings = null)
@@ -21,7 +22,8 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
         _settings = settings;
         if (string.IsNullOrWhiteSpace(isolatedProfileRoot))
         {
-            _target = "DropSort/TMDB";
+            _target = "TBDMovies/TMDB";
+            _legacyTarget = "DropSort/TMDB";
         }
         else
         {
@@ -29,41 +31,22 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
             if (!Path.IsPathFullyQualified(isolatedProfileRoot))
                 throw new ArgumentException("The credential profile root must be an absolute path.");
             var profile = Path.TrimEndingDirectorySeparator(Path.GetFullPath(isolatedProfileRoot.Trim())).ToUpperInvariant();
-            _target = "DropSort/TMDB/QA/" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(profile)));
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(profile)));
+            _target = "TBDMovies/TMDB/QA/" + hash;
+            _legacyTarget = "DropSort/TMDB/QA/" + hash;
         }
     }
 
     public string? Read()
     {
-        string? nativeToken = null;
-        if (CredReadW(_target, Generic, 0, out var pointer))
+        string? nativeToken = TryReadTarget(_target);
+        if (string.IsNullOrWhiteSpace(nativeToken) && !string.IsNullOrWhiteSpace(_legacyTarget))
         {
-            try
+            nativeToken = TryReadTarget(_legacyTarget);
+            if (!string.IsNullOrWhiteSpace(nativeToken))
             {
-                var credential = Marshal.PtrToStructure<Credential>(pointer);
-                if (credential.CredentialBlobSize > 0 && credential.CredentialBlobSize <= MaxBlob
-                    && credential.CredentialBlob != IntPtr.Zero)
-                {
-                    var bytes = new byte[(int)credential.CredentialBlobSize];
-                    try
-                    {
-                        Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
-                        nativeToken = new UTF8Encoding(false, true).GetString(bytes);
-                    }
-                    catch (DecoderFallbackException) { throw StorageError(); }
-                    finally
-                    {
-                        CryptographicOperations.ZeroMemory(bytes);
-                        Marshal.Copy(bytes, 0, credential.CredentialBlob, bytes.Length);
-                    }
-                }
+                try { Write(nativeToken); } catch { }
             }
-            finally { CredFree(pointer); }
-        }
-        else
-        {
-            var err = Marshal.GetLastWin32Error();
-            if (err != NotFound) throw StorageError();
         }
 
         if (!string.IsNullOrWhiteSpace(nativeToken))
@@ -101,6 +84,41 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
         return null;
     }
 
+    private static string? TryReadTarget(string target)
+    {
+        if (CredReadW(target, Generic, 0, out var pointer))
+        {
+            try
+            {
+                var credential = Marshal.PtrToStructure<Credential>(pointer);
+                if (credential.CredentialBlobSize > 0 && credential.CredentialBlobSize <= MaxBlob
+                    && credential.CredentialBlob != IntPtr.Zero)
+                {
+                    var bytes = new byte[(int)credential.CredentialBlobSize];
+                    try
+                    {
+                        Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
+                        return new UTF8Encoding(false, true).GetString(bytes);
+                    }
+                    catch (DecoderFallbackException) { throw StorageError(); }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(bytes);
+                        Marshal.Copy(bytes, 0, credential.CredentialBlob, bytes.Length);
+                    }
+                }
+            }
+            finally { CredFree(pointer); }
+        }
+        else
+        {
+            var err = Marshal.GetLastWin32Error();
+            if (err != NotFound) throw StorageError();
+        }
+
+        return null;
+    }
+
     public void Write(string credential)
     {
         if (string.IsNullOrWhiteSpace(credential) || Encoding.UTF8.GetByteCount(credential) > MaxBlob)
@@ -118,7 +136,7 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
                 CredentialBlobSize = (uint)bytes.Length,
                 CredentialBlob = blob,
                 Persist = PersistLocalMachine,
-                UserName = "DropSort",
+                UserName = "TBD Movies",
             };
             if (!CredWriteW(ref native, 0)) throw StorageError();
 
@@ -151,6 +169,10 @@ public sealed class WindowsTmdbCredentialStore : ITmdbCredentialStore
         }
         if (!CredDeleteW(_target, Generic, 0) && Marshal.GetLastWin32Error() != NotFound)
             throw StorageError();
+        if (!string.IsNullOrWhiteSpace(_legacyTarget))
+        {
+            CredDeleteW(_legacyTarget, Generic, 0);
+        }
     }
 
     private static string? EncryptDpapi(string plain)

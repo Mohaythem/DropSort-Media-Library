@@ -11,9 +11,9 @@
 ; Build:  ISCC.exe packaging\DropSort.iss
 ; Output: artifacts\release\0.11.1\DropSortSetup.exe
 
-#define MyAppName "DropSort"
+#define MyAppName "TBD Movies"
 #define MyAppVersion "0.11.1"
-#define MyAppPublisher "DropSort"
+#define MyAppPublisher "TBD Movies"
 #define MyAppExeName "DropSort.UI.exe"
 ; Payload = the self-contained Release BUILD output for win-x64. We package the build output, not the
 ; `publish` subfolder: for this unpackaged WinUI 3 app the Publish target drops the compiled resource
@@ -60,8 +60,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#PayloadDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion; Excludes: "*.pdb,publish\*,\publish"
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "DropSort.DropSort"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; AppUserModelID: "DropSort.DropSort"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "TBDMovies.TBDMovies"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon; AppUserModelID: "TBDMovies.TBDMovies"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#MyAppName}}"; Flags: nowait postinstall skipifsilent

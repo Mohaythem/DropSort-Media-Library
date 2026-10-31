@@ -74,6 +74,89 @@ public sealed class WindowsTmdbCredentialStoreTests
         }
     }
 
+    [Fact]
+    public void When_legacy_target_exists_reads_and_migrates_to_primary_target()
+    {
+        var profile = Path.Combine(Path.GetTempPath(), "DropSort-TmdbMigrateTest-" + Guid.NewGuid().ToString("N"));
+        var store = new WindowsTmdbCredentialStore(profile);
+        store.Delete();
+
+        var normalizedProfile = Path.TrimEndingDirectorySeparator(Path.GetFullPath(profile.Trim())).ToUpperInvariant();
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(normalizedProfile)));
+        var legacyTarget = "DropSort/TMDB/QA/" + hash;
+
+        WriteNativeDirect(legacyTarget, "legacy-tmdb-token");
+
+        try
+        {
+            var read = store.Read();
+            Assert.Equal("legacy-tmdb-token", read);
+
+            DeleteNativeDirect(legacyTarget);
+
+            Assert.Equal("legacy-tmdb-token", store.Read());
+        }
+        finally
+        {
+            store.Delete();
+            DeleteNativeDirect(legacyTarget);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool CredWriteW(ref NativeCredential credential, uint flags);
+
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool CredDeleteW(string target, uint type, uint flags);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct NativeCredential
+    {
+        public uint Flags;
+        public uint Type;
+        public string? TargetName;
+        public string? Comment;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
+        public uint CredentialBlobSize;
+        public IntPtr CredentialBlob;
+        public uint Persist;
+        public uint AttributeCount;
+        public IntPtr Attributes;
+        public string? TargetAlias;
+        public string? UserName;
+    }
+
+    private static void WriteNativeDirect(string target, string secret)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(secret);
+        var blob = System.Runtime.InteropServices.Marshal.AllocHGlobal(bytes.Length);
+        try
+        {
+            System.Runtime.InteropServices.Marshal.Copy(bytes, 0, blob, bytes.Length);
+            var cred = new NativeCredential
+            {
+                Type = 1,
+                TargetName = target,
+                CredentialBlobSize = (uint)bytes.Length,
+                CredentialBlob = blob,
+                Persist = 2,
+                UserName = "DropSort",
+            };
+            CredWriteW(ref cred, 0);
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.FreeHGlobal(blob);
+        }
+    }
+
+    private static void DeleteNativeDirect(string target)
+    {
+        CredDeleteW(target, 1, 0);
+    }
+
     private sealed class TestSettingsRepo : ISettingsRepository
     {
         public Dictionary<string, string> Values { get; } = new(StringComparer.Ordinal);

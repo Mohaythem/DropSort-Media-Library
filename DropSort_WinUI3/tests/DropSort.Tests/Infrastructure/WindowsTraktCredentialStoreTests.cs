@@ -114,6 +114,105 @@ public sealed class WindowsTraktCredentialStoreTests
         }
     }
 
+    [Fact]
+    public void When_legacy_target_exists_reads_and_migrates_to_primary_target()
+    {
+        var profile = Path.Combine(Path.GetTempPath(), "DropSort-TraktMigrateTest-" + Guid.NewGuid().ToString("N"));
+        var store = new WindowsTraktCredentialStore(profile);
+        store.Delete();
+
+        var normalizedProfile = Path.TrimEndingDirectorySeparator(Path.GetFullPath(profile.Trim())).ToUpperInvariant();
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(normalizedProfile)));
+        var legacyTarget = "DropSort/Trakt/QA/" + hash;
+
+        var payload = new TraktCredentialPayload(
+            "client-id-migrated",
+            "access-migrated",
+            "refresh-migrated",
+            "bearer",
+            3600,
+            "public",
+            1700000000,
+            "acc-migrated");
+
+        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+        WriteNativeDirect(legacyTarget, json);
+
+        try
+        {
+            var read = store.Read();
+            Assert.NotNull(read);
+            Assert.Equal("client-id-migrated", read.ClientId);
+            Assert.Equal("access-migrated", read.AccessToken);
+
+            DeleteNativeDirect(legacyTarget);
+
+            var readAgain = store.Read();
+            Assert.NotNull(readAgain);
+            Assert.Equal("client-id-migrated", readAgain.ClientId);
+            Assert.Equal("access-migrated", readAgain.AccessToken);
+        }
+        finally
+        {
+            store.Delete();
+            DeleteNativeDirect(legacyTarget);
+        }
+    }
+
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool CredWriteW(ref NativeCredential credential, uint flags);
+
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+    private static extern bool CredDeleteW(string target, uint type, uint flags);
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private struct NativeCredential
+    {
+        public uint Flags;
+        public uint Type;
+        public string? TargetName;
+        public string? Comment;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWritten;
+        public uint CredentialBlobSize;
+        public IntPtr CredentialBlob;
+        public uint Persist;
+        public uint AttributeCount;
+        public IntPtr Attributes;
+        public string? TargetAlias;
+        public string? UserName;
+    }
+
+    private static void WriteNativeDirect(string target, string secret)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(secret);
+        var blob = System.Runtime.InteropServices.Marshal.AllocHGlobal(bytes.Length);
+        try
+        {
+            System.Runtime.InteropServices.Marshal.Copy(bytes, 0, blob, bytes.Length);
+            var cred = new NativeCredential
+            {
+                Type = 1,
+                TargetName = target,
+                CredentialBlobSize = (uint)bytes.Length,
+                CredentialBlob = blob,
+                Persist = 2,
+                UserName = "DropSort/Trakt",
+            };
+            CredWriteW(ref cred, 0);
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.FreeHGlobal(blob);
+        }
+    }
+
+    private static void DeleteNativeDirect(string target)
+    {
+        CredDeleteW(target, 1, 0);
+    }
+
     private sealed class TestSettingsRepo : ISettingsRepository
     {
         public Dictionary<string, string> Values { get; } = new(StringComparer.Ordinal);

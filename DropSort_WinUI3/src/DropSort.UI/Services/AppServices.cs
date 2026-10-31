@@ -60,16 +60,30 @@ internal static class AppServices
         }
     }
 
+    /// <summary>Informational version of the application.</summary>
+    public static string Version => System.Reflection.CustomAttributeExtensions
+        .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(AppServices).Assembly)?.InformationalVersion ?? "1.0.0";
+
     /// <summary>Where the local index, journal and settings live. Shown on the Settings page.</summary>
     public static string DataFolder { get; } = ResolveDataFolder();
+
+    internal static string? GetTestDataRoot()
+    {
+        var testRoot = Environment.GetEnvironmentVariable("TBDMOVIES_TEST_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(testRoot))
+        {
+            testRoot = Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT");
+        }
+        return string.IsNullOrWhiteSpace(testRoot) ? null : testRoot;
+    }
 
     private static string ResolveDataFolder()
     {
         // Opt-in data-root override for QA, scale testing and support of the installed Release build.
-        // It is inert unless DROPSORT_TEST_DATA_ROOT is set to an absolute path, and it never changes the
+        // It is inert unless TBDMOVIES_TEST_DATA_ROOT or DROPSORT_TEST_DATA_ROOT is set to an absolute path, and it never changes the
         // default per-user location. It lets an installed build run against an isolated, disposable data
-        // profile without touching the user's real %LOCALAPPDATA%\DropSort library.
-        var testRoot = Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT");
+        // profile without touching the user's real %LOCALAPPDATA%\TBD Movies library.
+        var testRoot = GetTestDataRoot();
         if (!string.IsNullOrWhiteSpace(testRoot))
         {
             if (!Path.IsPathFullyQualified(testRoot))
@@ -77,7 +91,37 @@ internal static class AppServices
             return Path.GetFullPath(testRoot);
         }
 
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DropSort");
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var targetFolder = Path.Combine(localAppData, "TBD Movies");
+        var legacyFolder = Path.Combine(localAppData, "DropSort");
+
+        try
+        {
+            var legacyDb = Path.Combine(legacyFolder, "library.db");
+            var targetDb = Path.Combine(targetFolder, "library.db");
+
+            bool legacyHasDb = Directory.Exists(legacyFolder) && File.Exists(legacyDb);
+            bool targetNeedsMigration = !Directory.Exists(targetFolder) || (!File.Exists(targetDb) && Directory.GetFileSystemEntries(targetFolder).Length == 0);
+
+            if (legacyHasDb && targetNeedsMigration)
+            {
+                if (Directory.Exists(targetFolder))
+                {
+                    Directory.Delete(targetFolder, recursive: true);
+                }
+
+                Directory.Move(legacyFolder, targetFolder);
+            }
+        }
+        catch
+        {
+            if (!Directory.Exists(targetFolder) && Directory.Exists(legacyFolder))
+            {
+                return legacyFolder;
+            }
+        }
+
+        return targetFolder;
     }
 
     public static ILibraryUiActions Library => Require(_library);
@@ -442,7 +486,7 @@ internal static class AppServices
                 var posterFolder = Path.Combine(DataFolder, "Posters");
                 var posterCache = new DiskPosterCache(posterFolder);
                 var credentialStore = new WindowsTmdbCredentialStore(
-                    isolatedProfileRoot: Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"),
+                    isolatedProfileRoot: GetTestDataRoot(),
                     settings: settingsRepository);
                 var settings = new SettingsService(maintenance, posterCache: posterCache,
                     settings: settingsRepository, credentialStore: credentialStore);
@@ -672,7 +716,7 @@ internal static class AppServices
 
             var connectionString = _connectionString ?? throw new InvalidOperationException("The local library is unavailable.");
             var cache = new TraktCacheRepository(connectionString);
-            var credentials = new WindowsTraktCredentialStore(Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"), Require(_settingsRepository));
+            var credentials = new WindowsTraktCredentialStore(GetTestDataRoot(), Require(_settingsRepository));
             candidateAuth = new TraktAuthClient();
             var auth = new TraktAuthService(candidateAuth, credentials, candidateConfig);
             candidateData = new TraktDataClient();
@@ -734,7 +778,7 @@ internal static class AppServices
         try
         {
             var credentialStore = new WindowsTraktCredentialStore(
-                isolatedProfileRoot: Environment.GetEnvironmentVariable("DROPSORT_TEST_DATA_ROOT"),
+                isolatedProfileRoot: GetTestDataRoot(),
                 settings: settingsRepository);
 
             var configJson = settingsRepository.Get("trakt_api_config");

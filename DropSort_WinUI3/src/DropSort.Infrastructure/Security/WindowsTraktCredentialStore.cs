@@ -20,6 +20,7 @@ public sealed class WindowsTraktCredentialStore : ITraktCredentialStore
     private const int NotFound = 1168;
     private const int MaxBlob = 2560;
     private readonly string _target;
+    private readonly string? _legacyTarget;
     private readonly ISettingsRepository? _settings;
 
     public WindowsTraktCredentialStore(string? isolatedProfileRoot = null, ISettingsRepository? settings = null)
@@ -27,53 +28,30 @@ public sealed class WindowsTraktCredentialStore : ITraktCredentialStore
         _settings = settings;
         if (string.IsNullOrWhiteSpace(isolatedProfileRoot))
         {
-            _target = "DropSort/Trakt";
+            _target = "TBDMovies/Trakt";
+            _legacyTarget = "DropSort/Trakt";
         }
         else
         {
             if (!Path.IsPathFullyQualified(isolatedProfileRoot))
                 throw new ArgumentException("The credential profile root must be an absolute path.");
             var profile = Path.TrimEndingDirectorySeparator(Path.GetFullPath(isolatedProfileRoot.Trim())).ToUpperInvariant();
-            _target = "DropSort/Trakt/QA/" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(profile)));
+            var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(profile)));
+            _target = "TBDMovies/Trakt/QA/" + hash;
+            _legacyTarget = "DropSort/Trakt/QA/" + hash;
         }
     }
 
     public TraktCredentialPayload? Read()
     {
-        TraktCredentialPayload? nativePayload = null;
-        if (CredReadW(_target, Generic, 0, out var pointer))
+        TraktCredentialPayload? nativePayload = TryReadTarget(_target);
+        if (nativePayload is null && !string.IsNullOrWhiteSpace(_legacyTarget))
         {
-            try
+            nativePayload = TryReadTarget(_legacyTarget);
+            if (nativePayload is not null)
             {
-                var credential = Marshal.PtrToStructure<Credential>(pointer);
-                if (credential.CredentialBlobSize > 0 && credential.CredentialBlobSize <= MaxBlob
-                    && credential.CredentialBlob != IntPtr.Zero)
-                {
-                    var bytes = new byte[(int)credential.CredentialBlobSize];
-                    try
-                    {
-                        Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
-                        var json = new UTF8Encoding(false, true).GetString(bytes);
-                        nativePayload = JsonSerializer.Deserialize<TraktCredentialPayload>(json);
-                    }
-                    catch (DecoderFallbackException) { throw StorageError(); }
-                    catch (JsonException) { throw StorageError(); }
-                    finally
-                    {
-                        CryptographicOperations.ZeroMemory(bytes);
-                        Marshal.Copy(bytes, 0, credential.CredentialBlob, bytes.Length);
-                    }
-                }
+                try { Write(nativePayload); } catch { }
             }
-            finally
-            {
-                CredFree(pointer);
-            }
-        }
-        else
-        {
-            var err = Marshal.GetLastWin32Error();
-            if (err != NotFound) throw StorageError();
         }
 
         if (nativePayload is not null)
@@ -116,6 +94,46 @@ public sealed class WindowsTraktCredentialStore : ITraktCredentialStore
         return null;
     }
 
+    private static TraktCredentialPayload? TryReadTarget(string target)
+    {
+        if (CredReadW(target, Generic, 0, out var pointer))
+        {
+            try
+            {
+                var credential = Marshal.PtrToStructure<Credential>(pointer);
+                if (credential.CredentialBlobSize > 0 && credential.CredentialBlobSize <= MaxBlob
+                    && credential.CredentialBlob != IntPtr.Zero)
+                {
+                    var bytes = new byte[(int)credential.CredentialBlobSize];
+                    try
+                    {
+                        Marshal.Copy(credential.CredentialBlob, bytes, 0, bytes.Length);
+                        var json = new UTF8Encoding(false, true).GetString(bytes);
+                        return JsonSerializer.Deserialize<TraktCredentialPayload>(json);
+                    }
+                    catch (DecoderFallbackException) { throw StorageError(); }
+                    catch (JsonException) { throw StorageError(); }
+                    finally
+                    {
+                        CryptographicOperations.ZeroMemory(bytes);
+                        Marshal.Copy(bytes, 0, credential.CredentialBlob, bytes.Length);
+                    }
+                }
+            }
+            finally
+            {
+                CredFree(pointer);
+            }
+        }
+        else
+        {
+            var err = Marshal.GetLastWin32Error();
+            if (err != NotFound) throw StorageError();
+        }
+
+        return null;
+    }
+
     public void Write(TraktCredentialPayload payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
@@ -137,7 +155,7 @@ public sealed class WindowsTraktCredentialStore : ITraktCredentialStore
                 CredentialBlobSize = (uint)bytes.Length,
                 CredentialBlob = blob,
                 Persist = PersistLocalMachine,
-                UserName = "DropSort/Trakt",
+                UserName = "TBDMovies/Trakt",
             };
             if (!CredWriteW(ref native, 0)) throw StorageError();
 
@@ -177,6 +195,10 @@ public sealed class WindowsTraktCredentialStore : ITraktCredentialStore
         }
         if (!CredDeleteW(_target, Generic, 0) && Marshal.GetLastWin32Error() != NotFound)
             throw StorageError();
+        if (!string.IsNullOrWhiteSpace(_legacyTarget))
+        {
+            CredDeleteW(_legacyTarget, Generic, 0);
+        }
     }
 
     private static string? EncryptDpapi(string plain)

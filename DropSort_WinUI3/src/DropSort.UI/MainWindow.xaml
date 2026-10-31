@@ -2,7 +2,7 @@
     x:Class="DropSort.UI.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Title="DropSort Media Library">
+    Title="TBD Movies">
 
     <!--
         Shell root. The window paints one background; the navigation pane and the content area are
@@ -69,7 +69,7 @@
                     x:Name="WindowTitleText"
                     VerticalAlignment="Center"
                     Style="{StaticResource BodyStrongTextBlockStyle}"
-                    Text="DropSort" />
+                    Text="TBD Movies" />
             </StackPanel>
         </Grid>
 

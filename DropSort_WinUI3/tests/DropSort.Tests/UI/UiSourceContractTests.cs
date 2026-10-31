@@ -1003,6 +1003,41 @@ public sealed class UiSourceContractTests
         Assert.Contains("episode.Id <= 0", tvDetails, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Tbd_movies_branding_and_log_contracts_are_maintained()
+    {
+        var localization = Read("Services", "LocalizationService.cs");
+        var logPage = Read("Views", "OperationsLogPage.xaml.cs");
+        var settingsPage = Read("Views", "SettingsPage.xaml.cs");
+        var app = Read("App.xaml.cs");
+        var historyService = ReadApplicationSource("Services", "OperationHistoryService.cs");
+
+        // Localization
+        Assert.Contains("[\"WindowTitle\"] = \"TBD Movies Media Library\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"WindowTitle\"] = \"مكتبة TBD Movies\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"LibraryInUse\"] = \"Another TBD Movies window is already using this library. Close it, then retry.\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"AlreadyRunningTitle\"] = \"TBD Movies is already running\"", localization, StringComparison.Ordinal);
+        Assert.Contains("[\"AlreadyRunningBody\"] = \"TBD Movies is already open. Use the existing window.\"", localization, StringComparison.Ordinal);
+
+        // Crash log
+        Assert.Contains("tbd_movies_ui_crash.log", app, StringComparison.Ordinal);
+
+        // Operations log export filename and text header
+        Assert.Contains("tbd-movies-operations-log.txt", logPage, StringComparison.Ordinal);
+        Assert.Contains("\"TBD Movies Operations Log\"", historyService, StringComparison.Ordinal);
+
+        // Version info in settings
+        Assert.Contains("\"TBD Movies \" + AppServices.Version", settingsPage, StringComparison.Ordinal);
+
+        // AppServices data folder and migration
+        var appServices = Read("Services", "AppServices.cs");
+        Assert.Contains("TBDMOVIES_TEST_DATA_ROOT", appServices, StringComparison.Ordinal);
+        Assert.Contains("DROPSORT_TEST_DATA_ROOT", appServices, StringComparison.Ordinal);
+        Assert.Contains("\"TBD Movies\"", appServices, StringComparison.Ordinal);
+        Assert.Contains("\"DropSort\"", appServices, StringComparison.Ordinal);
+        Assert.Contains("Directory.Move(legacyFolder, targetFolder)", appServices, StringComparison.Ordinal);
+    }
+
     private static IEnumerable<string> EnumerateUiSource() =>
         Directory.EnumerateFiles(UiRoot, "*.*", SearchOption.AllDirectories)
             .Where(path => (path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)

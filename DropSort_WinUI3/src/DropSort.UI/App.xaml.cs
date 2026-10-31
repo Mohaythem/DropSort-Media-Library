@@ -52,7 +52,7 @@ public partial class App : Microsoft.UI.Xaml.Application
     {
         try
         {
-            var path = Path.Combine(Path.GetTempPath(), "dropsort_ui_crash.log");
+            var path = Path.Combine(Path.GetTempPath(), "tbd_movies_ui_crash.log");
             File.WriteAllText(path, DateTimeOffset.Now.ToString("O") + Environment.NewLine + e.Exception);
         }
         catch (IOException)

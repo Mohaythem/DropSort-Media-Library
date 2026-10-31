@@ -40,7 +40,7 @@ public sealed class OperationHistoryService : IOperationHistoryUiActions
     {
         ArgumentNullException.ThrowIfNull(items);
         if (string.IsNullOrWhiteSpace(path)) throw new ArgumentException("Export path is required.", nameof(path));
-        var builder = new StringBuilder("DropSort Operations Log").AppendLine().AppendLine();
+        var builder = new StringBuilder("TBD Movies Operations Log").AppendLine().AppendLine();
         foreach (var item in items)
         {
             builder.Append(item.Type).Append(" - ").AppendLine(item.State.ToString());

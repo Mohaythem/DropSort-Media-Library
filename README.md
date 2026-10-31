@@ -1,6 +1,6 @@
-# DropSort Media Library
+# TBD Movies (To Be Determined Movies)
 
-DropSort is a local-first Windows movie library built with Python, PySide6, SQLite, and a
+TBD Movies (where **TBD** stands for **To Be Determined**, representing To Be Determined Movies) is a local-first Windows movie library built with Python, PySide6, SQLite, and a
 safety-first filesystem core.
 
 > **Audited baseline (2026-08-23):** This README describes the implemented Python application,
@@ -15,7 +15,7 @@ safety-first filesystem core.
 The current desktop app can display the local movie library, movie details, linked physical media
 files, and locally cached poster artwork. Its **Add Movies** workflow performs a caller-selected read-only
 folder scan, obtains cached TMDB candidates, explains matching decisions, and lets the user choose a
-candidate. Catalog persistence occurs only after an explicit per-item **Add to DropSort Library**
+candidate. Catalog persistence occurs only after an explicit per-item **Add to TBD Movies Library**
 click and never moves, renames, copies, or deletes the physical file.
 
 Metadata proposal includes a bounded deterministic fallback for common release-name noise such as
@@ -35,7 +35,7 @@ destination, operation, volume, and validation result, then explicitly confirm t
 Move/Rename. The catalog path changes only after filesystem verification. There is no automatic or
 bulk organization.
 
-The centralized desktop theme uses the DropSort palette and bundled offline Inter Regular/Bold
+The centralized desktop theme uses the TBD Movies palette and bundled offline Inter Regular/Bold
 fonts. Because Inter has no Arabic glyph coverage, bundled Noto Sans Arabic Regular/Bold provides a
 deterministic offline Arabic companion; no web-font or system-font dependency is required.
 
@@ -59,7 +59,7 @@ filesystem-operation journal.
 
 Settings provides **Clear Library Data** behind an explicit confirmation. It transactionally forgets
 cataloged movies, media-file links, and cached metadata while preserving operation/recovery history
-and leaving every physical movie file unchanged. Poster-cache cleanup is confined to DropSort's
+and leaving every physical movie file unchanged. Poster-cache cleanup is confined to TBD Movies'
 application-owned cache root. Clearing is blocked while a journal operation is nonterminal.
 
 Settings also provides a persisted **Language** selector for English and Arabic. English is the
@@ -68,7 +68,7 @@ paths, filenames, codec/resolution facts, IDs, and other technical values remain
 restores English/LTR behavior.
 
 Settings also provides **Appearance** with exactly four offline themes: **Main**, **Dark**, **Slate**,
-and **Light**. Main preserves the original DropSort identity, Dark is a neutral charcoal direction,
+and **Light**. Main preserves the original TBD Movies identity, Dark is a neutral charcoal direction,
 Slate uses the supplied dark palette, and Light uses the supplied light palette with no dark Settings
 gaps. The choice is persisted locally and can be changed at runtime. The primary sidebar is
 user-resizable, switches directly between fully readable expanded and localized icon-only compact
@@ -78,7 +78,7 @@ Operation History is available from Settings > **History & Recovery**, not the p
 If automatic metadata matching is not useful, a movie-relevant Add Movies row provides **Edit
 Search**. Enter an optional title/year, review up to five deduplicated provider candidates in
 structured, vertically scrollable cards, explicitly select one, and then explicitly press **Add to
-DropSort Library**. Exactly one valid automatic
+TBD Movies Library**. Exactly one valid automatic
 candidate is preselected when available, but it still requires that explicit import click. Add Movies
 is a remaining-work queue: successful imports disappear, failed items remain retryable, and each row
 has a session-only dismiss X. When the queue is exhausted it shows **All done / No movies are waiting
@@ -100,18 +100,18 @@ historical source material does not override `The Idea-v3.md`.
 ## Run the Windows release
 
 Download or copy the complete `DropSort` portable directory and run. The packaged executable carries
-the branded DropSort application icon, while the `_internal` directory contains the runtime resources:
+the branded TBD Movies application icon, while the `_internal` directory contains the runtime resources:
 
 ```text
 DropSort.exe
 ```
 
-Keep the `_internal` directory beside the executable. DropSort does not require an activated virtual
+Keep the `_internal` directory beside the executable. TBD Movies does not require an activated virtual
 environment, administrator privileges, an installer, or the source repository. The V1 executable is
 unsigned, so Windows SmartScreen may show an unrecognized-app warning when it is obtained outside a
 trusted distribution channel.
 
-DropSort is single-instance per Windows user/session. Launching `DropSort.exe` again sends a small
+TBD Movies is single-instance per Windows user/session. Launching `DropSort.exe` again sends a small
 local `ACTIVATE` request to the existing process, restores/raises its window, and exits the secondary
 process. Ownership uses an atomic Qt lock file; the SQLite catalog is never used as the process lock.
 Stale ownership is recovered once after a crash, and no database, media file, or file-operation journal
@@ -132,7 +132,7 @@ redacted. Runtime paths are resolved independently of the launch working directo
 ## Movie metadata configuration
 
 Open **Settings** in the desktop app to enter a masked TMDB Read Access Token for the current
-application session. The value remains in memory only, is cleared when DropSort exits, and is never
+application session. The value remains in memory only, is cleared when TBD Movies exits, and is never
 written to the catalog or a configuration file. `DROPSORT_TMDB_READ_ACCESS_TOKEN` remains available
 as an environment fallback for locally managed launches; an explicit session credential takes
 priority.
@@ -143,7 +143,7 @@ metadata request is made.
 
 ## TMDB attribution
 
-DropSort uses TMDB for optional movie metadata and poster images. The approved TMDB logo and required
+TBD Movies uses TMDB for optional movie metadata and poster images. The approved TMDB logo and required
 notice are shown in **Settings > About & Credits**:
 
 > This product uses the TMDB API but is not endorsed or certified by TMDB.
@@ -166,7 +166,7 @@ network connection or credential.
   user-supplied credential and is the only remaining final acceptance retest; Clear Library Data,
   English/Arabic direction and persistence, offline bundled fonts, and Recently Added removal have
   already been verified in the packaged build.
-- DropSort itself currently has no explicit project license. Bundled third-party notices and license
+- TBD Movies itself currently has no explicit project license. Bundled third-party notices and license
   texts are included with the Windows release.
 
 ## Development

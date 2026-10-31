@@ -81,8 +81,7 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
     {
         FlowDirection = LocalizationService.FlowDirection;
         PageTitleText.Text = LocalizationService.Text("Settings");
-        AppVersionText.Text = "DropSort " + System.Reflection.CustomAttributeExtensions
-            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(App).Assembly)?.InformationalVersion;
+        LoadVersionInfo();
 
         AppearanceHeadingText.Text = LocalizationService.Text("Appearance");
         ThemeLabelText.Text = LocalizationService.Text("Theme");
@@ -148,6 +147,11 @@ public sealed partial class SettingsPage : Page, ILocalizableView, IActivatableV
         RefreshFolders();
         RefreshTmdbStatus();
         RefreshTraktStatus();
+    }
+
+    private void LoadVersionInfo()
+    {
+        AppVersionText.Text = "TBD Movies " + AppServices.Version;
     }
 
     private void SyncSelectors()

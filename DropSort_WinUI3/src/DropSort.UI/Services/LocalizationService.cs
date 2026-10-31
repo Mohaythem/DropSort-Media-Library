@@ -224,7 +224,7 @@ public static class LocalizationService
         ["ImportStateColumn"] = "State",
 
         // Shell
-        ["WindowTitle"] = "DropSort Media Library",
+        ["WindowTitle"] = "TBD Movies Media Library",
         ["Home"] = "Home",
         ["Library"] = "Library",
         ["MyLists"] = "My Lists",
@@ -261,9 +261,9 @@ public static class LocalizationService
         ["Movie"] = "Movie",
         ["TvEpisode"] = "TV episode",
         ["TvEpisodeUnsupported"] = "TV (multi-episode — review)",
-        ["LibraryInUse"] = "Another DropSort window is already using this library. Close it, then retry.",
-        ["AlreadyRunningTitle"] = "DropSort is already running",
-        ["AlreadyRunningBody"] = "DropSort is already open. Use the existing window.",
+        ["LibraryInUse"] = "Another TBD Movies window is already using this library. Close it, then retry.",
+        ["AlreadyRunningTitle"] = "TBD Movies is already running",
+        ["AlreadyRunningBody"] = "TBD Movies is already open. Use the existing window.",
         ["UnknownMedia"] = "Unknown",
         ["DiscoveryError"] = "Could not read",
         ["Movies"] = "movies",
@@ -917,7 +917,7 @@ public static class LocalizationService
         ["ImportStateColumn"] = "الحالة",
 
         // Shell
-        ["WindowTitle"] = "مكتبة DropSort",
+        ["WindowTitle"] = "مكتبة TBD Movies",
         ["Home"] = "الرئيسية",
         ["Library"] = "المكتبة",
         ["MyLists"] = "قوائمي",
@@ -954,9 +954,9 @@ public static class LocalizationService
         ["Movie"] = "فيلم",
         ["TvEpisode"] = "حلقة مسلسل",
         ["TvEpisodeUnsupported"] = "تلفزيون (حلقات متعددة — مراجعة)",
-        ["LibraryInUse"] = "نافذة DropSort أخرى تستخدم هذه المكتبة بالفعل. أغلقها ثم أعد المحاولة.",
-        ["AlreadyRunningTitle"] = "DropSort يعمل بالفعل",
-        ["AlreadyRunningBody"] = "DropSort مفتوح بالفعل. استخدم النافذة الموجودة.",
+        ["LibraryInUse"] = "نافذة TBD Movies أخرى تستخدم هذه المكتبة بالفعل. أغلقها ثم أعد المحاولة.",
+        ["AlreadyRunningTitle"] = "TBD Movies يعمل بالفعل",
+        ["AlreadyRunningBody"] = "TBD Movies مفتوح بالفعل. استخدم النافذة الموجودة.",
         ["UnknownMedia"] = "غير معروف",
         ["DiscoveryError"] = "تعذّرت القراءة",
         ["Movies"] = "فيلمًا",
