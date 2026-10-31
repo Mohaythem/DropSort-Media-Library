@@ -1,26 +1,31 @@
 # External Progress Checkpoint
 
 ## Current Goal
-Publish and deploy DropSort v0.11.1 official release.
+Complete safe rebranding to **TBD Movies** (To Be Determined Movies), merge `codex` baseline into `main`, and execute multi-agent verification and UI/UX stress testing.
 
 ## Completed Work
-1. **Stage 1 & 2 Modernization**:
-   - UI Kit 8pt spacing alignment, status pill badges, and library switcher polish.
-   - Fixed Arabic RTL alignments across detail screens.
+1. **Branch Merge**:
+   - `backup/golden-baseline` left strictly untouched.
+   - Merged `codex` (v0.11.1 baseline) cleanly into `main` (`54ee76e`).
 
-2. **Trakt Integration & DPAPI Security**:
-   - Protected DPAPI Windows credential persistence for Trakt and TMDB tokens.
-   - Global Trakt playlists sync action.
-   - Excluded already-added media from list item selection.
+2. **Rebranding to TBD Movies**:
+   - Updated documentation (`README.md` explaining "TBD stands for To Be Determined") and `.codex/skills/`.
+   - Updated WinUI 3 Window Title, Product Name, Assembly Title, and Company metadata to "TBD Movies".
+   - Updated Inno Setup installer metadata (`MyAppName = "TBD Movies"`, `AppUserModelID = "TBDMovies.TBDMovies"`).
+   - Localized strings updated in English and Arabic (`LocalizationService.cs`).
+   - Crash log (`tbd_movies_ui_crash.log`) and export log headers updated to "TBD Movies".
 
-3. **TV Show Details Polish**:
-   - Preserved expander state across episode updates.
-   - Added episode watch/unwatch toggle (`RemoveEpisodeWatch`).
-   - Implemented silent background file reconciliation without UI interruptions.
+3. **Data & Credential Self-Migration**:
+   - Added atomic MFT rename migration in `AppServices.cs` (`%LOCALAPPDATA%\DropSort` -> `%LOCALAPPDATA%\TBD Movies`) with `TBDMOVIES_TEST_DATA_ROOT` environment override.
+   - Updated Windows Credential Manager targets to `TBDMovies/TMDB` and `TBDMovies/Trakt` with automatic fallback read/migration from legacy targets.
 
-4. **Release Verification & Artifact Packaging**:
-   - Unit test suite: 1,153 passed (0 failed, 0 skipped).
-   - Compiled Inno Setup installer (`DropSortSetup.exe`, 34.9 MB).
-   - Packaged self-contained portable archive (`DropSort-0.11.1-win-x64.zip`, 48.0 MB).
-   - Generated SHA-256 checksums (`SHA256SUMS.txt`), release notes, and manifests.
-   - Local installation deployed to `%LOCALAPPDATA%\Programs\DropSort\` and `portable\`.
+4. **Multi-Agent Verification & Stress Testing**:
+   - Ran complete automated test suite: 1,156 tests passed (0 failed, 0 skipped).
+   - Analyzed 10,000 catalog items scaling (UI virtualization verified on `LibraryPage`).
+   - Analyzed 10,000 files import scan (background threading and cancellation responsiveness verified).
+   - Analyzed Trakt 1,000 items / 100 playlists (HTTP 429 exponential backoff verified).
+   - Captured 7 runtime screenshots into `DropSort_WinUI3/artifacts/screenshots/2026-10-31/`.
+   - Recompiled Inno Setup installer (`DropSortSetup.exe`, 49.5 MB).
+
+5. **Remote Push**:
+   - Pushed `main` to `origin/main` (`b670131`).
