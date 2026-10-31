@@ -1,4 +1,4 @@
-# DropSort Media Library — V2 Phase 2.2
+# TBD Movies Media Library — V2 Phase 2.2
 
 ## 1. Scope
 
@@ -76,11 +76,11 @@ Disposable `.build-phase22-*` and `.pytest-v2-phase22-*` verification directorie
 
 ## 14. Files Modified
 
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/library/movie_card.py`
-- `src/dropsort/ui/movie_details/details_view.py`
-- `src/dropsort/ui/reconciliation/dialogs.py`
-- `src/dropsort/ui/localization.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/library/movie_card.py`
+- `src/TBD Movies/ui/movie_details/details_view.py`
+- `src/TBD Movies/ui/reconciliation/dialogs.py`
+- `src/TBD Movies/ui/localization.py`
 - `tests/unit/ui/test_movie_card.py`
 - `tests/unit/ui/test_library_view.py`
 - `tests/unit/ui/test_personal_library_ui.py`
@@ -105,7 +105,7 @@ The Phase 2.2 focused UI run passed with `55 passed`. The release-focused MovieC
 Command:
 
 ```text
-.venv\Scripts\python.exe -m pytest -q --cov=dropsort --cov-branch --cov-report=term --basetemp=.pytest-v2-phase22-release-final
+.venv\Scripts\python.exe -m pytest -q --cov=TBD Movies --cov-branch --cov-report=term --basetemp=.pytest-v2-phase22-release-final
 ```
 
 Result: `1079 passed, 5 skipped, 0 failed`.
@@ -118,15 +118,15 @@ Combined statement/branch coverage with `--cov-branch`: `95%`.
 
 ## 19. Packaging
 
-PyInstaller `6.22.0` completed with the existing `DropSort.spec` workflow using disposable directories `.build-phase22-dist` and `.build-phase22-work`.
+PyInstaller `6.22.0` completed with the existing `TBD Movies.spec` workflow using disposable directories `.build-phase22-dist` and `.build-phase22-work`.
 
 Artifact:
 
-- `.build-phase22-dist\DropSort\DropSort.exe`
+- `.build-phase22-dist\TBD Movies\TBD Movies.exe`
 - Size: `2,410,430` bytes
 - SHA-256: `17E4CD45F67BED511D301FD012805B9EFB6BA4361178BCB2E887C4018CD7C160`
 
-The package contains schema migrations 0001–0004, the existing Inter/Noto Sans Arabic fonts, existing DropSort icon/SVG resources, and the existing TMDB SVG. No new image resource was packaged.
+The package contains schema migrations 0001–0004, the existing Inter/Noto Sans Arabic fonts, existing TBD Movies icon/SVG resources, and the existing TMDB SVG. No new image resource was packaged.
 
 The executable launched under `QT_QPA_PLATFORM=offscreen` with `LOCALAPPDATA` redirected to `.build-phase22-smoke-local`, remained running after five seconds, and was then stopped. Read-only inspection of the isolated database confirmed migrations 1–4 and the expected personal-library tables. The real user media library was not accessed.
 
@@ -136,7 +136,7 @@ No File Engine or filesystem mutation path was changed. Personal-library and met
 
 ## 21. Asset Audit
 
-The source asset inventory remains the existing fonts, DropSort icon/SVG, TMDB SVG, and asset documentation. The Phase 2.2 package contains the same existing visual asset categories. No generated image files, downloaded decorative images, or new illustration assets were introduced.
+The source asset inventory remains the existing fonts, TBD Movies icon/SVG, TMDB SVG, and asset documentation. The Phase 2.2 package contains the same existing visual asset categories. No generated image files, downloaded decorative images, or new illustration assets were introduced.
 
 **No new images or illustrations were created, generated, downloaded, or added.**
 

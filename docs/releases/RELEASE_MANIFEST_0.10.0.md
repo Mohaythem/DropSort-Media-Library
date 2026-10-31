@@ -1,4 +1,4 @@
-# DropSort 0.10.0 — Windows x64
+# TBD Movies 0.10.0 — Windows x64
 
 - الإصدار: `0.10.0`؛ رقم ملف التطبيق والمثبت: `0.10.0.5`، ورقم التجميعة: `0.10.0.0`.
 - الفرع: `codex`. نشر المستخدم التحديث على GitHub مصرح به بتاريخ 2026-10-20. لا يستهدف هذا الإصدار فرع `main` ولا يغير الإصدارات أو الوسوم السابقة.
@@ -27,8 +27,8 @@
 - بناء Visual Studio 18 MSBuild: Release / x64 / win-x64 / SelfContained=true / WindowsAppSDKSelfContained=true.
 - الحزمة من مخرجات Build، وليس مجلد publish، وتحتوي على PRI وXBF و.NET وWindows App SDK وSQLite.
 - يستبعد المثبت والملف المحمول PDBs وpublish وقواعد البيانات والسجلات وملفات التجارب والمحتوى الشخصي.
-- المثبت Inno Setup 6 يستخدم AppId القائم وتثبيتًا لكل مستخدم. بيانات المكتبة تظل في `%LOCALAPPDATA%\DropSort` خارج مجلد تثبيت البرنامج.
-- الملفات: `DropSortSetup.exe` و`DropSort-0.10.0-win-x64.zip` و`SHA256SUMS.txt` مع معلومات البناء والتحقق.
+- المثبت Inno Setup 6 يستخدم AppId القائم وتثبيتًا لكل مستخدم. بيانات المكتبة تظل في `%LOCALAPPDATA%\TBD Movies` خارج مجلد تثبيت البرنامج.
+- الملفات: `TBD MoviesSetup.exe` و`TBD Movies-0.10.0-win-x64.zip` و`SHA256SUMS.txt` مع معلومات البناء والتحقق.
 
 ## حدود التحقق
 

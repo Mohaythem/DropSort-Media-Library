@@ -1,4 +1,4 @@
-# DropSort 0.10.0-rc.1
+# TBD Movies 0.10.0-rc.1
 
 Local Windows x64 release candidate for manual acceptance.
 
@@ -10,4 +10,4 @@ Local Windows x64 release candidate for manual acceptance.
 
 This candidate is unsigned. Clean-machine, broad Windows, real SMB/removable-drive and large-library verification remain acceptance limitations. Existing deferred roadmap items remain open. Synthetic-file QA checks registration and UI behavior; it does not validate video decoding/playback of real media.
 
-The installer and portable ZIP contain the same self-contained WinUI application. Library data remains in the user data directory. Close other DropSort instances before launching.
+The installer and portable ZIP contain the same self-contained WinUI application. Library data remains in the user data directory. Close other TBD Movies instances before launching.

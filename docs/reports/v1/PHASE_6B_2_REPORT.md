@@ -1,4 +1,4 @@
-# DropSort Final V1 UX / Manual TMDB Search Follow-Up
+# TBD Movies Final V1 UX / Manual TMDB Search Follow-Up
 
 ## Result
 
@@ -14,7 +14,7 @@ query, calls the existing provider boundary in a background Qt task, and dedupli
 `(provider, external_id)`. Provider errors remain distinct from successful zero-result responses.
 Every movie-relevant import row exposes **Edit Search**, including automatic matches, review rows,
 no-match rows, and metadata-unavailable rows. Candidate selection changes the row to an explicit
-`MANUAL_SELECTION` proposal; the user must still press **Add to DropSort Library**. Typing, searching,
+`MANUAL_SELECTION` proposal; the user must still press **Add to TBD Movies Library**. Typing, searching,
 or selecting a candidate never moves media or creates a file-operation journal row.
 
 The exact `AnimeSanka.com Kaze Tachinu [Bluray - 1080p - Ar - x265].mp4` filename is covered as a
@@ -31,7 +31,7 @@ technical text remains LTR in Arabic mode. Operation History is no longer in the
 it is opened through Settings > **History & Recovery**. Recently Added remains removed.
 
 Settings uses a responsive two-column card grid on wide windows and a single-column stack on narrow
-windows with vertical scrolling. The exact themes are **DropSort Deep Ink**, **Modern Charcoal**,
+windows with vertical scrolling. The exact themes are **TBD Movies Deep Ink**, **Modern Charcoal**,
 and **Clean Light Blue**, defined by centralized semantic tokens and persisted through SQLite
 settings. Invalid stored values fall back to Deep Ink, and theme switching is independent of
 English/Arabic language switching. Inter and Noto Sans Arabic remain bundled and offline.
@@ -47,7 +47,7 @@ branch coverage: **95%**.
 The existing one-directory PyInstaller build was rebuilt with PyInstaller **6.22.0**:
 
 ```text
-release\DropSort\DropSort.exe
+release\TBD Movies\TBD Movies.exe
 artifact files: 188
 artifact size: 120,142,418 bytes (114.58 MiB)
 ```
@@ -64,10 +64,10 @@ this process because no credential was supplied. No credential was printed, pers
 
 ## Files created
 
-- `src/dropsort/application/configuration/theme.py`
-- `src/dropsort/application/dto/manual_search.py`
-- `src/dropsort/application/use_cases/manual_movie_search.py`
-- `src/dropsort/ui/scan/manual_search_dialog.py`
+- `src/TBD Movies/application/configuration/theme.py`
+- `src/TBD Movies/application/dto/manual_search.py`
+- `src/TBD Movies/application/use_cases/manual_movie_search.py`
+- `src/TBD Movies/ui/scan/manual_search_dialog.py`
 - `tests/unit/application/test_manual_movie_search.py`
 - `tests/unit/application/test_manual_import_proposal.py`
 - `tests/unit/application/test_theme_settings.py`
@@ -78,25 +78,25 @@ this process because no credential was supplied. No credential was printed, pers
 
 ## Files modified
 
-- `src/dropsort/application/configuration/__init__.py`
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/application/dto/movie_import.py`
-- `src/dropsort/application/use_cases/__init__.py`
-- `src/dropsort/database/repositories/__init__.py`
-- `src/dropsort/database/repositories/settings.py`
-- `src/dropsort/ui/contracts.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/localization.py`
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/movie_details/details_view.py`
-- `src/dropsort/ui/history/view.py`
-- `src/dropsort/ui/organization/dialog.py`
-- `src/dropsort/ui/reconciliation/dialogs.py`
-- `src/dropsort/ui/library/movie_card.py`
-- `src/dropsort/ui/scan/__init__.py`
-- `src/dropsort/ui/scan/import_review_row.py`
-- `src/dropsort/ui/scan/import_view.py`
-- `src/dropsort/ui/settings/settings_view.py`
+- `src/TBD Movies/application/configuration/__init__.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/application/dto/movie_import.py`
+- `src/TBD Movies/application/use_cases/__init__.py`
+- `src/TBD Movies/database/repositories/__init__.py`
+- `src/TBD Movies/database/repositories/settings.py`
+- `src/TBD Movies/ui/contracts.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/localization.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/movie_details/details_view.py`
+- `src/TBD Movies/ui/history/view.py`
+- `src/TBD Movies/ui/organization/dialog.py`
+- `src/TBD Movies/ui/reconciliation/dialogs.py`
+- `src/TBD Movies/ui/library/movie_card.py`
+- `src/TBD Movies/ui/scan/__init__.py`
+- `src/TBD Movies/ui/scan/import_review_row.py`
+- `src/TBD Movies/ui/scan/import_view.py`
+- `src/TBD Movies/ui/settings/settings_view.py`
 - `tests/unit/ui/test_operation_history_main_window.py`
 - `tests/unit/ui/test_theme.py`
 - `README.md`, `docs/status/PROJECT_STATUS.md`, and `docs/status/RELEASE_CHECKLIST.md`

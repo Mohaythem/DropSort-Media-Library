@@ -6,7 +6,7 @@ Accepted starting SHA: `92fdfb537e164d936e84071047ca1bbc173d0cd9`
 
 ## Scope
 
-This pass makes Add Movies local-first. One explicit **Add to DropSort Library** action now
+This pass makes Add Movies local-first. One explicit **Add to TBD Movies Library** action now
 commits a stable local `MovieId` and `MediaFileId` before optional TMDB enrichment. It does not
 redesign poster networking, Clear Library Data, missing-file actions, packaging, or the visual UI.
 
@@ -130,7 +130,7 @@ SQLite smoke then registered disposable media, reopened the database, confirmed 
 and MediaFileId in `PENDING`, enriched with a deterministic valid provider, and confirmed the same
 IDs in `READY` with unchanged media bytes.
 
-`DROPSORT_TMDB_READ_ACCESS_TOKEN` was not configured, so the live-TMDB network segment could not
+`TBD Movies_TMDB_READ_ACCESS_TOKEN` was not configured, so the live-TMDB network segment could not
 be performed without inventing credentials. Live TMDB enrichment remains explicitly unverified;
 the offline launch, restart persistence, and same-ID READY transition are verified.
 

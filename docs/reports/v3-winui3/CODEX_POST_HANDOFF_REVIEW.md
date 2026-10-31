@@ -26,13 +26,13 @@ This report evaluates the **post-handoff candidate implementation**, not proven 
 | `c3851e2aa3928209aa9b0cbedcf8a263f5155a5f` | 2026-09-11 10:53:32 | Missing-media Relink UI and lifecycle tests |
 | `232ed8dbb94f841ee97148b10ed79b7f749b1a92` | 2026-09-11 19:39:10 | TMDB, disk posters, metadata matching, migration 7, metadata UI and tests |
 
-There were no uncommitted app-source changes when inspected or after verification. Outside the active app, `.claude/` and `DropSort_WinUI3_V2_Movie_Details_Refined_FIXED.make` were already untracked. On continuation, three unrelated deletions appeared: `Phase6BVerifier.spec`, `docs/source/Skills.md`, `docs/source/The Idea.md`. Their origin is uncertain; this review did not create or restore them. They are excluded from the app review. No branch switch, commit, deletion, reset, clean or history rewrite was performed.
+There were no uncommitted app-source changes when inspected or after verification. Outside the active app, `.claude/` and `TBDMovies_WinUI3_V2_Movie_Details_Refined_FIXED.make` were already untracked. On continuation, three unrelated deletions appeared: `Phase6BVerifier.spec`, `docs/source/Skills.md`, `docs/source/The Idea.md`. Their origin is uncertain; this review did not create or restore them. They are excluded from the app review. No branch switch, commit, deletion, reset, clean or history rewrite was performed.
 
 ## 2. Findings, with priority and evidence
 
 ### H1 — Session-only token action silently persists a plaintext credential
 
-**High.** `src/DropSort.Application/Services/SettingsService.cs:30,41`; directly affected UI `src/DropSort.UI/Views/SettingsPage.xaml.cs:244`; existing labels `src/DropSort.UI/Services/LocalizationService.cs:210,212,511,513`.
+**High.** `src/TBD Movies.Application/Services/SettingsService.cs:30,41`; directly affected UI `src/TBD Movies.UI/Views/SettingsPage.xaml.cs:244`; existing labels `src/TBD Movies.UI/Services/LocalizationService.cs:210,212,511,513`.
 
 The new implementation of `ApplyTmdbSessionToken` writes the token into the general SQLite settings table and restores it at restart. The same UI action still says **Use for This Session**, and the help promises session-only storage unless saved. Both were observed in the real app. A user choosing temporary credential use now leaves a persistent, unencrypted secret in the database and potentially its backups/WAL. This finding is about the changed service violating its existing caller's promise, not a criticism of the baseline labels.
 
@@ -40,7 +40,7 @@ Recommended repair: preserve the session-only action; if persistent storage is d
 
 ### M1 — Null runtime discards valid movie/season metadata
 
-**Medium.** `src/DropSort.Infrastructure/Metadata/Tmdb/TmdbClient.cs:232,487`, catches at 261/521.
+**Medium.** `src/TBD Movies.Infrastructure/Metadata/Tmdb/TmdbClient.cs:232,487`, catches at 261/521.
 
 `JsonElement.TryGetInt32` throws when the JSON value is Null. Declaring the destination `int?` does not guard that call. A movie with `"runtime": null` returns null for the entire movie; one such episode discards its entire season response. Existing parsing fixtures use numeric runtime.
 
@@ -50,7 +50,7 @@ Repair: guard JSON value kinds and keep unknown numeric fields nullable; test mi
 
 ### M2 — Canceled poster request permanently suppresses retry for that key
 
-**Medium.** `src/DropSort.Infrastructure/Metadata/Cache/DiskPosterCache.cs:96-97,155`.
+**Medium.** `src/TBD Movies.Infrastructure/Metadata/Cache/DiskPosterCache.cs:96-97,155`.
 
 The download starts before its task is inserted in `_inFlight`. Synchronous completion/failure can execute the removal first, after which the caller inserts the completed-null task. Every later request for the same key returns it.
 
@@ -60,7 +60,7 @@ Repair: publish the in-flight operation before running it, and remove only the c
 
 ### M3 — TV cancellation can still commit metadata
 
-**Medium.** `src/DropSort.Infrastructure/Metadata/Tmdb/TmdbClient.cs:521`; `src/DropSort.Application/Services/MetadataMatchingService.cs:184-194,218-260`.
+**Medium.** `src/TBD Movies.Infrastructure/Metadata/Tmdb/TmdbClient.cs:521`; `src/TBD Movies.Application/Services/MetadataMatchingService.cs:184-194,218-260`.
 
 The provider converts caller cancellation into null. The service substitutes the season summary and proceeds to the write transaction without a cancellation check. Cancellation during a season request can therefore commit the show and season metadata and return success. The details-page matching operations pass no cancellation token and are not canceled on navigation. Search continuing after candidate-dialog dismissal is a separate lifecycle issue; canceling that dialog does not start a match.
 
@@ -68,7 +68,7 @@ Repair: propagate caller-requested cancellation, distinguish timeout/offline fai
 
 ### M4 — Fix Match can mix two shows' provider metadata
 
-**Medium.** `src/DropSort.Application/Services/MetadataMatchingService.cs:184-185,218-248`.
+**Medium.** `src/TBD Movies.Application/Services/MetadataMatchingService.cs:184-185,218-248`.
 
 When rematching show A to B, a failed B season fetch falls back to B's summary. The show/season identity changes to B, while existing A episode external IDs, titles, ratings and stills remain. Descendants absent from a successful B response likewise retain A metadata. The transaction marks the show Ready. Preserving data during a same-identity offline refresh is reasonable; preserving A metadata under B is an inconsistent rematch.
 
@@ -76,7 +76,7 @@ Repair: distinguish refresh from identity-changing rematch. Abort an incomplete 
 
 ### M5 — Deferred UI match reads a mutable target ID
 
-**Medium.** `src/DropSort.UI/Views/MovieDetailsPage.xaml.cs:697` and `TVShowDetailsPage.xaml.cs:433`; analogous refresh calls at 673/409.
+**Medium.** `src/TBD Movies.UI/Views/MovieDetailsPage.xaml.cs:697` and `TVShowDetailsPage.xaml.cs:433`; analogous refresh calls at 673/409.
 
 These reused page objects read `_movie.Id` / `_show.Id` inside a queued `Task.Run` delegate. If navigation loads B before that delegate begins, candidate A can be applied to B. Once the delegate has evaluated the ID, navigation during HTTP cannot redirect that already-started call; the vulnerable interval is specifically before delegate execution. Completion also reloads using mutable page state.
 
@@ -84,7 +84,7 @@ Repair: capture ID before the first await, use it throughout, and guard UI compl
 
 ### M6 — Network/authentication failures are displayed as “no matches”
 
-**Medium.** `src/DropSort.Infrastructure/Metadata/Tmdb/TmdbClient.cs:109-175,276-342`; `src/DropSort.UI/Views/MatchMediaDialog.cs:177-220`.
+**Medium.** `src/TBD Movies.Infrastructure/Metadata/Tmdb/TmdbClient.cs:109-175,276-342`; `src/TBD Movies.UI/Views/MatchMediaDialog.cs:177-220`.
 
 Search returns the same empty list for a legitimate empty result, offline failure, invalid credentials, rate limiting and malformed payloads. The dialog then says “No matches found.” Refresh similarly returns null without an error indication in the details page. Local-first degradation is implemented, but the user cannot distinguish “no catalog match” from “request failed.”
 
@@ -100,7 +100,7 @@ Repair: return stable error codes and localize in presentation. Add Arabic failu
 
 ### L2 — Crash-temp discovery has no application consumer
 
-**Low / incomplete integration.** `src/DropSort.UI/Services/AppServices.cs:383`; `src/DropSort.FileSystem/Inspection/CrashTempFileInspector.cs:15`.
+**Low / incomplete integration.** `src/TBD Movies.UI/Services/AppServices.cs:383`; `src/TBD Movies.FileSystem/Inspection/CrashTempFileInspector.cs:15`.
 
 The new inspector and wrappers exist and have tests. Source call-site inspection found only declarations/wrappers, with no startup/page consumer or visible report. This is a working backend capability, not a completed user-facing stale-temp warning. It correctly avoids automatic deletion.
 
@@ -133,18 +133,18 @@ No newly introduced fake/demo metadata provider is used by the composition root:
 
 ## 4. Verification
 
-Build/test execution used .NET SDK 10.0.400, host 10.0.11, VS MSBuild 18.9.1.35102, Windows 10.0.26200 / win-x64. Working directory for the following commands: `D:\DropSort_ chat\DropSort\DropSort_WinUI3`.
+Build/test execution used .NET SDK 10.0.400, host 10.0.11, VS MSBuild 18.9.1.35102, Windows 10.0.26200 / win-x64. Working directory for the following commands: `D:\TBD Movies_ chat\TBD Movies\TBDMovies_WinUI3`.
 
 ```powershell
-& 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe' DropSort.slnx /t:Build /p:Configuration=Debug /p:Platform='Any CPU' /m /v:minimal
-dotnet test tests\DropSort.Tests\DropSort.Tests.csproj --no-build --configuration Debug --nologo --logger "console;verbosity=normal"
+& 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe' TBD Movies.slnx /t:Build /p:Configuration=Debug /p:Platform='Any CPU' /m /v:minimal
+dotnet test tests\TBD Movies.Tests\TBD Movies.Tests.csproj --no-build --configuration Debug --nologo --logger "console;verbosity=normal"
 ```
 
 - Full solution build: exit 0; all projects including WinUI built; no warnings in captured minimal build output.
 - Full suite: **186 passed, 0 failed, 0 skipped**.
 - Initial solution command with `/p:Platform=x64` failed MSB4126 because the solution has no Debug|x64 configuration. Corrected Any CPU solution build succeeded. This was a command/configuration selection issue, not a post-handoff source defect.
 - Each focused class was run with:
-  `dotnet test tests\DropSort.Tests\DropSort.Tests.csproj --no-build --configuration Debug --nologo --filter "FullyQualifiedName~CLASS" --logger "console;verbosity=minimal"`
+  `dotnet test tests\TBD Movies.Tests\TBD Movies.Tests.csproj --no-build --configuration Debug --nologo --filter "FullyQualifiedName~CLASS" --logger "console;verbosity=minimal"`
 
 | CLASS | Passed |
 |---|---:|
@@ -166,13 +166,13 @@ First=null, calls=1; retry=null, calls=1; controlSucceeded=True, calls=2
 
 ### Populated migration probe
 
-An additional in-memory C# probe invoked the actual built `DatabaseMigrator.Migrate(6)`, seeded explicit movie/media/show/season/episode/link/watch-event IDs, then invoked `Migrate()` and queried their survival and foreign-key integrity. Result: `counts=1,1,1,1,1,1,1 version=7 fk=0`. The temporary database was retained at `C:\Users\GIGABYTE\AppData\Local\Temp\dropsort_audit_mig7_9e4dd6c59e284b80835f77d0dc4ca616.db`. This strengthens the migration evidence, but is not a permanent regression test. Personal preference/watchlist and injected migration-failure rollback were not part of that extra probe.
+An additional in-memory C# probe invoked the actual built `DatabaseMigrator.Migrate(6)`, seeded explicit movie/media/show/season/episode/link/watch-event IDs, then invoked `Migrate()` and queried their survival and foreign-key integrity. Result: `counts=1,1,1,1,1,1,1 version=7 fk=0`. The temporary database was retained at `C:\Users\GIGABYTE\AppData\Local\Temp\TBD Movies_audit_mig7_9e4dd6c59e284b80835f77d0dc4ca616.db`. This strengthens the migration evidence, but is not a permanent regression test. Personal preference/watchlist and injected migration-failure rollback were not part of that extra probe.
 
 ### Real-app smoke execution
 
-Before launch, a read-only SQLite connection (`mode=ro`) checked the current profile: user_version=7; journal states=[COMMITTED:1]; quick_check=ok. Therefore launch did not need an upgrade or recovery action. No existing DropSort process was running.
+Before launch, a read-only SQLite connection (`mode=ro`) checked the current profile: user_version=7; journal states=[COMMITTED:1]; quick_check=ok. Therefore launch did not need an upgrade or recovery action. No existing TBD Movies process was running.
 
-Launched the freshly built `src/DropSort.UI/bin/Debug/net10.0-windows10.0.22621/DropSort.UI.exe` (PID 1848) using Start-Process, then observed/operated it with the Computer Use API. Home, Movie Details, Settings, Check Library and Library movie/TV tabs loaded. Settings confirmed the session-only wording despite persisted-token restoration. The app was closed through its Close button; PID 1848 was subsequently absent.
+Launched the freshly built `src/TBD Movies.UI/bin/Debug/net10.0-windows10.0.22621/TBD Movies.UI.exe` (PID 1848) using Start-Process, then observed/operated it with the Computer Use API. Home, Movie Details, Settings, Check Library and Library movie/TV tabs loaded. Settings confirmed the session-only wording despite persisted-token restoration. The app was closed through its Close button; PID 1848 was subsequently absent.
 
 No scan, play, organize, Relink, metadata apply, credential modification or live TMDB connection test was performed against user data. There are no TV records in the current profile, so TV Details/episode interaction was not runtime-tested. MatchMediaDialog auto-searches using the configured credential; it was source-reviewed, not opened in this bounded smoke. No full visual/RTL/theme acceptance claim is made.
 
@@ -192,24 +192,24 @@ Highest regression risks are unintended credential persistence, wrong-record met
 
 ## 6. Exact file manifest
 
-Paths below are relative to `DropSort_WinUI3/`. Every entry in the next two tables is **UNCERTAIN / POST-HANDOFF CANDIDATE** with respect to AI authorship. Commit association is proven by Git; intent is inferred from code and commit contents.
+Paths below are relative to `TBDMovies_WinUI3/`. Every entry in the next two tables is **UNCERTAIN / POST-HANDOFF CANDIDATE** with respect to AI authorship. Commit association is proven by Git; intent is inferred from code and commit contents.
 
 ### Created after handoff — 12
 
 | File | Commit(s) | Intended implementation |
 |---|---|---|
-| `src/DropSort.Application/Services/MetadataMatchingService.cs` | `232ed8d` | Search, match and refresh movie/TV metadata |
-| `src/DropSort.Domain/Media/Matcher/MetadataScorer.cs` | `232ed8d` | Normalize and rank title/year candidates |
-| `src/DropSort.FileSystem/Inspection/CrashTempFileInspector.cs` | `ffd048d` | Read-only temporary-file discovery |
-| `src/DropSort.Infrastructure/Metadata/Cache/DiskPosterCache.cs` | `232ed8d` | Local poster lookup, downloads and cache maintenance |
-| `src/DropSort.Infrastructure/Metadata/Tmdb/TmdbClient.cs` | `232ed8d` | TMDB HTTP client, authentication, retrieval and retry |
-| `src/DropSort.UI/Views/MatchMediaDialog.cs` | `232ed8d` | Candidate search, ranking display and explicit selection |
-| `tests/DropSort.Tests/Application/LiveVerificationTests.cs` | `232ed8d` | Mocked connection, parsing, cache and matching verification |
-| `tests/DropSort.Tests/Application/MetadataMatchingServiceTests.cs` | `232ed8d` | Metadata matching and persistence tests |
-| `tests/DropSort.Tests/Application/TmdbOfflineAndIdempotencyTests.cs` | `232ed8d` | Offline local workflows and repeated-match persistence |
-| `tests/DropSort.Tests/Domain/Media/Matcher/MetadataScorerTests.cs` | `232ed8d` | Title/year scoring and ambiguity tests |
-| `tests/DropSort.Tests/Infrastructure/Migration7AndRepositoryEnrichmentTests.cs` | `232ed8d` | Enriched domain/repository round trips |
-| `tests/DropSort.Tests/Infrastructure/TmdbClientAndPosterCacheTests.cs` | `232ed8d` | HTTP authentication/parsing/failure and poster-cache tests |
+| `src/TBD Movies.Application/Services/MetadataMatchingService.cs` | `232ed8d` | Search, match and refresh movie/TV metadata |
+| `src/TBD Movies.Domain/Media/Matcher/MetadataScorer.cs` | `232ed8d` | Normalize and rank title/year candidates |
+| `src/TBD Movies.FileSystem/Inspection/CrashTempFileInspector.cs` | `ffd048d` | Read-only temporary-file discovery |
+| `src/TBD Movies.Infrastructure/Metadata/Cache/DiskPosterCache.cs` | `232ed8d` | Local poster lookup, downloads and cache maintenance |
+| `src/TBD Movies.Infrastructure/Metadata/Tmdb/TmdbClient.cs` | `232ed8d` | TMDB HTTP client, authentication, retrieval and retry |
+| `src/TBD Movies.UI/Views/MatchMediaDialog.cs` | `232ed8d` | Candidate search, ranking display and explicit selection |
+| `tests/TBD Movies.Tests/Application/LiveVerificationTests.cs` | `232ed8d` | Mocked connection, parsing, cache and matching verification |
+| `tests/TBD Movies.Tests/Application/MetadataMatchingServiceTests.cs` | `232ed8d` | Metadata matching and persistence tests |
+| `tests/TBD Movies.Tests/Application/TmdbOfflineAndIdempotencyTests.cs` | `232ed8d` | Offline local workflows and repeated-match persistence |
+| `tests/TBD Movies.Tests/Domain/Media/Matcher/MetadataScorerTests.cs` | `232ed8d` | Title/year scoring and ambiguity tests |
+| `tests/TBD Movies.Tests/Infrastructure/Migration7AndRepositoryEnrichmentTests.cs` | `232ed8d` | Enriched domain/repository round trips |
+| `tests/TBD Movies.Tests/Infrastructure/TmdbClientAndPosterCacheTests.cs` | `232ed8d` | HTTP authentication/parsing/failure and poster-cache tests |
 
 ### Modified after handoff — 45
 
@@ -217,51 +217,51 @@ These files already existed at the handoff; their existing contents are not attr
 
 | File | Commit(s) | Intended implementation |
 |---|---|---|
-| `src/DropSort.Application/Contracts/IUiActions.cs` | `232ed8d` | Extend metadata, token, TV update or temp-inspection contracts |
-| `src/DropSort.Application/Dto/TvDtos.cs` | `232ed8d` | Carry poster references / external metadata identity to presentation |
-| `src/DropSort.Application/External/IExternalServices.cs` | `ffd048d`, `232ed8d` | Extend metadata, token, TV update or temp-inspection contracts |
-| `src/DropSort.Application/Repositories/ITvRepositories.cs` | `232ed8d` | Extend metadata, token, TV update or temp-inspection contracts |
-| `src/DropSort.Application/Services/ReconciliationService.cs` | `c3851e2` | Missing-file Relink control, preview/confirm and diagnostics |
-| `src/DropSort.Application/Services/SettingsService.cs` | `232ed8d` | Persist/restore token and expose connection testing |
-| `src/DropSort.Application/Services/TvLibraryService.cs` | `232ed8d` | Carry poster references / external metadata identity to presentation |
-| `src/DropSort.Domain/Core/Operations/Models.cs` | `ffd048d` | Enriched movie/TV metadata fields and matching/inspection models |
-| `src/DropSort.Domain/Library/Movies/Models.cs` | `232ed8d` | Enriched movie/TV metadata fields and matching/inspection models |
-| `src/DropSort.Domain/Library/Shows/SeasonModels.cs` | `232ed8d` | Enriched movie/TV metadata fields and matching/inspection models |
-| `src/DropSort.Domain/Library/Shows/ShowModels.cs` | `232ed8d` | Reactive poster presentation (plus Relink row state in DemoModels) |
-| `src/DropSort.Domain/Media/Matcher/Models.cs` | `232ed8d` | Enriched movie/TV metadata fields and matching/inspection models |
-| `src/DropSort.Domain/Metadata/Contracts/Models.cs` | `232ed8d` | Enriched movie/TV metadata fields and matching/inspection models |
-| `src/DropSort.FileSystem/Operations/FileOperationCoordinator.cs` | `ffd048d` | Recover interrupted planned/validated records and expose temp inspection |
-| `src/DropSort.FileSystem/Safety/WindowsNative.cs` | `ffd048d` | Extended Windows paths / long-path declaration |
-| `src/DropSort.Infrastructure/Persistence/Migrations/DatabaseMigrator.cs` | `ffd048d`, `232ed8d` | Explicit immediate migration transaction and additive schema 7 |
-| `src/DropSort.Infrastructure/Persistence/Repositories/CatalogRepositories.cs` | `ffd048d`, `232ed8d` | Movie enrichment columns and explicit immediate unit of work |
-| `src/DropSort.Infrastructure/Persistence/Repositories/FileOperationStore.cs` | `ffd048d` | Explicit immediate SQLite transactions |
-| `src/DropSort.Infrastructure/Persistence/Repositories/MaintenanceRepository.cs` | `ffd048d` | Explicit immediate SQLite transactions |
-| `src/DropSort.Infrastructure/Persistence/Repositories/PersonalLibraryRepository.cs` | `ffd048d` | Explicit immediate SQLite transactions |
-| `src/DropSort.Infrastructure/Persistence/Repositories/TvEpisodeRepository.cs` | `232ed8d` | Read/write enriched TV metadata while preserving hierarchy IDs |
-| `src/DropSort.Infrastructure/Persistence/Repositories/TvSeasonRepository.cs` | `232ed8d` | Read/write enriched TV metadata while preserving hierarchy IDs |
-| `src/DropSort.Infrastructure/Persistence/Repositories/TvShowRepository.cs` | `232ed8d` | Read/write enriched TV metadata while preserving hierarchy IDs |
-| `src/DropSort.UI/MainWindow.xaml.cs` | `232ed8d` | Publish UI dispatcher for poster updates |
-| `src/DropSort.UI/Models/DemoModels.cs` | `c3851e2`, `232ed8d` | Reactive poster presentation (plus Relink row state in DemoModels) |
-| `src/DropSort.UI/Models/ShowModels.cs` | `232ed8d` | Reactive poster presentation (plus Relink row state in DemoModels) |
-| `src/DropSort.UI/Resources/Templates.xaml` | `232ed8d` | Reactive poster presentation (plus Relink row state in DemoModels) |
-| `src/DropSort.UI/Services/AppServices.cs` | `ffd048d`, `232ed8d` | Startup recovery and production metadata/cache composition |
-| `src/DropSort.UI/Services/CatalogRepositoryAdapters.cs` | `232ed8d` | Adapt enriched TV repository methods |
-| `src/DropSort.UI/Services/LibraryProjection.cs` | `232ed8d` | Carry poster references / external metadata identity to presentation |
-| `src/DropSort.UI/Services/LocalizationService.cs` | `c3851e2`, `232ed8d` | English/Arabic Relink and metadata labels |
-| `src/DropSort.UI/Services/TvProjection.cs` | `232ed8d` | Carry poster references / external metadata identity to presentation |
-| `src/DropSort.UI/Views/CheckLibraryPage.xaml` | `c3851e2` | Missing-file Relink control, preview/confirm and diagnostics |
-| `src/DropSort.UI/Views/CheckLibraryPage.xaml.cs` | `c3851e2` | Missing-file Relink control, preview/confirm and diagnostics |
-| `src/DropSort.UI/Views/MovieDetailsPage.xaml` | `232ed8d` | Poster display and match/refresh/fix-match controls |
-| `src/DropSort.UI/Views/MovieDetailsPage.xaml.cs` | `232ed8d` | Poster display and match/refresh/fix-match controls |
-| `src/DropSort.UI/Views/SettingsPage.xaml.cs` | `232ed8d` | Populate saved token and run live connection test |
-| `src/DropSort.UI/Views/TVShowDetailsPage.xaml` | `232ed8d` | Poster display and match/refresh/fix-match controls |
-| `src/DropSort.UI/Views/TVShowDetailsPage.xaml.cs` | `232ed8d` | Poster display and match/refresh/fix-match controls |
-| `src/DropSort.UI/app.manifest` | `ffd048d` | Extended Windows paths / long-path declaration |
-| `tests/DropSort.Tests/Application/FakeTvRepositories.cs` | `232ed8d` | Extend test adapters for enriched TV metadata |
-| `tests/DropSort.Tests/Application/PerCallRepositories.cs` | `232ed8d` | Extend test adapters for enriched TV metadata |
-| `tests/DropSort.Tests/Application/TvHierarchyTests.cs` | `c3851e2`, `232ed8d` | TV Relink lifecycle and metadata-preservation coverage |
-| `tests/DropSort.Tests/Application/WiredFlowTests.cs` | `c3851e2` | Movie Relink lifecycle coverage |
-| `tests/DropSort.Tests/FileSystem/RecoveryAndPathPolicyTests.cs` | `ffd048d` | Interrupted plans, long paths and temp discovery coverage |
+| `src/TBD Movies.Application/Contracts/IUiActions.cs` | `232ed8d` | Extend metadata, token, TV update or temp-inspection contracts |
+| `src/TBD Movies.Application/Dto/TvDtos.cs` | `232ed8d` | Carry poster references / external metadata identity to presentation |
+| `src/TBD Movies.Application/External/IExternalServices.cs` | `ffd048d`, `232ed8d` | Extend metadata, token, TV update or temp-inspection contracts |
+| `src/TBD Movies.Application/Repositories/ITvRepositories.cs` | `232ed8d` | Extend metadata, token, TV update or temp-inspection contracts |
+| `src/TBD Movies.Application/Services/ReconciliationService.cs` | `c3851e2` | Missing-file Relink control, preview/confirm and diagnostics |
+| `src/TBD Movies.Application/Services/SettingsService.cs` | `232ed8d` | Persist/restore token and expose connection testing |
+| `src/TBD Movies.Application/Services/TvLibraryService.cs` | `232ed8d` | Carry poster references / external metadata identity to presentation |
+| `src/TBD Movies.Domain/Core/Operations/Models.cs` | `ffd048d` | Enriched movie/TV metadata fields and matching/inspection models |
+| `src/TBD Movies.Domain/Library/Movies/Models.cs` | `232ed8d` | Enriched movie/TV metadata fields and matching/inspection models |
+| `src/TBD Movies.Domain/Library/Shows/SeasonModels.cs` | `232ed8d` | Enriched movie/TV metadata fields and matching/inspection models |
+| `src/TBD Movies.Domain/Library/Shows/ShowModels.cs` | `232ed8d` | Reactive poster presentation (plus Relink row state in DemoModels) |
+| `src/TBD Movies.Domain/Media/Matcher/Models.cs` | `232ed8d` | Enriched movie/TV metadata fields and matching/inspection models |
+| `src/TBD Movies.Domain/Metadata/Contracts/Models.cs` | `232ed8d` | Enriched movie/TV metadata fields and matching/inspection models |
+| `src/TBD Movies.FileSystem/Operations/FileOperationCoordinator.cs` | `ffd048d` | Recover interrupted planned/validated records and expose temp inspection |
+| `src/TBD Movies.FileSystem/Safety/WindowsNative.cs` | `ffd048d` | Extended Windows paths / long-path declaration |
+| `src/TBD Movies.Infrastructure/Persistence/Migrations/DatabaseMigrator.cs` | `ffd048d`, `232ed8d` | Explicit immediate migration transaction and additive schema 7 |
+| `src/TBD Movies.Infrastructure/Persistence/Repositories/CatalogRepositories.cs` | `ffd048d`, `232ed8d` | Movie enrichment columns and explicit immediate unit of work |
+| `src/TBD Movies.Infrastructure/Persistence/Repositories/FileOperationStore.cs` | `ffd048d` | Explicit immediate SQLite transactions |
+| `src/TBD Movies.Infrastructure/Persistence/Repositories/MaintenanceRepository.cs` | `ffd048d` | Explicit immediate SQLite transactions |
+| `src/TBD Movies.Infrastructure/Persistence/Repositories/PersonalLibraryRepository.cs` | `ffd048d` | Explicit immediate SQLite transactions |
+| `src/TBD Movies.Infrastructure/Persistence/Repositories/TvEpisodeRepository.cs` | `232ed8d` | Read/write enriched TV metadata while preserving hierarchy IDs |
+| `src/TBD Movies.Infrastructure/Persistence/Repositories/TvSeasonRepository.cs` | `232ed8d` | Read/write enriched TV metadata while preserving hierarchy IDs |
+| `src/TBD Movies.Infrastructure/Persistence/Repositories/TvShowRepository.cs` | `232ed8d` | Read/write enriched TV metadata while preserving hierarchy IDs |
+| `src/TBD Movies.UI/MainWindow.xaml.cs` | `232ed8d` | Publish UI dispatcher for poster updates |
+| `src/TBD Movies.UI/Models/DemoModels.cs` | `c3851e2`, `232ed8d` | Reactive poster presentation (plus Relink row state in DemoModels) |
+| `src/TBD Movies.UI/Models/ShowModels.cs` | `232ed8d` | Reactive poster presentation (plus Relink row state in DemoModels) |
+| `src/TBD Movies.UI/Resources/Templates.xaml` | `232ed8d` | Reactive poster presentation (plus Relink row state in DemoModels) |
+| `src/TBD Movies.UI/Services/AppServices.cs` | `ffd048d`, `232ed8d` | Startup recovery and production metadata/cache composition |
+| `src/TBD Movies.UI/Services/CatalogRepositoryAdapters.cs` | `232ed8d` | Adapt enriched TV repository methods |
+| `src/TBD Movies.UI/Services/LibraryProjection.cs` | `232ed8d` | Carry poster references / external metadata identity to presentation |
+| `src/TBD Movies.UI/Services/LocalizationService.cs` | `c3851e2`, `232ed8d` | English/Arabic Relink and metadata labels |
+| `src/TBD Movies.UI/Services/TvProjection.cs` | `232ed8d` | Carry poster references / external metadata identity to presentation |
+| `src/TBD Movies.UI/Views/CheckLibraryPage.xaml` | `c3851e2` | Missing-file Relink control, preview/confirm and diagnostics |
+| `src/TBD Movies.UI/Views/CheckLibraryPage.xaml.cs` | `c3851e2` | Missing-file Relink control, preview/confirm and diagnostics |
+| `src/TBD Movies.UI/Views/MovieDetailsPage.xaml` | `232ed8d` | Poster display and match/refresh/fix-match controls |
+| `src/TBD Movies.UI/Views/MovieDetailsPage.xaml.cs` | `232ed8d` | Poster display and match/refresh/fix-match controls |
+| `src/TBD Movies.UI/Views/SettingsPage.xaml.cs` | `232ed8d` | Populate saved token and run live connection test |
+| `src/TBD Movies.UI/Views/TVShowDetailsPage.xaml` | `232ed8d` | Poster display and match/refresh/fix-match controls |
+| `src/TBD Movies.UI/Views/TVShowDetailsPage.xaml.cs` | `232ed8d` | Poster display and match/refresh/fix-match controls |
+| `src/TBD Movies.UI/app.manifest` | `ffd048d` | Extended Windows paths / long-path declaration |
+| `tests/TBD Movies.Tests/Application/FakeTvRepositories.cs` | `232ed8d` | Extend test adapters for enriched TV metadata |
+| `tests/TBD Movies.Tests/Application/PerCallRepositories.cs` | `232ed8d` | Extend test adapters for enriched TV metadata |
+| `tests/TBD Movies.Tests/Application/TvHierarchyTests.cs` | `c3851e2`, `232ed8d` | TV Relink lifecycle and metadata-preservation coverage |
+| `tests/TBD Movies.Tests/Application/WiredFlowTests.cs` | `c3851e2` | Movie Relink lifecycle coverage |
+| `tests/TBD Movies.Tests/FileSystem/RecoveryAndPathPolicyTests.cs` | `ffd048d` | Interrupted plans, long paths and temp discovery coverage |
 
 ### Pre-existing and unchanged — excluded from independent re-review
 
@@ -269,7 +269,7 @@ The following exact baseline files have no post-handoff diff. They were consulte
 
 ```text
 .gitignore
-DropSort.slnx
+TBD Movies.slnx
 FUNCTIONAL_WIRING_REPORT.md
 PHASE1_REPORT.md
 PHASE2_REPORT.md
@@ -280,79 +280,79 @@ application_mapping.md
 domain_mapping.md
 global.json
 infra_mapping.md
-src/DropSort.Application/ApplicationAssemblyMarker.cs
-src/DropSort.Application/DropSort.Application.csproj
-src/DropSort.Application/Dto/CatalogDtos.cs
-src/DropSort.Application/Dto/OperationDtos.cs
-src/DropSort.Application/Repositories/IRepositories.cs
-src/DropSort.Application/Services/ImportService.cs
-src/DropSort.Application/Services/LibraryService.cs
-src/DropSort.Application/Services/OperationHistoryService.cs
-src/DropSort.Application/Services/OrganizationService.cs
-src/DropSort.Domain/Configuration/Models.cs
-src/DropSort.Domain/Core/Safety/Models.cs
-src/DropSort.Domain/DomainAssemblyMarker.cs
-src/DropSort.Domain/DropSort.Domain.csproj
-src/DropSort.Domain/Library/Availability/Models.cs
-src/DropSort.Domain/Library/Operations/Models.cs
-src/DropSort.Domain/Library/Personal/Models.cs
-src/DropSort.Domain/Media/Discovery/Models.cs
-src/DropSort.Domain/Media/Parser/Models.cs
-src/DropSort.FileSystem/Discovery/MediaDiscoveryService.cs
-src/DropSort.FileSystem/DropSort.FileSystem.csproj
-src/DropSort.FileSystem/Engine/SafeTransferEngine.cs
-src/DropSort.FileSystem/FileSystemAssemblyMarker.cs
-src/DropSort.FileSystem/Inspection/AvailabilityInspector.cs
-src/DropSort.FileSystem/Properties/AssemblyInfo.cs
-src/DropSort.FileSystem/Safety/FileSafetyExceptions.cs
-src/DropSort.FileSystem/Safety/PathPolicy.cs
-src/DropSort.Infrastructure/DropSort.Infrastructure.csproj
-src/DropSort.Infrastructure/Persistence/DatabaseBootstrap.cs
-src/DropSort.Infrastructure/Persistence/Repositories/SettingsRepository.cs
-src/DropSort.Infrastructure/Persistence/SqliteConnections.cs
-src/DropSort.UI/App.xaml
-src/DropSort.UI/App.xaml.cs
-src/DropSort.UI/Controls/EmptyStateCard.xaml
-src/DropSort.UI/Controls/EmptyStateCard.xaml.cs
-src/DropSort.UI/DropSort.UI.csproj
-src/DropSort.UI/MainWindow.xaml
-src/DropSort.UI/Resources/Styles.xaml
-src/DropSort.UI/Resources/Templates.xaml.cs
-src/DropSort.UI/Resources/ThemeResources.xaml
-src/DropSort.UI/Services/AppSettingsStore.cs
-src/DropSort.UI/Services/ThemeService.cs
-src/DropSort.UI/Views/AddMediaPage.xaml
-src/DropSort.UI/Views/AddMediaPage.xaml.cs
-src/DropSort.UI/Views/HomePage.xaml
-src/DropSort.UI/Views/HomePage.xaml.cs
-src/DropSort.UI/Views/IActivatableView.cs
-src/DropSort.UI/Views/ILocalizableView.cs
-src/DropSort.UI/Views/LibraryPage.xaml
-src/DropSort.UI/Views/LibraryPage.xaml.cs
-src/DropSort.UI/Views/MyListsPage.xaml
-src/DropSort.UI/Views/MyListsPage.xaml.cs
-src/DropSort.UI/Views/OperationsLogPage.xaml
-src/DropSort.UI/Views/OperationsLogPage.xaml.cs
-src/DropSort.UI/Views/SettingsPage.xaml
-tests/DropSort.Tests/Application/ApplicationServiceTests.cs
-tests/DropSort.Tests/Application/UiFacingContractTests.cs
-tests/DropSort.Tests/Domain/Library/Movies/CatalogModelsTests.cs
-tests/DropSort.Tests/Domain/Library/Operations/OperationJournalModelsTests.cs
-tests/DropSort.Tests/Domain/Media/Discovery/DiscoveryModelsTests.cs
-tests/DropSort.Tests/Domain/Media/Matcher/MatcherModelsTests.cs
-tests/DropSort.Tests/DropSort.Tests.csproj
-tests/DropSort.Tests/FileSystem/DiscoveryParsingTests.cs
-tests/DropSort.Tests/FileSystem/EngineTests.cs
-tests/DropSort.Tests/Infrastructure/MigrationUpgradeTests.cs
-tests/DropSort.Tests/Infrastructure/PersistenceTests.cs
-tests/DropSort.Tests/Infrastructure/RepositoryParityTests.cs
-tests/DropSort.Tests/SolutionSmokeTests.cs
-tests/DropSort.Tests/UI/UiSourceContractTests.cs
+src/TBD Movies.Application/ApplicationAssemblyMarker.cs
+src/TBD Movies.Application/TBD Movies.Application.csproj
+src/TBD Movies.Application/Dto/CatalogDtos.cs
+src/TBD Movies.Application/Dto/OperationDtos.cs
+src/TBD Movies.Application/Repositories/IRepositories.cs
+src/TBD Movies.Application/Services/ImportService.cs
+src/TBD Movies.Application/Services/LibraryService.cs
+src/TBD Movies.Application/Services/OperationHistoryService.cs
+src/TBD Movies.Application/Services/OrganizationService.cs
+src/TBD Movies.Domain/Configuration/Models.cs
+src/TBD Movies.Domain/Core/Safety/Models.cs
+src/TBD Movies.Domain/DomainAssemblyMarker.cs
+src/TBD Movies.Domain/TBD Movies.Domain.csproj
+src/TBD Movies.Domain/Library/Availability/Models.cs
+src/TBD Movies.Domain/Library/Operations/Models.cs
+src/TBD Movies.Domain/Library/Personal/Models.cs
+src/TBD Movies.Domain/Media/Discovery/Models.cs
+src/TBD Movies.Domain/Media/Parser/Models.cs
+src/TBD Movies.FileSystem/Discovery/MediaDiscoveryService.cs
+src/TBD Movies.FileSystem/TBD Movies.FileSystem.csproj
+src/TBD Movies.FileSystem/Engine/SafeTransferEngine.cs
+src/TBD Movies.FileSystem/FileSystemAssemblyMarker.cs
+src/TBD Movies.FileSystem/Inspection/AvailabilityInspector.cs
+src/TBD Movies.FileSystem/Properties/AssemblyInfo.cs
+src/TBD Movies.FileSystem/Safety/FileSafetyExceptions.cs
+src/TBD Movies.FileSystem/Safety/PathPolicy.cs
+src/TBD Movies.Infrastructure/TBD Movies.Infrastructure.csproj
+src/TBD Movies.Infrastructure/Persistence/DatabaseBootstrap.cs
+src/TBD Movies.Infrastructure/Persistence/Repositories/SettingsRepository.cs
+src/TBD Movies.Infrastructure/Persistence/SqliteConnections.cs
+src/TBD Movies.UI/App.xaml
+src/TBD Movies.UI/App.xaml.cs
+src/TBD Movies.UI/Controls/EmptyStateCard.xaml
+src/TBD Movies.UI/Controls/EmptyStateCard.xaml.cs
+src/TBD Movies.UI/TBD Movies.UI.csproj
+src/TBD Movies.UI/MainWindow.xaml
+src/TBD Movies.UI/Resources/Styles.xaml
+src/TBD Movies.UI/Resources/Templates.xaml.cs
+src/TBD Movies.UI/Resources/ThemeResources.xaml
+src/TBD Movies.UI/Services/AppSettingsStore.cs
+src/TBD Movies.UI/Services/ThemeService.cs
+src/TBD Movies.UI/Views/AddMediaPage.xaml
+src/TBD Movies.UI/Views/AddMediaPage.xaml.cs
+src/TBD Movies.UI/Views/HomePage.xaml
+src/TBD Movies.UI/Views/HomePage.xaml.cs
+src/TBD Movies.UI/Views/IActivatableView.cs
+src/TBD Movies.UI/Views/ILocalizableView.cs
+src/TBD Movies.UI/Views/LibraryPage.xaml
+src/TBD Movies.UI/Views/LibraryPage.xaml.cs
+src/TBD Movies.UI/Views/MyListsPage.xaml
+src/TBD Movies.UI/Views/MyListsPage.xaml.cs
+src/TBD Movies.UI/Views/OperationsLogPage.xaml
+src/TBD Movies.UI/Views/OperationsLogPage.xaml.cs
+src/TBD Movies.UI/Views/SettingsPage.xaml
+tests/TBD Movies.Tests/Application/ApplicationServiceTests.cs
+tests/TBD Movies.Tests/Application/UiFacingContractTests.cs
+tests/TBD Movies.Tests/Domain/Library/Movies/CatalogModelsTests.cs
+tests/TBD Movies.Tests/Domain/Library/Operations/OperationJournalModelsTests.cs
+tests/TBD Movies.Tests/Domain/Media/Discovery/DiscoveryModelsTests.cs
+tests/TBD Movies.Tests/Domain/Media/Matcher/MatcherModelsTests.cs
+tests/TBD Movies.Tests/TBD Movies.Tests.csproj
+tests/TBD Movies.Tests/FileSystem/DiscoveryParsingTests.cs
+tests/TBD Movies.Tests/FileSystem/EngineTests.cs
+tests/TBD Movies.Tests/Infrastructure/MigrationUpgradeTests.cs
+tests/TBD Movies.Tests/Infrastructure/PersistenceTests.cs
+tests/TBD Movies.Tests/Infrastructure/RepositoryParityTests.cs
+tests/TBD Movies.Tests/SolutionSmokeTests.cs
+tests/TBD Movies.Tests/UI/UiSourceContractTests.cs
 ```
 
 ## 7. Review scope and working-tree integrity
 
-Git commands used to establish scope: `git show -s --format=fuller 4ee14f9`, `git log 4ee14f9..HEAD --format=fuller --no-patch`, `git diff --name-status 65903bb..HEAD -- DropSort_WinUI3`, `git diff-tree --no-commit-id --name-status -r COMMIT -- DropSort_WinUI3`, `git ls-tree -r --name-only 65903bb -- DropSort_WinUI3`, reflog/file history and repeated `git status --short` / `git diff --check`.
+Git commands used to establish scope: `git show -s --format=fuller 4ee14f9`, `git log 4ee14f9..HEAD --format=fuller --no-patch`, `git diff --name-status 65903bb..HEAD -- TBDMovies_WinUI3`, `git diff-tree --no-commit-id --name-status -r COMMIT -- TBDMovies_WinUI3`, `git ls-tree -r --name-only 65903bb -- TBDMovies_WinUI3`, reflog/file history and repeated `git status --short` / `git diff --check`.
 
 No code fixes were made. This Markdown report and synthetic verification artifacts under `.audit-artifacts/` are the only review-authored workspace outputs. Python V1 was not edited. The testing and file-safety skills constrained verification to temporary/synthetic fixtures and a non-mutating media-navigation smoke. An independent provenance explorer, verification tester and reviewer supplied evidence; the root inspected the diffs and reproduced disputed findings before accepting them.
 
@@ -368,19 +368,19 @@ Git still resolves HEAD to `232ed8dbb94f841ee97148b10ed79b7f749b1a92` on `codex`
 
 Modified files relative to HEAD:
 
-- `src/DropSort.Application/External/IExternalServices.cs`
-- `src/DropSort.Application/Services/MetadataMatchingService.cs`
-- `src/DropSort.Infrastructure/Metadata/Cache/DiskPosterCache.cs`
-- `src/DropSort.Infrastructure/Metadata/Tmdb/TmdbClient.cs`
-- `src/DropSort.UI/Views/MovieDetailsPage.xaml.cs`
-- `src/DropSort.UI/Views/TVShowDetailsPage.xaml.cs`
-- `tests/DropSort.Tests/Application/MetadataMatchingServiceTests.cs`
+- `src/TBD Movies.Application/External/IExternalServices.cs`
+- `src/TBD Movies.Application/Services/MetadataMatchingService.cs`
+- `src/TBD Movies.Infrastructure/Metadata/Cache/DiskPosterCache.cs`
+- `src/TBD Movies.Infrastructure/Metadata/Tmdb/TmdbClient.cs`
+- `src/TBD Movies.UI/Views/MovieDetailsPage.xaml.cs`
+- `src/TBD Movies.UI/Views/TVShowDetailsPage.xaml.cs`
+- `tests/TBD Movies.Tests/Application/MetadataMatchingServiceTests.cs`
 
 New source/test files:
 
-- `src/DropSort.Application/External/MetadataServiceException.cs`
-- `src/DropSort.UI/Services/PostHandoffRequestLifetime.cs`
-- `tests/DropSort.Tests/Application/SessionCredentialRegressionTests.cs`
+- `src/TBD Movies.Application/External/MetadataServiceException.cs`
+- `src/TBD Movies.UI/Services/PostHandoffRequestLifetime.cs`
+- `tests/TBD Movies.Tests/Application/SessionCredentialRegressionTests.cs`
 
 This report is also untracked. The unrelated deletions and untracked reference/configuration paths listed in section 1 remain untouched. No new uncommitted Domain, FileSystem, migration, repository, or project-file changes were observed.
 
@@ -401,8 +401,8 @@ Null-runtime guards and the poster scheduling change are present, but have no fo
 
 - Read-only Git checks: `git log 65903bb..HEAD --format=fuller --stat`, `git diff --name-status 65903bb..HEAD -- .`, current source diffs, and repeated `git status --short`.
 - `git diff --check -- .`: exit 0, no whitespace errors; LF-to-CRLF notices were emitted.
-- Provider worker reported `dotnet build src\DropSort.Infrastructure\DropSort.Infrastructure.csproj --no-restore --configuration Debug --nologo --verbosity:minimal`: passed, zero warnings/errors. This is not a UI or full-solution build.
-- The inherited root command `dotnet test tests/DropSort.Tests/DropSort.Tests.csproj --filter FullyQualifiedName~SessionCredentialRegressionTests --artifacts-path .audit-artifacts/root-build --nologo --verbosity quiet` failed before tests ran: NU1301, socket access denied reaching NuGet; NU1900 vulnerability-data warnings. Worker isolated-artifact test attempts also failed on missing assets/network restore. These are not regression-test pass/fail results and do not establish a project-side NuGet defect.
+- Provider worker reported `dotnet build src\TBD Movies.Infrastructure\TBD Movies.Infrastructure.csproj --no-restore --configuration Debug --nologo --verbosity:minimal`: passed, zero warnings/errors. This is not a UI or full-solution build.
+- The inherited root command `dotnet test tests/TBD Movies.Tests/TBD Movies.Tests.csproj --filter FullyQualifiedName~SessionCredentialRegressionTests --artifacts-path .audit-artifacts/root-build --nologo --verbosity quiet` failed before tests ran: NU1301, socket access denied reaching NuGet; NU1900 vulnerability-data warnings. Worker isolated-artifact test attempts also failed on missing assets/network restore. These are not regression-test pass/fail results and do not establish a project-side NuGet defect.
 - No current-tree full suite, WinUI build, launch, navigation, theme, or RTL acceptance result is claimed. The earlier 186-test pass applies only to the committed snapshot in section 4. No additional real-library launch or mutation was performed.
 
 **Decision: not ready for acceptance. Review stops here; partial corrective files are retained without further repair, staging, commit, or push.**

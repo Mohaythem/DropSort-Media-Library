@@ -1,12 +1,12 @@
-# DropSort V2 Phase 0 — Intake & Baseline Audit
+# TBD Movies V2 Phase 0 — Intake & Baseline Audit
 
 Audit date: 2026-08-16  
-Repository: `D:\\DropSort_ chat\\DropSort`  
+Repository: `D:\\TBD Movies_ chat\\TBD Movies`  
 Scope: Phase 0 only. No V2 production code, migration, schema change, UI feature, or test change was made.
 
 ## 1. Executive Summary
 
-DropSort is a local-first Windows desktop application implemented as a Python/PySide6/SQLite modular monolith. The current executable V1 contains read-only discovery and matching, explicit catalog import, library/details UI, posters, safe Play/Open Folder actions, journaled Move/Rename, Undo/recovery, reconciliation, Relink, Clear Library Data, manual provider search, four themes, English/Arabic localization, and a one-directory PyInstaller release.
+TBD Movies is a local-first Windows desktop application implemented as a Python/PySide6/SQLite modular monolith. The current executable V1 contains read-only discovery and matching, explicit catalog import, library/details UI, posters, safe Play/Open Folder actions, journaled Move/Rename, Undo/recovery, reconciliation, Relink, Clear Library Data, manual provider search, four themes, English/Arabic localization, and a one-directory PyInstaller release.
 
 The V1 safety boundary is clear and should be preserved. Discovery, matching, catalog import, and physical filesystem mutation are separate application boundaries. Move/Rename is the only normal media mutation path and is journaled before execution; the catalog path is committed only after filesystem verification. Tests cover the required failure and recovery classes in temporary roots.
 
@@ -22,11 +22,11 @@ V2 readiness is blocked by the explicit V1 acceptance gate in current project st
 
 Evidence:
 
-- Root: `D:\\DropSort_ chat\\DropSort`.
+- Root: `D:\\TBD Movies_ chat\\TBD Movies`.
 - `Get-Location` and `Resolve-Path .` resolve to that directory.
 - The directory is not recognized as a Git repository. `git rev-parse`, branch, commit, and `git status` all returned `fatal: not a git repository`; `Test-Path .git` is false.
 - There is therefore no current branch, commit SHA, or Git status. Git provenance is a traceability blocker for production changes.
-- The checkout contains source, tests, reports, release files, `DropSort.zip`, `.venv`, `.coverage`, `.build-phase6b`, and ignored caches.
+- The checkout contains source, tests, reports, release files, `TBD Movies.zip`, `.venv`, `.coverage`, `.build-phase6b`, and ignored caches.
 
 Runtime evidence:
 
@@ -39,7 +39,7 @@ Runtime evidence:
 | Project pytest-cov | 7.1.0 |
 | Project PyInstaller | 6.22.0 |
 | SQLite | 3.49.1 |
-| Package version | `dropsort-media-library` 0.1.0 |
+| Package version | `TBD Movies-media-library` 0.1.0 |
 | Declared Python range | `>=3.11` |
 
 `pyproject.toml` declares PySide6 as runtime dependency and pytest/pytest-cov/PyInstaller as optional development/package groups. Host Python lacks project GUI, coverage, and packaging imports; `.venv` has them.
@@ -49,7 +49,7 @@ The audit generated ignored `.pytest-phase0`, `.pytest-phase0-coverage`, and `.c
 ## 3. Current Project Tree
 
 ```text
-src/dropsort/
+src/TBD Movies/
   application/{bootstrap,configuration,dto,runtime,use_cases}
   core/{file_engine,operations,safety}
   database/{connection,migrations,repositories}
@@ -64,19 +64,19 @@ tests/
   integration/{application,database,file_engine,media,ui}
 docs/{adr,architecture,reviews,source,specs}
 packaging/build_release.ps1
-DropSort.spec
+TBD Movies.spec
 Phase6BVerifier.spec
 tools/phase6b_verify.py
-release/DropSort/
+release/TBD Movies/
 ```
 
-Meaningful repository contents include 114 test Python files and 27 documentation files, all V1 source packages above, three SQL migrations with down files, assets/fonts/TMDB attribution, PyInstaller specs, release reports, and a current one-directory release. `src/dropsort_media_library.egg-info` is generated packaging metadata. `watched_folders`, `library/scanning`, `media/movies`, and some contracts are reserved or partial; they are not evidence of a completed watcher or V2 personal library.
+Meaningful repository contents include 114 test Python files and 27 documentation files, all V1 source packages above, three SQL migrations with down files, assets/fonts/TMDB attribution, PyInstaller specs, release reports, and a current one-directory release. `src/TBD Movies_media_library.egg-info` is generated packaging metadata. `watched_folders`, `library/scanning`, `media/movies`, and some contracts are reserved or partial; they are not evidence of a completed watcher or V2 personal library.
 
 ## 4. Source-of-Truth Assessment
 
 | Source | Status | Assessment |
 |---|---|---|
-| `src/dropsort/**` | CURRENT | Primary implementation truth. |
+| `src/TBD Movies/**` | CURRENT | Primary implementation truth. |
 | `tests/**` | CURRENT | Current executable contracts and safety expectations. |
 | `database/migrations/**` | CURRENT | Only versions 0001–0003 exist. |
 | `docs/status/PROJECT_STATUS.md` | MOSTLY CURRENT | Current 1023/5/95% baseline and V1/V2 acceptance gate. |
@@ -97,7 +97,7 @@ Conflicts found:
 
 ## 5. Current Architecture
 
-DropSort is a modular monolith. Dependency direction is UI -> application -> library/media/core -> contracts; SQL is confined to `database/`; HTTP is confined to `metadata/providers/`. No server, cloud, Docker, PostgreSQL, Redis, Kafka, or watcher dependency is active.
+TBD Movies is a modular monolith. Dependency direction is UI -> application -> library/media/core -> contracts; SQL is confined to `database/`; HTTP is confined to `metadata/providers/`. No server, cloud, Docker, PostgreSQL, Redis, Kafka, or watcher dependency is active.
 
 - UI: `ui/main_window/window.py`, `ui/library/*`, `ui/movie_details/*`, `ui/scan/*`, `ui/settings/*`, `ui/history/*`, and dialogs. Widgets consume UI protocols and DTOs.
 - Application: `application/bootstrap/desktop.py` composes repositories, providers, use cases, locks, settings, and MainWindow.
@@ -243,7 +243,7 @@ and never pass through catalog-import or filesystem authorization.
 
 `MetadataProvider` exposes provider-neutral search and detail contracts. `TmdbMetadataProvider` uses HTTPS, bearer read-access headers, bounded timeout, controlled 401/403/429/5xx/JSON/network errors, and normalized provider records. `CachedMetadataProvider` stores provider/cache-key payloads; it does not store credentials or personal state.
 
-`SessionTmdbCredentials` selects session token first, then `DROPSORT_TMDB_READ_ACCESS_TOKEN`. Session input is validated in memory only and is not persisted. Repr values are redacted. Runtime logging filters Authorization bearer values and the environment-variable pattern. No real credential was read or printed during this audit.
+`SessionTmdbCredentials` selects session token first, then `TBD Movies_TMDB_READ_ACCESS_TOKEN`. Session input is validated in memory only and is not persisted. Repr values are redacted. Runtime logging filters Authorization bearer values and the environment-variable pattern. No real credential was read or printed during this audit.
 
 Future onboarding gaps, intentionally not implemented: friendly Test Connection UX, offline setup/troubleshooting documentation, and explicit packaged credential policy. These must not couple personal data to TMDB.
 
@@ -305,7 +305,7 @@ Live commands:
 .venv\\Scripts\\python.exe -m pytest -q -W error --basetemp=.pytest-phase0
   1023 passed, 5 skipped, 0 failed in 54.78s
 
-.venv\\Scripts\\python.exe -m pytest --cov=src/dropsort --cov-branch
+.venv\\Scripts\\python.exe -m pytest --cov=src/TBD Movies --cov-branch
   --cov-report=term-missing -q -W error --basetemp=.pytest-phase0-coverage
   1023 passed, 5 skipped, 0 failed in 66.83s
   95% total branch coverage
@@ -315,14 +315,14 @@ Five skips are symlink/reparse tests blocked by WinError 1314/current account pr
 
 ## 20. Packaging / Release Baseline
 
-Packaging is one-directory PyInstaller. `DropSort.spec` includes migrations, fonts/OFL texts, TMDB logo, DropSort icon, licenses, and `pathex=src`; excludes pytest/coverage. `build_release.ps1` invokes project PyInstaller and copies README/notices beside the executable. `Phase6BVerifier.spec` and `tools/phase6b_verify.py` describe disposable sandbox verification; they were inspected, not rebuilt/run here.
+Packaging is one-directory PyInstaller. `TBD Movies.spec` includes migrations, fonts/OFL texts, TMDB logo, TBD Movies icon, licenses, and `pathex=src`; excludes pytest/coverage. `build_release.ps1` invokes project PyInstaller and copies README/notices beside the executable. `Phase6BVerifier.spec` and `tools/phase6b_verify.py` describe disposable sandbox verification; they were inspected, not rebuilt/run here.
 
 Current artifact inspection:
 
 | Artifact | Evidence |
 |---|---|
-| `release\\DropSort\\DropSort.exe` | 2,353,470 bytes; SHA-256 `23CD90AED24E5A754796E902827327A9EDBED9D5A89DC12E7D356018076E62AA` |
-| `DropSort.zip` | 1,389,924 bytes; SHA-256 `6A7324213BBDD65161858B47D7B00C87CA50E26A922F51E3E9DA9D2A5129E7C7` |
+| `release\\TBD Movies\\TBD Movies.exe` | 2,353,470 bytes; SHA-256 `23CD90AED24E5A754796E902827327A9EDBED9D5A89DC12E7D356018076E62AA` |
+| `TBD Movies.zip` | 1,389,924 bytes; SHA-256 `6A7324213BBDD65161858B47D7B00C87CA50E26A922F51E3E9DA9D2A5129E7C7` |
 | release directory | 190 files; 120,116,153 bytes |
 
 Release root contains `_internal`, executable, README, and THIRD_PARTY_NOTICES. Migrations, fonts, TMDB attribution SVG, Qt Windows plugin, README, notices, and licenses are present. No rebuild or new packaged UI claim was made.
@@ -341,7 +341,7 @@ Partially stale/historical: early architecture docs describe reserved modules; T
 - Unqualified pytest uses an ACL-inaccessible host temp root; repository-local basetemp is reproducible.
 - Five symlink/reparse tests are skipped under current privileges.
 - No separate clean machine/VM verification.
-- Unsigned executable and no explicit DropSort project license.
+- Unsigned executable and no explicit TBD Movies project license.
 - Cross-volume/ambiguous recovery are simulation-tested, not manually exercised against real ambiguous files.
 - Live TMDB/poster behavior was not exercised with a credential in this audit.
 
@@ -423,7 +423,7 @@ Actual meanings:
 - `media_files.discovered_at` is set on first row insertion and is not changed by refresh/relink.
 - `media_files.last_seen_at` changes when observed present, refreshed, relinked, or path-updated after organization; marking missing does not fabricate a last-seen value.
 
-Recommendation: preserve date_added as first known to DropSort; let metadata-only creation set it for a first-known personal Movie. Use media discovered_at/last_seen_at for physical recency/presence. Add explicit personal timestamps for watchlist-added/first-watched rather than overloading current columns.
+Recommendation: preserve date_added as first known to TBD Movies; let metadata-only creation set it for a first-known personal Movie. Use media discovered_at/last_seen_at for physical recency/presence. Add explicit personal timestamps for watchlist-added/first-watched rather than overloading current columns.
 
 ## 30. Clear Library V2 Risk & Recommendation
 

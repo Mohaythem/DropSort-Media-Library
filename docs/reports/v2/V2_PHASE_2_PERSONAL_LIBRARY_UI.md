@@ -1,4 +1,4 @@
-# DropSort Media Library — V2 Phase 2 Personal Library UI Integration
+# TBD Movies Media Library — V2 Phase 2 Personal Library UI Integration
 
 ## 1. Scope
 
@@ -90,9 +90,9 @@ Controls have stable object names, existing action roles, readable text, selecta
 
 ## 23. Files created
 
-- `src/dropsort/application/dto/personal_library.py`
-- `src/dropsort/ui/personal_library/__init__.py`
-- `src/dropsort/ui/personal_library/personal_library_view.py`
+- `src/TBD Movies/application/dto/personal_library.py`
+- `src/TBD Movies/ui/personal_library/__init__.py`
+- `src/TBD Movies/ui/personal_library/personal_library_view.py`
 - `tests/unit/ui/test_personal_library_ui.py`
 - `V2_PHASE_2_PERSONAL_LIBRARY_UI.md`
 
@@ -114,11 +114,11 @@ Final full run: `1042 passed, 5 skipped, 0 failed`. The five skips are expected 
 
 ## 28. Coverage
 
-Final command used branch coverage over the full `dropsort` package. Reported result: 95% coverage, with the Phase 2 personal UI and application paths included.
+Final command used branch coverage over the full `TBD Movies` package. Reported result: 95% coverage, with the Phase 2 personal UI and application paths included.
 
 ## 29. Packaging
 
-PyInstaller 6.22.0 completed successfully using `DropSort.spec` with disposable output directories `.build-phase2-dist` and `.build-phase2-work`. The output contains `DropSort.exe`, all eight migration SQL files, and the existing SVG resources.
+PyInstaller 6.22.0 completed successfully using `TBD Movies.spec` with disposable output directories `.build-phase2-dist` and `.build-phase2-work`. The output contains `TBD Movies.exe`, all eight migration SQL files, and the existing SVG resources.
 
 Final executable evidence: 2,386,092 bytes; SHA-256 `D339F4A06C71A899C170CB283F1B25EFDB767FAC8B8F80827A4BD0ADF2B6CC94`.
 

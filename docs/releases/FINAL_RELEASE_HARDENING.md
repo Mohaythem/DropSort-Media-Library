@@ -1,4 +1,4 @@
-# DropSort final release hardening — 2026-10-13
+# TBD Movies final release hardening — 2026-10-13
 
 ## Decision
 
@@ -19,7 +19,7 @@ Recommend 1.0.0 for the first stable WinUI release after those gates. The reposi
 
 ## Rebuild reproducibility
 
-Fresh DropSort.UI.dll has a different hash from RC1, while the other 533 payload files match. Read-only PE/IL comparison found differences confined to generated WinRT/XAML metadata/vtable ordering and build identity; application method bodies match. Do not claim byte-identical rebuild. The recompiled QA installer uses that fresh payload and is not a replacement RC1 candidate. Original artifacts and manifest remain unchanged. Any future shipped rebuild or signature requires a new candidate revision, updated checksums and packaged-runtime verification.
+Fresh TBD Movies.UI.dll has a different hash from RC1, while the other 533 payload files match. Read-only PE/IL comparison found differences confined to generated WinRT/XAML metadata/vtable ordering and build identity; application method bodies match. Do not claim byte-identical rebuild. The recompiled QA installer uses that fresh payload and is not a replacement RC1 candidate. Original artifacts and manifest remain unchanged. Any future shipped rebuild or signature requires a new candidate revision, updated checksums and packaged-runtime verification.
 
 ## Installer evidence boundary
 
@@ -41,11 +41,11 @@ With authorized signing material, sign the app/payload first with SHA256 and an 
 
 ## Unchanged candidate
 
-- EXE: artifacts/release/0.10.0-rc.1/portable/DropSort.UI.exe
-- Installer: artifacts/release/0.10.0-rc.1/DropSortSetup.exe
-- ZIP: artifacts/release/0.10.0-rc.1/DropSort-0.10.0-rc.1-win-x64.zip
+- EXE: artifacts/release/0.10.0-rc.1/portable/TBD Movies.UI.exe
+- Installer: artifacts/release/0.10.0-rc.1/TBD MoviesSetup.exe
+- ZIP: artifacts/release/0.10.0-rc.1/TBD Movies-0.10.0-rc.1-win-x64.zip
 - Checksums: artifacts/release/0.10.0-rc.1/SHA256SUMS.txt
 - Release notes: packaging/RELEASE_NOTES_0.10.0-rc.1.md
 - Exact original source/payload provenance:artifact BUILD_MANIFEST.json. Hardening evidence:artifacts/qa/final-hardening-20261013. A documentation-only hardening checkpoint does not replace the candidate's original source identity.
 
-Close existing DropSort instances before manual launch. For portable use extract the complete ZIP and run DropSort.UI.exe. Remove DROPSORT_TEST_DATA_ROOT from the launching shell to use the normal local user library. For installation follow the existing per-user Inno wizard; automated host installation is prohibited by this task. No tag, GitHub Release or binary upload is authorized. Broad Windows, real SMB/removable-drive and real-media playback acceptance limits remain open.
+Close existing TBD Movies instances before manual launch. For portable use extract the complete ZIP and run TBD Movies.UI.exe. Remove TBD Movies_TEST_DATA_ROOT from the launching shell to use the normal local user library. For installation follow the existing per-user Inno wizard; automated host installation is prohibited by this task. No tag, GitHub Release or binary upload is authorized. Broad Windows, real SMB/removable-drive and real-media playback acceptance limits remain open.

@@ -30,10 +30,10 @@ A modern, fast, and local-first desktop media library for Windows, built with **
 
 ## 🚀 Download & Installation
 
-Download the latest official release directly from **[GitHub Releases](https://github.com/Mohaythem/DropSort-Media-Library/releases)**:
+Download the latest official release directly from **[GitHub Releases](https://github.com/Mohaythem/TBD Movies-Media-Library/releases)**:
 
-- **Installer (`DropSortSetup.exe`)**: Automatic setup with Desktop and Start Menu shortcuts.
-- **Portable Edition (`DropSort-win-x64.zip`)**: Ready to run anywhere without installation. Just extract and launch `DropSort.UI.exe`.
+- **Installer (`TBD MoviesSetup.exe`)**: Automatic setup with Desktop and Start Menu shortcuts.
+- **Portable Edition (`TBD Movies-win-x64.zip`)**: Ready to run anywhere without installation. Just extract and launch `TBD Movies.UI.exe`.
 
 ---
 

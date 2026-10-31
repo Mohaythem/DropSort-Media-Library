@@ -1,4 +1,4 @@
-# DropSort V2 Phase 2.9 — Windows Navigation Shell + Visual Repair
+# TBD Movies V2 Phase 2.9 — Windows Navigation Shell + Visual Repair
 
 ## Scope
 
@@ -15,7 +15,7 @@ The implementation follows the shell relationships and density, without copying 
 
 ## Sidebar Architecture
 
-The left shell now owns the Back action, text-only DropSort identity, pane toggle, sidebar search, primary navigation, Check Library, and bottom Settings placement. The content header is intentionally reduced to a stable section heading.
+The left shell now owns the Back action, text-only TBD Movies identity, pane toggle, sidebar search, primary navigation, Check Library, and bottom Settings placement. The content header is intentionally reduced to a stable section heading.
 
 ## Back Placement
 
@@ -82,16 +82,16 @@ Shell controls have object names, accessible names/descriptions, localized nav n
 - `tests\unit\ui\test_phase29_windows_shell.py`
 - `V2_PHASE_2_9_WINDOWS_NAVIGATION_AND_VISUAL_REPAIR.md`
 - `coverage-phase29.json`
-- `.build-phase29-dist\DropSort\DropSort.exe` and its packaged distribution
+- `.build-phase29-dist\TBD Movies\TBD Movies.exe` and its packaged distribution
 
 ## Files Modified
 
-- `src\dropsort\ui\main_window\window.py`
-- `src\dropsort\ui\common\theme.py`
-- `src\dropsort\ui\movie_details\details_view.py`
-- `src\dropsort\ui\reconciliation\page.py`
-- `src\dropsort\ui\settings\settings_view.py`
-- `src\dropsort\ui\localization.py`
+- `src\TBD Movies\ui\main_window\window.py`
+- `src\TBD Movies\ui\common\theme.py`
+- `src\TBD Movies\ui\movie_details\details_view.py`
+- `src\TBD Movies\ui\reconciliation\page.py`
+- `src\TBD Movies\ui\settings\settings_view.py`
+- `src\TBD Movies\ui\localization.py`
 - `tests\unit\ui\test_sidebar.py`
 - `tests\unit\ui\test_personal_library_ui.py`
 
@@ -111,19 +111,19 @@ Coverage.py final combined metric: `95%` (`11492` statements, `2370` branches, `
 
 ## Packaging
 
-PyInstaller `6.22.0` built successfully from the current source using `DropSort.spec`, with the bundled migrations, Fluent SVGs, fonts, TMDB asset, DropSort identity assets, licenses, README, and notices.
+PyInstaller `6.22.0` built successfully from the current source using `TBD Movies.spec`, with the bundled migrations, Fluent SVGs, fonts, TMDB asset, TBD Movies identity assets, licenses, README, and notices.
 
 ## Official Release Artifact
 
 Updated the official project artifact at:
 
-`D:\DropSort_ chat\DropSort\release\DropSort\DropSort.exe`
+`D:\TBD Movies_ chat\TBD Movies\release\TBD Movies\TBD Movies.exe`
 
 The final official one-directory artifact contains 221 files.
 
 ## Real Device Visual Inspection
 
-`BLOCKED / approval still required.` The exact final official executable was launched normally with an isolated repository-local `LOCALAPPDATA` root. The process remained alive, exposed the window title `DropSort Media Library`, created only an isolated empty database/log root, and closed cleanly. The available Windows Computer Use screenshot helper failed to initialize in this device context, so no pixel-level screenshot inspection of the packaged release was completed. This is not reported as a visual PASS.
+`BLOCKED / approval still required.` The exact final official executable was launched normally with an isolated repository-local `LOCALAPPDATA` root. The process remained alive, exposed the window title `TBD Movies Media Library`, created only an isolated empty database/log root, and closed cleanly. The available Windows Computer Use screenshot helper failed to initialize in this device context, so no pixel-level screenshot inspection of the packaged release was completed. This is not reported as a visual PASS.
 
 ## What Was Visually Inspected
 
@@ -139,7 +139,7 @@ No real media-library path was opened or mutated. Search remains local catalog s
 
 ## Asset Audit
 
-No new decorative assets were added. The package retains the existing 26 Fluent SVG assets, bundled Inter and Noto Sans Arabic fonts, TMDB attribution asset, DropSort SVG/ICO, migrations, notices, and licenses.
+No new decorative assets were added. The package retains the existing 26 Fluent SVG assets, bundled Inter and Noto Sans Arabic fonts, TMDB attribution asset, TBD Movies SVG/ICO, migrations, notices, and licenses.
 
 ## Normal Review
 

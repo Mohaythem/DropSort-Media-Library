@@ -1,4 +1,4 @@
-# DropSort — Engineering Phase Record
+# TBD Movies — Engineering Phase Record
 
 This is a concise chronological record, not a substitute for Git history. “Rewrite phases” below refer to the original .NET foundation reports; “Product Phase 1/2/3” refer to the later user-accepted product roadmap.
 
@@ -143,14 +143,14 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 
 **Remaining risks.** `FileOperationStore` keeps one long-lived connection; its ungated reads share that connection with gated writes, so writers serialise but a concurrent read+write on the single connection is not thread-safe (the store is driven sequentially from the UI/startup today). The gate is in-process only and does not coordinate a second process against the same database (out of scope for single-instance, local-first use).
 
-## 11. DropSort 1.0 Scope Freeze (adversarial-reviewed)
+## 11. TBD Movies 1.0 Scope Freeze (adversarial-reviewed)
 
-**Purpose.** Freeze exactly what belongs in DropSort 1.0, name the true release blockers, defer the rest, and gate the decision through an independent adversarial review — a docs-only phase that changed no implementation code. The frozen scope (Included / Stabilization / Post-1.0 / Out-of-scope), release blockers, and golden journeys live in `FUTURE_PLAN.md`.
+**Purpose.** Freeze exactly what belongs in TBD Movies 1.0, name the true release blockers, defer the rest, and gate the decision through an independent adversarial review — a docs-only phase that changed no implementation code. The frozen scope (Included / Stabilization / Post-1.0 / Out-of-scope), release blockers, and golden journeys live in `FUTURE_PLAN.md`.
 
 **Adversarial gate (Codex).** Verdict **needs-attention** ("NO-SHIP" for an as-is freeze). Codex confirmed the direction and the documented strengths (local-first registration, journal-first transfers, immutable migrations, logical-media watch projections), and raised six findings plus a scope-label disagreement. The full report is preserved in the session transcript.
 
 **Claude reconciliation (evidence-first; independently verified against the repository).**
-- **[critical] Single-instance ownership — ACCEPT (strengthened).** Verified `DropSort.UI.csproj` sets `<WindowsPackageType>None</WindowsPackageType>` (unpackaged), there is no `Package.appxmanifest`, and no `AppInstance` redirect or custom `Main`; `App.OnLaunched` always creates a window. Single-instance is enforced in neither dev nor the release artifact, and MSIX is not in play. Promoted to a 1.0 release blocker (Data / File Trust Pass).
+- **[critical] Single-instance ownership — ACCEPT (strengthened).** Verified `TBD Movies.UI.csproj` sets `<WindowsPackageType>None</WindowsPackageType>` (unpackaged), there is no `Package.appxmanifest`, and no `AppInstance` redirect or custom `Main`; `App.OnLaunched` always creates a window. Single-instance is enforced in neither dev nor the release artifact, and MSIX is not in play. Promoted to a 1.0 release blocker (Data / File Trust Pass).
 - **[high] TV import identity — ACCEPT (concrete failure proven, not just fragility).** Verified the chain: import keys on the filename-derived UNIQUE `sort_title` (`ImportService` → `GetBySortTitle`); `ApplyTvShowMetadataAsync` overwrites `title` and `sort_title` (via `NormalizeTitle(canonicalTitle)`) and sets `provider`/`external_id` (`TvShowRepository.UpdateMetadata`); no filename alias is preserved. Re-importing an episode under the original alias creates a second show, and re-matching it to the same provider identity violates `tv_shows UNIQUE(provider, external_id)`. Promoted to a 1.0 blocker with a required alias→match→next-episode regression.
 - **[high] Ambiguous drive/backup labels — ACCEPT.** `FUTURE_PLAN.md` listed "Drive Awareness" and "Portable Local Backup/Manifest" as post-1.0 while the roadmap kept "Drive-Aware Availability Model" and "Early Backup Protection" pre-1.0. Split with explicit criteria: 1.0 must distinguish offline/unmounted from deleted media and auto-create+verify a DB backup before migrations/risky maintenance; richer drive analytics and portable manifests stay post-1.0.
 
@@ -167,7 +167,7 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 **Purpose.** Fix confirmed trust defects that can corrupt identity, journal state, or catalog truth. No product features. Migration 0010 is a new forward script; no released migration was edited.
 
 **Trust guarantees now enforced.**
-- One process owns a library. `LibraryInstanceGuard` takes an exclusive OS lock on a `<db>.dropsort-lock` sibling file before any window and before `Migrate()`/recovery. A second process does not migrate, recover, or open `library.db`, and opens no window (it shows one "already running" message and exits). Ownership is released last at shutdown, after DB handles are disposed and the connection pool is cleared.
+- One process owns a library. `LibraryInstanceGuard` takes an exclusive OS lock on a `<db>.TBD Movies-lock` sibling file before any window and before `Migrate()`/recovery. A second process does not migrate, recover, or open `library.db`, and opens no window (it shows one "already running" message and exits). Ownership is released last at shutdown, after DB handles are disposed and the connection pool is cleared.
 - TV import identity is stable across metadata matching. Migration 0010 adds `tv_show_aliases`. Import resolves the show by an immutable filename-derived alias, so a later episode under the original filename stays under one logical show. No duplicate show is created, and no `UNIQUE(provider, external_id)` conflict occurs. Re-importing the same file after a metadata rename is recognized as already registered (compared by show identity, not by the rewritten sort_title).
 - TV-like filenames are classified honestly. Single `SxxExx` resolves across dot, underscore, space, and dash separators. Multi-episode and range forms (`S01E01E02`, `S01E01-E03`, `S01E01_S01E02`, `S01E01-03`, `1x01x02`) classify as `TvEpisodeUnsupported` (review), never as a movie or one arbitrary episode. A resolution tag such as `1x01-1080p` stays a single episode.
 
@@ -187,9 +187,9 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 
 ## 13. Drive-Aware Availability Model (adversarial-reviewed)
 
-**Purpose.** Stop DropSort treating media on temporarily unavailable storage as deleted. No schema change: the new state is transient and is not persisted.
+**Purpose.** Stop TBD Movies treating media on temporarily unavailable storage as deleted. No schema change: the new state is transient and is not persisted.
 
-**Availability contract.** `AvailabilityInspectionStatus` has four states. **Available/Present**: the storage root is reachable and the file exists. **StorageUnavailable**: the root is not reachable or not ready (disconnected/unmounted drive). Not deleted; no path rewrite, no delete, no relink pressure. **Missing**: the root is reachable and the file is absent. The only true missing case. **Error**: access denied or another I/O condition; never collapsed into Missing. The model fails closed: if DropSort cannot prove a reachable root lacks the file, it does not claim the media was deleted.
+**Availability contract.** `AvailabilityInspectionStatus` has four states. **Available/Present**: the storage root is reachable and the file exists. **StorageUnavailable**: the root is not reachable or not ready (disconnected/unmounted drive). Not deleted; no path rewrite, no delete, no relink pressure. **Missing**: the root is reachable and the file is absent. The only true missing case. **Error**: access denied or another I/O condition; never collapsed into Missing. The model fails closed: if TBD Movies cannot prove a reachable root lacks the file, it does not claim the media was deleted.
 
 **Storage identity.** The smallest reliable Windows check: the path's root (`Path.GetPathRoot`). A drive-letter root uses `DriveInfo(root).IsReady`; a UNC root uses `Directory.Exists`. The inspector probes with `File.GetAttributes`, not `File.Exists`, so access-denied and I/O conditions are distinguished from true absence. No new persistent identity data was added.
 
@@ -215,11 +215,11 @@ This is a concise chronological record, not a substitute for Git history. “Rew
 
 **Backup identity / naming.** `library.<UTCyyyyMMddTHHmmssfffZ>.v<sourceVersion>.<label>.<randomToken>.db`. The token makes same-millisecond collisions impossible; a `File.Exists` guard remains.
 
-**Restore contract (backend primitive; not wired into any user/startup path).** Accepts only a structurally sound DropSort database within the supported schema range (`user_version` 1..latest and the core `movies` table). Preserves the current database with a WAL-safe snapshot, stages the replacement, swaps it in with an atomic same-volume `File.Replace`, removes stale WAL/SHM sidecars (fatal on failure), verifies the result, and rolls back to the preserved copy on failure.
+**Restore contract (backend primitive; not wired into any user/startup path).** Accepts only a structurally sound TBD Movies database within the supported schema range (`user_version` 1..latest and the core `movies` table). Preserves the current database with a WAL-safe snapshot, stages the replacement, swaps it in with an atomic same-volume `File.Replace`, removes stale WAL/SHM sidecars (fatal on failure), verifies the result, and rolls back to the preserved copy on failure.
 
 **Adversarial gate (Codex).** Verdict **needs-attention**. Two Critical, one High, two Medium. Independently verified and reconciled:
 - **C1 pre-restore preservation omitted committed WAL — ACCEPT, fixed.** The current database is preserved with a `BackupDatabase` snapshot, and sidecar removal is fatal before any swap.
-- **C3 restore accepted any integrity-valid SQLite file — ACCEPT, fixed.** Restore now requires a supported DropSort schema version and the core table, before and after replacement.
+- **C3 restore accepted any integrity-valid SQLite file — ACCEPT, fixed.** Restore now requires a supported TBD Movies schema version and the core table, before and after replacement.
 - **M1 millisecond naming collision — ACCEPT, fixed.** A random token was added.
 - **M2 no ClearCatalog backup test — ACCEPT, fixed.** Success and backup-failure tests were added.
 - **C2 restore is not fully crash-safe/journaled — PARTIAL / DEFER.** Atomicity was improved (staged temp + same-volume `File.Replace` + rollback from the preserved snapshot), but a fully journaled restore with startup reconciliation, together with the user-facing restore workflow, is a documented pre-1.0 release gate. The primitive is not wired into any user or startup path, so no user can trigger it today.
@@ -241,6 +241,6 @@ Manually accepted; full suite **381/381**. Schema advanced forward-only to **v13
 
 **Codex review was partial.** Codex hit its external usage limit mid-run and returned only two candidate invariants. Both were independently reconciled: the Unicode duplicate-name folding gap was **accepted and fixed**; "Date added" sorting by catalog id was **deferred** as a documented monotonic proxy. An independent A–G reconciliation found no ship blocker. This was **not** a completed full Codex pass.
 
-**Preview installer.** A per-user Inno Setup single Setup EXE (`0.9.0-preview`, unsigned) is built from the self-contained Release build via `packaging/DropSort.iss`; install/launch/uninstall/reinstall and user-data preservation were verified on this machine. This does not declare 1.0.
+**Preview installer.** A per-user Inno Setup single Setup EXE (`0.9.0-preview`, unsigned) is built from the self-contained Release build via `packaging/TBD Movies.iss`; install/launch/uninstall/reinstall and user-data preservation were verified on this machine. This does not declare 1.0.
 
 **Remaining deferred risks (unchanged, still open):** crash-safe journaled restore + user-facing restore workflow (C2); backup ACL/privacy hardening; UNC/network timeout behaviour; real removable-drive runtime verification; Home/Recently Watched stale availability hints; large-library scale/performance; clean-machine/installed-app verification; code signing (the preview installer is unsigned, so SmartScreen reputation is a release concern).

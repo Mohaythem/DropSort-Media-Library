@@ -1,4 +1,4 @@
-# DropSort .NET Rewrite — Phase 1 Report
+# TBD Movies .NET Rewrite — Phase 1 Report
 
 **Date:** 2026-08-31  
 **Status:** ✅ Phase 1 Complete  
@@ -74,22 +74,22 @@
 ```
 V1 Python Package          →  .NET Project              Target
 ─────────────────────────────────────────────────────────────────
-dropsort.library.movies     →  DropSort.Domain           net10.0
-dropsort.library.personal   →  DropSort.Domain           net10.0
-dropsort.library.operations →  DropSort.Domain           net10.0
-dropsort.library.availability → DropSort.Domain          net10.0
-dropsort.media.parser       →  DropSort.Domain           net10.0
-dropsort.media.discovery    →  DropSort.Domain           net10.0
-dropsort.media.matcher      →  DropSort.Domain           net10.0
-dropsort.metadata.contracts →  DropSort.Domain           net10.0
-dropsort.core.operations    →  DropSort.Domain           net10.0
-dropsort.core.safety        →  DropSort.FileSystem       net10.0-windows
-dropsort.core.file_engine   →  DropSort.FileSystem       net10.0-windows
-dropsort.application.*      →  DropSort.Application      net10.0
-dropsort.posters            →  DropSort.Application      net10.0
-dropsort.database.*         →  DropSort.Infrastructure   net10.0-windows
-dropsort.ui.*               →  DropSort.UI               net10.0-windows (WinUI 3)
-tests/                      →  DropSort.Tests            net10.0-windows
+TBD Movies.library.movies     →  TBD Movies.Domain           net10.0
+TBD Movies.library.personal   →  TBD Movies.Domain           net10.0
+TBD Movies.library.operations →  TBD Movies.Domain           net10.0
+TBD Movies.library.availability → TBD Movies.Domain          net10.0
+TBD Movies.media.parser       →  TBD Movies.Domain           net10.0
+TBD Movies.media.discovery    →  TBD Movies.Domain           net10.0
+TBD Movies.media.matcher      →  TBD Movies.Domain           net10.0
+TBD Movies.metadata.contracts →  TBD Movies.Domain           net10.0
+TBD Movies.core.operations    →  TBD Movies.Domain           net10.0
+TBD Movies.core.safety        →  TBD Movies.FileSystem       net10.0-windows
+TBD Movies.core.file_engine   →  TBD Movies.FileSystem       net10.0-windows
+TBD Movies.application.*      →  TBD Movies.Application      net10.0
+TBD Movies.posters            →  TBD Movies.Application      net10.0
+TBD Movies.database.*         →  TBD Movies.Infrastructure   net10.0-windows
+TBD Movies.ui.*               →  TBD Movies.UI               net10.0-windows (WinUI 3)
+tests/                      →  TBD Movies.Tests            net10.0-windows
 ```
 
 ### Layer Rules
@@ -105,30 +105,30 @@ tests/                      →  DropSort.Tests            net10.0-windows
 ## 3. Created Solution / Projects
 
 ```
-DropSort_WinUI3/
-├── DropSort.slnx                                    (solution file)
+TBDMovies_WinUI3/
+├── TBD Movies.slnx                                    (solution file)
 ├── src/
-│   ├── DropSort.Domain/
-│   │   ├── DropSort.Domain.csproj                   (net10.0)
+│   ├── TBD Movies.Domain/
+│   │   ├── TBD Movies.Domain.csproj                   (net10.0)
 │   │   └── DomainAssemblyMarker.cs
-│   ├── DropSort.Application/
-│   │   ├── DropSort.Application.csproj              (net10.0, refs Domain)
+│   ├── TBD Movies.Application/
+│   │   ├── TBD Movies.Application.csproj              (net10.0, refs Domain)
 │   │   └── ApplicationAssemblyMarker.cs
-│   ├── DropSort.Infrastructure/
-│   │   ├── DropSort.Infrastructure.csproj            (net10.0-windows, refs Application)
+│   ├── TBD Movies.Infrastructure/
+│   │   ├── TBD Movies.Infrastructure.csproj            (net10.0-windows, refs Application)
 │   │   └── Persistence/
 │   │       └── DatabaseBootstrap.cs                  (Microsoft.Data.Sqlite)
-│   ├── DropSort.FileSystem/
-│   │   ├── DropSort.FileSystem.csproj               (net10.0-windows, refs Domain)
+│   ├── TBD Movies.FileSystem/
+│   │   ├── TBD Movies.FileSystem.csproj               (net10.0-windows, refs Domain)
 │   │   └── FileSystemAssemblyMarker.cs
-│   └── DropSort.UI/
-│       ├── DropSort.UI.csproj                        (WinUI 3, WindowsAppSDK 1.7)
+│   └── TBD Movies.UI/
+│       ├── TBD Movies.UI.csproj                        (WinUI 3, WindowsAppSDK 1.7)
 │       ├── app.manifest
 │       ├── App.xaml / App.xaml.cs
 │       └── MainWindow.xaml / MainWindow.xaml.cs
 └── tests/
-    └── DropSort.Tests/
-        ├── DropSort.Tests.csproj                     (xUnit, refs Domain/Application/Infrastructure)
+    └── TBD Movies.Tests/
+        ├── TBD Movies.Tests.csproj                     (xUnit, refs Domain/Application/Infrastructure)
         └── SolutionSmokeTests.cs
 ```
 
@@ -139,7 +139,7 @@ DropSort_WinUI3/
 ### Restore ✅
 
 ```
-dotnet restore DropSort.slnx
+dotnet restore TBD Movies.slnx
 ```
 
 All 6 projects restored. NuGet packages resolved:
@@ -153,21 +153,21 @@ All 6 projects restored. NuGet packages resolved:
 
 All 6 projects compile without errors.
 
-**Note:** The WinUI 3 project (`DropSort.UI`) requires MSBuild from Visual Studio 2025 to build due to a known .NET 10 SDK issue with `Microsoft.Build.Packaging.Pri.Tasks.dll`. The remaining 5 projects build successfully with the `dotnet` CLI.
+**Note:** The WinUI 3 project (`TBD Movies.UI`) requires MSBuild from Visual Studio 2025 to build due to a known .NET 10 SDK issue with `Microsoft.Build.Packaging.Pri.Tasks.dll`. The remaining 5 projects build successfully with the `dotnet` CLI.
 
 ```powershell
 # Non-UI projects (dotnet CLI works):
-dotnet build DropSort.slnx --no-restore
+dotnet build TBD Movies.slnx --no-restore
 
 # UI project (requires VS MSBuild):
 & "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" `
-    src\DropSort.UI\DropSort.UI.csproj -t:Build -p:Configuration=Debug -p:Platform=x64
+    src\TBD Movies.UI\TBD Movies.UI.csproj -t:Build -p:Configuration=Debug -p:Platform=x64
 ```
 
 ### Tests ✅
 
 ```
-dotnet test tests/DropSort.Tests/DropSort.Tests.csproj --no-restore
+dotnet test tests/TBD Movies.Tests/TBD Movies.Tests.csproj --no-restore
 ```
 
 ```
@@ -185,8 +185,8 @@ Total tests: 3
 ### Launch Smoke Test ✅
 
 ```
-DropSort.UI.exe launched (PID: 37388)
-WinUI 3 window displayed with "DropSort" title and SQLite version status.
+TBD Movies.UI.exe launched (PID: 37388)
+WinUI 3 window displayed with "TBD Movies" title and SQLite version status.
 Process ran for 5 seconds without crashing, terminated cleanly.
 ```
 
@@ -201,20 +201,20 @@ Process ran for 5 seconds without crashing, terminated cleanly.
 | **V1 offline registration (migration 0005)** | Info | Movies can now have NULL provider/external_id with metadata_status tracking. The .NET schema must reproduce this exactly. |
 | **V1 legacy theme migration** | Info | Settings may contain legacy theme IDs (main, deep_ink, charcoal, light_blue). The .NET layer must handle the same migration logic. |
 | **V1 localization is a single 1,479-line Python file** | Info | Consider .NET resource files (.resw) or a structured JSON approach in Phase 2. |
-| **No V1 data migration strategy yet** | Info | The existing SQLite database at `%LOCALAPPDATA%\DropSort\dropsort.db` will need a migration path. Not in scope until later. |
+| **No V1 data migration strategy yet** | Info | The existing SQLite database at `%LOCALAPPDATA%\TBD Movies\TBD Movies.db` will need a migration path. Not in scope until later. |
 
 ---
 
 ## 6. Phase 2 Recommendation
 
-Phase 2 should port the **domain model layer** into `DropSort.Domain`:
+Phase 2 should port the **domain model layer** into `TBD Movies.Domain`:
 
 1. **Port all 12 enums** exactly as documented in the parity map.
 2. **Port domain entities**: Movie, MediaFile, FileOperationRecord, MovieCatalogData, VerifiedMediaFileFacts, ParsedMedia, MovieCandidate, MovieMetadata, PersonalMovieState, WatchEvent.
 3. **Port value objects**: SourceIdentity, OperationUpdate, FileOperationPlan, PreparedTransfer, RecoveryInspection, DiscoveredMedia, MatchDecision, CandidateScore.
 4. **Port validation rules**: All the `__post_init__` invariants from V1 dataclasses should become constructor validation or dedicated validator types.
-5. **Define persistence interfaces** in `DropSort.Application`: IMovieRepository, IMediaFileRepository, IFileOperationStore, IMetadataCacheRepository, ISettingsRepository, IPersonalLibraryRepository.
-6. **Write domain unit tests** in `DropSort.Tests` covering entity construction, validation, and enum exhaustiveness.
+5. **Define persistence interfaces** in `TBD Movies.Application`: IMovieRepository, IMediaFileRepository, IFileOperationStore, IMetadataCacheRepository, ISettingsRepository, IPersonalLibraryRepository.
+6. **Write domain unit tests** in `TBD Movies.Tests` covering entity construction, validation, and enum exhaustiveness.
 
 Do **not** implement:
 - Infrastructure (SQLite repositories) — wait for Phase 3

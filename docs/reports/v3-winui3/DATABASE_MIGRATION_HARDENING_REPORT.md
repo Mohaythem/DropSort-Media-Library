@@ -112,23 +112,23 @@ Changed production files: `DatabaseMigrator.cs` and `DatabaseSafetyBackup.cs`. A
 
 ## 9. Focused verification
 
-Final command, from `DropSort_WinUI3`:
+Final command, from `TBDMovies_WinUI3`:
 
 ```powershell
-dotnet test tests/DropSort.Tests/DropSort.Tests.csproj --no-restore --filter "FullyQualifiedName~DatabaseMigrationHardeningTests|FullyQualifiedName~DatabaseHistoricalRowsTests|FullyQualifiedName~DatabaseSafetyBackupTests|FullyQualifiedName~LibraryInstanceGuardTests|FullyQualifiedName~MigrationUpgradeTests|FullyQualifiedName~Migration7AndRepositoryEnrichmentTests|FullyQualifiedName~Migration8WatchHistoryTests|FullyQualifiedName~Migration9WatchEventsDriftTests|FullyQualifiedName~CustomListMigrationTests|FullyQualifiedName~CustomListMembershipTests|FullyQualifiedName~PersistenceTests|FullyQualifiedName~RecentlyWatchedMediaTests|FullyQualifiedName~RepeatedWatchHistoryTests|FullyQualifiedName~WatchHistoryConcurrencyTests|FullyQualifiedName~WriteCoordinationTests"
+dotnet test tests/TBD Movies.Tests/TBD Movies.Tests.csproj --no-restore --filter "FullyQualifiedName~DatabaseMigrationHardeningTests|FullyQualifiedName~DatabaseHistoricalRowsTests|FullyQualifiedName~DatabaseSafetyBackupTests|FullyQualifiedName~LibraryInstanceGuardTests|FullyQualifiedName~MigrationUpgradeTests|FullyQualifiedName~Migration7AndRepositoryEnrichmentTests|FullyQualifiedName~Migration8WatchHistoryTests|FullyQualifiedName~Migration9WatchEventsDriftTests|FullyQualifiedName~CustomListMigrationTests|FullyQualifiedName~CustomListMembershipTests|FullyQualifiedName~PersistenceTests|FullyQualifiedName~RecentlyWatchedMediaTests|FullyQualifiedName~RepeatedWatchHistoryTests|FullyQualifiedName~WatchHistoryConcurrencyTests|FullyQualifiedName~WriteCoordinationTests"
 ```
 
 - Final result: **101 passed, 0 failed, 0 skipped**.
 - Saved pre-change reproduction harness: **8/8 reproduced**, exit 0. It is isolated in gitignored `TestResults/db-baseline`; no baseline source is included in the test project.
 - `git diff --check`: passed.
 - Independent Astra review of the final production diff, both test classes, startup/gate compatibility, and report: completed; no remaining material findings.
-- Final test evidence: `tests/DropSort.Tests/TestResults/database-hardening-final.trx` (generated with `--logger 'trx;LogFileName=database-hardening-final.trx'`).
+- Final test evidence: `tests/TBD Movies.Tests/TestResults/database-hardening-final.trx` (generated with `--logger 'trx;LogFileName=database-hardening-final.trx'`).
 - No full suite or WinUI build. Test compilation built backend/test dependencies in Debug. No Release or installer build.
 
 ## 10. Real-world verification still needed
 
 - **Covered by automated fixtures only:** old catalog upgrade, malformed-schema refusal, late transaction failure/retry, backup retention/recovery copy, concurrent migrator calls, guard release, WAL snapshot, and reopen.
-- Later QA should launch the updated app against an isolated `DROPSORT_TEST_DATA_ROOT`, populated with a disposable historical fixture. Check startup, exact catalog/history/list values, close/relaunch, and safe failure/retry.
+- Later QA should launch the updated app against an isolated `TBD Movies_TEST_DATA_ROOT`, populated with a disposable historical fixture. Check startup, exact catalog/history/list values, close/relaunch, and safe failure/retry.
 - Run two actual app processes against that isolated root. Confirm the second refuses ownership and can start after the first exits.
 - Inject process termination at migration boundaries on disposable databases; verify version, FK/integrity checks, WAL reopen, and backup retention. Sudden power loss and large-library timing remain unverified.
 - The existing installer was not rebuilt and therefore does not contain these source changes.

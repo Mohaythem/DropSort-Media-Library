@@ -1,10 +1,10 @@
-# DropSort Media Library — V2 Phase 2.5
+# TBD Movies Media Library — V2 Phase 2.5
 
 ## 1. Scope
 
 Implemented the focused UI consistency and Operations Log work requested for Phase 2.5: coherent Slate surfaces, Western numeral presentation, a native-style watched-date picker, professional Operations Log presentation/export, latest-500 display policy, Danger Zone styling for Clear Library Data, and an English UI string inventory.
 
-DropSort remains Python/PySide6/Qt, SQLite, local-first, and Windows desktop. No roadmap feature was started. Check Library was not redesigned, moved, or behaviorally changed.
+TBD Movies remains Python/PySide6/Qt, SQLite, local-first, and Windows desktop. No roadmap feature was started. Check Library was not redesigned, moved, or behaviorally changed.
 
 ## 2. Slate Theme Audit
 
@@ -18,7 +18,7 @@ Only the shared semantic theme source was changed. Check Library source, state m
 
 ## 4. Western Numeral Strategy
 
-`src/dropsort/ui/common/formatting.py` now provides a presentation-only `to_western_numerals` boundary plus date and timestamp helpers. It normalizes Eastern Arabic and Persian digit characters to Latin digits without changing stored values. Existing year, rating, runtime, file-size, watch-date, and operation-timestamp formatting remains presentation-only.
+`src/TBD Movies/ui/common/formatting.py` now provides a presentation-only `to_western_numerals` boundary plus date and timestamp helpers. It normalizes Eastern Arabic and Persian digit characters to Latin digits without changing stored values. Existing year, rating, runtime, file-size, watch-date, and operation-timestamp formatting remains presentation-only.
 
 Technical/date values are kept direction-safe with explicit LTR treatment where appropriate. Arabic prose and application RTL behavior remain present.
 
@@ -90,17 +90,17 @@ Disposable verification outputs include `.coverage-v2-phase25-final2.json`, `.bu
 
 ## 19. Files Modified
 
-- `src/dropsort/ui/common/formatting.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/localization.py`
-- `src/dropsort/ui/movie_details/details_view.py`
-- `src/dropsort/ui/history/view.py`
-- `src/dropsort/ui/settings/settings_view.py`
-- `src/dropsort/application/dto/operation_history.py`
-- `src/dropsort/application/use_cases/operation_history.py`
-- `src/dropsort/application/use_cases/__init__.py`
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/ui/contracts.py`
+- `src/TBD Movies/ui/common/formatting.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/localization.py`
+- `src/TBD Movies/ui/movie_details/details_view.py`
+- `src/TBD Movies/ui/history/view.py`
+- `src/TBD Movies/ui/settings/settings_view.py`
+- `src/TBD Movies/application/dto/operation_history.py`
+- `src/TBD Movies/application/use_cases/operation_history.py`
+- `src/TBD Movies/application/use_cases/__init__.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/ui/contracts.py`
 - `tests/unit/ui/test_operation_history_view.py`
 - `tests/unit/ui/test_operation_history_dto.py`
 - `tests/unit/ui/test_theme.py`
@@ -123,9 +123,9 @@ Branch coverage remains `95%`. Final coverage output is `.coverage-v2-phase25-fi
 
 ## 23. Packaging
 
-PyInstaller `6.22.0` built successfully using the existing `DropSort.spec` workflow. Package executable:
+PyInstaller `6.22.0` built successfully using the existing `TBD Movies.spec` workflow. Package executable:
 
-`D:\DropSort_ chat\DropSort\.build-phase25-dist\DropSort\DropSort.exe`
+`D:\TBD Movies_ chat\TBD Movies\.build-phase25-dist\TBD Movies\TBD Movies.exe`
 
 Size: `2,434,363` bytes  
 SHA-256: `5ACA634ABC4F5EFF72B4266A1D2A8477BC46E5CCCE16BF4430DEEAC716E14EEB`
@@ -144,7 +144,7 @@ No schema change or migration was introduced. The packaged smoke database applie
 
 ## 26. Asset Audit
 
-No new images or visual assets were created, generated, downloaded, or added. The package contains only the existing DropSort icon/SVG, TMDB SVG, and bundled Inter/Noto Sans Arabic fonts already declared by `DropSort.spec`.
+No new images or visual assets were created, generated, downloaded, or added. The package contains only the existing TBD Movies icon/SVG, TMDB SVG, and bundled Inter/Noto Sans Arabic fonts already declared by `TBD Movies.spec`.
 
 ## 27. Normal Review
 
@@ -181,7 +181,7 @@ Required: **YES**. Automated tests cannot approve final visual quality. Please r
 
 Required confirmations:
 
-- DropSort remains Python/PySide6/Qt.
+- TBD Movies remains Python/PySide6/Qt.
 - No WinUI/XAML/C# runtime dependency was introduced.
 - No new images or visual assets were created, generated, downloaded, or added.
 - Arabic support remains present.

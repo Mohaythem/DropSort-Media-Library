@@ -1,0 +1,51 @@
+﻿using Xunit;
+
+namespace TBDMovies.Tests.UI;
+
+public sealed class Phase3UiSourceContractTests
+{
+    private static readonly string Root = FindRoot();
+
+    [Fact]
+    public void Home_uses_persisted_history_and_continue_services()
+    {
+        var code = File.ReadAllText(Path.Combine(Root, "Views", "HomePage.xaml.cs"));
+        Assert.Contains("ListRecentCompleted", code);
+        Assert.Contains("ListActive", code);
+        Assert.Contains("HistoryUnavailableHelp", code);
+        Assert.Contains("HistoryCard_Click", code);
+        // Landscape completed-viewing cards prefer wide artwork and retain the poster fallback.
+        Assert.Contains("[item.BackdropReference, item.ArtworkReference, item.PosterReference]", code);
+        Assert.Contains("HomeContinueEpisodeFormat", code);
+        Assert.Contains("item.ShowTitle", code);
+    }
+
+    [Fact]
+    public void Home_artwork_is_one_way_and_has_a_fallback_surface()
+    {
+        var xaml = File.ReadAllText(Path.Combine(Root, "Views", "HomePage.xaml"));
+        Assert.Contains("ArtworkSource, Mode=OneWay", xaml);
+        Assert.Contains("PosterGlyphForegroundBrush", xaml);
+        Assert.Contains("HistorySection", xaml);
+    }
+
+    [Fact]
+    public void Episode_watch_action_is_explicit_and_play_does_not_record()
+    {
+        var page = File.ReadAllText(Path.Combine(Root, "Views", "TVShowDetailsPage.xaml.cs"));
+        var xaml = File.ReadAllText(Path.Combine(Root, "Views", "TVShowDetailsPage.xaml"));
+        Assert.Contains("EpisodeMarkWatched_Click", xaml);
+        Assert.Contains("RecordEpisodeWatch", page);
+        var playStart = page.IndexOf("private async Task PlayEpisodeAsync", StringComparison.Ordinal);
+        Assert.True(playStart >= 0);
+        Assert.DoesNotContain("RecordEpisodeWatch", page[playStart..]);
+    }
+
+    private static string FindRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "TBDMovies.slnx")))
+            directory = directory.Parent;
+        return Path.Combine(directory?.FullName ?? throw new InvalidOperationException("Solution root not found"), "src", "TBDMovies.UI");
+    }
+}

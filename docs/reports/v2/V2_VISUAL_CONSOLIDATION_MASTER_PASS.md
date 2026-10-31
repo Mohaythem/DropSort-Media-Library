@@ -1,8 +1,8 @@
-# DropSort Visual Consolidation Master Pass
+# TBD Movies Visual Consolidation Master Pass
 
 ## 1. Scope
 
-Completed the requested UI-only consolidation in D:\DropSort_ chat\DropSort. DropSort remains Python, PySide6/Qt, SQLite, Windows desktop, and local-first. No WinUI, XAML, C#, schema, migration, metadata-provider, watch-event, or file-operation behavior was added or changed.
+Completed the requested UI-only consolidation in D:\TBD Movies_ chat\TBD Movies. TBD Movies remains Python, PySide6/Qt, SQLite, Windows desktop, and local-first. No WinUI, XAML, C#, schema, migration, metadata-provider, watch-event, or file-operation behavior was added or changed.
 
 ## 2. User Screenshot References
 
@@ -22,7 +22,7 @@ NavigationItem now owns id, label, tooltip, Fluent icon, destination, object nam
 
 ## 6. Expanded Sidebar
 
-The default width is 272px. The sidebar owns the full left edge, uses text-only DropSort identity beside Back, keeps rows left-aligned at 42px, and uses normal-width Windows-like selected backplates.
+The default width is 272px. The sidebar owns the full left edge, uses text-only TBD Movies identity beside Back, keeps rows left-aligned at 42px, and uses normal-width Windows-like selected backplates.
 
 ## 7. Compact Sidebar
 
@@ -158,17 +158,17 @@ Repeated 20/18/10/3/2 layout values in reconciliation and Settings were replaced
 
 ## 39. Files Modified
 
-- src\dropsort\application\configuration\theme.py
-- src\dropsort\ui\main_window\window.py
-- src\dropsort\ui\common\theme.py
-- src\dropsort\ui\settings\settings_view.py
-- src\dropsort\ui\movie_details\details_view.py
-- src\dropsort\ui\library\movie_card.py
-- src\dropsort\ui\library\movie_grid.py
-- src\dropsort\ui\personal_library\personal_library_view.py
-- src\dropsort\ui\history\view.py
-- src\dropsort\ui\reconciliation\page.py
-- src\dropsort\ui\reconciliation\dialogs.py
+- src\TBD Movies\application\configuration\theme.py
+- src\TBD Movies\ui\main_window\window.py
+- src\TBD Movies\ui\common\theme.py
+- src\TBD Movies\ui\settings\settings_view.py
+- src\TBD Movies\ui\movie_details\details_view.py
+- src\TBD Movies\ui\library\movie_card.py
+- src\TBD Movies\ui\library\movie_grid.py
+- src\TBD Movies\ui\personal_library\personal_library_view.py
+- src\TBD Movies\ui\history\view.py
+- src\TBD Movies\ui\reconciliation\page.py
+- src\TBD Movies\ui\reconciliation\dialogs.py
 - tests\unit\application\test_theme_settings.py
 - tests\integration\application\test_language_settings.py
 - tests\unit\ui\test_sidebar.py
@@ -189,11 +189,11 @@ Coverage.py combined project metric: 94.5445 percent, displayed as 95 percent. S
 
 ## 43. Packaging
 
-PyInstaller 6.22.0 built successfully from DropSort.spec using Python 3.12.10. The audited distribution contains all migration scripts, 26 Fluent SVGs, Inter and Noto Sans Arabic fonts, TMDB attribution asset, DropSort identity assets, licenses, README, and third-party notices.
+PyInstaller 6.22.0 built successfully from TBD Movies.spec using Python 3.12.10. The audited distribution contains all migration scripts, 26 Fluent SVGs, Inter and Noto Sans Arabic fonts, TMDB attribution asset, TBD Movies identity assets, licenses, README, and third-party notices.
 
 ## 44. Official Release Artifact
 
-D:\DropSort_ chat\DropSort\release\DropSort\DropSort.exe was replaced from the verified final disposable build. The official one-directory release contains 221 files; the executable timestamp is 2026-08-16 21:34:21 local time and size is 2,460,418 bytes.
+D:\TBD Movies_ chat\TBD Movies\release\TBD Movies\TBD Movies.exe was replaced from the verified final disposable build. The official one-directory release contains 221 files; the executable timestamp is 2026-08-16 21:34:21 local time and size is 2,460,418 bytes.
 
 ## 45. SHA-256
 
@@ -201,7 +201,7 @@ D3EB472BCD5D27A8CEA6FDC934EED7454FF5933C8329BBAE245E191186E12CEE
 
 ## 46. Real Windows GUI Inspection
 
-BLOCKED. The exact official executable was launched normally as process 2640 with window title DropSort Media Library and project-local isolated app data. The computer-control kernel failed twice before list_apps with windows sandbox failed: helper_unknown_error: apply deny-read ACLs, including the one permitted kernel reset/retry. No pixel-level visual PASS is claimed. The exact final release remains open under the isolated empty profile for user visual review.
+BLOCKED. The exact official executable was launched normally as process 2640 with window title TBD Movies Media Library and project-local isolated app data. The computer-control kernel failed twice before list_apps with windows sandbox failed: helper_unknown_error: apply deny-read ACLs, including the one permitted kernel reset/retry. No pixel-level visual PASS is claimed. The exact final release remains open under the isolated empty profile for user visual review.
 
 ## 47. File-Safety Review
 
@@ -217,9 +217,9 @@ BLOCKED_PENDING_VISUAL_APPROVAL. Implementation, tests, accepted coverage, packa
 
 ## Required Confirmations
 
-- DropSort remains Python/PySide6/Qt; no WinUI/XAML/C# runtime dependency was introduced.
+- TBD Movies remains Python/PySide6/Qt; no WinUI/XAML/C# runtime dependency was introduced.
 - The sidebar follows the supplied Windows NavigationView structure with left-aligned navigation, 272px expanded width, and a 56px compact rail.
-- Settings is a normal bottom navigation row. DropSort is text-only. Back and a real pane toggle are shell-owned.
+- Settings is a normal bottom navigation row. TBD Movies is text-only. Back and a real pane toggle are shell-owned.
 - Search remains present on every page; non-Library queries route to Library and remain local-only with no TMDB/network search.
 - TMDB Settings is one card with no Open TMDB action and exactly one Setup Guide action.
 - History and Recovery is content-height and compact.

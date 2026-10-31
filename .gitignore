@@ -53,8 +53,8 @@ Thumbs.db
 
 # Local artifacts and scratch space
 artifacts/
-DropSort_WinUI3/artifacts/
+TBDMovies_WinUI3/artifacts/
 unstream-proxy/
 .archify/
-DropSort_WinUI3/*.txt
+TBDMovies_WinUI3/*.txt
 portable/

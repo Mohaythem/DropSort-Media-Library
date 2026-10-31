@@ -69,7 +69,7 @@ No periodic retries or network watcher were added. A later ordinary check, scan,
 Final verification: **42 passed, 0 failed, 0 skipped**. These tests compile the latest backend code. Network failures use deterministic injected probes; SQLite tests use disposable databases. No real user media or library database was used.
 
 ```powershell
-dotnet test 'DropSort_WinUI3\tests\DropSort.Tests\DropSort.Tests.csproj' -c Debug --filter 'FullyQualifiedName~NetworkHardeningTests|FullyQualifiedName~NetworkCatalogSafetyTests|FullyQualifiedName~DriveAwareAvailabilityTests|FullyQualifiedName~DiscoveryNetworkHardeningTests|FullyQualifiedName~DiscoveryParsingTests|FullyQualifiedName~PostHandoffRequestTests' --no-restore
+dotnet test 'TBDMovies_WinUI3\tests\TBD Movies.Tests\TBD Movies.Tests.csproj' -c Debug --filter 'FullyQualifiedName~NetworkHardeningTests|FullyQualifiedName~NetworkCatalogSafetyTests|FullyQualifiedName~DriveAwareAvailabilityTests|FullyQualifiedName~DiscoveryNetworkHardeningTests|FullyQualifiedName~DiscoveryParsingTests|FullyQualifiedName~PostHandoffRequestTests' --no-restore
 ```
 
 Coverage includes all three availability states, timeout suppression, extended UNC share identity, sequential recovery, healthy local-root progress, full catalog/personal/list/TV relationship snapshots, complete offline media-row preservation, cancellation before reconciliation/relink writes, safe action failure, cancellation before shell activation, and healthy sibling discovery. The final test compile reports five existing xUnit1031 warnings in `WriteCoordinationTests.cs`; that unrelated file was not changed.
@@ -81,7 +81,7 @@ Independent Astra review found no unresolved material findings after the repairs
 One Debug x64 / win-x64 build was requested through the existing VS MSBuild toolchain:
 
 ```powershell
-& 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe' 'src\DropSort.UI\DropSort.UI.csproj' -t:Build -p:Configuration=Debug -p:Platform=x64 -p:RuntimeIdentifier=win-x64 -p:SelfContained=true -verbosity:minimal -nologo
+& 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe' 'src\TBD Movies.UI\TBD Movies.UI.csproj' -t:Build -p:Configuration=Debug -p:Platform=x64 -p:RuntimeIdentifier=win-x64 -p:SelfContained=true -verbosity:minimal -nologo
 ```
 
 Result: **passed, exit 0**, with one CS8603 nullable warning. This was the only WinUI build. It preceded the final backend-only root-exception/guard-slot repairs and nullable annotation. The final focused tests compiled and verified those later backend changes. No second WinUI build was run. Log: `.audit-artifacts/unc-network-hardening-2026-10-02.Debug-x64.log`.

@@ -1,4 +1,4 @@
-# DropSort Final V1 UX Polish Follow-Up
+# TBD Movies Final V1 UX Polish Follow-Up
 
 ## Result
 
@@ -13,7 +13,7 @@ authorization, filesystem safety, or any physical-media operation.
 - Provider candidates are deduplicated by `(provider, external_id)` and capped at five after
   deduplication. Zero-result and provider-error states remain distinct and compact.
 - Automatic proposals with one valid candidate retain that candidate as the selected proposal, but
-  the user must still click **Add to DropSort Library**. No catalog or filesystem action is triggered
+  the user must still click **Add to TBD Movies Library**. No catalog or filesystem action is triggered
   by selection or matching.
 - **Edit Search** is shown only for movie proposals with no useful automatic candidate or unavailable
   metadata; successful match/review rows do not carry the extra button.
@@ -32,7 +32,7 @@ authorization, filesystem safety, or any physical-media operation.
 - Sidebar width is persisted through the existing SQLite settings boundary; invalid values fall
   back to the 220 px default. Compact state restores through the saved width.
 - The user-facing theme set is exactly **Main**, **Dark**, **Slate**, and **Light**. Main preserves
-  DropSort's original identity, Dark is the neutral charcoal palette, Slate uses the supplied dark
+  TBD Movies's original identity, Dark is the neutral charcoal palette, Slate uses the supplied dark
   palette, and Light uses the supplied light palette. Legacy `deep_ink`, `charcoal`, and `light_blue`
   IDs migrate to the new stable IDs without resetting the saved preference.
 - Language and theme/sidebar settings remain independent, with existing RTL/LTR and bundled
@@ -42,25 +42,25 @@ authorization, filesystem safety, or any physical-media operation.
 
 - `tests/unit/ui/test_sidebar.py`
 - `PHASE_6B_3_REPORT.md`
-- `src/dropsort/ui/assets/dropsort.svg`
-- `src/dropsort/ui/assets/dropsort.ico`
-- `src/dropsort/ui/common/icon.py`
+- `src/TBD Movies/ui/assets/TBD Movies.svg`
+- `src/TBD Movies/ui/assets/TBD Movies.ico`
+- `src/TBD Movies/ui/common/icon.py`
 
 ## Files modified
 
-- `src/dropsort/application/configuration/theme.py`
-- `src/dropsort/application/configuration/__init__.py`
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/application/use_cases/manual_movie_search.py`
-- `src/dropsort/database/repositories/settings.py`
-- `src/dropsort/database/repositories/__init__.py`
-- `src/dropsort/ui/contracts.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/localization.py`
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/settings/settings_view.py`
-- `src/dropsort/ui/scan/manual_search_dialog.py`
-- `src/dropsort/ui/scan/import_review_row.py`
+- `src/TBD Movies/application/configuration/theme.py`
+- `src/TBD Movies/application/configuration/__init__.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/application/use_cases/manual_movie_search.py`
+- `src/TBD Movies/database/repositories/settings.py`
+- `src/TBD Movies/database/repositories/__init__.py`
+- `src/TBD Movies/ui/contracts.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/localization.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/settings/settings_view.py`
+- `src/TBD Movies/ui/scan/manual_search_dialog.py`
+- `src/TBD Movies/ui/scan/import_review_row.py`
 - `tests/unit/application/test_manual_movie_search.py`
 - `tests/unit/application/test_theme_settings.py`
 - `tests/unit/ui/test_manual_search_dialog.py`
@@ -83,7 +83,7 @@ The existing one-directory PyInstaller process was rebuilt with PyInstaller **6.
 artifact is:
 
 ```text
-release\DropSort\DropSort.exe
+release\TBD Movies\TBD Movies.exe
 ```
 
 The rebuilt directory contains 188 files and 120,147,276 bytes (114.58 MiB total). Required Qt
@@ -104,7 +104,7 @@ VM was available; this is a **CLEAN-PROFILE APPROXIMATION**.
 - Fixed successful-row Edit Search clutter while retaining recovery for no-match/unavailable states.
 - Fixed Light Settings background layers.
 - Added bounded native splitter behavior, localized compact tooltips, and validated persisted width.
-- Added the branded DropSort application icon to QApplication/MainWindow and the PyInstaller EXE.
+- Added the branded TBD Movies application icon to QApplication/MainWindow and the PyInstaller EXE.
 - Replaced the legacy three-theme surface with the four-theme semantic palette and safe ID migration.
 
 No unresolved BLOCKER, CRITICAL, or release-relevant HIGH finding remains.

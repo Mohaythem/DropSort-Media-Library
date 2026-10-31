@@ -1,4 +1,4 @@
-# DropSort Final V1 Remaining-Issues Report
+# TBD Movies Final V1 Remaining-Issues Report
 
 ## Result
 
@@ -32,14 +32,14 @@ card. Title/year, TMDB ID, rating, and a bounded word-wrapped overview are separ
 each card owns its compact localized **Select** action. Results use a resizable vertical-only scroll
 area; the legacy dense raw-text rows, horizontal overflow, and detached full-width selection button
 were removed. Search remains background/non-blocking, selection remains candidate-only, and explicit
-**Add to DropSort Library** is still required. The card styling derives from the four centralized
+**Add to TBD Movies Library** is still required. The card styling derives from the four centralized
 themes and technical identifiers remain LTR-safe in Arabic mode.
 
 Focused source coverage for this correction is **17 passed, 0 failed**; the affected UI,
 localization, theme, import, and architecture gate is **57 passed, 0 failed**. The complete source
 suite after the change is **1023 passed, 5 skipped, 0 failed** with **95% total branch coverage**.
 The exact one-directory release was rebuilt with PyInstaller 6.22.0 at
-`release\\DropSort\\DropSort.exe`; its final audit is 190 files and 120,116,153 bytes (114.55 MiB),
+`release\\TBD Movies\\TBD Movies.exe`; its final audit is 190 files and 120,116,153 bytes (114.55 MiB),
 with required runtime resources present and zero secret/developer-path matches.
 
 The packaged executable was rebuilt and artifact-audited, but this controlled process did not perform
@@ -50,9 +50,9 @@ Those remain honest user-side retests; no packaged visual success is claimed her
 
 Added the branded local assets:
 
-- `src/dropsort/ui/assets/dropsort.svg`
-- `src/dropsort/ui/assets/dropsort.ico` (7 embedded sizes: 16, 24, 32, 48, 64, 128, 256)
-- `src/dropsort/ui/common/icon.py`
+- `src/TBD Movies/ui/assets/TBD Movies.svg`
+- `src/TBD Movies/ui/assets/TBD Movies.ico` (7 embedded sizes: 16, 24, 32, 48, 64, 128, 256)
+- `src/TBD Movies/ui/common/icon.py`
 
 `QApplication`, `MainWindow`, and packaged PyInstaller EXE use the icon. The SVG/ICO are bundled
 under the application asset directory; child dialogs inherit the application identity.
@@ -60,43 +60,43 @@ under the application asset directory; child dialogs inherit the application ide
 ## Themes and sidebar
 
 The user-facing theme selector now exposes exactly **Main**, **Dark**, **Slate**, and **Light**.
-Main preserves the original DropSort palette, Dark is the neutral charcoal direction, Slate maps
+Main preserves the original TBD Movies palette, Dark is the neutral charcoal direction, Slate maps
 the supplied dark scale, and Light maps the supplied light scale with themed Settings root,
 viewport, card-host, and scroll-exposed surfaces. Legacy persisted IDs migrate safely to the new
 stable IDs without resetting the saved preference.
 
 The sidebar remains a bounded persisted splitter. At widths below the explicit 200 px threshold it
 switches immediately to a compact icon-only layout: all branding/subtitle/navigation text is hidden,
-the DropSort mark is shown, icons use normalized 24 px sizing and 44 px button geometry, selected
+the TBD Movies mark is shown, icons use normalized 24 px sizing and 44 px button geometry, selected
 state is proportionate, and localized tooltips remain available in English and Arabic. Wider widths
 restore fully readable branding and labels.
 
 ## Files created
 
-- `src/dropsort/ui/assets/dropsort.svg`
-- `src/dropsort/ui/assets/dropsort.ico`
-- `src/dropsort/ui/common/icon.py`
-- `src/dropsort/application/runtime/single_instance.py`
-- `src/dropsort/ui/scan/manual_search_result_card.py`
+- `src/TBD Movies/ui/assets/TBD Movies.svg`
+- `src/TBD Movies/ui/assets/TBD Movies.ico`
+- `src/TBD Movies/ui/common/icon.py`
+- `src/TBD Movies/application/runtime/single_instance.py`
+- `src/TBD Movies/ui/scan/manual_search_result_card.py`
 - `PHASE_6B_FINAL_REMAINING_ISSUES_REPORT.md`
 
 ## Files modified
 
-- `src/dropsort/application/configuration/theme.py`
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/ui/common/__init__.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/localization.py`
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/reconciliation/dialogs.py`
-- `src/dropsort/ui/scan/import_review_row.py`
-- `src/dropsort/ui/scan/import_view.py`
-- `src/dropsort/ui/scan/manual_search_dialog.py`
-- `src/dropsort/ui/settings/settings_view.py`
+- `src/TBD Movies/application/configuration/theme.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/ui/common/__init__.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/localization.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/reconciliation/dialogs.py`
+- `src/TBD Movies/ui/scan/import_review_row.py`
+- `src/TBD Movies/ui/scan/import_view.py`
+- `src/TBD Movies/ui/scan/manual_search_dialog.py`
+- `src/TBD Movies/ui/settings/settings_view.py`
 - `tests/unit/ui/test_manual_search_dialog.py`
 - `tests/unit/ui/test_ui_architecture.py` (existing gate remains green)
-- `src/dropsort/application/runtime/__init__.py`
-- `DropSort.spec`
+- `src/TBD Movies/application/runtime/__init__.py`
+- `TBD Movies.spec`
 - `README.md`
 - `docs/status/PROJECT_STATUS.md`
 - `docs/status/RELEASE_CHECKLIST.md`
@@ -104,7 +104,7 @@ restore fully readable branding and labels.
 
 Single-instance implementation and focused tests:
 
-- `src/dropsort/application/runtime/single_instance.py`
+- `src/TBD Movies/application/runtime/single_instance.py`
 - `tests/unit/ui/test_single_instance.py`
 - `tests/unit/ui/test_main_window.py`
 - `tests/unit/ui/test_desktop_bootstrap.py`
@@ -122,12 +122,12 @@ The existing `packaging/build_release.ps1` rebuilt the one-directory portable re
 PyInstaller **6.22.0**. Final artifact:
 
 ```text
-release\DropSort\DropSort.exe
+release\TBD Movies\TBD Movies.exe
 ```
 
 Artifact audit: 190 files, 120,110,630 bytes (114.55 MiB). Required fonts, Arabic fonts, OFL
 licenses, migrations, TMDB attribution resources, README, notices, and icon assets are present.
-Forbidden runtime/test artifacts: 0. Developer-path matches: 0. DropSort credential/bearer-token
+Forbidden runtime/test artifacts: 0. Developer-path matches: 0. TBD Movies credential/bearer-token
 matches: 0. The executable associated icon loads successfully.
 
 A disposable packaged first-run launch from unrelated `C:\Windows\Temp` with a project-contained

@@ -1,4 +1,4 @@
-# DropSort Phase 6A Report
+# TBD Movies Phase 6A Report
 
 ## Result
 
@@ -9,7 +9,7 @@ organization, delete workflow, TV library, or other Phase 6B/later feature was i
 
 ## Goal and missing-file model
 
-DropSort now reconciles catalog paths with real filesystem availability without deleting catalog
+TBD Movies now reconciles catalog paths with real filesystem availability without deleting catalog
 records. The existing persisted states were reused:
 
 - `PRESENT`: the catalog path was confirmed as a regular, non-link/reparse file.
@@ -76,13 +76,13 @@ Relink writes no `file_operations` row and never moves, renames, copies, deletes
 Runtime locations are centralized and CWD-independent:
 
 ```text
-%LOCALAPPDATA%\DropSort\dropsort.db
-%LOCALAPPDATA%\DropSort\poster-cache\
-%LOCALAPPDATA%\DropSort\logs\dropsort.log
+%LOCALAPPDATA%\TBD Movies\TBD Movies.db
+%LOCALAPPDATA%\TBD Movies\poster-cache\
+%LOCALAPPDATA%\TBD Movies\logs\TBD Movies.log
 ```
 
-If `LOCALAPPDATA` is unavailable, DropSort uses the current user's
-`AppData\Local\DropSort` path, never the process working directory. Clean first run creates required
+If `LOCALAPPDATA` is unavailable, TBD Movies uses the current user's
+`AppData\Local\TBD Movies` path, never the process working directory. Clean first run creates required
 directories and runs migrations. Database startup failure shows a controlled message, logs the
 technical failure, and preserves the existing path rather than replacing it.
 
@@ -93,17 +93,17 @@ data. Poster-cache behavior remains the established bounded/atomic Phase 4C desi
 
 ## Files created
 
-- `src/dropsort/library/availability/__init__.py`
-- `src/dropsort/library/availability/models.py`
-- `src/dropsort/library/availability/inspector.py`
-- `src/dropsort/application/runtime/__init__.py`
-- `src/dropsort/application/runtime/paths.py`
-- `src/dropsort/application/runtime/logging.py`
-- `src/dropsort/application/dto/reconciliation.py`
-- `src/dropsort/application/use_cases/reconcile_library_files.py`
-- `src/dropsort/application/use_cases/relink_media_file.py`
-- `src/dropsort/ui/reconciliation/__init__.py`
-- `src/dropsort/ui/reconciliation/dialogs.py`
+- `src/TBD Movies/library/availability/__init__.py`
+- `src/TBD Movies/library/availability/models.py`
+- `src/TBD Movies/library/availability/inspector.py`
+- `src/TBD Movies/application/runtime/__init__.py`
+- `src/TBD Movies/application/runtime/paths.py`
+- `src/TBD Movies/application/runtime/logging.py`
+- `src/TBD Movies/application/dto/reconciliation.py`
+- `src/TBD Movies/application/use_cases/reconcile_library_files.py`
+- `src/TBD Movies/application/use_cases/relink_media_file.py`
+- `src/TBD Movies/ui/reconciliation/__init__.py`
+- `src/TBD Movies/ui/reconciliation/dialogs.py`
 - `tests/unit/library/test_media_availability.py`
 - `tests/unit/application/test_reconciliation_dto.py`
 - `tests/unit/application/test_reconciliation_architecture.py`
@@ -117,24 +117,24 @@ data. Poster-cache behavior remains the established bounded/atomic Phase 4C desi
 
 ## Files modified
 
-- `src/dropsort/application/bootstrap/__init__.py`
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/application/errors.py`
-- `src/dropsort/application/use_cases/__init__.py`
-- `src/dropsort/application/use_cases/_library_mapping.py`
-- `src/dropsort/application/dto/library.py`
-- `src/dropsort/database/repositories/library_queries.py`
-- `src/dropsort/database/repositories/media_files.py`
-- `src/dropsort/library/movies/__init__.py`
-- `src/dropsort/library/movies/models.py`
-- `src/dropsort/library/movies/queries.py`
-- `src/dropsort/library/movies/repositories.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/contracts.py`
-- `src/dropsort/ui/library/library_view.py`
-- `src/dropsort/ui/library/movie_card.py`
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/movie_details/details_view.py`
+- `src/TBD Movies/application/bootstrap/__init__.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/application/errors.py`
+- `src/TBD Movies/application/use_cases/__init__.py`
+- `src/TBD Movies/application/use_cases/_library_mapping.py`
+- `src/TBD Movies/application/dto/library.py`
+- `src/TBD Movies/database/repositories/library_queries.py`
+- `src/TBD Movies/database/repositories/media_files.py`
+- `src/TBD Movies/library/movies/__init__.py`
+- `src/TBD Movies/library/movies/models.py`
+- `src/TBD Movies/library/movies/queries.py`
+- `src/TBD Movies/library/movies/repositories.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/contracts.py`
+- `src/TBD Movies/ui/library/library_view.py`
+- `src/TBD Movies/ui/library/movie_card.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/movie_details/details_view.py`
 - `tests/integration/database/test_library_read_repository.py`
 - `tests/unit/ui/conftest.py`
 - `tests/unit/ui/test_desktop_bootstrap.py`
@@ -197,7 +197,7 @@ No unresolved BLOCKER or CRITICAL finding remains.
 ## Manual native-Windows verification
 
 A repository-local disposable catalog and tiny `.mkv` fixtures were used. Test setup externally
-renamed `Prisoners.2013.1080p.BluRay.mkv` to `Prisoners (2013).mkv` before DropSort acted.
+renamed `Prisoners.2013.1080p.BluRay.mkv` to `Prisoners (2013).mkv` before TBD Movies acted.
 
 Observed through the real Qt desktop/application boundaries:
 

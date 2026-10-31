@@ -1,4 +1,4 @@
-# DropSort WinUI 3 — Functional Wiring Report
+# TBD Movies WinUI 3 — Functional Wiring Report
 
 Date: 2026-09-02 · Branch `codex` · HEAD `e96a9b1` (working tree dirty, see *Files changed*)
 
@@ -6,7 +6,7 @@ Date: 2026-09-02 · Branch `codex` · HEAD `e96a9b1` (working tree dirty, see *F
 
 **PASS** for every flow the current backend supports. The shell is no longer a demo: Library, Movie
 Details, My Lists, Home, Add Media, Check Library, Operations Log and Settings all read and write the
-real SQLite catalog through the `DropSort.Application` contracts. What remains unwired is unwired
+real SQLite catalog through the `TBD Movies.Application` contracts. What remains unwired is unwired
 because the contract does not exist in this build (TV seasons/episodes, TMDB client, library
 snapshots) — each is listed below with its reason.
 
@@ -15,14 +15,14 @@ snapshots) — each is listed below with its reason.
 Every visible control was traced UI → handler → application service → repository/filesystem → result.
 A handler that existed but did nothing counted as broken. Verification was done by driving the real
 app (window-scoped `PrintWindow` captures) against real media files in `%TEMP%\dsmedia`, and by
-reading the resulting rows straight out of `%LOCALAPPDATA%\DropSort\library.db`.
+reading the resulting rows straight out of `%LOCALAPPDATA%\TBD Movies\library.db`.
 
 ## What was wired
 
 ### Composition root — new
 
-`src/DropSort.UI/Services/AppServices.cs` builds the V1 stack once: data folder
-`%LOCALAPPDATA%\DropSort`, `DatabaseMigrator.Migrate()`, `CatalogUnitOfWorkFactory`,
+`src/TBD Movies.UI/Services/AppServices.cs` builds the V1 stack once: data folder
+`%LOCALAPPDATA%\TBD Movies`, `DatabaseMigrator.Migrate()`, `CatalogUnitOfWorkFactory`,
 `PersonalLibraryRepository`, `SettingsRepository`, `LibraryMaintenanceRepository`,
 `FileOperationStore` + `FileOperationCoordinator`, `MediaDiscoveryService`, `AvailabilityInspector`,
 and the seven `IUiActions` facades. Initialization is lazy and never throws into a view; a failure
@@ -75,7 +75,7 @@ returned. Play and Open Folder were **dead controls with no handler at all** —
 the registered player and open Explorer with the file selected, and report a missing file instead of
 doing nothing. Organize File runs the journalled preview → confirm through
 `IOrganizationUiActions`, and states plainly that a movies root must be configured first when it is
-not (DropSort only ever moves into an approved root).
+not (TBD Movies only ever moves into an approved root).
 
 **Verified:** liked + watchlisted + marked watched → navigated away → re-opened: all three states
 came back from the database, watch history listed with a working remove button.
@@ -145,7 +145,7 @@ maintenance).
 | TV Shows tab, TV Show Details, seasons, episodes, Continue watching, TV stat tiles | The catalog has **no season or episode tables** and no TV repository or service exists. Building one is a new backend, not wiring | Renders the bundled sample in `DemoData`; episode actions inert; Add Media refuses to register episodes and says why |
 | Add Media → Add N Episodes | Same | States that episodes cannot be registered yet; the picked files are not touched |
 | TMDB Find Match / Search / Test Connection | No TMDB client in this build; the metadata provider is `UnconfiguredMetadataProvider`, which answers with no candidates instead of inventing them | Search reports "no results" / "add a token"; Test Connection states no client exists |
-| Export / Import library | No snapshot contract in `DropSort.Application` | States that snapshots are not part of this build; writes and reads nothing |
+| Export / Import library | No snapshot contract in `TBD Movies.Application` | States that snapshots are not part of this build; writes and reads nothing |
 | My Lists → items inside a user list | No membership table for custom lists; and there is no designed "add to list" control on Movie Details to feed one | The list exists, persists and is renameable; its empty state explains the gap |
 | Movie Details → Mark show watched / Open show folder (TV) | TV backend | Disabled menu items, as designed |
 | Relink a missing file | `PrepareMediaRelink` exists but needs a candidate-path picker flow that the design does not include | Missing files are reported with Open Folder |
@@ -163,8 +163,8 @@ removed.
 
 Two notes for the record:
 
-- The WinUI app uses its own database, `%LOCALAPPDATA%\DropSort\library.db`. The Python V1 database
-  (`dropsort.db`) in the same folder is **not** opened, read or migrated. Importing V1 data is a
+- The WinUI app uses its own database, `%LOCALAPPDATA%\TBD Movies\library.db`. The Python V1 database
+  (`TBD Movies.db`) in the same folder is **not** opened, read or migrated. Importing V1 data is a
   separate, explicitly-scoped job; running this schema's migrations against the user's V1 file could
   damage it.
 - Verification left four registered movies in the catalog pointing at `%TEMP%\dsmedia`, one of them
@@ -172,9 +172,9 @@ Two notes for the record:
 
 ## Build and tests
 
-- `bash "$TEMP/dsprobe/build.sh"` (msbuild; `dotnet build` cannot build DropSort.UI because of the
+- `bash "$TEMP/dsprobe/build.sh"` (msbuild; `dotnet build` cannot build TBD Movies.UI because of the
   MrtCore PriGen task): **succeeded**, no warnings surfaced.
-- `dotnet test tests/DropSort.Tests/DropSort.Tests.csproj`: **88 passed, 0 failed** (was 74 at the
+- `dotnet test tests/TBD Movies.Tests/TBD Movies.Tests.csproj`: **88 passed, 0 failed** (was 74 at the
   start of this pass).
 
 New focused tests for the repaired contracts:

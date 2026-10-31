@@ -1,6 +1,6 @@
-# DropSort Media Library — Skills Plan
+# TBD Movies Media Library — Skills Plan
 
-This file defines the AI-agent skills selected for **DropSort Media Library**.
+This file defines the AI-agent skills selected for **TBD Movies Media Library**.
 
 Primary upstream source:
 
@@ -14,7 +14,7 @@ The goal is **not** to activate every available skill on every task. Skills are 
 
 # 1. Always-On Core Skills
 
-These are the default engineering skills for substantial DropSort work.
+These are the default engineering skills for substantial TBD Movies work.
 
 ## `senior-architect`
 Source:
@@ -117,7 +117,7 @@ Source:
 
 Use only when a real schema/data/runtime migration is required.
 
-DropSort rule: do not create migrations merely because a new phase exists.
+TBD Movies rule: do not create migrations merely because a new phase exists.
 
 ---
 
@@ -181,7 +181,7 @@ Use for:
 - secret scanning;
 - release credential audit.
 
-DropSort must never ship or log a TMDB token.
+TBD Movies must never ship or log a TMDB token.
 
 ## `skill-security-auditor`
 Source:
@@ -201,7 +201,7 @@ Check for:
 Source:
 `engineering/skills/skill-tester/SKILL.md`
 
-Use for validating custom DropSort skills themselves.
+Use for validating custom TBD Movies skills themselves.
 
 ## `ship-gate`
 Source:
@@ -280,11 +280,11 @@ Do not create worktrees for simple single-agent edits.
 
 ---
 
-# 7. DropSort Custom Skills
+# 7. TBD Movies Custom Skills
 
-Generic skills do not know DropSort's non-negotiable safety rules. The project should retain dedicated custom skills under a local agent-skills directory such as `.codex/skills/` or the equivalent supported by the active agent.
+Generic skills do not know TBD Movies's non-negotiable safety rules. The project should retain dedicated custom skills under a local agent-skills directory such as `.codex/skills/` or the equivalent supported by the active agent.
 
-## `dropsort-project-rules`
+## `TBD Movies-project-rules`
 Purpose:
 - Windows desktop;
 - local-first;
@@ -294,7 +294,7 @@ Purpose:
 - explicit architecture boundaries;
 - strict scope control.
 
-## `dropsort-file-safety`
+## `TBD Movies-file-safety`
 Highest-priority custom skill.
 
 Rules include:
@@ -313,7 +313,7 @@ Lifecycle:
 
 `REQUEST → PLAN → VALIDATE → JOURNAL → EXECUTE → VERIFY → DATABASE COMMIT → DONE`
 
-## `dropsort-media-matching`
+## `TBD Movies-media-matching`
 Rules for:
 - movie/TV detection;
 - filename parsing;
@@ -326,7 +326,7 @@ Critical invariant:
 
 `MATCHED != CATALOG IMPORT AUTHORIZATION != FILESYSTEM AUTHORIZATION`
 
-## `dropsort-testing`
+## `TBD Movies-testing`
 Mandatory failure/adversarial cases include:
 - destination exists;
 - source disappears;
@@ -346,7 +346,7 @@ Mandatory failure/adversarial cases include:
 
 Never perform destructive tests on real user media.
 
-## `dropsort-review`
+## `TBD Movies-review`
 Before GREEN ask:
 - Can this lose a user file?
 - Can it overwrite anything?
@@ -359,8 +359,8 @@ Before GREEN ask:
 - Are failure/race paths tested?
 - Can secrets leak?
 
-## `dropsort-qt-lifecycle`
-Additional custom skill recommended for DropSort.
+## `TBD Movies-qt-lifecycle`
+Additional custom skill recommended for TBD Movies.
 
 Check:
 - retained QThread/task lifetime;
@@ -370,8 +370,8 @@ Check:
 - close/shutdown while work is active;
 - no filesystem/HTTP/database blocking work on the UI thread.
 
-## `dropsort-windows-runtime`
-Additional custom skill recommended for DropSort.
+## `TBD Movies-windows-runtime`
+Additional custom skill recommended for TBD Movies.
 
 Check:
 - Windows case folding;
@@ -384,7 +384,7 @@ Check:
 - CWD independence;
 - Explorer/default-player launching without `shell=True`.
 
-## `dropsort-release-gate`
+## `TBD Movies-release-gate`
 Additional custom skill recommended for the final V1 release.
 
 Check that the release contains no:
@@ -411,14 +411,14 @@ Use:
 - `tdd-guide`
 - `code-reviewer`
 - `adversarial-reviewer`
-- relevant DropSort custom skills
+- relevant TBD Movies custom skills
 
 ## Filesystem Move/Rename/Undo/Recovery
 Also require:
-- `dropsort-file-safety`
-- `dropsort-testing`
-- `dropsort-windows-runtime`
-- `dropsort-review`
+- `TBD Movies-file-safety`
+- `TBD Movies-testing`
+- `TBD Movies-windows-runtime`
+- `TBD Movies-review`
 
 ## SQLite/schema/query work
 Also use as applicable:
@@ -434,7 +434,7 @@ Also use:
 
 ## Qt/background work
 Also require:
-- `dropsort-qt-lifecycle`
+- `TBD Movies-qt-lifecycle`
 
 ## New agent taking over repository
 Use:
@@ -451,17 +451,17 @@ Require:
 - `senior-security`
 - `env-secrets-manager`
 - `technology-stack-evaluator` when choosing packaging tooling
-- `dropsort-release-gate`
-- `dropsort-windows-runtime`
-- `dropsort-file-safety`
-- `dropsort-testing`
-- `dropsort-review`
+- `TBD Movies-release-gate`
+- `TBD Movies-windows-runtime`
+- `TBD Movies-file-safety`
+- `TBD Movies-testing`
+- `TBD Movies-review`
 
 ---
 
 # 9. Skills Intentionally Not Default-Activated
 
-The upstream repository contains many excellent skills that are irrelevant to the current DropSort architecture. Do not load them simply because they exist.
+The upstream repository contains many excellent skills that are irrelevant to the current TBD Movies architecture. Do not load them simply because they exist.
 
 Examples not enabled by default:
 - AWS/Azure/GCP architecture;
@@ -475,7 +475,7 @@ Examples not enabled by default:
 - browser automation;
 - cloud observability stacks.
 
-They may be considered only if a future explicit DropSort requirement genuinely needs them.
+They may be considered only if a future explicit TBD Movies requirement genuinely needs them.
 
 ---
 

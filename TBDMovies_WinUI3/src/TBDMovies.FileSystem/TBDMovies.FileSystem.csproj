@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.22621</TargetFramework>
+    <RootNamespace>TBDMovies.FileSystem</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TBDMovies.Domain\TBDMovies.Domain.csproj" />
+    <ProjectReference Include="..\TBDMovies.Application\TBDMovies.Application.csproj" />
+  </ItemGroup>
+
+</Project>

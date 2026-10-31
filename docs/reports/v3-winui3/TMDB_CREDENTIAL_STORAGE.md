@@ -2,7 +2,7 @@
 
 Status: V2 implementation decision.
 
-DropSort is an unpackaged Windows desktop app. Its former session-only TMDB
+TBD Movies is an unpackaged Windows desktop app. Its former session-only TMDB
 credential required re-entry after restart. The SQLite settings repository stores
 plain strings and is unsuitable for a secret.
 
@@ -31,7 +31,7 @@ existing protected value takes precedence. Migration failure retains the legacy
 row for recovery. This deletes the logical setting; it does not rewrite old
 database backups or promise forensic erasure of historical SQLite pages.
 
-An isolated `DROPSORT_TEST_DATA_ROOT` selects a separate Credential Manager target
+An isolated `TBD Movies_TEST_DATA_ROOT` selects a separate Credential Manager target
 derived from that profile path. QA never reads, replaces, or deletes the normal
 profile's credential. Native round-trip tests use unique isolated profiles and
 synthetic values. Reports, screenshots, and logs must never contain real secrets.

@@ -1,6 +1,6 @@
-# DropSort Media Library — English UI String Inventory
+# TBD Movies Media Library — English UI String Inventory
 
-This inventory records the current English user-facing source copy relevant to the Phase 2.5 review. It is intentionally English-only. Arabic wording is not rewritten here; `src/dropsort/ui/localization.py` remains the localization source of truth.
+This inventory records the current English user-facing source copy relevant to the Phase 2.5 review. It is intentionally English-only. Arabic wording is not rewritten here; `src/TBD Movies/ui/localization.py` remains the localization source of truth.
 
 Placeholders are preserved exactly as they appear in the source catalog.
 
@@ -8,7 +8,7 @@ Placeholders are preserved exactly as they appear in the source catalog.
 
 Key: `window.title`  
 Screen: Main Window  
-English: DropSort Media Library  
+English: TBD Movies Media Library  
 Context: Native application window title.
 
 Key: `brand.subtitle`  
@@ -95,7 +95,7 @@ Context: Language control heading.
 
 Key: `settings.language.description`  
 Screen: Settings  
-English: Choose the language used by the DropSort interface.  
+English: Choose the language used by the TBD Movies interface.  
 Context: Language control description.
 
 Key: `settings.language.english`  
@@ -125,7 +125,7 @@ Context: Clear Library Data subsection heading.
 
 Key: `settings.clear_library.description`  
 Screen: Settings  
-English: Remove indexed movie and file data from DropSort. Your actual movie files will not be deleted.  
+English: Remove indexed movie and file data from TBD Movies. Your actual movie files will not be deleted.  
 Context: Danger Zone explanation.
 
 Key: `settings.clear_library`  
@@ -140,7 +140,7 @@ Context: Confirmation dialog title.
 
 Key: `settings.clear_library.confirm`  
 Screen: Settings  
-English: This clears local media-file links, metadata cache, and poster cache. Movies with personal data are retained; movies without retained personal data are forgotten. DropSort will NOT delete, move, rename, copy, or modify your physical movie files. Operation history and recovery records are preserved. Continue?  
+English: This clears local media-file links, metadata cache, and poster cache. Movies with personal data are retained; movies without retained personal data are forgotten. TBD Movies will NOT delete, move, rename, copy, or modify your physical movie files. Operation history and recovery records are preserved. Continue?  
 Context: Confirmation dialog body; no placeholders.
 
 Key: `settings.clear_library.running`  
@@ -172,7 +172,7 @@ Context: Offline setup help title.
 
 Key: `settings.tmdb.infobar.description`  
 Screen: Settings  
-English: DropSort uses TMDB for movie metadata and posters. Core setup instructions are available offline.  
+English: TBD Movies uses TMDB for movie metadata and posters. Core setup instructions are available offline.  
 Context: InfoBar description.
 
 Key: `settings.tmdb.setup_guide`  
@@ -259,7 +259,7 @@ Context: Initial empty state.
 
 Key: `library.load_error`  
 Screen: Library  
-English: DropSort could not load the local library. Please try again.  
+English: TBD Movies could not load the local library. Please try again.  
 Context: Local query error.
 
 Key: `library.check_files`  
@@ -410,7 +410,7 @@ Context: Ready-to-watch empty-state description.
 
 Key: `scan.title` / `scan.guidance`  
 Screen: Add Movies  
-English: Add Movies / Choose a folder. DropSort scans it read-only, then prepares metadata candidates for your review.  
+English: Add Movies / Choose a folder. TBD Movies scans it read-only, then prepares metadata candidates for your review.  
 Context: Import page heading and guidance.
 
 Key: `scan.folder_dialog`  
@@ -462,7 +462,7 @@ Context: Main page title.
 
 Key: `history.guidance`  
 Screen: Operations Log  
-English: Recent file operations performed by DropSort.  
+English: Recent file operations performed by TBD Movies.  
 Context: Page subtitle.
 
 Key: `common.refresh` / `history.copy` / `history.save`  

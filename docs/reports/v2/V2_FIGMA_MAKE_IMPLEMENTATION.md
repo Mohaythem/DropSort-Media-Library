@@ -1,8 +1,8 @@
-# DropSort Approved Figma Make Implementation
+# TBD Movies Approved Figma Make Implementation
 
 ## IMPLEMENTATION SUMMARY
 
-The approved `DropSort_Redesign_Stitch_Metrics_Pass_FIXED.make` package was
+The approved `TBD Movies_Redesign_Stitch_Metrics_Pass_FIXED.make` package was
 inspected as the primary visual source. Its embedded source snapshot resolves to
 commit `0152354554b9f4272c00c0fbf33d3a0447765cce`; the recovered Git pack has
 SHA-1 `5b3e0876e03b4455f162661b6ee123fbfeae3204`.
@@ -34,15 +34,15 @@ Implemented changes:
 
 Production files changed:
 
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/library/library_view.py`
-- `src/dropsort/ui/personal_library/personal_library_view.py`
-- `src/dropsort/ui/scan/import_view.py`
-- `src/dropsort/ui/reconciliation/page.py`
-- `src/dropsort/ui/movie_details/details_view.py`
-- `src/dropsort/ui/settings/settings_view.py`
-- `src/dropsort/ui/history/view.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/library/library_view.py`
+- `src/TBD Movies/ui/personal_library/personal_library_view.py`
+- `src/TBD Movies/ui/scan/import_view.py`
+- `src/TBD Movies/ui/reconciliation/page.py`
+- `src/TBD Movies/ui/movie_details/details_view.py`
+- `src/TBD Movies/ui/settings/settings_view.py`
+- `src/TBD Movies/ui/history/view.py`
 
 Focused contract tests were updated in `test_sidebar.py`,
 `test_sidebar_prototype_match.py`, `test_phase29_windows_shell.py`,
@@ -54,7 +54,7 @@ was changed. No images were generated or added.
 
 ## DESIGN / PRODUCT FEEDBACK
 
-- [KEEP] The fixed expanded navigation is substantially clearer for DropSort's five
+- [KEEP] The fixed expanded navigation is substantially clearer for TBD Movies's five
   destinations and removes a low-value desktop state.
 - [KEEP] The Make Slate palette maps cleanly to the existing semantic theme system;
   all themes continue to share one geometry system.
@@ -98,8 +98,8 @@ was changed. No images were generated or added.
 
 The exact official executable was launched with the normal Windows GUI and an isolated
 project-local profile. The process path was
-`D:\DropSort_ chat\DropSort\release\DropSort\DropSort.exe`; Windows reported title
-`DropSort Media Library` and `Responding = True`.
+`D:\TBD Movies_ chat\TBD Movies\release\TBD Movies\TBD Movies.exe`; Windows reported title
+`TBD Movies Media Library` and `Responding = True`.
 
 The required Computer Use helper failed before `list_apps` on the initial call, the
 permitted lightweight retry, and the fresh-kernel retry with:
@@ -129,7 +129,7 @@ Manual screenshot checklist:
 - Build status: PASS.
 - Builder: PyInstaller 6.22.0, Python 3.12.10, Windows 11.
 - Official executable:
-  `D:\DropSort_ chat\DropSort\release\DropSort\DropSort.exe`
+  `D:\TBD Movies_ chat\TBD Movies\release\TBD Movies\TBD Movies.exe`
 - Executable size: 2,457,558 bytes.
 - Official release inventory: 221 files.
 - SHA-256:
@@ -145,7 +145,7 @@ Manual screenshot checklist:
 - Add Movies retains the real combined folder-picker/start-review interaction instead
   of inventing separate Browse and Scan state.
 - The existing Library Check shortcut remains alongside permanent sidebar navigation.
-- Existing Library cards retain DropSort's established 168 px card width and poster
+- Existing Library cards retain TBD Movies's established 168 px card width and poster
   crop behavior rather than forcing browser CSS aspect-ratio rendering.
 - Native Qt calendar, scrollbar, focus, font rasterization, and text wrapping can differ
   slightly from Chromium/Figma Make rendering.

@@ -1,8 +1,8 @@
-# 🎬 DropSort Media Library — Source of Truth v3
+# 🎬 TBD Movies Media Library — Source of Truth v3
 
 ## الفكرة
 
-**DropSort Media Library** هو برنامج Windows Desktop محلي لإدارة مكتبة الأفلام والملفات الحقيقية الموجودة على الجهاز، مع فصل واضح بين:
+**TBD Movies Media Library** هو برنامج Windows Desktop محلي لإدارة مكتبة الأفلام والملفات الحقيقية الموجودة على الجهاز، مع فصل واضح بين:
 
 - **هوية الفيلم**.
 - **الملفات المسجلة المرتبطة به**.
@@ -17,7 +17,7 @@
 
 الهدف الأساسي:
 
-> أي فيلم يدخل الجهاز يمكن لـDropSort تسجيله محليًا، فهمه وتنظيمه وربطه بالـMetadata عند توفر الإنترنت، ثم عرضه وإدارته وتشغيله من مكتبة محلية مستقرة وآمنة.
+> أي فيلم يدخل الجهاز يمكن لـTBD Movies تسجيله محليًا، فهمه وتنظيمه وربطه بالـMetadata عند توفر الإنترنت، ثم عرضه وإدارته وتشغيله من مكتبة محلية مستقرة وآمنة.
 
 ---
 
@@ -44,7 +44,7 @@ TMDB هو **enrichment layer** وليس مصدر تشغيل المكتبة.
 
 ## 2. No Full Library Refresh on Startup
 
-عند فتح DropSort:
+عند فتح TBD Movies:
 
 ```text
 Start App
@@ -76,7 +76,7 @@ Startup = Full Refresh
 
 ## 3. Registered File ≠ Currently Available File
 
-وجود `MediaFile` في DropSort يعني أن الملف **مسجل ضمن المكتبة**، وليس أن التطبيق قام للتو بإثبات وجوده على الهارد.
+وجود `MediaFile` في TBD Movies يعني أن الملف **مسجل ضمن المكتبة**، وليس أن التطبيق قام للتو بإثبات وجوده على الهارد.
 
 الحالة المنطقية للملف تكون مثل:
 
@@ -121,7 +121,7 @@ Movie has at least one registered MediaFile
 
 # ❌ Missing Files — السلوك المعتمد
 
-DropSort **لا يفحص المكتبة كلها تلقائيًا عند Startup** بحثًا عن الملفات المفقودة.
+TBD Movies **لا يفحص المكتبة كلها تلقائيًا عند Startup** بحثًا عن الملفات المفقودة.
 
 التحقق يكون عند الحاجة.
 
@@ -130,7 +130,7 @@ DropSort **لا يفحص المكتبة كلها تلقائيًا عند Startup
 ```text
 User presses Play / Open Movie
 ↓
-DropSort checks the selected MediaFile
+TBD Movies checks the selected MediaFile
 ```
 
 لو الملف موجود:
@@ -177,7 +177,7 @@ Remove Missing Entry
 # 🔄 Main Movie Workflow
 
 ```text
-User selects / DropSort discovers media
+User selects / TBD Movies discovers media
    ↓
 Local Media Detection
    ↓
@@ -216,7 +216,7 @@ Metadata success
 D:\Movies\The.Matrix.1999.1080p.mkv
 ```
 
-ولا يوجد إنترنت، يمكن لـDropSort إنشاء حالة محلية مبدئية:
+ولا يوجد إنترنت، يمكن لـTBD Movies إنشاء حالة محلية مبدئية:
 
 ```text
 MovieId: local stable ID
@@ -314,7 +314,7 @@ Poster: Pending
 
 # 🔍 Search
 
-البحث الأساسي داخل DropSort **Local فقط**.
+البحث الأساسي داخل TBD Movies **Local فقط**.
 
 ```text
 Library Search
@@ -343,7 +343,7 @@ Metadata enrichment
 
 ---
 
-# 📁 DropSort Filesystem Engine
+# 📁 TBD Movies Filesystem Engine
 
 المحرك مسؤول عن التعامل الآمن مع الملفات الحقيقية.
 
@@ -500,7 +500,7 @@ Committed
 
 ممكن الملفات تتحرك وتُتحقق بنجاح، ثم يفشل تحديث SQLite.
 
-في هذه الحالة DropSort لا يدعي أن العملية مكتملة، بل يحتفظ بحقيقة أن Recovery مطلوب.
+في هذه الحالة TBD Movies لا يدعي أن العملية مكتملة، بل يحتفظ بحقيقة أن Recovery مطلوب.
 
 ---
 
@@ -570,7 +570,7 @@ schema_migrations
 
 # 🧹 Clear Library Data
 
-`Clear Library Data` تعني إزالة **الحالة النشطة داخل DropSort**.
+`Clear Library Data` تعني إزالة **الحالة النشطة داخل TBD Movies**.
 
 بعد نجاحها:
 
@@ -660,7 +660,7 @@ Open External Page
 
 # ▶️ Playback
 
-DropSort لا يحتاج Video Player داخلي في البداية.
+TBD Movies لا يحتاج Video Player داخلي في البداية.
 
 عند:
 
@@ -731,7 +731,7 @@ Watched:
 
 # 🧠 Matching & Confidence
 
-عند توفر الإنترنت، يمكن لـDropSort مطابقة filename مع TMDB.
+عند توفر الإنترنت، يمكن لـTBD Movies مطابقة filename مع TMDB.
 
 مثال:
 
@@ -885,7 +885,7 @@ Missing Episodes
 
 # 🏗️ Current Implementation Direction
 
-التنفيذ المعتمد من الآن هو **مشروع DropSort الحالي المكتوب بـPython**.
+التنفيذ المعتمد من الآن هو **مشروع TBD Movies الحالي المكتوب بـPython**.
 
 الـStack الأساسي:
 
@@ -1104,7 +1104,7 @@ External links
 The.Departed.2006.1080p.BluRay.mkv
 ```
 
-DropSort:
+TBD Movies:
 
 1. يسجل الملف محليًا.
 2. ينشئ/يربط MovieId.
@@ -1147,7 +1147,7 @@ The.Departed.2006.1080p.BluRay.mkv
 Interstellar
 ```
 
-DropSort يتحقق من الـMediaFile المحدد.
+TBD Movies يتحقق من الـMediaFile المحدد.
 
 لو المسار غير موجود:
 
@@ -1195,7 +1195,7 @@ Single-movie update does not require full collection reconstruction
 
 # 🎯 Final Vision
 
-**DropSort Media Library** هو مدير مكتبة Media محلي للـWindows يربط:
+**TBD Movies Media Library** هو مدير مكتبة Media محلي للـWindows يربط:
 
 ```text
 Stable Movie Identity
@@ -1353,7 +1353,7 @@ Windows release verification
 
 # ✅ Source of Truth Rules
 
-هذا الملف هو **Product / Architecture Source of Truth** للاتجاه الحالي لـDropSort.
+هذا الملف هو **Product / Architecture Source of Truth** للاتجاه الحالي لـTBD Movies.
 
 عند وجود تعارض بينه وبين مستندات أقدم:
 

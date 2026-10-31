@@ -1,4 +1,4 @@
-# DropSort Media Library — V2 Phase 2.3
+# TBD Movies Media Library — V2 Phase 2.3
 
 ## Check Library UX & Escape Navigation
 
@@ -99,10 +99,10 @@ No source image or illustration file was created.
 
 ## 14. Files Modified
 
-- `src/dropsort/ui/reconciliation/dialogs.py`
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/localization.py`
+- `src/TBD Movies/ui/reconciliation/dialogs.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/localization.py`
 - `tests/unit/ui/test_reconciliation_dialogs.py`
 - `tests/unit/ui/test_main_window.py`
 
@@ -121,7 +121,7 @@ Architecture, localization, theme, Personal Library, Movie Details, reconciliati
 Fresh final command used repository-local basetemp:
 
 ```text
-python -m pytest -q --cov=dropsort --cov-branch --cov-report=term --basetemp=.pytest-v2-phase23-full-final
+python -m pytest -q --cov=TBD Movies --cov-branch --cov-report=term --basetemp=.pytest-v2-phase23-full-final
 ```
 
 Result: **1,086 passed, 5 skipped, 0 failed**.
@@ -141,12 +141,12 @@ The current PyInstaller workflow completed successfully with PyInstaller 6.22.0 
 Disposable package:
 
 ```text
-.build-phase23-dist/DropSort/DropSort.exe
+.build-phase23-dist/TBD Movies/TBD Movies.exe
 Size: 2,413,851 bytes
 SHA-256: 6A638642585E3387972D22BAC4F71F9775CFBCFD19E4B11DBE44842D1BD0F7F0
 ```
 
-The corrected isolated smoke launch remained alive under workspace-local LocalAppData, created a fresh empty database and log directory, and was stopped safely. Read-only SQLite inspection reported migrations 1 through 4, including `0004_personal_library_foundation.up.sql`, and the expected v4-era tables. Bundled migrations, fonts, TMDB SVG, DropSort SVG, and icon resources were present under the packaged `_internal` directory.
+The corrected isolated smoke launch remained alive under workspace-local LocalAppData, created a fresh empty database and log directory, and was stopped safely. Read-only SQLite inspection reported migrations 1 through 4, including `0004_personal_library_foundation.up.sql`, and the expected v4-era tables. Bundled migrations, fonts, TMDB SVG, TBD Movies SVG, and icon resources were present under the packaged `_internal` directory.
 
 ## 19. File-Safety Review
 
@@ -160,7 +160,7 @@ A preliminary smoke invocation was discarded because its disposable directory wa
 
 No new images or illustrations were created, generated, downloaded, or added.
 
-The source asset inventory remains the existing DropSort SVG/icon, TMDB SVG, and bundled font files. The Phase 2.3 visual work uses layout, typography, spacing, semantic colors, and existing Qt widgets only.
+The source asset inventory remains the existing TBD Movies SVG/icon, TMDB SVG, and bundled font files. The Phase 2.3 visual work uses layout, typography, spacing, semantic colors, and existing Qt widgets only.
 
 ## 21. Normal Review
 

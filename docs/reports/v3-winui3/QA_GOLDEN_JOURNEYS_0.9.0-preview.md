@@ -1,4 +1,4 @@
-# DropSort — Golden Journeys + Scale QA (0.9.0-preview)
+# TBD Movies — Golden Journeys + Scale QA (0.9.0-preview)
 
 Date: 2026-09-25 · Branch: `codex` · Installed build tested (not Debug).
 
@@ -12,10 +12,10 @@ seeded 10K root, the Library was **empty**.
   domain type, which requires `overview` to be **null or non-empty**. `Movies.ListAll()` therefore threw
   `ArgumentException: overview must be null or a non-empty string`; `LibraryService.ListMovies()` propagated
   it and `LibraryPage` fell into its catch, so the grid showed nothing. Raw SQL counts were non-zero the
-  whole time — the rows existed but were not read-path-visible. Normal DropSort import stores NULL, never ''.
+  whole time — the rows existed but were not read-path-visible. Normal TBD Movies import stores NULL, never ''.
 - **Fix:** the seeder now inserts `NULL` (never `''`) for absent overview, matching real application data.
   No production code changed. Schema stays v13.
-- **New verification:** `DropSort.QaSeed libcheck <db>` runs the real catalog read path
+- **New verification:** `TBD Movies.QaSeed libcheck <db>` runs the real catalog read path
   (`CatalogUnitOfWorkFactory` → `Movies.ListAll()` / `TvShows.ListAll()` — the same repositories/queries the
   app's `LibraryService`/`TvLibraryService` use) and **fails (exit 1)** on a throw or zero rows.
 
@@ -43,26 +43,26 @@ checklist (below). Interactive journeys, removable-drive, and clean-machine veri
 ## Environment
 - OS: Windows 11 Pro build 26200
 - CPU: Intel Core i7-13620H (16 logical) · RAM: 15.7 GB · Disk: SSD
-- App data path (default): `%LOCALAPPDATA%\DropSort`
+- App data path (default): `%LOCALAPPDATA%\TBD Movies`
 - Schema version: 13
 
 ## Artifact under test
-- Installed: `%LOCALAPPDATA%\Programs\DropSort\DropSort.UI.exe`, version `0.9.0-preview`, self-contained win-x64.
-- Setup: `artifacts/release/0.9.0-preview/DropSortSetup.exe` (rebuilt with the data-root override).
+- Installed: `%LOCALAPPDATA%\Programs\TBD Movies\TBD Movies.UI.exe`, version `0.9.0-preview`, self-contained win-x64.
+- Setup: `artifacts/release/0.9.0-preview/TBD MoviesSetup.exe` (rebuilt with the data-root override).
   SHA-256 `4E87498A949A3C91E1AF12F4615CE661E93ED608768B93D272E0FC11FEE2FD9B`, size 34,715,016 bytes.
 - Automated suite baseline: **381 / 381** passing.
 
 ## QA data isolation
-- The installed app resolves its data folder from `DROPSORT_TEST_DATA_ROOT` (absolute path) when set,
-  else the default `%LOCALAPPDATA%\DropSort`. This override was moved from Debug-only to all
+- The installed app resolves its data folder from `TBD Movies_TEST_DATA_ROOT` (absolute path) when set,
+  else the default `%LOCALAPPDATA%\TBD Movies`. This override was moved from Debug-only to all
   configurations so the installed Release build can run against a disposable profile. It is inert unless
   the variable is set and never changes the default location.
-- QA profiles live under `%LOCALAPPDATA%\Temp\dropsort-qa\{1k,5k,10k}` (disposable). The real user
-  library at `%LOCALAPPDATA%\DropSort` was never pointed at, moved, or mutated.
+- QA profiles live under `%LOCALAPPDATA%\Temp\TBD Movies-qa\{1k,5k,10k}` (disposable). The real user
+  library at `%LOCALAPPDATA%\TBD Movies` was never pointed at, moved, or mutated.
 
 ## Synthetic dataset generator (reproducible)
-- Tool: `tools/DropSort.QaSeed` (reuses the production `DatabaseMigrator`, so seeded DBs are the real v13
-  schema, then bulk-inserts). Run: `dotnet run --project tools/DropSort.QaSeed -c Release -- <root> <movies> <shows> [seed]`.
+- Tool: `tools/TBD Movies.QaSeed` (reuses the production `DatabaseMigrator`, so seeded DBs are the real v13
+  schema, then bulk-inserts). Run: `dotnet run --project tools/TBD Movies.QaSeed -c Release -- <root> <movies> <shows> [seed]`.
 - Variety: non-ASCII and long titles; distinct identity for duplicate-looking titles (unique provider/
   external_id); movies with present / missing / registered-only files; ~1/7 missing posters; metadata
   status mix; TV shows with 1–3 seasons and present/missing episodes; 5 custom lists incl. an Arabic name;
@@ -82,7 +82,7 @@ checklist (below). Interactive journeys, removable-drive, and clean-machine veri
 | 5K | 923 ms | 987 ms | yes | yes |
 | 10K | 1186 ms | 1205 ms | yes | yes |
 
-Methodology: installed EXE launched with `DROPSORT_TEST_DATA_ROOT` set; wall-clock from process start
+Methodology: installed EXE launched with `TBD Movies_TEST_DATA_ROOT` set; wall-clock from process start
 until `MainWindowHandle != 0` (proxy for time-to-usable window); process fully stopped between runs.
 No established SLO exists, so no pass/fail threshold is invented. Observation: startup is ~0.7–1.2 s and
 grows only modestly from 1K to 10K (roughly flat, no nonlinear blow-up, no hang, no immediate exit).
@@ -123,8 +123,8 @@ cascades, migration backup fail-closed, StorageUnavailable vs Missing — all gr
 
 ## Manual GUI checklist (run against the installed app; set the QA data root first)
 Set once per shell, then launch the installed app:
-`setx-free:  $env:DROPSORT_TEST_DATA_ROOT="$env:LOCALAPPDATA\Temp\dropsort-qa\10k"` then start
-`%LOCALAPPDATA%\Programs\DropSort\DropSort.UI.exe`. Then verify (5 groups):
+`setx-free:  $env:TBD Movies_TEST_DATA_ROOT="$env:LOCALAPPDATA\Temp\TBD Movies-qa\10k"` then start
+`%LOCALAPPDATA%\Programs\TBD Movies\TBD Movies.UI.exe`. Then verify (5 groups):
 1. Library: cards appear quickly; scrolling stays smooth; posters fall back to placeholder with correct
    2:3 geometry (QA poster refs are synthetic, so all show placeholders — no layout collapse, no runaway).
 2. Search/Sort: type a common prefix, a rare title, and no-result; switch Movies/TV; Date added/Title/Year
@@ -234,7 +234,7 @@ schema v13, suite 385/385.
   startup reconciliation; that plus the user-facing restore workflow remain a documented deferred pre-1.0
   item. No implementation change made (implementing a state machine for unreachable code would be
   gold-plating).
-- **Backup privacy/ACL (Phase 6): OK.** Backups live in `%LOCALAPPDATA%\DropSort\backups`. The code sets no
+- **Backup privacy/ACL (Phase 6): OK.** Backups live in `%LOCALAPPDATA%\TBD Movies\backups`. The code sets no
   ACLs, so the folder inherits the per-user `%LOCALAPPDATA%` permissions — same isolation as the database
   itself; not made more permissive. No unsafe permission change; no elevation. A dedicated owner-only ACL
   remains an optional future hardening.
@@ -248,7 +248,7 @@ schema v13, suite 385/385.
   physical connect/eject/reconnect sequence needs the user's hardware.
 - **Clean-machine (Phase 8): NOT EXECUTED** — no VM/Windows Sandbox/second machine available (Sandbox not
   installed). Installed-artifact independence is otherwise evidenced: the installed app runs from
-  `%LOCALAPPDATA%\Programs\DropSort` self-contained (Phase 10), 10K smoke path confirms it.
+  `%LOCALAPPDATA%\Programs\TBD Movies` self-contained (Phase 10), 10K smoke path confirms it.
 - **Code signing (Phase 9): UNSIGNED — production code signing pending.** No certificate available. The
   Setup EXE and app EXE would receive Authenticode signatures (with timestamping) as a post-build step;
   until then Windows SmartScreen will warn on first run. External/distribution item, not a code defect.

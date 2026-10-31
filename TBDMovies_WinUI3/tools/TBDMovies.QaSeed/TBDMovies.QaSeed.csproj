@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- QA only synthetic library seeder. Reuses the production DatabaseMigrator (v13 schema), then bulk
+       inserts movies, TV shows, custom lists, membership and watch events with realistic variety.
+       Point the installed app at a seeded profile with TBDMOVIES_TEST_DATA_ROOT. Not shipped. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows10.0.22621</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>TBDMovies.QaSeed</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\TBDMovies.Infrastructure\TBDMovies.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\TBDMovies.Application\TBDMovies.Application.csproj" />
+    <ProjectReference Include="..\..\src\TBDMovies.Domain\TBDMovies.Domain.csproj" />
+  </ItemGroup>
+
+</Project>

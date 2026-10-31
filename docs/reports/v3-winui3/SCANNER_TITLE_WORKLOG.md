@@ -1,16 +1,16 @@
-# DropSort Scanner Improvements & Custom Display Title Worklog
+# TBD Movies Scanner Improvements & Custom Display Title Worklog
 
 ## Session Information
 - Date: 2026-10-21
-- Workspace: `D:/DropSort_ chat/DropSort`
-- Project: `DropSort_WinUI3`
+- Workspace: `D:/TBD Movies_ chat/TBD Movies`
+- Project: `TBDMovies_WinUI3`
 - Branch: `codex`
 - Primary Model: Gemini 3.8 Flash
 
 ## Pinned Upstream References & Provenance
 - `5rahim/seanime`: Commit [`4bdff7b27b6c043dc87c0ccad3ead54596133a05`](https://github.com/5rahim/seanime/tree/4bdff7b27b6c043dc87c0ccad3ead54596133a05) (GPL-3.0)
 - `5rahim/habari`: Commit [`2626d57ad205a5ea41a5d060355e9314e0457c3e`](https://github.com/5rahim/habari/tree/2626d57ad205a5ea41a5d060355e9314e0457c3e) (GPL-3.0)
-- Clean-Room Implementation Policy: All C# implementations in DropSort are independently authored clean-room code; no GPL upstream source code was copied or imported.
+- Clean-Room Implementation Policy: All C# implementations in TBD Movies are independently authored clean-room code; no GPL upstream source code was copied or imported.
 
 ---
 
@@ -20,7 +20,7 @@
 - **Problem**: `TitleInteractionController.TaskDelayScheduler` executed timer callbacks on `TaskScheduler.Default`. `MovieDetailsPage` and `TVShowDetailsPage` constructed the controller without a `uiDispatcher`, causing clipboard operations and XAML UI property updates (`Visibility`, `Text`, etc.) to run on a background thread pool thread, risking COMException (RPC_E_WRONG_THREAD) and clipboard failures.
 - **Correction**:
   - Injected UI dispatcher lambda into `TitleInteractionController` in both `MovieDetailsPage.xaml.cs` and `TVShowDetailsPage.xaml.cs`: `uiDispatcher: action => { if (DispatcherQueue.HasThreadAccess) action(); else DispatcherQueue.TryEnqueue(() => action()); }`.
-  - Updated `WindowsClipboardService` in `DropSort.UI` to accept `DispatcherQueue` and ensure thread-safe dispatching to the UI thread if invoked from a non-UI thread.
+  - Updated `WindowsClipboardService` in `TBD Movies.UI` to accept `DispatcherQueue` and ensure thread-safe dispatching to the UI thread if invoked from a non-UI thread.
   - Wired `_titleController.OnError` to display localized errors via `ShowMessageAsync(LocalizationService.Text("Failed"), error)`.
 
 ### Finding 2: Configurable Windows Double-Click Timing & Lifecycle Callback Invalidation
@@ -77,41 +77,41 @@
 All fresh verification runs have been executed and their exact commands, exit codes, and raw outputs are persisted in the bounded project artifacts directory: `artifacts/scanner-title-verification/`.
 
 ### 1. Fresh Focused Test Suite (65 Passed, 0 Failed)
-- **Command**: `dotnet test "tests/DropSort.Tests/DropSort.Tests.csproj" --filter "FullyQualifiedName~TvBatchAnalysisTests|FullyQualifiedName~ClassificationTests|FullyQualifiedName~TitleInteractionControllerTests|FullyQualifiedName~CustomDisplayTitlePersistenceTests" --verbosity normal`
+- **Command**: `dotnet test "tests/TBD Movies.Tests/TBD Movies.Tests.csproj" --filter "FullyQualifiedName~TvBatchAnalysisTests|FullyQualifiedName~ClassificationTests|FullyQualifiedName~TitleInteractionControllerTests|FullyQualifiedName~CustomDisplayTitlePersistenceTests" --verbosity normal`
 - **Exit Code**: `0`
 - **Result**: **65 passed, 0 failed, 0 skipped** (Duration: 3.90s).
-- **Log File**: [`artifacts/scanner-title-verification/01_focused_tests.log`](file:///D:/DropSort_%20chat/DropSort/DropSort_WinUI3/artifacts/scanner-title-verification/01_focused_tests.log)
+- **Log File**: [`artifacts/scanner-title-verification/01_focused_tests.log`](file:///D:/TBD Movies_%20chat/TBD Movies/TBDMovies_WinUI3/artifacts/scanner-title-verification/01_focused_tests.log)
 - **Coverage**:
   - `TvBatchAnalysisTests`: bare numbers under season folders, explicit filename season winning over folder conflict, movie sequel negative fixtures, resolution exclusion, ambiguous `BB - 105` exclusion, bracketed/parenthesized numbers, Arabic-Indic numbers.
   - `TitleInteractionControllerTests`: Windows double-click timing (double-click at 300ms cancels copy within 500ms window), safe blur retaining unsaved edits on failure, strict 500-char rejection, generation counter invalidation, lifecycle reuse after deactivation, clipboard exception safety, truthful clipboard failure semantics (returning false never displays badge), canonical clearing on whitespace/canonical match.
   - `CustomDisplayTitlePersistenceTests`: SQLite schema v19 migration, persistence across connection close/restart, metadata refresh preserving custom title, Trakt offline cache payload isolation, live watch history projection showing custom display title without rewriting historical snapshots, deleted media fallback to historical snapshot, custom list member custom title projection, continue watching custom title projection, rescan retention with disposable fixtures, and Trakt candidate identity extraction independence from custom titles.
 
 ### 2. Fresh Broad Test Suite (1,012 Passed, 0 Failed)
-- **Command**: `dotnet test "tests/DropSort.Tests/DropSort.Tests.csproj" --filter "FullyQualifiedName!~WindowsTmdbCredentialStoreTests"`
+- **Command**: `dotnet test "tests/TBD Movies.Tests/TBD Movies.Tests.csproj" --filter "FullyQualifiedName!~WindowsTmdbCredentialStoreTests"`
 - **Exit Code**: `0`
 - **Result**: **1,012 passed, 0 failed, 0 skipped** (Duration: 51s).
-- **Log File**: [`artifacts/scanner-title-verification/02_broad_test_suite.log`](file:///D:/DropSort_%20chat/DropSort/DropSort_WinUI3/artifacts/scanner-title-verification/02_broad_test_suite.log)
+- **Log File**: [`artifacts/scanner-title-verification/02_broad_test_suite.log`](file:///D:/TBD Movies_%20chat/TBD Movies/TBDMovies_WinUI3/artifacts/scanner-title-verification/02_broad_test_suite.log)
 - **Documented Notes**:
   - Test restore logs contain transient `NU1900` vulnerability-feed network warnings (offline runner environment unable to reach `api.nuget.org`).
   - Documented exclusion: `WindowsTmdbCredentialStoreTests` (uses native Windows Credential Manager `CredRead`/`CredWrite` API requiring an interactive Windows user profile with full DPAPI vault permissions; excluded per repository testing convention in automated runner environments).
 
 ### 3. Production Release x64 MSBuild (Succeeded, 0 Errors, 0 Warnings)
-- **Command**: `& "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "src/DropSort.UI/DropSort.UI.csproj" /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /v:m`
+- **Command**: `& "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/MSBuild.exe" "src/TBD Movies.UI/TBD Movies.UI.csproj" /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /v:m`
 - **Exit Code**: `0`
 - **Result**: **Build succeeded with 0 warnings and 0 errors**.
-- **Output Assembly**: `src/DropSort.UI/bin/x64/Release/net10.0-windows10.0.22621/win-x64/DropSort.UI.dll`
-- **Log File**: [`artifacts/scanner-title-verification/03_release_msbuild.log`](file:///D:/DropSort_%20chat/DropSort/DropSort_WinUI3/artifacts/scanner-title-verification/03_release_msbuild.log)
+- **Output Assembly**: `src/TBD Movies.UI/bin/x64/Release/net10.0-windows10.0.22621/win-x64/TBD Movies.UI.dll`
+- **Log File**: [`artifacts/scanner-title-verification/03_release_msbuild.log`](file:///D:/TBD Movies_%20chat/TBD Movies/TBDMovies_WinUI3/artifacts/scanner-title-verification/03_release_msbuild.log)
 - **Documented Acceptance Boundary**: Release `/v:m` exit 0 is build/compilation evidence proving type safety and assembly generation; it is not exhaustive UI visual verification or interactive runtime acceptance.
 
 ---
 
 ## Status of Proposed vs Deferred Work
 
-| Feature / Technique | Upstream Reference | DropSort Status | Technical Rationale |
+| Feature / Technique | Upstream Reference | TBD Movies Status | Technical Rationale |
 | :--- | :--- | :--- | :--- |
 | **Bare Numeric Episodes in Season Folders** | Habari `parser_episode.go` | **Implemented & Verified** | Files like `Season 01/05.mkv` and `[05].mkv` resolve to Season 1 Episode 5 without manual intervention. |
 | **Season Conflict Priority** | Seanime `matcher.go` | **Implemented & Verified** | Explicit filename marker (`S03E05`) always overrides contradictory season folder (`Season 02`). |
 | **Movie Sequel Protection** | Seanime schemas & database | **Implemented & Verified** | Movie sequels (`Toy Story 2`, `Part 2`) and resolutions (`720`) are protected from TV reclassification. |
 | **Custom Display Title (Movies & Shows)** | Seanime manual metadata overrides | **Implemented & Verified** | Schema v19, domain, persistence, projections, controller, WinUI 3 views, English/Arabic localization. |
-| **Parent-Folder Title Fallback during Raw Parse** | Seanime `SeparateFilePathS` + `GetFolderTitle` | **Deferred** | DropSort enforces strict separation: `MediaDiscoveryService.Parse` is purely factual; contextual title resolution is owned by `TvBatchAnalysisService` to prevent folder pollution (`Downloads/`, `Temp/`). |
+| **Parent-Folder Title Fallback during Raw Parse** | Seanime `SeparateFilePathS` + `GetFolderTitle` | **Deferred** | TBD Movies enforces strict separation: `MediaDiscoveryService.Parse` is purely factual; contextual title resolution is owned by `TvBatchAnalysisService` to prevent folder pollution (`Downloads/`, `Temp/`). |
 | **Roman Numeral & Matching Polish** | Seanime title normalization & aliases | **Deferred** | TMDB API search and `MetadataScorer` rely on clean Levenshtein ratio. Normalizing Roman numerals globally without an exhaustive live TMDB regression baseline risks false matches on franchise titles (*Rocky II*, *Star Wars*). |

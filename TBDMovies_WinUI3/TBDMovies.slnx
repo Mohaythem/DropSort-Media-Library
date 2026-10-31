@@ -1,0 +1,12 @@
+﻿<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TBDMovies.Application/TBDMovies.Application.csproj" />
+    <Project Path="src/TBDMovies.Domain/TBDMovies.Domain.csproj" />
+    <Project Path="src/TBDMovies.FileSystem/TBDMovies.FileSystem.csproj" />
+    <Project Path="src/TBDMovies.Infrastructure/TBDMovies.Infrastructure.csproj" />
+    <Project Path="src/TBDMovies.UI/TBDMovies.UI.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TBDMovies.Tests/TBDMovies.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -16,7 +16,7 @@ Complete safe rebranding to **TBD Movies** (To Be Determined Movies), merge `cod
    - Crash log (`tbd_movies_ui_crash.log`) and export log headers updated to "TBD Movies".
 
 3. **Data & Credential Self-Migration**:
-   - Added atomic MFT rename migration in `AppServices.cs` (`%LOCALAPPDATA%\DropSort` -> `%LOCALAPPDATA%\TBD Movies`) with `TBDMOVIES_TEST_DATA_ROOT` environment override.
+   - Added atomic MFT rename migration in `AppServices.cs` (`%LOCALAPPDATA%\TBD Movies` -> `%LOCALAPPDATA%\TBD Movies`) with `TBDMOVIES_TEST_DATA_ROOT` environment override.
    - Updated Windows Credential Manager targets to `TBDMovies/TMDB` and `TBDMovies/Trakt` with automatic fallback read/migration from legacy targets.
 
 4. **Multi-Agent Verification & Stress Testing**:
@@ -24,8 +24,8 @@ Complete safe rebranding to **TBD Movies** (To Be Determined Movies), merge `cod
    - Analyzed 10,000 catalog items scaling (UI virtualization verified on `LibraryPage`).
    - Analyzed 10,000 files import scan (background threading and cancellation responsiveness verified).
    - Analyzed Trakt 1,000 items / 100 playlists (HTTP 429 exponential backoff verified).
-   - Captured 7 runtime screenshots into `DropSort_WinUI3/artifacts/screenshots/2026-10-31/`.
-   - Recompiled Inno Setup installer (`DropSortSetup.exe`, 49.5 MB).
+   - Captured 7 runtime screenshots into `TBDMovies_WinUI3/artifacts/screenshots/2026-10-31/`.
+   - Recompiled Inno Setup installer (`TBD MoviesSetup.exe`, 49.5 MB).
 
 5. **Remote Push**:
    - Pushed `main` to `origin/main` (`b670131`).

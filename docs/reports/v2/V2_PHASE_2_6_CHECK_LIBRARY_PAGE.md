@@ -10,14 +10,14 @@ of checking behavior. No roadmap feature outside Check Library was started.
 ## 2. Previous Dialog Architecture
 
 Before this phase, `LibraryFileCheckDialog` in
-`src/dropsort/ui/reconciliation/dialogs.py` was the normal Check Library
+`src/TBD Movies/ui/reconciliation/dialogs.py` was the normal Check Library
 presentation. `MainWindow.show_library_file_check()` created and managed that
 dialog, while the Library page button emitted `check_files_requested` directly
 to that dialog path.
 
 ## 3. New Page Architecture
 
-`LibraryCheckPage` in `src/dropsort/ui/reconciliation/page.py` is a persistent
+`LibraryCheckPage` in `src/TBD Movies/ui/reconciliation/page.py` is a persistent
 `QWidget` owned by `MainWindow` and added to the existing `QStackedWidget`.
 It owns only UI/session coordination: state, progress, cancellation, result
 presentation, and navigation signals. It calls the existing
@@ -125,16 +125,16 @@ page colors, images, or illustrations were added.
 
 ## 17. Files Created
 
-- `src/dropsort/ui/reconciliation/page.py`
+- `src/TBD Movies/ui/reconciliation/page.py`
 - `tests/unit/ui/test_phase26_check_library_page.py`
 - `V2_PHASE_2_6_CHECK_LIBRARY_PAGE.md`
 
 ## 18. Files Modified
 
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/reconciliation/__init__.py`
-- `src/dropsort/ui/localization.py`
-- `src/dropsort/ui/common/theme.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/reconciliation/__init__.py`
+- `src/TBD Movies/ui/localization.py`
+- `src/TBD Movies/ui/common/theme.py`
 - `tests/unit/ui/test_main_window.py`
 
 The existing `LibraryFileCheckDialog` implementation was not rewritten and its
@@ -170,14 +170,14 @@ the final project run.
 Built with the existing PyInstaller specification into the isolated
 `.build-phase26-dist` directory. The executable is:
 
-`.build-phase26-dist/DropSort/DropSort.exe`
+`.build-phase26-dist/TBD Movies/TBD Movies.exe`
 
 SHA-256:
 
 `7D477EE2B04A0E85BC42644380C4F18A1D692745C9301B7AFCA6220986B86D71`
 
 The package contains all migration up/down files 0001 through 0004 under
-`_internal/dropsort/database/migrations`. The executable launched against
+`_internal/TBD Movies/database/migrations`. The executable launched against
 `.build-phase26-smoke-local` and created an empty isolated database/log. The
 smoke database contains migration rows `(1), (2), (3), (4)`, zero movies, and
 `PRAGMA user_version = 0`; no real media library was accessed.

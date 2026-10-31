@@ -2,7 +2,7 @@
 
 ## 1. Scope
 
-Phase 2.7 migrated DropSort's existing UI icon usage to one centralized Microsoft
+Phase 2.7 migrated TBD Movies's existing UI icon usage to one centralized Microsoft
 Fluent UI System Icons registry. The existing navigation architecture, labels,
 business behavior, database, file operations, and Check Library page behavior
 were preserved.
@@ -12,15 +12,15 @@ were preserved.
 The audit found one existing application identity icon, Qt standard icons in the
 main sidebar, a small number of Unicode fallback symbols, and many text-only
 buttons. The migrated locations now request semantic icons through the central
-registry. DropSort identity and TMDB attribution SVGs remain separate brand or
+registry. TBD Movies identity and TMDB attribution SVGs remain separate brand or
 attribution assets, not UI system icons.
 
 ## 3. Icon Loading Strategy
 
-`src/dropsort/ui/common/icon.py` now owns `FluentIconName`, the semantic asset
+`src/TBD Movies/ui/common/icon.py` now owns `FluentIconName`, the semantic asset
 map, SVG loading, palette-aware rendering, 16px sizing, disabled-state
 rendering, and theme refresh. Widgets do not contain raw SVG paths or asset
-filenames. Registered widgets retain `dropsortIconName` so MainWindow can
+filenames. Registered widgets retain `TBD MoviesIconName` so MainWindow can
 re-render them after a theme change.
 
 ## 4. Fluent Asset Strategy
@@ -100,7 +100,7 @@ status text and are not the sole communication channel.
 ## 12. Official Assets Added
 
 Added 26 official semantic SVG assets under
-`src/dropsort/ui/assets/fluent/`: `library`, `personal_library`, `add_movies`,
+`src/TBD Movies/ui/assets/fluent/`: `library`, `personal_library`, `add_movies`,
 `check_library`, `settings`, `panel_left`, `back`, `search`, `like`,
 `blacklist`, `watchlist`, `mark_watched`, `date_picker`, `play`, `open_folder`,
 `organize`, `delete`, `refresh`, `copy`, `save`, `operation_details`, `warning`,
@@ -117,7 +117,7 @@ custom path.
 
 ## 14. Files Created
 
-- `src/dropsort/ui/assets/fluent/*.svg` — 26 official Fluent SVG assets.
+- `src/TBD Movies/ui/assets/fluent/*.svg` — 26 official Fluent SVG assets.
 - `licenses/Microsoft-Fluent-UI-System-Icons-LICENSE.txt`.
 - `licenses/Microsoft-Fluent-UI-System-Icons-NOTICE.txt`.
 - `tests/unit/ui/test_phase27_fluent_icons.py`.
@@ -125,21 +125,21 @@ custom path.
 
 ## 15. Files Modified
 
-- `src/dropsort/ui/common/icon.py`.
-- `src/dropsort/ui/main_window/window.py`.
-- `src/dropsort/ui/library/library_view.py`.
-- `src/dropsort/ui/reconciliation/page.py`.
-- `src/dropsort/ui/reconciliation/dialogs.py`.
-- `src/dropsort/ui/movie_details/details_view.py`.
-- `src/dropsort/ui/history/view.py`.
-- `src/dropsort/ui/organization/dialog.py`.
-- `src/dropsort/ui/scan/import_review_row.py`.
-- `src/dropsort/ui/scan/import_view.py`.
-- `src/dropsort/ui/scan/manual_search_dialog.py`.
-- `src/dropsort/ui/scan/manual_search_result_card.py`.
-- `src/dropsort/ui/settings/settings_view.py`.
-- `src/dropsort/ui/localization.py`.
-- `DropSort.spec`.
+- `src/TBD Movies/ui/common/icon.py`.
+- `src/TBD Movies/ui/main_window/window.py`.
+- `src/TBD Movies/ui/library/library_view.py`.
+- `src/TBD Movies/ui/reconciliation/page.py`.
+- `src/TBD Movies/ui/reconciliation/dialogs.py`.
+- `src/TBD Movies/ui/movie_details/details_view.py`.
+- `src/TBD Movies/ui/history/view.py`.
+- `src/TBD Movies/ui/organization/dialog.py`.
+- `src/TBD Movies/ui/scan/import_review_row.py`.
+- `src/TBD Movies/ui/scan/import_view.py`.
+- `src/TBD Movies/ui/scan/manual_search_dialog.py`.
+- `src/TBD Movies/ui/scan/manual_search_result_card.py`.
+- `src/TBD Movies/ui/settings/settings_view.py`.
+- `src/TBD Movies/ui/localization.py`.
+- `TBD Movies.spec`.
 - `THIRD_PARTY_NOTICES.md`.
 
 ## 16. Focused Tests
@@ -166,9 +166,9 @@ branch-aware file coverage in that run.
 
 ## 19. Packaging
 
-PyInstaller built successfully with the existing `DropSort.spec` into the
+PyInstaller built successfully with the existing `TBD Movies.spec` into the
 isolated `.build-phase27-dist` directory. The package contains all 26 Fluent
-SVG assets under `_internal/dropsort/ui/assets/fluent`.
+SVG assets under `_internal/TBD Movies/ui/assets/fluent`.
 
 The packaged executable SHA-256 is:
 
@@ -201,7 +201,7 @@ referenced from `THIRD_PARTY_NOTICES.md`.
 
 ## 23. Normal Review
 
-DropSort remains Python/PySide6/Qt. No WinUI/XAML/C# runtime dependency was
+TBD Movies remains Python/PySide6/Qt. No WinUI/XAML/C# runtime dependency was
 introduced. Only authorized official Fluent SVG icon assets were added. No
 generated images, decorative illustrations, PNG/JPG icon exports, emoji, or
 unrelated visual assets were added. The icon abstraction is small and shared;
@@ -231,14 +231,14 @@ icon/text-gap issues on the actual display.
 `PASS`
 
 The Fluent 16 Filled icon system is implemented and verified without changing
-DropSort's navigation architecture or behavior. The 4px control radius, 8px
+TBD Movies's navigation architecture or behavior. The 4px control radius, 8px
 overlay radius, existing 42px navigation geometry, four themes, Arabic/RTL,
 schema v4, and file-safety boundaries remain intact. Check Library behavior was
 not redesigned by this icon phase.
 
 Required confirmations:
 
-- DropSort remains Python/PySide6/Qt.
+- TBD Movies remains Python/PySide6/Qt.
 - No WinUI/XAML/C# runtime dependency was introduced.
 - Only authorized official Fluent SVG icon assets were added.
 - No generated images, decorative illustrations, PNG/JPG icon exports, emoji, or unrelated visual assets were added.

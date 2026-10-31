@@ -1,4 +1,4 @@
-# DropSort .NET Rewrite — Phase 3 Report
+# TBD Movies .NET Rewrite — Phase 3 Report
 
 **Date:** 2026-08-31  
 **Status:** ✅ Phase 3 Complete  
@@ -7,10 +7,10 @@
 
 ## 1. Application Layer Parity
 
-The Application layer has been fully ported with behavioral parity to the V1 Python codebase. The architecture strictly enforces a Clean Architecture approach where `DropSort.Application` depends **only** on `DropSort.Domain`, containing no references to `DropSort.Infrastructure` or `DropSort.UI`.
+The Application layer has been fully ported with behavioral parity to the V1 Python codebase. The architecture strictly enforces a Clean Architecture approach where `TBD Movies.Application` depends **only** on `TBD Movies.Domain`, containing no references to `TBD Movies.Infrastructure` or `TBD Movies.UI`.
 
 ### UI Contracts (Application Facade)
-The 7 primary Python UI Protocols (`dropsort.ui.contracts`) were mapped exactly to C# Interfaces:
+The 7 primary Python UI Protocols (`TBD Movies.ui.contracts`) were mapped exactly to C# Interfaces:
 1. `ILibraryUiActions`
 2. `IPersonalLibraryUiActions`
 3. `IImportUiActions`
@@ -20,20 +20,20 @@ The 7 primary Python UI Protocols (`dropsort.ui.contracts`) were mapped exactly 
 7. `IReconciliationUiActions`
 
 ### Repository Abstractions (Infrastructure Ports)
-Data persistence and hardware boundaries are completely abstracted via interfaces in `DropSort.Application.Repositories`:
+Data persistence and hardware boundaries are completely abstracted via interfaces in `TBD Movies.Application.Repositories`:
 - `IMovieRepository`, `IMediaFileRepository`
 - `ICatalogUnitOfWork`, `ICatalogUnitOfWorkFactory` (for transactional boundaries)
 - `IFileOperationStore`, `ILibraryMaintenanceRepository`
 - `IPersonalLibraryRepository`
 
 ### External Service Abstractions
-Dependencies on third-party APIs and file system operations are decoupled via interfaces in `DropSort.Application.External`:
+Dependencies on third-party APIs and file system operations are decoupled via interfaces in `TBD Movies.Application.External`:
 - `IMetadataProvider` (Abstracts TMDB)
 - `IPosterService` (Abstracts Poster Cache/Fetching)
 - `ISafeTransferEngine` (Abstracts the File Engine)
 
 ### Data Transfer Objects (DTOs)
-All Python dataclasses in `dropsort.application.dto` were ported to C# records. These records ensure the presentation and infrastructure layers only communicate using safe primitives. Notable ports:
+All Python dataclasses in `TBD Movies.application.dto` were ported to C# records. These records ensure the presentation and infrastructure layers only communicate using safe primitives. Notable ports:
 - `MovieListItem`, `MovieDetails`
 - `ConfirmMovieImportCommand`, `MovieFileIngestionResult`
 - `LibraryHealthProgress`, `MetadataHealthItem`
@@ -58,8 +58,8 @@ The 19 audited use cases have been grouped and implemented into 5 primary Applic
 ## 3. Verification & Testing
 
 - **Mapping Artifact**: `application_mapping.md` provides a concise reference matrix between V1 Python boundaries and V2 C# boundaries.
-- **Build Isolation**: Confirmed via `dotnet build` that `DropSort.Application` has no dependency on Infrastructure or UI. 
-- **Tests Ported**: Created `tests/DropSort.Tests/Application/ApplicationServiceTests.cs` using rigorous Fake Repository implementations (e.g., `FakeUnitOfWork`, `FakeMetadataProvider`, `FakeMediaFileRepo`).
+- **Build Isolation**: Confirmed via `dotnet build` that `TBD Movies.Application` has no dependency on Infrastructure or UI. 
+- **Tests Ported**: Created `tests/TBD Movies.Tests/Application/ApplicationServiceTests.cs` using rigorous Fake Repository implementations (e.g., `FakeUnitOfWork`, `FakeMetadataProvider`, `FakeMediaFileRepo`).
 - **Results**: 
   - `dotnet test` completed with **0 failures** (43 tests passing across Domain and Application).
 

@@ -1,4 +1,4 @@
-# DropSort Phase 5A Report
+# TBD Movies Phase 5A Report
 
 Phase 5A is GREEN on native Windows (Python 3.12 / NTFS).
 
@@ -39,10 +39,10 @@ filesystem success remains journaled/recoverable; ambiguous states preserve file
 
 ## Files created
 
-- `src/dropsort/application/dto/organization.py`
-- `src/dropsort/application/use_cases/organize_media_file.py`
-- `src/dropsort/ui/organization/__init__.py`
-- `src/dropsort/ui/organization/dialog.py`
+- `src/TBD Movies/application/dto/organization.py`
+- `src/TBD Movies/application/use_cases/organize_media_file.py`
+- `src/TBD Movies/ui/organization/__init__.py`
+- `src/TBD Movies/ui/organization/dialog.py`
 - `tests/unit/application/test_organization_dto.py`
 - `tests/unit/application/test_organization_architecture.py`
 - `tests/integration/application/test_organization_flow.py`
@@ -51,15 +51,15 @@ filesystem success remains journaled/recoverable; ambiguous states preserve file
 
 ## Files modified
 
-- `src/dropsort/application/errors.py`
-- `src/dropsort/application/dto/__init__.py`
-- `src/dropsort/application/use_cases/__init__.py`
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/core/operations/service.py`
-- `src/dropsort/ui/contracts.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/movie_details/details_view.py`
-- `src/dropsort/ui/main_window/window.py`
+- `src/TBD Movies/application/errors.py`
+- `src/TBD Movies/application/dto/__init__.py`
+- `src/TBD Movies/application/use_cases/__init__.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/core/operations/service.py`
+- `src/TBD Movies/ui/contracts.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/movie_details/details_view.py`
+- `src/TBD Movies/ui/main_window/window.py`
 - `tests/unit/application/test_library_query_architecture.py`
 - `tests/unit/ui/test_desktop_bootstrap.py`
 - `tests/unit/ui/test_movie_details_view.py`

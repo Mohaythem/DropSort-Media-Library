@@ -1,10 +1,10 @@
-# DropSort V2 Arabic Localization Review
+# TBD Movies V2 Arabic Localization Review
 
 Date: 2026-08-16
 
 ## Scope
 
-This pass applies the approved Arabic UI copy to the current DropSort catalog. It is a localization-only change. English behavior, application architecture, safety behavior, themes, database schema, personal-library semantics, WatchEvent semantics, file-operation semantics, Undo, recovery, and Clear Library behavior were preserved.
+This pass applies the approved Arabic UI copy to the current TBD Movies catalog. It is a localization-only change. English behavior, application architecture, safety behavior, themes, database schema, personal-library semantics, WatchEvent semantics, file-operation semantics, Undo, recovery, and Clear Library behavior were preserved.
 
 No Check Library layout, navigation, state, counter, or behavior redesign was introduced.
 
@@ -76,10 +76,10 @@ The existing semantic language-toggle accessibility wording remains `اللغة:
 
 ## Files modified
 
-- `src/dropsort/ui/localization.py`
-- `src/dropsort/ui/library/movie_card.py`
-- `src/dropsort/ui/movie_details/details_view.py`
-- `src/dropsort/ui/history/view.py`
+- `src/TBD Movies/ui/localization.py`
+- `src/TBD Movies/ui/library/movie_card.py`
+- `src/TBD Movies/ui/movie_details/details_view.py`
+- `src/TBD Movies/ui/history/view.py`
 - `tests/unit/ui/test_arabic_localization.py`
 - `tests/unit/ui/test_settings_view.py`
 - `tests/unit/ui/test_personal_library_ui.py`
@@ -98,7 +98,7 @@ The focused tests cover approved copy, catalog parity, placeholder parity, RTL, 
 
 Command used with repository-local basetemp:
 
-`QT_QPA_PLATFORM=offscreen .venv\Scripts\python.exe -m pytest --basetemp .pytest-basetemp-arabic-final --cov=src/dropsort --cov-branch --cov-report=term-missing -q`
+`QT_QPA_PLATFORM=offscreen .venv\Scripts\python.exe -m pytest --basetemp .pytest-basetemp-arabic-final --cov=src/TBD Movies --cov-branch --cov-report=term-missing -q`
 
 Result: `1111 passed, 5 skipped, 0 failed`.
 
@@ -108,11 +108,11 @@ The five skips are the existing Windows symlink-privilege skips; no new skip was
 
 ## Packaging
 
-Existing `DropSort.spec` workflow completed with PyInstaller `6.22.0`.
+Existing `TBD Movies.spec` workflow completed with PyInstaller `6.22.0`.
 
 Executable:
 
-`D:\DropSort_ chat\DropSort\.build-arabic-dist\DropSort\DropSort.exe`
+`D:\TBD Movies_ chat\TBD Movies\.build-arabic-dist\TBD Movies\TBD Movies.exe`
 
 Size: `2,434,947` bytes
 
@@ -130,7 +130,7 @@ The pass only changes localized presentation and accessibility lookup. It does n
 
 ## Asset audit
 
-No new images/assets were added, downloaded, or generated. The rebuilt package contains the existing DropSort icon/SVG, TMDB SVG, existing Inter fonts, and existing Noto Sans Arabic fonts declared by `DropSort.spec`.
+No new images/assets were added, downloaded, or generated. The rebuilt package contains the existing TBD Movies icon/SVG, TMDB SVG, existing Inter fonts, and existing Noto Sans Arabic fonts declared by `TBD Movies.spec`.
 
 ## Check Library confirmation
 
@@ -156,4 +156,4 @@ PASS — approved Arabic copy was applied as a bounded localization pass and the
 - No physical media mutation behavior was changed.
 - Check Library was not redesigned.
 - No new images/assets were added.
-- DropSort remains Python/PySide6/Qt.
+- TBD Movies remains Python/PySide6/Qt.

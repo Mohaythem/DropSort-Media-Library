@@ -1,4 +1,4 @@
-# DropSort V1 Release Checklist
+# TBD Movies V1 Release Checklist
 
 - [x] Build a clean PyInstaller one-directory portable release.
 - [x] Bundle Qt, migrations, Inter Regular/Bold, Noto Sans Arabic Regular/Bold, TMDB logo,
@@ -28,7 +28,7 @@
   proposals, and preserve explicit Add to Library authorization after single-candidate preselection.
 - [x] Retire Main from the selectable themes, expose exactly Slate, Dark, and Light, and migrate the
   persisted Main/deep-ink compatibility IDs safely to Slate.
-- [x] Add a branded multi-size DropSort application icon to Qt and the packaged executable.
+- [x] Add a branded multi-size TBD Movies application icon to Qt and the packaged executable.
 - [x] Make Check Library Files terminal-state driven: progress alone remains RUNNING, terminal
   success/failure/cancellation update controls and coalesced manual dialogs safely.
 - [x] Convert Add Movies to a remaining-work queue: successful rows disappear, failed rows remain,
@@ -37,7 +37,7 @@
 - [x] Add atomic per-user/session single-instance ownership with Qt local activation IPC; verify
   secondary launch, activation, stale recovery, and zero catalog/file-operation side effects in source tests.
 - [x] Rebuild and verify duplicate, rapid, minimized, crash/stale, and post-exit launches of the exact
-  packaged `release\DropSort\DropSort.exe`.
+  packaged `release\TBD Movies\TBD Movies.exe`.
 - [ ] Re-verify the corrected packaged Clear Library button through confirmation, transactional
   catalog reset, history preservation, and zero physical-media mutation.
 - [ ] Re-verify the exact `AnimeSanka.com Kaze Tachinu ...` filename through live packaged TMDB.
@@ -45,4 +45,4 @@
 - [ ] Perform a separate clean-machine or clean-VM launch (V1 used a clean-profile approximation).
 - [ ] Perform live TMDB metadata/poster verification with a user-supplied credential.
 - [ ] Code-sign the executable if a signing certificate becomes available.
-- [ ] Choose and publish an explicit DropSort project license before public source distribution.
+- [ ] Choose and publish an explicit TBD Movies project license before public source distribution.

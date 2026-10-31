@@ -1,4 +1,4 @@
-# DropSort Phase 5C Report
+# TBD Movies Phase 5C Report
 
 ## Result
 
@@ -99,21 +99,21 @@ change, or unsafe root read stops with a controlled root-level failure.
 
 ## Files modified
 
-- `src/dropsort/media/discovery/contracts.py`
-- `src/dropsort/media/discovery/errors.py`
-- `src/dropsort/media/discovery/models.py`
-- `src/dropsort/media/discovery/scanner.py`
-- `src/dropsort/media/discovery/__init__.py`
-- `src/dropsort/application/dto/import_review.py`
-- `src/dropsort/application/errors.py`
-- `src/dropsort/application/use_cases/discover_media.py`
-- `src/dropsort/application/use_cases/prepare_folder_import_review.py`
-- `src/dropsort/application/use_cases/propose_movie_import.py`
-- `src/dropsort/application/use_cases/__init__.py`
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/ui/common/tasks.py`
-- `src/dropsort/ui/contracts.py`
-- `src/dropsort/ui/scan/import_view.py`
+- `src/TBD Movies/media/discovery/contracts.py`
+- `src/TBD Movies/media/discovery/errors.py`
+- `src/TBD Movies/media/discovery/models.py`
+- `src/TBD Movies/media/discovery/scanner.py`
+- `src/TBD Movies/media/discovery/__init__.py`
+- `src/TBD Movies/application/dto/import_review.py`
+- `src/TBD Movies/application/errors.py`
+- `src/TBD Movies/application/use_cases/discover_media.py`
+- `src/TBD Movies/application/use_cases/prepare_folder_import_review.py`
+- `src/TBD Movies/application/use_cases/propose_movie_import.py`
+- `src/TBD Movies/application/use_cases/__init__.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/ui/common/tasks.py`
+- `src/TBD Movies/ui/contracts.py`
+- `src/TBD Movies/ui/scan/import_view.py`
 - `tests/unit/application/test_prepare_import_review.py`
 - `tests/unit/ui/test_import_view.py`
 - `tests/unit/ui/test_import_main_window.py`

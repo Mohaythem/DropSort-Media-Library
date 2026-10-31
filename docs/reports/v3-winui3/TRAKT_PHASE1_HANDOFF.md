@@ -6,7 +6,7 @@ Status: non-UI implementation and verification complete on 2026-10-21. Ready for
 
 1. Use a registered Trakt API application's public Client ID and its exact registered HTTPS redirect URI. Enter these in Settings > Trakt and save. Do not enter a client secret. Configuration is stored as one nonsecret settings value.
 2. Saving replacement configuration disconnects the existing Trakt session. Reconnect after changing registration parameters.
-3. Select Connect. Open the verification URL from the application, enter the displayed user code, and authorize in your browser. Device-code polling completes in DropSort. No callback listener or custom Windows protocol is installed.
+3. Select Connect. Open the verification URL from the application, enter the displayed user code, and authorize in your browser. Device-code polling completes in TBD Movies. No callback listener or custom Windows protocol is installed.
 4. Select Sync Now to import account data. Open Trakt in the navigation pane to browse Watchlist, custom lists, watched movies, watched shows, and history.
 
 The agent has not registered an API app, signed in, accessed normal-profile credentials, or tested a live account. Do not send tokens or a client secret in chat.
@@ -14,7 +14,7 @@ The agent has not registered an API app, signed in, accessed normal-profile cred
 ## Data and matching behavior
 
 - Trakt uses a separate account-scoped cache. Import does not add movies/files to Library, populate local custom lists, or change local watch history or playback positions.
-- Protected Windows credential storage holds tokens separately from SQLite. QA profiles use credential targets derived from `DROPSORT_TEST_DATA_ROOT`.
+- Protected Windows credential storage holds tokens separately from SQLite. QA profiles use credential targets derived from `TBD Movies_TEST_DATA_ROOT`.
 - Disconnect removes the connection's protected credential. The last account's cached resources remain available offline. It does not revoke authorization on Trakt's website.
 - Exact compatible provider IDs and media type establish a match. Episode fallback requires exact parent-show IDs plus season/episode coordinates. Conflicting or ambiguous identities remain unmatched. Titles do not establish automatic matches.
 - Remote-only and unsupported rows remain visible. They have no fabricated local file path. A matched row can open existing local details.

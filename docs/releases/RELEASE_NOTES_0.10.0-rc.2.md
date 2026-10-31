@@ -1,4 +1,4 @@
-# DropSort 0.10.0-rc.2
+# TBD Movies 0.10.0-rc.2
 
 Windows x64 pre-release. The installer and application are unsigned.
 
@@ -10,6 +10,6 @@ Windows x64 pre-release. The installer and application are unsigned.
 - Existing library records, metadata, watch history, lists, and relationships are preserved. No database migration is introduced.
 - Existing watcher configuration and verification JSON files in user profiles are left untouched. The removed features no longer load or update them.
 
-Close other DropSort instances before launching. Library data remains outside the installation directory. This release does not move, rename, or delete media automatically.
+Close other TBD Movies instances before launching. Library data remains outside the installation directory. This release does not move, rename, or delete media automatically.
 
 Verification uses isolated databases and synthetic media. Clean-machine testing, broader Windows hardware, real SMB/removable-drive checks, video decoding, and code signing remain limitations. This is a release candidate, not a stable release.

@@ -7,7 +7,7 @@ incremental Library presentation only.
 
 ## Outcome
 
-DropSort startup now loads the local SQLite Library snapshot and renders it without starting file
+TBD Movies startup now loads the local SQLite Library snapshot and renders it without starting file
 reconciliation. No startup path calls `ReconcileLibraryFiles`, catalog-wide file inspection,
 metadata health repair, or a progress-driven full Library reload.
 

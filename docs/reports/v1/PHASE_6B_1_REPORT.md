@@ -1,4 +1,4 @@
-# DropSort Phase 6B.1 Report
+# TBD Movies Phase 6B.1 Report
 
 > Historical report correction (2026-08-15): later user acceptance found that the packaged Clear
 > Library button did not pass the real confirmation result and that one leading-domain filename still
@@ -95,29 +95,29 @@ that physical fixture hashes remain unchanged and no journal row is created or r
 
 ## Files added
 
-- `src/dropsort/application/dto/catalog_maintenance.py`
-- `src/dropsort/application/use_cases/clear_library_data.py`
-- `src/dropsort/application/use_cases/movie_search_fallbacks.py`
-- `src/dropsort/database/repositories/library_maintenance.py`
-- `src/dropsort/library/movies/maintenance.py`
+- `src/TBD Movies/application/dto/catalog_maintenance.py`
+- `src/TBD Movies/application/use_cases/clear_library_data.py`
+- `src/TBD Movies/application/use_cases/movie_search_fallbacks.py`
+- `src/TBD Movies/database/repositories/library_maintenance.py`
+- `src/TBD Movies/library/movies/maintenance.py`
 - `tests/integration/application/test_clear_library_data.py`
 - `tests/unit/application/test_clear_library_architecture.py`
 - `PHASE_6B_1_REPORT.md`
 
 ## Important files modified
 
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/application/use_cases/propose_movie_import.py`
-- `src/dropsort/application/use_cases/reconcile_library_files.py`
-- `src/dropsort/database/repositories/media_files.py`
-- `src/dropsort/library/movies/errors.py`
-- `src/dropsort/posters/cache.py`
-- `src/dropsort/ui/contracts.py`
-- `src/dropsort/ui/library/library_view.py`
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/reconciliation/dialog.py`
-- `src/dropsort/ui/reconciliation/relink_dialog.py`
-- `src/dropsort/ui/settings/settings_view.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/application/use_cases/propose_movie_import.py`
+- `src/TBD Movies/application/use_cases/reconcile_library_files.py`
+- `src/TBD Movies/database/repositories/media_files.py`
+- `src/TBD Movies/library/movies/errors.py`
+- `src/TBD Movies/posters/cache.py`
+- `src/TBD Movies/ui/contracts.py`
+- `src/TBD Movies/ui/library/library_view.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/reconciliation/dialog.py`
+- `src/TBD Movies/ui/reconciliation/relink_dialog.py`
+- `src/TBD Movies/ui/settings/settings_view.py`
 - focused application, database, poster, UI, architecture, and bootstrap tests
 - `docs/status/PROJECT_STATUS.md`, `README.md`, and `docs/status/RELEASE_CHECKLIST.md`
 
@@ -143,7 +143,7 @@ No unresolved BLOCKER, CRITICAL, or release-relevant HIGH finding remains.
 The release was rebuilt cleanly with PyInstaller 6.22.0 as a one-directory portable application:
 
 ```text
-Executable: release\DropSort\DropSort.exe
+Executable: release\TBD Movies\TBD Movies.exe
 Portable directory size: 118,498,215 bytes (113.01 MiB)
 Files: 184
 ```
@@ -158,7 +158,7 @@ classified as library implementation text rather than credentials; no values wer
 Using only the packaged files, no activated virtual environment, an unrelated working directory,
 and a disposable redirected `LOCALAPPDATA`, the app:
 
-- created/reused `%LOCALAPPDATA%\DropSort`-equivalent database, poster-cache, and log locations;
+- created/reused `%LOCALAPPDATA%\TBD Movies`-equivalent database, poster-cache, and log locations;
 - opened on the empty Library without a TMDB credential;
 - ran automatic reconciliation once and showed truthful zero counts;
 - rendered the packaged theme, font, Settings attribution, and Clear Library safety confirmation;
@@ -179,7 +179,7 @@ Dependencies changed: none. No database migration was added.
 - Clear Library Data intentionally preserves operation history/recovery state and does not offer
   selective deletion.
 - The portable executable remains unsigned and may trigger Windows SmartScreen.
-- A separate clean Windows machine/VM verification and explicit DropSort project license remain open
+- A separate clean Windows machine/VM verification and explicit TBD Movies project license remain open
   distribution considerations.
 
 ## Release decision

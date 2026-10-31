@@ -1,8 +1,8 @@
-# DropSort WinUI 3 Functional Structure Audit and Repair
+# TBD Movies WinUI 3 Functional Structure Audit and Repair
 
 ## Outcome
 
-The current WinUI 3 V1 surface is coherent and stable across the implemented navigation, library, list, details, import-preview, maintenance, settings, and operations-log flows. This pass stayed inside `DropSort.UI` and its UI source-contract tests. It did not redesign the interface, add a V2 backend, package the app, or touch media files.
+The current WinUI 3 V1 surface is coherent and stable across the implemented navigation, library, list, details, import-preview, maintenance, settings, and operations-log flows. This pass stayed inside `TBD Movies.UI` and its UI source-contract tests. It did not redesign the interface, add a V2 backend, package the app, or touch media files.
 
 ## Functional surface verified
 
@@ -42,7 +42,7 @@ The current WinUI 3 V1 surface is coherent and stable across the implemented nav
   - `1 item` / multiple items;
   - `1 entry` / multiple log entries.
 - Theme help now tracks the actual selection instead of always describing Slate. Slate, Dark, and Light each have localized help text.
-- `DropSort` remains in English characters in Arabic UI, while navigation and content use RTL layout and Arabic labels.
+- `TBD Movies` remains in English characters in Arabic UI, while navigation and content use RTL layout and Arabic labels.
 
 ## Demo data and backend handoff
 
@@ -64,10 +64,10 @@ The current WinUI 3 V1 surface is coherent and stable across the implemented nav
 - Focused UI source contracts: **17 passed, 0 failed**.
 - Complete WinUI solution suite: **80 passed, 0 failed**.
 - Visual Studio MSBuild rebuild (`Debug`, `x64`): **succeeded**.
-- Prototype-marker scan: no `TODO`, `NotImplementedException`, `Coming soon`, `Preview only`, or prototype notice markers in `DropSort.UI` source.
-- `git diff --check -- DropSort_WinUI3`: passed. The WinUI tree is currently untracked by the parent repository, so an additional whitespace scan was run directly over every file changed in this pass; it found no trailing whitespace.
+- Prototype-marker scan: no `TODO`, `NotImplementedException`, `Coming soon`, `Preview only`, or prototype notice markers in `TBD Movies.UI` source.
+- `git diff --check -- TBDMovies_WinUI3`: passed. The WinUI tree is currently untracked by the parent repository, so an additional whitespace scan was run directly over every file changed in this pass; it found no trailing whitespace.
 
-The first solution-wide test invocation supplied `Platform=x64`, but this `.slnx` exposes its solution configuration without that platform. The corrected `dotnet test DropSort.slnx --no-restore` invocation is the successful complete-suite result above. The UI project itself was rebuilt explicitly as x64.
+The first solution-wide test invocation supplied `Platform=x64`, but this `.slnx` exposes its solution configuration without that platform. The corrected `dotnet test TBD Movies.slnx --no-restore` invocation is the successful complete-suite result above. The UI project itself was rebuilt explicitly as x64.
 
 ## Runtime walkthrough notes
 
@@ -81,18 +81,18 @@ The first solution-wide test invocation supplied `Platform=x64`, but this `.slnx
 
 ## Files changed in this pass
 
-- `src/DropSort.UI/MainWindow.xaml.cs`
-- `src/DropSort.UI/Models/DemoData.cs`
-- `src/DropSort.UI/Models/ShowModels.cs`
-- `src/DropSort.UI/Services/LocalizationService.cs`
-- `src/DropSort.UI/Views/LibraryPage.xaml.cs`
-- `src/DropSort.UI/Views/MyListsPage.xaml.cs`
-- `src/DropSort.UI/Views/MovieDetailsPage.xaml.cs`
-- `src/DropSort.UI/Views/OperationsLogPage.xaml.cs`
-- `src/DropSort.UI/Views/SettingsPage.xaml.cs`
-- `src/DropSort.UI/Views/TVShowDetailsPage.xaml`
-- `src/DropSort.UI/Views/TVShowDetailsPage.xaml.cs`
-- `tests/DropSort.Tests/UI/UiSourceContractTests.cs`
+- `src/TBD Movies.UI/MainWindow.xaml.cs`
+- `src/TBD Movies.UI/Models/DemoData.cs`
+- `src/TBD Movies.UI/Models/ShowModels.cs`
+- `src/TBD Movies.UI/Services/LocalizationService.cs`
+- `src/TBD Movies.UI/Views/LibraryPage.xaml.cs`
+- `src/TBD Movies.UI/Views/MyListsPage.xaml.cs`
+- `src/TBD Movies.UI/Views/MovieDetailsPage.xaml.cs`
+- `src/TBD Movies.UI/Views/OperationsLogPage.xaml.cs`
+- `src/TBD Movies.UI/Views/SettingsPage.xaml.cs`
+- `src/TBD Movies.UI/Views/TVShowDetailsPage.xaml`
+- `src/TBD Movies.UI/Views/TVShowDetailsPage.xaml.cs`
+- `tests/TBD Movies.Tests/UI/UiSourceContractTests.cs`
 - `UI_IMPLEMENTATION_REPORT.md`
 
 ## Completion boundary

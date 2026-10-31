@@ -1,7 +1,7 @@
-# DropSort V2 Phase 1 — Personal Library Foundation
+# TBD Movies V2 Phase 1 — Personal Library Foundation
 
 Date: 2026-08-16  
-Workspace: `D:\DropSort_ chat\DropSort`  
+Workspace: `D:\TBD Movies_ chat\TBD Movies`  
 Status: PASS
 
 ## 1. Phase Scope
@@ -110,14 +110,14 @@ Use cases include `EnsureLogicalMovie`, `SetPersonalPreference`, `ClearPersonalP
 
 ## 12. Files Created
 
-- `src/dropsort/database/migrations/0004_personal_library_foundation.up.sql`
-- `src/dropsort/database/migrations/0004_personal_library_foundation.down.sql`
-- `src/dropsort/library/personal/__init__.py`
-- `src/dropsort/library/personal/errors.py`
-- `src/dropsort/library/personal/models.py`
-- `src/dropsort/library/personal/repositories.py`
-- `src/dropsort/database/repositories/personal_library.py`
-- `src/dropsort/application/use_cases/personal_library.py`
+- `src/TBD Movies/database/migrations/0004_personal_library_foundation.up.sql`
+- `src/TBD Movies/database/migrations/0004_personal_library_foundation.down.sql`
+- `src/TBD Movies/library/personal/__init__.py`
+- `src/TBD Movies/library/personal/errors.py`
+- `src/TBD Movies/library/personal/models.py`
+- `src/TBD Movies/library/personal/repositories.py`
+- `src/TBD Movies/database/repositories/personal_library.py`
+- `src/TBD Movies/application/use_cases/personal_library.py`
 - `tests/integration/application/test_personal_library.py`
 - `tests/integration/database/test_personal_library_migration.py`
 - `docs/adr/ADR-0015-personal-library-foundation.md`
@@ -125,10 +125,10 @@ Use cases include `EnsureLogicalMovie`, `SetPersonalPreference`, `ClearPersonalP
 
 ## 13. Files Modified
 
-- `src/dropsort/database/repositories/__init__.py`
-- `src/dropsort/application/use_cases/__init__.py`
-- `src/dropsort/database/repositories/library_maintenance.py`
-- `src/dropsort/ui/localization.py`
+- `src/TBD Movies/database/repositories/__init__.py`
+- `src/TBD Movies/application/use_cases/__init__.py`
+- `src/TBD Movies/database/repositories/library_maintenance.py`
+- `src/TBD Movies/ui/localization.py`
 - `tests/integration/database/test_migrations.py`
 
 No File Engine, matcher, parser, discovery, operation journal, recovery, or UI feature code was
@@ -171,12 +171,12 @@ The five skips are the existing Windows symlink/reparse privilege limitations, i
 1033 passed, 5 skipped
 ```
 
-Command used: `.venv\Scripts\python.exe -m pytest --cov=src/dropsort --cov-branch
+Command used: `.venv\Scripts\python.exe -m pytest --cov=src/TBD Movies --cov-branch
 --cov-report=term-missing -q -W error --basetemp=.pytest-v2-phase1-coverage-2`.
 
 ## 18. Packaging Verification if applicable
 
-PyInstaller `6.22.0` completed successfully with `DropSort.spec` into disposable
+PyInstaller `6.22.0` completed successfully with `TBD Movies.spec` into disposable
 `.build-phase1-dist` / `.build-phase1-work` directories. The spec already globs all SQL migration
 resources. The packaged output contained all eight SQL migration resources, including both 0004
 files. No existing release artifact was overwritten.

@@ -1,4 +1,4 @@
-# DropSort Media Library — V2 Phase 2.1 Visual and Library Health
+# TBD Movies Media Library — V2 Phase 2.1 Visual and Library Health
 
 ## 1. Scope
 
@@ -84,24 +84,24 @@ No live TMDB verification was performed because no safe credential was available
 
 ## 11. Files created
 
-- `src/dropsort/application/dto/library_health.py`
-- `src/dropsort/application/use_cases/check_library.py`
+- `src/TBD Movies/application/dto/library_health.py`
+- `src/TBD Movies/application/use_cases/check_library.py`
 - `tests/unit/application/test_check_library.py`
 - `V2_PHASE_2_1_VISUAL_AND_LIBRARY_HEALTH.md`
 
 ## 12. Files modified
 
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/application/dto/__init__.py`
-- `src/dropsort/application/use_cases/__init__.py`
-- `src/dropsort/database/repositories/movies.py`
-- `src/dropsort/library/movies/repositories.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/contracts.py`
-- `src/dropsort/ui/localization.py`
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/personal_library/personal_library_view.py`
-- `src/dropsort/ui/reconciliation/dialogs.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/application/dto/__init__.py`
+- `src/TBD Movies/application/use_cases/__init__.py`
+- `src/TBD Movies/database/repositories/movies.py`
+- `src/TBD Movies/library/movies/repositories.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/contracts.py`
+- `src/TBD Movies/ui/localization.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/personal_library/personal_library_view.py`
+- `src/TBD Movies/ui/reconciliation/dialogs.py`
 - `tests/integration/database/test_movie_catalog_repository.py`
 - `tests/unit/ui/test_main_window.py`
 - `tests/unit/ui/test_reconciliation_dialogs.py`
@@ -128,7 +128,7 @@ Result: `1073 passed, 5 skipped, 0 failed`. The five skips are expected Windows 
 Final branch-coverage command:
 
 ```text
-.venv\Scripts\python.exe -m pytest -q --cov=dropsort --cov-branch --cov-report=term --basetemp=.pytest-v2-phase21-final
+.venv\Scripts\python.exe -m pytest -q --cov=TBD Movies --cov-branch --cov-report=term --basetemp=.pytest-v2-phase21-final
 ```
 
 Result: `95%` combined statement/branch coverage with branch measurement enabled. The new `check_library.py` path itself reports 99%. No coverage threshold failure is configured in `pyproject.toml`.
@@ -139,7 +139,7 @@ PyInstaller 6.22.0 completed successfully with disposable directories `.build-ph
 
 Artifact:
 
-- `.build-phase21-dist\DropSort\DropSort.exe`
+- `.build-phase21-dist\TBD Movies\TBD Movies.exe`
 - Size: 2,402,271 bytes
 - SHA-256: `3991ECDBD8BC2ADEF72494F0843E4D2E54023D24AEE3BF0FF4C61B2452ADF49E`
 

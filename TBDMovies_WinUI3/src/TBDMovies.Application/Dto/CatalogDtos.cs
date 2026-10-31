@@ -1,0 +1,178 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using TBDMovies.Application.External;
+using TBDMovies.Domain.Library.Movies;
+using TBDMovies.Domain.Media.Discovery;
+using TBDMovies.Domain.Media.Parser;
+using TBDMovies.Domain.Metadata.Contracts;
+using TBDMovies.Domain.Media.Matcher;
+using TBDMovies.Domain.Library.Personal;
+
+namespace TBDMovies.Application.Dto;
+
+public record MovieListItem(int Id, string Title, int? Year, string? PosterReference, bool IsMissing, bool HasPendingMetadata, int FileCount = 1, bool ReviewMatch = false, DateTimeOffset DateAdded = default, DateTimeOffset? LastOpenedAt = null, string? BackdropReference = null, string? CustomDisplayTitle = null, string? CanonicalTitle = null);
+
+/// <summary>
+/// A user-created custom list for the UI. Identity is the stable <paramref name="Id" />; the UI shows the
+/// <paramref name="Name" /> only and never the id. <paramref name="ItemCount" /> is the list's size,
+/// counting movies and TV shows together.
+/// </summary>
+public record CustomList(int Id, string Name, int ItemCount);
+
+/// <summary>
+/// One member of a custom list for the UI: a movie or a TV show, with what a card needs to render and the
+/// id to navigate. <paramref name="IsMissing" /> means no present local file.
+/// </summary>
+public record CustomListItem(
+    TBDMovies.Domain.Library.Personal.CustomListMediaKind Kind,
+    int Id,
+    string Title,
+    int? Year,
+    string? PosterReference,
+    bool IsMissing,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null);
+
+public record MovieDetails(
+    int Id,
+    string Title,
+    string? OriginalTitle,
+    int? Year,
+    string? Overview,
+    IReadOnlyList<string> Genres,
+    int? RuntimeMinutes,
+    double? Rating,
+    string? PosterReference,
+    IReadOnlyList<MediaFile> MediaFiles,
+    bool ReviewMatch = false,
+    bool HasTrustworthyMetadata = false,
+    string? CustomDisplayTitle = null,
+    string? CanonicalTitle = null);
+
+public record MovieFileIngestionResult(Movie Movie, MediaFile MediaFile, bool AlreadyRegistered = false);
+
+/// <summary>The outcome of a manual "Add / Move to series" repair, for the UI to navigate to the show.</summary>
+public record MoveToSeriesResult(int ShowId, int SeasonNumber, int EpisodeNumber);
+
+public record ConfirmMovieImportCommand(
+    string FilePath,
+    long FileSize,
+    ParsedMedia ParsedMedia,
+    DateTimeOffset ObservedAt,
+    MovieCandidate? SelectedCandidate = null);
+
+public record ImportReviewProgress(int FilesDiscovered, int FilesProcessed, string? CurrentDirectory);
+
+public record ImportReviewSession(IReadOnlyList<DiscoveredMedia> Items);
+
+public enum ImportItemStatus
+{
+    ReadyToAdd,
+    Matching,
+    Matched,
+    NeedsMatch,
+    NoMatchFound,
+    MetadataUnavailable,
+    MetadataError,
+    MetadataCancelled,
+    RegistrationFailed,
+    AlreadyInLibrary,
+    SkippedByUser,
+    NotProcessedCancelled
+}
+
+/// <summary>A discovered item selected by the user for local registration.</summary>
+public record ImportMetadataPreview(
+    ImportItemStatus Status,
+    MatchStatus? MatchStatus = null,
+    MovieCandidate? MovieCandidate = null,
+    TvCandidate? TvCandidate = null,
+    string? Failure = null,
+    MetadataFailureKind? MetadataFailureKind = null,
+    bool IsManual = false);
+
+public record ImportSelection(DiscoveredMedia Item, ImportMetadataPreview? MetadataPreview = null,
+    int? ExistingShowId = null, string? OriginalLocalTitle = null, bool IsExcluded = false, bool LocalOnly = false);
+
+/// <summary>
+/// Progress of a running bulk add: <paramref name="Processed" /> local registrations completed out of
+/// <paramref name="Total" /> selected items. Reported from the registration loop so the UI can show real
+/// processed/total counts (never a fake bar).
+/// </summary>
+public record ImportProgress(int Processed, int Total);
+
+/// <summary>The outcome for one selected item. Registration and enrichment are reported separately.</summary>
+public record ImportItemResult(
+    string Path,
+    DiscoveryClassification Classification,
+    bool Registered,
+    bool AutoMatched,
+    MatchStatus? MatchStatus = null,
+    string? Failure = null,
+    ImportItemStatus Status = ImportItemStatus.ReadyToAdd,
+    MetadataFailureKind? MetadataFailureKind = null,
+    bool AlreadyRegistered = false);
+
+/// <summary>Batch import results; metadata failures never undo successful local registration.</summary>
+public record ImportBatchResult(IReadOnlyList<ImportItemResult> Items)
+{
+    public int RegisteredCount => Items.Count(item => item.Registered);
+    public int AutoMatchedCount => Items.Count(item => item.AutoMatched);
+    public int AddedCount => Items.Count(item => item.Registered && !item.AlreadyRegistered);
+    public int ExistingCount => Items.Count(item => item.Registered && item.AlreadyRegistered);
+    public int AlreadyInLibraryCount => Items.Count(item => item.Status == ImportItemStatus.AlreadyInLibrary);
+    public int MatchedCount => Items.Count(item => item.Status == ImportItemStatus.Matched);
+    public int NeedsMatchCount => Items.Count(item => item.Status == ImportItemStatus.NeedsMatch);
+    public int NoMatchFoundCount => Items.Count(item => item.Status == ImportItemStatus.NoMatchFound);
+    public int MetadataUnavailableCount => Items.Count(item => item.Status == ImportItemStatus.MetadataUnavailable);
+    public int MetadataErrorsCount => Items.Count(item => item.Status == ImportItemStatus.MetadataError);
+    public int MetadataCancelledCount => Items.Count(item => item.Status == ImportItemStatus.MetadataCancelled);
+    public int RegistrationFailuresCount => Items.Count(item => item.Status == ImportItemStatus.RegistrationFailed);
+    public int SkippedCount => Items.Count(item => item.Status == ImportItemStatus.SkippedByUser);
+    public int NotProcessedCount => Items.Count(item => item.Status == ImportItemStatus.NotProcessedCancelled);
+    /// <summary>Items requiring user attention after the concise completion summary is shown.</summary>
+    public int NeedsAttentionCount => Items.Count(item => item.Status is
+        ImportItemStatus.NeedsMatch or
+        ImportItemStatus.NoMatchFound or
+        ImportItemStatus.MetadataUnavailable or
+        ImportItemStatus.MetadataError or
+        ImportItemStatus.MetadataCancelled or
+        ImportItemStatus.RegistrationFailed);
+}
+
+public record ManualMovieSearchResult(IReadOnlyList<MovieCandidate> Candidates);
+
+public record ClearLibraryDataResult(
+    int MoviesRemoved,
+    int MediaFilesRemoved,
+    int MetadataEntriesRemoved,
+    int PosterFilesRemoved,
+    string? Warning,
+    int ShowsRemoved = 0,
+    int SeasonsRemoved = 0,
+    int EpisodesRemoved = 0);
+
+public record PersonalMovieSnapshot(
+    int MovieId,
+    TBDMovies.Domain.Library.Personal.PersonalPreference Preference,
+    bool Watchlisted,
+    int WatchCount,
+    DateTimeOffset? LastWatched);
+
+public record WatchHistoryItem(
+    int Id,
+    WatchEventMediaKind MediaKind,
+    int? MovieId,
+    int? ShowId,
+    int? EpisodeId,
+    string Title,
+    int? Year,
+    string? ShowTitle,
+    int? SeasonNumber,
+    int? EpisodeNumber,
+    string? ArtworkReference,
+    string? BackdropReference,
+    string? PosterReference,
+    DateTimeOffset WatchedAt,
+    bool IsAvailable);

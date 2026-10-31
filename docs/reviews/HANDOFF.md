@@ -1,4 +1,4 @@
-# DropSort — AI Handoff & Project Checkpoint Guide
+# TBD Movies — AI Handoff & Project Checkpoint Guide
 
 > **CRITICAL CHECKPOINT NOTICE (GOLDEN BASELINE)**
 > **Checkpoint Tag**: `v0.11.0-checkpoint-golden`
@@ -11,7 +11,7 @@
 
 ## 1. Project Overview & Current State
 
-DropSort is a modern Windows desktop media organizer and library manager built with **C# / .NET 10** and **WinUI 3 (Windows App SDK)**.
+TBD Movies is a modern Windows desktop media organizer and library manager built with **C# / .NET 10** and **WinUI 3 (Windows App SDK)**.
 
 ### Implemented & Verified Capabilities:
 1. **Core Library & Scanning**:
@@ -63,22 +63,22 @@ Any AI model working on this codebase **MUST** strictly adhere to the following 
 
 ### Build Solution:
 ```powershell
-dotnet build DropSort_WinUI3\DropSort.sln -c Debug
+dotnet build TBDMovies_WinUI3\TBD Movies.sln -c Debug
 ```
 
 ### Run All Unit Tests:
 ```powershell
-dotnet test DropSort_WinUI3\tests\DropSort.Tests\DropSort.Tests.csproj --no-restore -c Debug
+dotnet test TBDMovies_WinUI3\tests\TBD Movies.Tests\TBD Movies.Tests.csproj --no-restore -c Debug
 ```
 *Expected result: 1,147 Passed, 0 Failed.*
 
 ### Run WinUI 3 Desktop App:
 ```powershell
-dotnet run --project DropSort_WinUI3\src\DropSort.UI\DropSort.UI.csproj -c Debug
+dotnet run --project TBDMovies_WinUI3\src\TBD Movies.UI\TBD Movies.UI.csproj -c Debug
 ```
 
 ### Inno Setup Installer:
-- Script location: `DropSort_WinUI3/packaging/DropSort.iss`
+- Script location: `TBDMovies_WinUI3/packaging/TBD Movies.iss`
 
 ---
 
@@ -86,19 +86,19 @@ dotnet run --project DropSort_WinUI3\src\DropSort.UI\DropSort.UI.csproj -c Debug
 
 | Layer | Project | Key Files & Responsibilities |
 |---|---|---|
-| **Domain** | `DropSort.Domain` | Entities, Value Objects: `Movies/Models.cs`, `Shows/ShowModels.cs`, `MediaFormatPolicy.cs` |
-| **Application** | `DropSort.Application` | Use cases & services: `LibraryService.cs`, `TvLibraryService.cs`, `LibraryRepairService.cs`, `TraktSyncService.cs`, `TitleInteractionController.cs` |
-| **FileSystem** | `DropSort.FileSystem` | Disk I/O & Scanners: `MediaDiscoveryService.cs`, `MediaFileActions.cs` |
-| **Infrastructure** | `DropSort.Infrastructure` | SQLite & External APIs: `DatabaseMigrator.cs`, `CatalogRepositories.cs`, `TraktAuthClient.cs`, `TraktDataClient.cs` |
-| **UI** | `DropSort.UI` | WinUI 3 Views & Models: `LibraryPage.xaml`, `MovieDetailsPage.xaml`, `TVShowDetailsPage.xaml`, `MyListsPage.xaml`, `LocalizationService.cs` |
-| **Tests** | `DropSort.Tests` | Comprehensive unit & contract tests across all layers |
+| **Domain** | `TBD Movies.Domain` | Entities, Value Objects: `Movies/Models.cs`, `Shows/ShowModels.cs`, `MediaFormatPolicy.cs` |
+| **Application** | `TBD Movies.Application` | Use cases & services: `LibraryService.cs`, `TvLibraryService.cs`, `LibraryRepairService.cs`, `TraktSyncService.cs`, `TitleInteractionController.cs` |
+| **FileSystem** | `TBD Movies.FileSystem` | Disk I/O & Scanners: `MediaDiscoveryService.cs`, `MediaFileActions.cs` |
+| **Infrastructure** | `TBD Movies.Infrastructure` | SQLite & External APIs: `DatabaseMigrator.cs`, `CatalogRepositories.cs`, `TraktAuthClient.cs`, `TraktDataClient.cs` |
+| **UI** | `TBD Movies.UI` | WinUI 3 Views & Models: `LibraryPage.xaml`, `MovieDetailsPage.xaml`, `TVShowDetailsPage.xaml`, `MyListsPage.xaml`, `LocalizationService.cs` |
+| **Tests** | `TBD Movies.Tests` | Comprehensive unit & contract tests across all layers |
 
 ---
 
 ## 5. Active Roadmaps & Worklogs
 
 For detailed historical context and upcoming features, refer to:
-- `DropSort_WinUI3/RELEASE_2_V2_ROADMAP.md`: Next-phase roadmap.
-- `DropSort_WinUI3/FUTURE_PLAN.md`: Strategic enhancements.
-- `DropSort_WinUI3/TRAKT_PHASE1_WORKLOG.md` & `TRAKT_DEVICE_CODE_403_WORKLOG.md`: Trakt client details.
-- `DropSort_WinUI3/P2_FIXES_WORKLOG.md`: Priority 2 bugfixes and stability work.
+- `TBDMovies_WinUI3/RELEASE_2_V2_ROADMAP.md`: Next-phase roadmap.
+- `TBDMovies_WinUI3/FUTURE_PLAN.md`: Strategic enhancements.
+- `TBDMovies_WinUI3/TRAKT_PHASE1_WORKLOG.md` & `TRAKT_DEVICE_CODE_403_WORKLOG.md`: Trakt client details.
+- `TBDMovies_WinUI3/P2_FIXES_WORKLOG.md`: Priority 2 bugfixes and stability work.

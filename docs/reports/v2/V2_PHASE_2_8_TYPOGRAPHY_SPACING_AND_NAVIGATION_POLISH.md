@@ -187,14 +187,14 @@ poster size, window sizing, and 44px compact hit areas were intentionally kept.
 
 ## 25. Files Modified
 
-- `src/dropsort/ui/common/theme.py`.
-- `src/dropsort/ui/common/icon.py`.
-- `src/dropsort/ui/main_window/window.py`.
-- `src/dropsort/ui/library/library_view.py`.
-- `src/dropsort/ui/personal_library/personal_library_view.py`.
-- `src/dropsort/ui/reconciliation/page.py`.
-- `src/dropsort/ui/scan/manual_search_dialog.py`.
-- `src/dropsort/ui/scan/manual_search_result_card.py`.
+- `src/TBD Movies/ui/common/theme.py`.
+- `src/TBD Movies/ui/common/icon.py`.
+- `src/TBD Movies/ui/main_window/window.py`.
+- `src/TBD Movies/ui/library/library_view.py`.
+- `src/TBD Movies/ui/personal_library/personal_library_view.py`.
+- `src/TBD Movies/ui/reconciliation/page.py`.
+- `src/TBD Movies/ui/scan/manual_search_dialog.py`.
+- `src/TBD Movies/ui/scan/manual_search_result_card.py`.
 - `tests/unit/ui/test_theme.py`.
 
 ## 26. Before / After Evidence
@@ -254,7 +254,7 @@ Executable SHA-256:
 `7EEA4ADE5536F0887377F64FC71129888734797BEAE93D8B5B8D1569D5F1EB27`
 
 An isolated package smoke start stayed alive for eight seconds and created only
-`.build-phase28-smoke-local/DropSort/dropsort.db` and an empty log.
+`.build-phase28-smoke-local/TBD Movies/TBD Movies.db` and an empty log.
 
 ## 31. Schema / File Safety
 
@@ -318,7 +318,7 @@ database schema, file safety, or Fluent icon semantics.
 
 Required confirmations:
 
-- The existing DropSort font-family strategy was preserved.
+- The existing TBD Movies font-family strategy was preserved.
 - No new font dependency was introduced.
 - The authoritative spacing scale remains 4/8/12/16/24/36/48.
 - Ordinary controls use the shared 36px metric where applicable.
@@ -334,4 +334,4 @@ Required confirmations:
 - No database schema or migration change was introduced.
 - No business/file-safety behavior was changed.
 - No new images or illustrations were added.
-- DropSort remains Python/PySide6/Qt.
+- TBD Movies remains Python/PySide6/Qt.

@@ -1,4 +1,4 @@
-# DropSort Phase 4D Report
+# TBD Movies Phase 4D Report
 
 ## Result
 
@@ -13,7 +13,7 @@ implemented.
 ### Safe local actions
 
 - Added a provider-neutral `LocalMediaActions` protocol and controlled error types under
-  `src/dropsort/library/playback/`.
+  `src/TBD Movies/library/playback/`.
 - Added `WindowsLocalMediaActions`:
   - validates an absolute path with no-follow `lstat`;
   - requires an existing regular file;
@@ -41,7 +41,7 @@ The centralized active palette is:
 --accent:     #E87454;
 ```
 
-Typography is centralized in `src/dropsort/ui/common/theme.py`:
+Typography is centralized in `src/TBD Movies/ui/common/theme.py`:
 
 ```text
 Typeface: Margarine
@@ -57,7 +57,7 @@ Small: 12px
 ```
 
 `Margarine-Regular.ttf` and the SIL Open Font License 1.1 are bundled under
-`src/dropsort/ui/assets/fonts/`. Qt registers the asset once with
+`src/TBD Movies/ui/assets/fonts/`. Qt registers the asset once with
 `QFontDatabase.addApplicationFont`; registration failure falls back centrally to Segoe UI without
 crashing. Google Fonts is the source. No runtime font networking or new package dependency exists.
 Because the official bundled asset contains one regular face, Qt synthesizes the requested 700
@@ -72,12 +72,12 @@ the eviction order deterministic.
 
 ## Files created
 
-- `src/dropsort/library/playback/contracts.py`
-- `src/dropsort/library/playback/errors.py`
-- `src/dropsort/library/playback/windows.py`
-- `src/dropsort/ui/assets/fonts/Margarine-Regular.ttf`
-- `src/dropsort/ui/assets/fonts/OFL.txt`
-- `src/dropsort/ui/assets/fonts/README.md`
+- `src/TBD Movies/library/playback/contracts.py`
+- `src/TBD Movies/library/playback/errors.py`
+- `src/TBD Movies/library/playback/windows.py`
+- `src/TBD Movies/ui/assets/fonts/Margarine-Regular.ttf`
+- `src/TBD Movies/ui/assets/fonts/OFL.txt`
+- `src/TBD Movies/ui/assets/fonts/README.md`
 - `tests/unit/library/playback/__init__.py`
 - `tests/unit/library/playback/test_architecture.py`
 - `tests/unit/library/playback/test_windows_actions.py`
@@ -87,15 +87,15 @@ the eviction order deterministic.
 ## Files modified
 
 - `pyproject.toml`
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/library/playback/__init__.py`
-- `src/dropsort/posters/cache.py`
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/library/library_view.py`
-- `src/dropsort/ui/main_window/window.py`
-- `src/dropsort/ui/movie_details/details_view.py`
-- `src/dropsort/ui/scan/import_view.py`
-- `src/dropsort/ui/settings/settings_view.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/library/playback/__init__.py`
+- `src/TBD Movies/posters/cache.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/library/library_view.py`
+- `src/TBD Movies/ui/main_window/window.py`
+- `src/TBD Movies/ui/movie_details/details_view.py`
+- `src/TBD Movies/ui/scan/import_view.py`
+- `src/TBD Movies/ui/settings/settings_view.py`
 - `tests/unit/posters/test_cache.py`
 - `tests/unit/ui/test_movie_details_view.py`
 - `tests/unit/ui/test_theme.py`
@@ -160,13 +160,13 @@ No unresolved BLOCKER or CRITICAL finding remains.
 
 The cataloged movie **Prisoners (2013)** was used.
 
-- DropSort launched with the new palette and Margarine typography.
+- TBD Movies launched with the new palette and Margarine typography.
 - Library, Recently Added, Movie Details, Add Movies, and Settings were visually reviewed at the
   current Windows desktop scale; no clipping, overflow, or broken poster layout was observed.
 - **Play Movie** launched the exact MP4 through its association in MPC-HC.
 - **Open Folder** opened the correct Explorer folder with the exact movie selected; Explorer
   reported one selected item at 2.04 GB.
-- DropSort remained responsive after both launches and retained the poster/details view.
+- TBD Movies remained responsive after both launches and retained the poster/details view.
 - Before and after: the catalog path stayed identical, the physical file remained present and
   regular at 2,201,235,337 bytes, and the file-operation journal count remained zero.
 - Application stdout/stderr logs were empty; no exception, Qt lifecycle error, credential leak, or
@@ -182,7 +182,7 @@ Dependencies changed: none. Margarine is a bundled application asset, not a Pyth
 
 ## Known limitations
 
-- Play Movie relies on the user's Windows default association; DropSort does not embed a player.
+- Play Movie relies on the user's Windows default association; TBD Movies does not embed a player.
 - Missing-file reconciliation, relinking, and status updates are not performed by local actions.
 - Local actions are Windows-specific in this phase.
 - The single Margarine regular face requires Qt-synthesized heading emphasis.

@@ -1,4 +1,4 @@
-# DropSort vs Seanime: Scanner Research, Comparison, and Implementation Report
+# TBD Movies vs Seanime: Scanner Research, Comparison, and Implementation Report
 
 ## 1. Upstream Research & Baseline
 
@@ -23,14 +23,14 @@
     - Episode parsing: [`parser_episode.go`](https://github.com/5rahim/habari/blob/2626d57ad205a5ea41a5d060355e9314e0457c3e/parser_episode.go)
     - Title parsing: [`parser_title.go`](https://github.com/5rahim/habari/blob/2626d57ad205a5ea41a5d060355e9314e0457c3e/parser_title.go)
     - Keyword & token engines: [`keyword_manager.go`](https://github.com/5rahim/habari/blob/2626d57ad205a5ea41a5d060355e9314e0457c3e/keyword_manager.go), [`token_manager.go`](https://github.com/5rahim/habari/blob/2626d57ad205a5ea41a5d060355e9314e0457c3e/token_manager.go), [`tokenizer.go`](https://github.com/5rahim/habari/blob/2626d57ad205a5ea41a5d060355e9314e0457c3e/tokenizer.go)
-- **DropSort**:
+- **TBD Movies**:
   - Baseline Branch: `codex`
   - Baseline Commit: `3b31565` (`release: add read-only Trakt integration in 0.11.0`)
-  - Target Project: `DropSort_WinUI3` (.NET 10, C# 13, WinUI 3, SQLite)
+  - Target Project: `TBDMovies_WinUI3` (.NET 10, C# 13, WinUI 3, SQLite)
 
 ### Licensing and Clean-Room Provenance Note
 Both `5rahim/seanime` and `5rahim/habari` are strictly licensed under the **GNU General Public License v3.0 (GPL-3.0)**.
-Under no circumstances may source code from Seanime or Habari be copied, imported, or translated directly into DropSort. All techniques, heuristics, and algorithmic patterns implemented in DropSort are independently authored clean-room implementations in C#, adhering strictly to DropSort's proprietary/MIT architectural boundaries.
+Under no circumstances may source code from Seanime or Habari be copied, imported, or translated directly into TBD Movies. All techniques, heuristics, and algorithmic patterns implemented in TBD Movies are independently authored clean-room implementations in C#, adhering strictly to TBD Movies's proprietary/MIT architectural boundaries.
 
 ---
 
@@ -42,7 +42,7 @@ Under no circumstances may source code from Seanime or Habari be copied, importe
   - Normalizes file paths and maintains a path deduplication set (`retrievedPathMap`).
   - Supports incremental scanning: files marked `Locked` or `Ignored` in the existing library (`ExistingLocalFiles`) are collected in `skippedLfs` and completely bypassed from re-parsing and re-matching.
   - Implements a "shelving" mechanism (`WithShelving`): if a library root becomes unavailable (e.g. unplugged external drive), locked items are preserved in `shelvedLocalFiles` instead of being pruned as missing or deleted.
-- **DropSort (`DropSort.FileSystem/Discovery/MediaDiscoveryService.cs`)**:
+- **TBD Movies (`TBD Movies.FileSystem/Discovery/MediaDiscoveryService.cs`)**:
   - Uses `NetworkReadGuard` to guard UNC/network file I/O against long blocking operations.
   - Verifies paths against reparse-point loops (`PathPolicy.AssertNoReparseComponents`).
   - Implements breadth-first enumeration with per-directory snapshots (`ReadDirectorySnapshot`), isolating disappeared or permission-denied sibling entries.
@@ -76,7 +76,7 @@ Under no circumstances may source code from Seanime or Habari be copied, importe
     - `GetFolderTitle()`: scans `ParsedFolderData` from nearest to furthest, skipping generic keywords ("specials", "extras", "season 1", etc.), and returns the closest folder's parsed title.
     - `GetAllFolderTitles()`: returns all valid ancestor directory titles.
     - `GetTitleVariations()`: constructs candidate titles by combining filename titles, closest folder titles (primary), ancestor folder titles (extra, scored with lower weight), and combines them with extracted season/part numbers.
-- **DropSort Architecture & Separation of Concerns**:
+- **TBD Movies Architecture & Separation of Concerns**:
   - `MediaDiscoveryService.cs` acts strictly as the honest, low-level factual file parser. It extracts facts directly evident from the filename without guessing or mutating filenames based on parent folder names.
   - `TvBatchAnalysisService.cs` owns contextual hierarchy analysis. It evaluates folder structure (`folderShowTitle`, `folderSeason`), extracts evidence, resolves missing title/season coordinates, and identifies conflicts.
   - `InferSeasonEpisode` provides best-effort coordinates for manual repair actions ("Move to series") while strictly guarding against false-positive movie conversion.
@@ -85,7 +85,7 @@ Under no circumstances may source code from Seanime or Habari be copied, importe
 
 ## 3. Filename Test Matrix: Verified Analysis
 
-| Filename | Direct Parse Behavior | Context Required? | Ambiguity / Failure Mode | Seanime Verified Result | DropSort Verified Behavior |
+| Filename | Direct Parse Behavior | Context Required? | Ambiguity / Failure Mode | Seanime Verified Result | TBD Movies Verified Behavior |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `Breaking.Bad.S01E05.1080p.mkv` | Direct | No | None. Explicit title, season 1, episode 5, resolution 1080p. | Title: "Breaking Bad", S1, E5, 1080p. | `TvEpisodeCandidate`: "Breaking Bad", S1, E5, 1080p. |
 | `S01E05.mkv` | S1, E5 extracted; Title is missing | **Yes (Parent Folder)** | Without folder, show identity is unknown. | Habari parses S1 E5, title empty. `GetParsedTitle()` resolves to closest folder title. | `MediaDiscoveryService` marks `TvEpisodeSkipped` (title=null). `TvBatchAnalysisService` resolves show title from parent folder. |
@@ -97,11 +97,11 @@ Under no circumstances may source code from Seanime or Habari be copied, importe
 
 ---
 
-## 4. Seanime vs DropSort: Detailed Comparison
+## 4. Seanime vs TBD Movies: Detailed Comparison
 
-| Area | Seanime Verified Behavior | DropSort Verified Behavior | Demonstrated Gap | Status & Implementation Strategy |
+| Area | Seanime Verified Behavior | TBD Movies Verified Behavior | Demonstrated Gap | Status & Implementation Strategy |
 | :--- | :--- | :--- | :--- | :--- |
-| **Directory Traversal & Paths** | Multi-directory traversal (`DirPath` + `OtherDirPaths`). Path deduplication. Shelving of files on disconnected drives. | Single root discovery with `NetworkReadGuard`, anti-symlink loop traversal (`PathPolicy`), snapshotting. | DropSort handles UNC/storage availability robustly, but discovery ignores parent folder context for media naming. | **Preserved Architectural Boundary**: Discovery remains factual; contextual hierarchy is handled in `TvBatchAnalysisService`. |
+| **Directory Traversal & Paths** | Multi-directory traversal (`DirPath` + `OtherDirPaths`). Path deduplication. Shelving of files on disconnected drives. | Single root discovery with `NetworkReadGuard`, anti-symlink loop traversal (`PathPolicy`), snapshotting. | TBD Movies handles UNC/storage availability robustly, but discovery ignores parent folder context for media naming. | **Preserved Architectural Boundary**: Discovery remains factual; contextual hierarchy is handled in `TvBatchAnalysisService`. |
 | **Season Folder Numeric Episodes** | Habari extracts episode numbers even from bare numbers if in series/season folder. | Bare numeric files (`Season 01/05.mkv`, `[05].mkv`) previously remained unresolved. | Automated batch ingestion failed on bare episode numbers under season folders. | **Implemented**: Added `TryExtractBareNumericEpisode` in `TvBatchAnalysisService` and `MediaDiscoveryService.InferSeasonEpisode`. |
 | **Season Conflict Precedence** | Upstream resolves episode and applies folder context. | `MediaDiscoveryService.InferSeasonEpisode` previously allowed `folderSeason` to overwrite `parsed.SeasonNumber`. | Conflicting season folder (`Season 02/Show.S03E05.mkv`) silently overwrote explicit S03 with S02. | **Implemented**: Explicit filename season (`SxxExx`, `1x02`) strictly takes precedence over folder season. |
 | **Movie Sequel Protection** | Distinguishes anime movies from episodes via offline anime database and metadata schemas. | Naive trailing number patterns risked converting movie sequels (`Toy Story 2`) into TV episodes. | Over-broad trailing-number matching converted movie franchise titles into TV show episodes. | **Implemented**: Conservative exclusion in `IsAmbiguousOrMovieSequel` and `TryExtractBareNumericEpisode` rejects sequels, resolutions, and ambiguous 3-digit numbers. |
@@ -133,13 +133,13 @@ Under no circumstances may source code from Seanime or Habari be copied, importe
 
 ### Deferred with Technical Rationale
 1. **Parent-Folder Title Fallback in `MediaDiscoveryService.Parse`**:
-   - *Rationale*: DropSort intentionally separates raw file discovery (`MediaDiscoveryService`) from contextual batch analysis (`TvBatchAnalysisService`). Mutating titles during raw discovery would bypass this separation and risk assigning transient directory names (e.g., `Downloads`, `Media`, `Temp`) as show titles.
+   - *Rationale*: TBD Movies intentionally separates raw file discovery (`MediaDiscoveryService`) from contextual batch analysis (`TvBatchAnalysisService`). Mutating titles during raw discovery would bypass this separation and risk assigning transient directory names (e.g., `Downloads`, `Media`, `Temp`) as show titles.
 2. **Punctuation & Roman Numeral Normalization in `MetadataMatchingService`**:
-   - *Rationale*: DropSort's `MetadataScorer` mathematically evaluates Levenshtein ratio and token overlap against TMDB search results. Altering title tokens or mapping Roman numerals without an exhaustive live TMDB regression baseline risks false matches on franchise titles (e.g., *Rocky II*, *Star Wars Episode IV*).
+   - *Rationale*: TBD Movies's `MetadataScorer` mathematically evaluates Levenshtein ratio and token overlap against TMDB search results. Altering title tokens or mapping Roman numerals without an exhaustive live TMDB regression baseline risks false matches on franchise titles (e.g., *Rocky II*, *Star Wars Episode IV*).
 
 ---
 
 ## 6. Verification Summary
 - **Focused Unit Tests**: 57 passed, 0 failed (including double-click cancellation, safe blur, length validation, conflict resolution, sequel negative fixtures, and persistence).
 - **Applicable Broader Test Suite**: 1,004 passed, 0 failed (excluding only `WindowsTmdbCredentialStoreTests` due to sandbox Credential Manager requirements).
-- **Visual Studio MSBuild Production Build**: Release x64 compilation succeeded with 0 warnings and 0 errors (`DropSort.UI.dll`).
+- **Visual Studio MSBuild Production Build**: Release x64 compilation succeeded with 0 warnings and 0 errors (`TBD Movies.UI.dll`).

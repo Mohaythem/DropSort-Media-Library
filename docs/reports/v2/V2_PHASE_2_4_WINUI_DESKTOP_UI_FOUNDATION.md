@@ -1,10 +1,10 @@
-# DropSort Media Library — V2 Phase 2.4
+# TBD Movies Media Library — V2 Phase 2.4
 
 ## 1. Scope
 
 Implemented the shared WinUI-inspired desktop UI foundation and local Library search requested for Phase 2.4. The work covers shared geometry, spacing, buttons, header, sidebar semantics, language/theme controls, read-only provider rating presentation, scroll treatment, TMDB setup help, localization/RTL, accessibility, and local-only search. Check Library behavior and its Phase 2.3 implementation were not redesigned or restyled directly.
 
-DropSort remains Python/PySide6/Qt with SQLite. WinUI, XAML, and C# were used only as visual and interaction references; there is no WinUI/XAML/C# runtime dependency.
+TBD Movies remains Python/PySide6/Qt with SQLite. WinUI, XAML, and C# were used only as visual and interaction references; there is no WinUI/XAML/C# runtime dependency.
 
 ## 2. WinUI-to-Qt Mapping
 
@@ -12,7 +12,7 @@ WinUI concepts map to existing Qt primitives: `QFrame` and QSS for surfaces and 
 
 ## 3. Geometry Tokens
 
-Shared tokens are defined in `src/dropsort/ui/common/theme.py`: control radius 4 px, overlay/top-level radius 8 px, control height 36 px, and navigation item height 42 px. Existing compatibility aliases remain available.
+Shared tokens are defined in `src/TBD Movies/ui/common/theme.py`: control radius 4 px, overlay/top-level radius 8 px, control height 36 px, and navigation item height 42 px. Existing compatibility aliases remain available.
 
 ## 4. Spacing System
 
@@ -20,7 +20,7 @@ The shared spacing scale is 4, 8, 12, 16, 24, 36, and 48 px. Existing small/medi
 
 ## 5. Button System
 
-The shared QSS defines rest, hover, pressed, disabled, focused, and checked behavior while preserving DropSort's existing semantic action hierarchy. Blacklist remains a non-destructive state/action and was not treated as a destructive control.
+The shared QSS defines rest, hover, pressed, disabled, focused, and checked behavior while preserving TBD Movies's existing semantic action hierarchy. Blacklist remains a non-destructive state/action and was not treated as a destructive control.
 
 ## 6. Language Toggle
 
@@ -40,7 +40,7 @@ The existing sidebar and resize/collapse architecture remain in place. Navigatio
 
 ## 10. Title / App Header
 
-A refined app header now sits below the native title bar. It keeps the existing DropSort identity and native caption/window behavior, shows the active section, and provides the Library search field only on Library and Personal Library pages.
+A refined app header now sits below the native title bar. It keeps the existing TBD Movies identity and native caption/window behavior, shows the active section, and provides the Library search field only on Library and Personal Library pages.
 
 ## 11. Local Library Search
 
@@ -64,12 +64,12 @@ The language toggle, theme ComboBox, search field, search suggestions, rating vi
 
 ## 16. Themes
 
-Main, Dark, Slate, and Light remain supported. The shared UI foundation uses semantic theme roles and does not copy Microsoft sample colors. Existing DropSort semantic colors remain authoritative.
+Main, Dark, Slate, and Light remain supported. The shared UI foundation uses semantic theme roles and does not copy Microsoft sample colors. Existing TBD Movies semantic colors remain authoritative.
 
 ## 17. Files Created
 
-- `src/dropsort/ui/common/rating.py`
-- `src/dropsort/ui/library/search.py`
+- `src/TBD Movies/ui/common/rating.py`
+- `src/TBD Movies/ui/library/search.py`
 - `tests/unit/ui/test_phase24_ui_foundation.py`
 - `V2_PHASE_2_4_WINUI_DESKTOP_UI_FOUNDATION.md`
 
@@ -77,14 +77,14 @@ Disposable verification outputs also include `.coverage-v2-phase24-final.json`, 
 
 ## 18. Files Modified
 
-- `src/dropsort/ui/common/theme.py`
-- `src/dropsort/ui/localization.py`
-- `src/dropsort/ui/library/movie_card.py`
-- `src/dropsort/ui/movie_details/details_view.py`
-- `src/dropsort/ui/library/library_view.py`
-- `src/dropsort/ui/personal_library/personal_library_view.py`
-- `src/dropsort/ui/settings/settings_view.py`
-- `src/dropsort/ui/main_window/window.py`
+- `src/TBD Movies/ui/common/theme.py`
+- `src/TBD Movies/ui/localization.py`
+- `src/TBD Movies/ui/library/movie_card.py`
+- `src/TBD Movies/ui/movie_details/details_view.py`
+- `src/TBD Movies/ui/library/library_view.py`
+- `src/TBD Movies/ui/personal_library/personal_library_view.py`
+- `src/TBD Movies/ui/settings/settings_view.py`
+- `src/TBD Movies/ui/main_window/window.py`
 
 No database schema, migration, File Engine, journal, recovery, or real-media operation code was modified.
 
@@ -104,7 +104,7 @@ Branch coverage is `95%` for the full suite (`10,598` statements, `2,212` branch
 
 ## 22. Packaging
 
-PyInstaller `6.22.0` built the disposable distribution successfully. `DropSort.exe` is 2,426,146 bytes with SHA-256:
+PyInstaller `6.22.0` built the disposable distribution successfully. `TBD Movies.exe` is 2,426,146 bytes with SHA-256:
 
 `DB52522C8BB263886A0A520B100A93BFEB73A53D9ACF777DFB756212B824D997`
 
@@ -116,7 +116,7 @@ No real media library was scanned or mutated. Search is read-only over already l
 
 ## 24. Asset Audit
 
-No new images, illustrations, icons, posters, fonts, or other visual assets were created, generated, downloaded, or added. The package contains only the pre-existing DropSort icon/SVG, TMDB SVG, and bundled fonts already declared by `DropSort.spec`.
+No new images, illustrations, icons, posters, fonts, or other visual assets were created, generated, downloaded, or added. The package contains only the pre-existing TBD Movies icon/SVG, TMDB SVG, and bundled fonts already declared by `TBD Movies.spec`.
 
 ## 25. Normal Review
 
@@ -138,4 +138,4 @@ Discover, Trending, Popular, Upcoming, Recommendations, Letterboxd, Analytics, D
 
 **PASS for implementation and automated verification; user visual retest remains required.**
 
-DropSort remains Python/PySide6/Qt. WinUI/XAML/C# are visual/interaction references only. No new images/assets were added, no personal numeric rating or `rating_snapshot` was introduced, TMDB rating remains read-only provider metadata, Library search is local-only with no TMDB/network search, and no database migration/schema change was made.
+TBD Movies remains Python/PySide6/Qt. WinUI/XAML/C# are visual/interaction references only. No new images/assets were added, no personal numeric rating or `rating_snapshot` was introduced, TMDB rating remains read-only provider metadata, Library search is local-only with no TMDB/network search, and no database migration/schema change was made.

@@ -1,4 +1,4 @@
-# DropSort WinUI 3 — Forward Plan
+# TBD Movies WinUI 3 — Forward Plan
 
 This is the authoritative forward plan for the WinUI rewrite as of 2026-09-24. Historical phase reports explain how the current system was built; they do not override this roadmap. Product Phase 3 is **closed and manually accepted**; the revised release direction below supersedes the earlier Phase 4–9 ordering, whose detailed scope is retained for reference.
 
@@ -16,14 +16,14 @@ This is the authoritative forward plan for the WinUI rewrite as of 2026-09-24. H
 
 These contracts remain in force unless a later explicit Goal changes them.
 
-- DropSort is local-first. Core library access remains usable without TMDB, and metadata service failures never undo successful local registration.
+- TBD Movies is local-first. Core library access remains usable without TMDB, and metadata service failures never undo successful local registration.
 - Add Media distinguishes local registration readiness from metadata state. `Ready to Add`, `Matched`, `Needs Match`, metadata service errors, and `Already in Library` are not interchangeable.
 - Existing-media detection uses the registered media path identity, not movie/show identity. A different valid file for the same title is not automatically a duplicate.
 - Metadata matching stays conservative. Ambiguous or low-confidence results require review; provider/auth/network failures are service errors, not legitimate no-match results.
 - Filesystem changes retain the existing safety boundary: approved roots, reparse-point rejection, source identity locking, no overwrite, journal-first mutation, destination verification before source deletion, and recoverable failure handling.
 - Missing media remains represented in the catalog unless an explicit user action says otherwise. Unexpected filesystem/system incidents start with forensic, read-only inspection.
 - UI code remains presentation-focused and accesses data/services through Application contracts. Domain/Application do not depend on Infrastructure or UI.
-- Preserve the accepted DropSort WinUI/Fluent visual system. Retain native controls, adaptive layouts, accessible focus/pointer/disabled states, English LTR, Arabic RTL, and Slate/Dark/Light behavior. Do not redesign approved screens while delivering backend work.
+- Preserve the accepted TBD Movies WinUI/Fluent visual system. Retain native controls, adaptive layouts, accessible focus/pointer/disabled states, English LTR, Arabic RTL, and Slate/Dark/Light behavior. Do not redesign approved screens while delivering backend work.
 - Do not introduce fake domain data merely to make a UI surface, metric, or report appear complete.
 - Current explicit **Clear Library Data** semantics are a separate whole-library action: it clears catalog records, TV hierarchy, personal state/watch events, metadata cache, and the app-owned poster cache where cleanup succeeds; it preserves physical media files and the operation journal, and it is blocked by nonterminal file operations. Phase 3 must not silently change this contract.
 
@@ -40,9 +40,9 @@ These contracts remain in force unless a later explicit Goal changes them.
 
 ## Revised release direction (2026-09-24)
 
-**Product identity (fixed).** DropSort is a **Local-First Personal Media Library + Real File Intelligence + Safe File Management** application. Major **1.0 feature expansion is frozen**: the path to 1.0 is hardening, trust, and lifecycle QA, not new surface area.
+**Product identity (fixed).** TBD Movies is a **Local-First Personal Media Library + Real File Intelligence + Safe File Management** application. Major **1.0 feature expansion is frozen**: the path to 1.0 is hardening, trust, and lifecycle QA, not new surface area.
 
-**Prioritization rule.** Features that strengthen DropSort's understanding of local media, real files, storage, identity, or local viewing state are high priority. Features that would work equally well as a generic website are usually lower priority.
+**Prioritization rule.** Features that strengthen TBD Movies's understanding of local media, real files, storage, identity, or local viewing state are high priority. Features that would work equally well as a generic website are usually lower priority.
 
 **Ordered path to 1.0.**
 
@@ -63,9 +63,9 @@ These contracts remain in force unless a later explicit Goal changes them.
 12. 0.9.x Preview.
 13. 1.0.
 
-### DropSort 1.0 Scope Freeze (frozen 2026-09-24, adversarial-reviewed)
+### TBD Movies 1.0 Scope Freeze (frozen 2026-09-24, adversarial-reviewed)
 
-**1.0 product definition.** DropSort 1.0 is a **local-first personal media library** that understands the user's real files, keeps logical media identity separate from physical file/path identity, and manages files safely. It is not a discovery/social/tracking product.
+**1.0 product definition.** TBD Movies 1.0 is a **local-first personal media library** that understands the user's real files, keeps logical media identity separate from physical file/path identity, and manages files safely. It is not a discovery/social/tracking product.
 
 **A. Included in 1.0 (implemented; must stay release-quality).** Local-first SQLite catalog; Add Media (selective mixed Movie/TV import; local registration independent of metadata); optional TMDB enrichment + poster cache + manual match; Library / Home / My Lists / Movie & TV details; real persistent watch history; Recently Watched logical-media semantics (repeated movie → one card; TV episodes/seasons → one show-level card); Continue Watching; Play ≠ Mark Watched; journaled safe filesystem organize (approved roots, no overwrite, verify-before-delete, recoverable failure); missing ≠ deleted logical media; Clear Library Data semantics; settings/personal-state; Operations Log; English/Arabic RTL; single write-coordination contract (`DatabaseWriteGate`).
 
@@ -76,7 +76,7 @@ These contracts remain in force unless a later explicit Goal changes them.
 **D. Out of scope / avoid.** Discover expansion, ratings/reviews/social, analytics-heavy expansion, Letterboxd-style direction, large recommendation systems, and any generic media-tracking that does not depend on local filesystem intelligence.
 
 **Release blockers (must be resolved before 1.0).** Blockers 1–3 are **CLOSED** by the Data / File Trust Pass (`PHASES.md` §12). Blocker 4 is **CLOSED** by the Drive-Aware Availability Model (`PHASES.md` §13). Blocker 5 is **CLOSED** by Early Backup Protection (`PHASES.md` §14). Blocker 6 (exact WinUI artifact + installed-app verification) remains open.
-1. **Single-instance ownership** — a second process running startup migration/recovery over the same `library.db` can mark an in-flight file operation Failed while the first process is mid-copy, leaving an orphan destination and journal/catalog divergence. **Verified unconditional:** the UI project ships **unpackaged** (`DropSort.UI.csproj` `<WindowsPackageType>None</WindowsPackageType>`), has no `Package.appxmanifest`, no `AppInstance.FindOrRegisterForKey`/`RedirectActivationTo`, and no custom `Main` — `App.OnLaunched` unconditionally creates a window. So single-instance is enforced in neither dev nor the release artifact, and MSIX is not in use (adopting it would still require explicit `AppInstance` redirect code). Enforce per-user/per-database OS-level instance ownership before migration/recovery. (Resolve in Data / File Trust Pass.)
+1. **Single-instance ownership** — a second process running startup migration/recovery over the same `library.db` can mark an in-flight file operation Failed while the first process is mid-copy, leaving an orphan destination and journal/catalog divergence. **Verified unconditional:** the UI project ships **unpackaged** (`TBD Movies.UI.csproj` `<WindowsPackageType>None</WindowsPackageType>`), has no `Package.appxmanifest`, no `AppInstance.FindOrRegisterForKey`/`RedirectActivationTo`, and no custom `Main` — `App.OnLaunched` unconditionally creates a window. So single-instance is enforced in neither dev nor the release artifact, and MSIX is not in use (adopting it would still require explicit `AppInstance` redirect code). Enforce per-user/per-database OS-level instance ownership before migration/recovery. (Resolve in Data / File Trust Pass.)
 2. **Stable TV import identity** — **verified concrete, not merely fragile.** Episode import resolves the show by the filename-derived `sort_title` (`ImportService.RegisterEpisode` → `uow.TvShows.GetBySortTitle`). Metadata matching (`MetadataMatchingService.ApplyTvShowMetadataAsync`) rebuilds the show as `TvShowCatalogData(title: showMetadata.Title, provider, externalId, …)`, and `TvShow`/`TvShowCatalogData` derive `SortTitle = NormalizeTitle(Title)`, so `TvShowRepository.UpdateMetadata` overwrites both `title` **and** `sort_title` (and sets `provider`/`external_id`). No original filename alias is preserved anywhere. A later episode arriving under the original filename alias therefore misses `GetBySortTitle` and **creates a second show** (`sort_title` is UNIQUE, so the insert succeeds), splitting seasons/episodes/viewing state; matching that second show to the same provider identity then **violates `UNIQUE(provider, external_id)`** on `tv_shows`. Keep an immutable local import identity/alias independent of display metadata, and add the alias → match → next-episode regression before 1.0.
 3. **Honest unsupported-TV classification** — unrecognized TV filename forms (e.g. underscore-delimited, multi-episode ranges, absolute numbering, specials) currently fall through to Movie classification. Classify unsupported/ambiguous inputs as unresolved-TV-needing-review rather than silently registering them as movies.
 4. **Narrow drive-aware availability** — distinguish offline/unmounted storage from deleted media (do not present an unmounted drive's media as gone).
@@ -117,7 +117,7 @@ Retain, without implementing now: Library Health, Smart Relink Suggestions, Driv
 
 The backlog below is retained as the earlier post-1.0 proposal. Use [RELEASE_2_V2_ROADMAP.md](RELEASE_2_V2_ROADMAP.md) for current V2 grouping and prioritization where they differ. Release 1 scope and correctness requirements in this file remain authoritative.
 
-This backlog integrates the 2026-09-28 idea set with the existing post-1.0 priorities. It does **not** enlarge 1.0: the freeze holds, and every item here is After 1.0, Later, or Avoid unless it is a pure correctness prerequisite already tracked as a release blocker. Ordering within a tier follows the prioritization rule — features that deepen understanding of local media, real files, storage, identity, or local viewing state rank above features that would work equally well as a generic website. Nothing here changes DropSort's identity: local-first native media library with real-file intelligence and safe file management — not a social, streaming, or recommendation-first product.
+This backlog integrates the 2026-09-28 idea set with the existing post-1.0 priorities. It does **not** enlarge 1.0: the freeze holds, and every item here is After 1.0, Later, or Avoid unless it is a pure correctness prerequisite already tracked as a release blocker. Ordering within a tier follows the prioritization rule — features that deepen understanding of local media, real files, storage, identity, or local viewing state rank above features that would work equally well as a generic website. Nothing here changes TBD Movies's identity: local-first native media library with real-file intelligence and safe file management — not a social, streaming, or recommendation-first product.
 
 #### Tier 0 — Before 1.0 (correctness only; already tracked, no new surface)
 
@@ -143,7 +143,7 @@ Ranked; earlier items unblock later ones.
 - **User-facing Backup / Restore.** A strong backup/restore for the database, lists, watch history, local metadata edits, and preferences — **never the video files**. Merges *Portable Local Backup / Manifest*; builds on the shipped verified pre-migration backup + backend restore primitive. *Depends on:* existing backup primitive (done).
 - **Advanced search filters.** Year, genre, type, watched state, resolution, drive, metadata state, date added; optionally saved as Smart Lists. *Depends on:* indexed metadata/file/watch state.
 - **Smart Lists.** Rule-based lists beside custom lists (Unwatched, Recently Added, 4K, Missing Metadata, Missing Files, Favorites, specific drive, …). *Depends on:* Advanced search predicates; watched + file/metadata state. Extends existing custom lists.
-- **Safe Organize / Rename Templates.** File organization must not assume that the user's media belongs in one central library folder. DropSort supports libraries spread across multiple folders, drives, removable media, and network locations. The default Organize action should therefore be **Rename in current location**, preserving the file's existing parent folder. Moving is an explicit secondary choice: **Move to another folder...**, optionally combined with rename. Movie and TV naming templates may suggest clean filenames, but the user sees a full source → destination preview before any filesystem mutation. All operations continue through the journaled safe-file pipeline with no overwrite, source identity validation, destination verification, and recoverable failure handling. Future batch organize must support Preview / Dry Run and never silently consolidate media into a single root. *Depends on:* journaled organize (exists).
+- **Safe Organize / Rename Templates.** File organization must not assume that the user's media belongs in one central library folder. TBD Movies supports libraries spread across multiple folders, drives, removable media, and network locations. The default Organize action should therefore be **Rename in current location**, preserving the file's existing parent folder. Moving is an explicit secondary choice: **Move to another folder...**, optionally combined with rename. Movie and TV naming templates may suggest clean filenames, but the user sees a full source → destination preview before any filesystem mutation. All operations continue through the journaled safe-file pipeline with no overwrite, source identity validation, destination verification, and recoverable failure handling. Future batch organize must support Preview / Dry Run and never silently consolidate media into a single root. *Depends on:* journaled organize (exists).
 - **Operation history + safe Undo.** Track Move / Rename / Relink / Merge and allow safe Undo where reversible. Extends today's Operations Log + organize-undo. *Depends on:* Relink and Merge features above.
 
 #### Tier 2 — After 1.0, experience/UI (useful, lower priority; nearer the "generic-website" line)
@@ -157,7 +157,7 @@ Ranked; earlier items unblock later ones.
 
 - **Resume position.** Accurate resume/Continue-Watching by playback position requires an integrated player or a reliable way to observe an external player's position; deferred until that design exists.
 - **Artwork Viewer — Poster/Backdrop navigation** and **manual artwork selection** (choosing among multiple provider images).
-- **Letterboxd import/export.** Data interop only (import/export lists/history), explicitly **not** social/ratings features. Kept Later and narrowly scoped so it does not pull DropSort toward a tracking/social product.
+- **Letterboxd import/export.** Data interop only (import/export lists/history), explicitly **not** social/ratings features. Kept Later and narrowly scoped so it does not pull TBD Movies toward a tracking/social product.
 
 #### Tier 4 — Avoid / only if a concrete need appears
 

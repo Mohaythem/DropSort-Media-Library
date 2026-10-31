@@ -1,4 +1,4 @@
-# DropSort .NET Rewrite — Phase 2 Report
+# TBD Movies .NET Rewrite — Phase 2 Report
 
 **Date:** 2026-08-31  
 **Status:** ✅ Phase 2 Complete  
@@ -7,7 +7,7 @@
 
 ## 1. Domain Entities & Enums Ported
 
-The entire core domain model from V1 Python has been translated into pure C# 10 records and enums within the `DropSort.Domain` project. The port strictly adheres to the original boundaries and enforces the same invariants.
+The entire core domain model from V1 Python has been translated into pure C# 10 records and enums within the `TBD Movies.Domain` project. The port strictly adheres to the original boundaries and enforces the same invariants.
 
 ### Enums (14 total)
 All enums explicitly mapped:
@@ -56,7 +56,7 @@ All business rules proven by the V1 Python tests are preserved:
 ## 3. Verification & Testing
 
 - **Mapping Artifact**: `domain_mapping.md` provides a 1:1 trace matrix of Python structures to C# files.
-- **Tests Ported**: 4 test classes were created in `tests/DropSort.Tests/Domain/`:
+- **Tests Ported**: 4 test classes were created in `tests/TBD Movies.Tests/Domain/`:
   - `CatalogModelsTests.cs` (Movie/MediaFile rules)
   - `MatcherModelsTests.cs` (MatchDecision invariants)
   - `DiscoveryModelsTests.cs` (DiscoveredMedia coherence)

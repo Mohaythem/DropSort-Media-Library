@@ -1,4 +1,4 @@
-# DropSort Sidebar Prototype Match Correction
+# TBD Movies Sidebar Prototype Match Correction
 
 ## Task
 
@@ -12,7 +12,7 @@ Implementation, automated verification, accepted coverage, packaging, official a
 
 ## Expanded sidebar
 
-PASS by source and automated geometry tests. The default pane remains 272 px. Its outer horizontal inset is 8 px; top, pane-toggle, search, navigation, and footer regions are explicit rows rather than one loose vertical stack. The top row is 42 px, Back is 36 px, DropSort remains text-only, and expanded navigation uses 42 px rows with 4 px vertical gaps and 12 px row padding.
+PASS by source and automated geometry tests. The default pane remains 272 px. Its outer horizontal inset is 8 px; top, pane-toggle, search, navigation, and footer regions are explicit rows rather than one loose vertical stack. The top row is 42 px, Back is 36 px, TBD Movies remains text-only, and expanded navigation uses 42 px rows with 4 px vertical gaps and 12 px row padding.
 
 ## Navigation alignment
 
@@ -22,9 +22,9 @@ PASS by source and automated tests. Primary destinations are rendered inside sid
 
 PASS by source and automated tests. Navigation rows override the generic checked-button border. Selection uses the theme backplate plus an independent 3 x 24 px accent marker, mirrored to the trailing edge in RTL. Compact selection has no accent outline.
 
-## Back + DropSort
+## Back + TBD Movies
 
-PASS by source and automated tests. Back and the DropSort text label share one 42 px top row with an 8 px gap. No sidebar application logo was added. Existing meaningful Back behavior is unchanged.
+PASS by source and automated tests. Back and the TBD Movies text label share one 42 px top row with an 8 px gap. No sidebar application logo was added. Existing meaningful Back behavior is unchanged.
 
 ## Pane toggle
 
@@ -52,9 +52,9 @@ PASS by automated LTR/RTL tests. A layout-direction change immediately repositio
 
 ## Files changed
 
-- src/dropsort/ui/main_window/window.py
-- src/dropsort/ui/common/theme.py
-- src/dropsort/ui/assets/fluent/panel_left.svg
+- src/TBD Movies/ui/main_window/window.py
+- src/TBD Movies/ui/common/theme.py
+- src/TBD Movies/ui/assets/fluent/panel_left.svg
 - tests/unit/ui/test_sidebar.py
 - tests/unit/ui/test_phase29_windows_shell.py
 - tests/unit/ui/test_visual_consolidation_master.py
@@ -75,9 +75,9 @@ PASS. Final combined statement/branch metric is 94.57308767653595 percent, displ
 
 ## Official release
 
-PASS. PyInstaller 6.22.0 under Python 3.12.10 rebuilt DropSort.spec from the exact final source. The official one-directory release contains 221 files, including migrations 1-4, Fluent assets, Inter and Noto Sans Arabic fonts, licenses, README, and third-party notices.
+PASS. PyInstaller 6.22.0 under Python 3.12.10 rebuilt TBD Movies.spec from the exact final source. The official one-directory release contains 221 files, including migrations 1-4, Fluent assets, Inter and Noto Sans Arabic fonts, licenses, README, and third-party notices.
 
-- Executable: D:\DropSort_ chat\DropSort\release\DropSort\DropSort.exe
+- Executable: D:\TBD Movies_ chat\TBD Movies\release\TBD Movies\TBD Movies.exe
 - Size: 2,462,886 bytes
 - Timestamp: 2026-08-17 00:22:32 +03:00
 - Previous and intermediate release directories were preserved in project-local build backups instead of being deleted.
@@ -88,7 +88,7 @@ DD194DE0AA7D98E94EE36A2A7EEBBB8079CEABC408215AB3DFFA507436A30CAC
 
 ## Real GUI inspection
 
-BLOCKED. The exact final official executable was launched normally and its PyInstaller GUI child is running as PID 26072 with title DropSort Media Library from the exact official path. It uses the project-local isolated profile under .build-sidebar-correction-visual-final-local.
+BLOCKED. The exact final official executable was launched normally and its PyInstaller GUI child is running as PID 26072 with title TBD Movies Media Library from the exact official path. It uses the project-local isolated profile under .build-sidebar-correction-visual-final-local.
 
 The Windows computer-control kernel failed before list_apps with windows sandbox failed: helper_unknown_error: apply deny-read ACLs. The fresh-session retry failed identically. Therefore no screenshot, rendered traversal, or pixel-level PASS is claimed.
 

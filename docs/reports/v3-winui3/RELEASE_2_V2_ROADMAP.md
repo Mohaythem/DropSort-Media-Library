@@ -1,4 +1,4 @@
-# DropSort — Release 2 / V2 Roadmap
+# TBD Movies — Release 2 / V2 Roadmap
 
 ## Status and authority
 
@@ -64,7 +64,7 @@ Design evidence strength, review of uncertain results, and fingerprint cost/priv
 
 ### 4. Smart Relink
 
-- Detect probable moves or renames made outside DropSort.
+- Detect probable moves or renames made outside TBD Movies.
 - Propose relinking rather than permanently losing the registered item.
 - Use filename, size, metadata, and future fingerprints as supporting evidence.
 - Preview the old/new path, conflicting registrations, evidence, and uncertainty before explicit confirmation.
@@ -160,7 +160,7 @@ Define filename association, episode/version matching, supported formats, and am
 
 - Optional watching of configured media roots.
 - Detect newly added files, probable renamed/moved files, and removals.
-- Offer review/import/relink through the normal safe DropSort review pipeline.
+- Offer review/import/relink through the normal safe TBD Movies review pipeline.
 - Wait for copying/downloading to complete; tolerate duplicate, out-of-order, missed, or noisy events.
 
 Watcher events are hints, not catalog truth. Revalidate current state before a reviewed action. Do not silently mutate the catalog based solely on events, delete records on removals, or interpret a disconnected drive as mass deletion.
@@ -178,7 +178,7 @@ Preserve native Windows / Fluent controls, accessibility, themes, and LTR/RTL be
 
 These must not drive the initial V2 release. Recording them does not authorize implementation.
 
-- **Discover / non-local catalog:** optional Trending, Popular, Upcoming, Top Rated, or search outside the library. Keep this secondary and clearly separate from locally registered media. DropSort must not become primarily a generic TMDB browser.
+- **Discover / non-local catalog:** optional Trending, Popular, Upcoming, Top Rated, or search outside the library. Keep this secondary and clearly separate from locally registered media. TBD Movies must not become primarily a generic TMDB browser.
 - **Letterboxd:** optional import/export and watched/history interoperability. Preserve local ownership and resolve identity conflicts explicitly. No social-platform direction.
 - **Statistics / analytics:** limited viewing trends, library composition, storage statistics, and watch-history summaries. Useful local storage/integrity summaries already belong to Core; analytics-heavy expansion remains deprioritized.
 - **Provider / plugin architecture:** consider only if a concrete provider or product need justifies complexity. Keep provider metadata replaceable without committing to a plugin system.

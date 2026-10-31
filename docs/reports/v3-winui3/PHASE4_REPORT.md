@@ -1,4 +1,4 @@
-# DropSort .NET Rewrite — Phase 4 Report
+# TBD Movies .NET Rewrite — Phase 4 Report
 
 **Date:** 2026-08-31  
 **Status:** ✅ Phase 4 Complete  
@@ -23,7 +23,7 @@ All 5 historical Python migrations (`0001_initial.sql` to `0005_offline_movie_re
 
 ## 2. File System Engine Parity
 
-The core OS-level abstractions from `dropsort.filesystem` were successfully ported to `DropSort.FileSystem.Engine.SafeTransferEngine`.
+The core OS-level abstractions from `TBD Movies.filesystem` were successfully ported to `TBD Movies.FileSystem.Engine.SafeTransferEngine`.
 
 ### Constraints Enforced
 - **Source Identity Locking**: The engine explicitly checks `FileIdentity` (mimicking `st_dev`, `st_ino`, `st_mtime`, and size) to guarantee the source file was not tampered with while queued.

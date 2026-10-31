@@ -1,4 +1,4 @@
-# DropSort Project Status
+# TBD Movies Project Status
 
 Last verified: 2026-08-25 on native Windows / Python 3.12 / NTFS.
 
@@ -91,7 +91,7 @@ same-ID deterministic enrichment smoke passed. Live TMDB is unverified because n
 configured. Full evidence is in
 `docs/reports/python-stabilization/02-offline-registration-tmdb.md`.
 
-## DropSort V1 status
+## TBD Movies V1 status
 
 **RELEASE FREEZE BLOCKED PENDING ONE USER RETEST.** The final manual-acceptance follow-up fixes the
 packaged Clear Library confirmation path, strips safe leading release-site domains before filename
@@ -145,14 +145,14 @@ domain TMDB lookup remains for user-side retest because no credential was availa
 
 ## What works end to end
 
-Running `python -m dropsort` opens the desktop application. It can display the local SQLite movie
+Running `python -m TBD Movies` opens the desktop application. It can display the local SQLite movie
 catalog as a responsive card grid and show movie metadata plus every linked physical media file.
 Poster areas retain intentional local placeholders; the UI performs no networking directly. Library
 cards and Movie Details request poster
 artwork through a dedicated asset boundary. Valid cached artwork is shown offline; missing,
 unavailable, unauthenticated, or invalid artwork retains the intentional placeholder.
 
-The runtime cache root is centralized at `%LOCALAPPDATA%\DropSort\poster-cache`; tests inject
+The runtime cache root is centralized at `%LOCALAPPDATA%\TBD Movies\poster-cache`; tests inject
 temporary roots and never use the real profile. Poster binaries are not stored in SQLite, and cache
 files are disposable without affecting catalog records or user media.
 
@@ -164,7 +164,7 @@ providers, zero results, and ambiguous results no longer disable explicit local 
 
 Large scans still show monotonic directory/file/media counters. Cancel remains cooperative, discards
 incomplete results, restores inputs, and creates no catalog or journal state. Nothing is added merely
-because scanning or matching runs. Only **Add to DropSort Library** authorizes Transaction A.
+because scanning or matching runs. Only **Add to TBD Movies Library** authorizes Transaction A.
 
 Transaction A atomically registers the local Movie and MediaFile with stable IDs and `PENDING`
 metadata before any provider/detail request. The completed row is removed and the one affected
@@ -189,7 +189,7 @@ existing Phase 1 journaled Move/Rename pipeline. Successful completion refreshes
 catalog path; the movie association and technical metadata remain unchanged.
 
 The desktop now includes **Operation History**. It reads the durable journal newest first and shows
-read-only details plus reverse-operation context. `COMMITTED` is not Undo authorization: DropSort
+read-only details plus reverse-operation context. `COMMITTED` is not Undo authorization: TBD Movies
 verifies current catalog ownership, latest-operation ordering, identity/content evidence, exact
 historical paths, and destination availability before creating an in-memory preview. One explicit
 confirmation creates a new journal row linked through `reverses_operation_id` and executes it through
@@ -203,14 +203,14 @@ Ambiguous both/neither/tampered states preserve files and have no automatic acti
 
 The desktop now has a **Settings** entry for TMDB metadata. A user can enter a masked Read Access
 Token for the current process, clear it, and return directly to Add Movies. A session token takes
-priority over `DROPSORT_TMDB_READ_ACCESS_TOKEN`; when neither is available, Add Movies displays an
+priority over `TBD Movies_TMDB_READ_ACCESS_TOKEN`; when neither is available, Add Movies displays an
 actionable route to Settings. Applying a token updates subsequent metadata requests without an app
 restart. The credential is deliberately never written to SQLite or a settings file.
 
 Recursive scans now traverse multiple ordinary sibling movie folders correctly on native Windows.
 The manual failure came from `DirEntry.stat(follow_symlinks=False)` returning `(st_dev, st_ino) ==
 (0, 0)` for ordinary directories, causing unrelated siblings to look like the same visited
-directory. DropSort now obtains directory identity with `os.lstat()` and revalidates a scheduled
+directory. TBD Movies now obtains directory identity with `os.lstat()` and revalidates a scheduled
 directory immediately before enumeration. Symlinks, junctions/reparse points, changed identities,
 inaccessible entries, and loop identities remain controlled skip/error results; normal directories
 are not review rows.
@@ -227,7 +227,7 @@ The active visual identity is centralized in `ui/common/theme.py`:
 
 The bundled Latin UI typeface is Inter Regular/Bold (SIL Open Font License 1.1), registered through
 `QFontDatabase.addApplicationFont`. Body text uses the real 400 asset and headings use the real 700
-asset. Inter does not contain Arabic glyphs, so DropSort bundles Noto Sans Arabic Regular/Bold as a
+asset. Inter does not contain Arabic glyphs, so TBD Movies bundles Noto Sans Arabic Regular/Bold as a
 deterministic offline companion instead of relying on an uncontrolled system fallback. The
 centralized scale is Body 16 px, H1 67.36 px, H2 50.56 px, H3 37.92 px, H4 28.48 px, H5 21.28 px,
 and Small 12 px. No font is downloaded at runtime.
@@ -268,80 +268,80 @@ site-prefix, release-token, and edition-suffix noise. Candidate identity remains
 external ID, provider failure remains distinct from zero results, and matcher thresholds/import
 authorization are unchanged.
 
-Production runtime state is CWD-independent under `%LOCALAPPDATA%\DropSort`: `dropsort.db`,
+Production runtime state is CWD-independent under `%LOCALAPPDATA%\TBD Movies`: `TBD Movies.db`,
 `poster-cache\`, and bounded redacted `logs\`. Clean first run creates/migrates the database;
 database startup failure is controlled and never silently replaces the existing path.
 
 ## Important runtime modules
 
-- `src/dropsort/application/bootstrap/desktop.py` - desktop composition and orderly worker shutdown.
-- `src/dropsort/application/configuration/metadata_credentials.py` - in-memory credential priority,
+- `src/TBD Movies/application/bootstrap/desktop.py` - desktop composition and orderly worker shutdown.
+- `src/TBD Movies/application/configuration/metadata_credentials.py` - in-memory credential priority,
   local validation, redacted status, and Settings application actions.
-- `src/dropsort/application/dto/import_review.py` - immutable folder-review session DTO.
-- `src/dropsort/application/use_cases/prepare_folder_import_review.py` - discovery/proposal composition only.
-- `src/dropsort/ui/contracts.py` - library and import UI action protocols.
-- `src/dropsort/ui/common/theme.py` - centralized DropSort palette and QSS tokens.
-- `src/dropsort/ui/assets/fonts/` - bundled Inter Regular/Bold and Noto Sans Arabic Regular/Bold,
+- `src/TBD Movies/application/dto/import_review.py` - immutable folder-review session DTO.
+- `src/TBD Movies/application/use_cases/prepare_folder_import_review.py` - discovery/proposal composition only.
+- `src/TBD Movies/ui/contracts.py` - library and import UI action protocols.
+- `src/TBD Movies/ui/common/theme.py` - centralized TBD Movies palette and QSS tokens.
+- `src/TBD Movies/ui/assets/fonts/` - bundled Inter Regular/Bold and Noto Sans Arabic Regular/Bold,
   their OFL texts, and source notes.
-- `src/dropsort/ui/common/tasks.py` - background task boundary and stale-safe result delivery.
-- `src/dropsort/media/discovery/models.py` - immutable monotonic discovery progress counters.
-- `src/dropsort/application/dto/import_review.py` - phased progress, summary, and review-session DTOs.
-- `src/dropsort/application/use_cases/prepare_folder_import_review.py` - cooperative cancellation,
+- `src/TBD Movies/ui/common/tasks.py` - background task boundary and stale-safe result delivery.
+- `src/TBD Movies/media/discovery/models.py` - immutable monotonic discovery progress counters.
+- `src/TBD Movies/application/dto/import_review.py` - phased progress, summary, and review-session DTOs.
+- `src/TBD Movies/application/use_cases/prepare_folder_import_review.py` - cooperative cancellation,
   bounded sequential proposal scheduling, and provider-failure short circuit.
-- `src/dropsort/ui/library/` - responsive movie cards and the primary Library state.
-- `src/dropsort/ui/movie_details/details_view.py` - read-only movie and media-file details.
-- `src/dropsort/ui/main_window/window.py` - Library, Details, Add Movies, History, Settings, and
+- `src/TBD Movies/ui/library/` - responsive movie cards and the primary Library state.
+- `src/TBD Movies/ui/movie_details/details_view.py` - read-only movie and media-file details.
+- `src/TBD Movies/ui/main_window/window.py` - Library, Details, Add Movies, History, Settings, and
   persisted resizable/icon-only sidebar navigation.
-- `src/dropsort/ui/localization.py` - canonical English/Arabic strings, widget bindings, and direction policy.
-- `src/dropsort/application/configuration/localization.py` - provider-neutral persisted language setting.
-- `src/dropsort/database/repositories/settings.py` - parameterized SQLite language preference adapter.
-- `src/dropsort/ui/settings/settings_view.py` - masked, session-only TMDB Settings UI and themeable
+- `src/TBD Movies/ui/localization.py` - canonical English/Arabic strings, widget bindings, and direction policy.
+- `src/TBD Movies/application/configuration/localization.py` - provider-neutral persisted language setting.
+- `src/TBD Movies/database/repositories/settings.py` - parameterized SQLite language preference adapter.
+- `src/TBD Movies/ui/settings/settings_view.py` - masked, session-only TMDB Settings UI and themeable
   scroll/card surfaces.
-- `src/dropsort/application/configuration/theme.py` - persisted theme and sidebar-width settings.
-- `src/dropsort/database/repositories/settings.py` - parameterized SQLite theme and sidebar settings.
-- `src/dropsort/ui/scan/import_view.py` - folder selection, scan session, errors, and explicit import orchestration.
-- `src/dropsort/ui/scan/import_review_row.py` - proposal explanation, candidate selection, and import button.
-- `src/dropsort/ui/scan/manual_search_dialog.py` - background manual TMDB search state and bounded
+- `src/TBD Movies/application/configuration/theme.py` - persisted theme and sidebar-width settings.
+- `src/TBD Movies/database/repositories/settings.py` - parameterized SQLite theme and sidebar settings.
+- `src/TBD Movies/ui/scan/import_view.py` - folder selection, scan session, errors, and explicit import orchestration.
+- `src/TBD Movies/ui/scan/import_review_row.py` - proposal explanation, candidate selection, and import button.
+- `src/TBD Movies/ui/scan/manual_search_dialog.py` - background manual TMDB search state and bounded
   five-result card host.
-- `src/dropsort/ui/scan/manual_search_result_card.py` - localized semantic candidate card with
+- `src/TBD Movies/ui/scan/manual_search_result_card.py` - localized semantic candidate card with
   separate metadata, wrapped overview, and explicit selection action.
-- `src/dropsort/media/discovery/scanner.py` - read-only Windows directory identity reinspection and
+- `src/TBD Movies/media/discovery/scanner.py` - read-only Windows directory identity reinspection and
   pre-enumeration link/identity validation.
-- `src/dropsort/metadata/providers/session_tmdb.py` - thread-safe runtime credential-to-provider adapter.
-- `src/dropsort/posters/contracts.py` - provider-neutral request/source/asset contracts and image validation.
-- `src/dropsort/posters/cache.py` - application-owned, bounded, atomic local poster cache.
-- `src/dropsort/posters/service.py` - cache-first/offline poster orchestration and duplicate suppression.
-- `src/dropsort/posters/providers/tmdb.py` - bounded TMDB poster download adapter using runtime credentials.
-- `src/dropsort/ui/posters/loader.py` - shared four-worker Qt pool, in-flight coalescing, and weak delivery.
-- `src/dropsort/ui/library/movie_card.py` - fixed-size aspect-preserving poster presentation.
-- `src/dropsort/ui/movie_details/details_view.py` - details poster presentation with stale-result protection.
-- `src/dropsort/library/playback/` - local-action protocol, controlled errors, and Windows adapter.
-- `src/dropsort/application/dto/organization.py` - immutable organization preview/result DTOs.
-- `src/dropsort/application/use_cases/organize_media_file.py` - read-only preview, one-time explicit
+- `src/TBD Movies/metadata/providers/session_tmdb.py` - thread-safe runtime credential-to-provider adapter.
+- `src/TBD Movies/posters/contracts.py` - provider-neutral request/source/asset contracts and image validation.
+- `src/TBD Movies/posters/cache.py` - application-owned, bounded, atomic local poster cache.
+- `src/TBD Movies/posters/service.py` - cache-first/offline poster orchestration and duplicate suppression.
+- `src/TBD Movies/posters/providers/tmdb.py` - bounded TMDB poster download adapter using runtime credentials.
+- `src/TBD Movies/ui/posters/loader.py` - shared four-worker Qt pool, in-flight coalescing, and weak delivery.
+- `src/TBD Movies/ui/library/movie_card.py` - fixed-size aspect-preserving poster presentation.
+- `src/TBD Movies/ui/movie_details/details_view.py` - details poster presentation with stale-result protection.
+- `src/TBD Movies/library/playback/` - local-action protocol, controlled errors, and Windows adapter.
+- `src/TBD Movies/application/dto/organization.py` - immutable organization preview/result DTOs.
+- `src/TBD Movies/application/use_cases/organize_media_file.py` - read-only preview, one-time explicit
   authorization, pre-journal revalidation, and controlled result translation.
-- `src/dropsort/ui/organization/dialog.py` - exact operation preview and explicit confirmation UI.
-- `src/dropsort/ui/movie_details/details_view.py` - exact per-file Play/Open Folder presentation and
+- `src/TBD Movies/ui/organization/dialog.py` - exact operation preview and explicit confirmation UI.
+- `src/TBD Movies/ui/movie_details/details_view.py` - exact per-file Play/Open Folder presentation and
   per-file Organize presentation with controlled action feedback.
-- `src/dropsort/library/operations/` - operation-history read contracts and projections.
-- `src/dropsort/database/repositories/operation_history.py` - bounded newest-first journal queries.
-- `src/dropsort/application/dto/operation_history.py` - immutable history/Undo/recovery DTOs.
-- `src/dropsort/application/use_cases/operation_history.py` - history, dynamic Undo eligibility,
+- `src/TBD Movies/library/operations/` - operation-history read contracts and projections.
+- `src/TBD Movies/database/repositories/operation_history.py` - bounded newest-first journal queries.
+- `src/TBD Movies/application/dto/operation_history.py` - immutable history/Undo/recovery DTOs.
+- `src/TBD Movies/application/use_cases/operation_history.py` - history, dynamic Undo eligibility,
   one-shot reverse execution, and explicit recovery orchestration.
-- `src/dropsort/ui/history/` - Operation History, Details, Undo Preview, and recovery presentation.
-- `src/dropsort/library/availability/` - provider-neutral no-follow catalog-path inspection.
-- `src/dropsort/application/use_cases/reconcile_library_files.py` - bounded explicit reconciliation,
+- `src/TBD Movies/ui/history/` - Operation History, Details, Undo Preview, and recovery presentation.
+- `src/TBD Movies/library/availability/` - provider-neutral no-follow catalog-path inspection.
+- `src/TBD Movies/application/use_cases/reconcile_library_files.py` - bounded explicit reconciliation,
   progress, cancellation, and transient-error preservation.
-- `src/dropsort/application/use_cases/relink_media_file.py` - conservative preview, one-shot TOCTOU
+- `src/TBD Movies/application/use_cases/relink_media_file.py` - conservative preview, one-shot TOCTOU
   revalidation, and transactional catalog-only Relink.
-- `src/dropsort/application/use_cases/movie_search_fallbacks.py` - bounded deterministic noisy-title
+- `src/TBD Movies/application/use_cases/movie_search_fallbacks.py` - bounded deterministic noisy-title
   query planning without matcher-policy changes.
-- `src/dropsort/application/use_cases/clear_library_data.py` - explicit catalog-maintenance boundary
+- `src/TBD Movies/application/use_cases/clear_library_data.py` - explicit catalog-maintenance boundary
   and post-commit cache cleanup translation.
-- `src/dropsort/database/repositories/library_maintenance.py` - transactional catalog clearing with
+- `src/TBD Movies/database/repositories/library_maintenance.py` - transactional catalog clearing with
   nonterminal-journal blocking and history preservation.
-- `src/dropsort/ui/reconciliation/` - Library Check progress/cancel and Relink preview/confirmation.
-- `src/dropsort/application/runtime/` - per-user database/cache/log paths and redacted rotating logs.
-- `src/dropsort/__main__.py` - desktop entry point.
+- `src/TBD Movies/ui/reconciliation/` - Library Check progress/cancel and Relink preview/confirmation.
+- `src/TBD Movies/application/runtime/` - per-user database/cache/log paths and redacted rotating logs.
+- `src/TBD Movies/__main__.py` - desktop entry point.
 
 ## Verified quality baseline
 
@@ -379,7 +379,7 @@ plugin.
 - Native Windows directory identities from `DirEntry.stat()` could collapse to `(0, 0)` and falsely
   mark normal sibling folders as loops. Directory identity now comes from `os.lstat()` and the
   representative multi-folder UI layout has a regression test.
-- Adversarial scan review found a replacement window between scheduling and enumeration. DropSort
+- Adversarial scan review found a replacement window between scheduling and enumeration. TBD Movies
   now rechecks directory type, reparse state, and expected identity immediately before `scandir`.
 - Credential review found that UI and worker activity could overlap while a session token changes.
   Credential access and provider replacement are synchronized, and token values never appear in
@@ -523,7 +523,7 @@ workflow exists**.
 - Exact rebuilt packaged duplicate-launch verification passed: normal second launch, five repeated
   launches, minimized activation, rapid double launch, normal relaunch, and disposable crash/stale
   recovery all left one functional window/process and no catalog/media/file-operation side effects.
-- DropSort has no explicit project license; third-party notices and applicable license texts ship.
+- TBD Movies has no explicit project license; third-party notices and applicable license texts ship.
 
 Dependencies changed in Phase 4D: none. The active bundled font assets are now Inter Regular/Bold
 and Noto Sans Arabic Regular/Bold, not Python dependencies. The existing constraint remains
@@ -555,7 +555,7 @@ is `Kaze Tachinu`, a real TMDB candidate can be reviewed, and no automatic catal
 authorization occurs. All other requested packaged follow-up checks are complete. Do not begin
 Release Freeze or V2 until the user accepts this release candidate.
 
-Final release candidate: `release\DropSort\DropSort.exe` in a 190-file one-directory artifact,
+Final release candidate: `release\TBD Movies\TBD Movies.exe` in a 190-file one-directory artifact,
 120,116,153 bytes (114.55 MiB) after the final manual-search UI rebuild. The artifact contains the bundled font files and both OFL
 licenses, all six migration scripts, no Margarine asset, no forbidden runtime/test artifacts, no
 developer-path match, and no assigned TMDB token or bearer-token pattern.
@@ -565,5 +565,5 @@ The final V1 UX follow-up is documented in `docs/reports/v1/PHASE_6B_2_REPORT.md
 `docs/reports/v1/PHASE_6B_FINAL_REMAINING_ISSUES_REPORT.md`. Source verification is `1023 passed, 5 skipped, 0 failed`
 with `95%` total branch coverage. Manual TMDB verification is
 still pending because this process had no credential; the expected user retest is Edit Search ->
-`Kaze Tachinu` or `The Wind Rises` -> review candidate -> explicit Add to DropSort Library, with
+`Kaze Tachinu` or `The Wind Rises` -> review candidate -> explicit Add to TBD Movies Library, with
 zero filesystem/file-operation side effects.

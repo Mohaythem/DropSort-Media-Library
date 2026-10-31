@@ -1,8 +1,8 @@
-# DropSort Phase 6B Report
+# TBD Movies Phase 6B Report
 
 ## Result
 
-**Phase 6B: GREEN — DropSort V1 is complete.**
+**Phase 6B: GREEN — TBD Movies V1 is complete.**
 
 The final Windows artifact is a portable PyInstaller one-directory distribution. It launches
 without the source checkout or an activated virtual environment, initializes an isolated user-data
@@ -10,7 +10,7 @@ profile, contains the required runtime resources, and passes the source and pack
 
 ## Packaging strategy and why chosen
 
-DropSort uses one packaging system: **PyInstaller 6.22.0**, in one-directory mode. This keeps Qt
+TBD Movies uses one packaging system: **PyInstaller 6.22.0**, in one-directory mode. This keeps Qt
 plugins and native DLLs explicit, avoids one-file extraction complexity, and makes resource and
 license auditing straightforward. No installer, updater, service, registry setup, or administrator
 requirement was added.
@@ -20,19 +20,19 @@ PyInstaller was added only to the `package` optional dependency group as
 
 ## Build configuration
 
-- `DropSort.spec` freezes `src/dropsort/__main__.py` as a windowed `DropSort.exe`.
+- `TBD Movies.spec` freezes `src/TBD Movies/__main__.py` as a windowed `TBD Movies.exe`.
 - `packaging/build_release.ps1` resolves every path from `$PSScriptRoot`, runs a clean build, and
   places the user README and third-party notices beside the executable.
 - Build command:
   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File packaging\build_release.ps1`
-- PyInstaller warnings contain only conditional/non-Windows optional modules; no required DropSort
+- PyInstaller warnings contain only conditional/non-Windows optional modules; no required TBD Movies
   or Qt module was missing in launch verification.
 
 ## Release artifact
 
-- Path: `release\DropSort\`
+- Path: `release\TBD Movies\`
 - Type: portable one-directory Windows distribution
-- Executable: `release\DropSort\DropSort.exe`
+- Executable: `release\TBD Movies\TBD Movies.exe`
 - Total size: **118,482,564 bytes (112.99 MiB)** across 184 files
 - Executable size: 2,323,795 bytes
 - Signature: unsigned (`NotSigned`)
@@ -48,9 +48,9 @@ migration filename set exactly matches the source migration filename set.
 
 The packaged application continues to use:
 
-- `%LOCALAPPDATA%\DropSort\dropsort.db`
-- `%LOCALAPPDATA%\DropSort\poster-cache\`
-- `%LOCALAPPDATA%\DropSort\logs\`
+- `%LOCALAPPDATA%\TBD Movies\TBD Movies.db`
+- `%LOCALAPPDATA%\TBD Movies\poster-cache\`
+- `%LOCALAPPDATA%\TBD Movies\logs\`
 
 The executable directory remains read-only application content. Runtime path resolution is
 independent of process CWD; no data migration or replacement behavior was added.
@@ -62,17 +62,17 @@ approved TMDB logo, identifies TMDB as the metadata/poster source, and prominent
 
 > This product uses the TMDB API but is not endorsed or certified by TMDB.
 
-The TMDB mark is less prominent than DropSort's identity. Metadata contracts and credential
+The TMDB mark is less prominent than TBD Movies's identity. Metadata contracts and credential
 behavior were not changed.
 
 ## Credential and secret audit
 
 The source inputs and final artifact were scanned without printing secret values. The artifact has
-zero matches for an assigned `DROPSORT_TMDB_READ_ACCESS_TOKEN` or bearer-token prefix, and contains
+zero matches for an assigned `TBD Movies_TMDB_READ_ACCESS_TOKEN` or bearer-token prefix, and contains
 no `.env`, user database, cache, or log. A generic `Authorization:` label exists only inside the
 standard `Qt6Network.dll` and `libcrypto-3.dll`; no credential value or bearer-token signature was
 found. Credential priority remains in-memory session token, then
-`DROPSORT_TMDB_READ_ACCESS_TOKEN`; plaintext persistence was not added.
+`TBD Movies_TMDB_READ_ACCESS_TOKEN`; plaintext persistence was not added.
 
 ## Dependency audit
 
@@ -87,7 +87,7 @@ found. Credential priority remains in-memory session token, then
 - LGPL 3, GPL 2, GPL 3, Python 3.12, and PyInstaller license texts are bundled.
 - `THIRD_PARTY_NOTICES.md` records Qt/PySide6/Shiboken6, Python, SQLite, PyInstaller, Margarine, and
   TMDB considerations.
-- DropSort itself has **no explicit project license**. This is documented as a public-distribution
+- TBD Movies itself has **no explicit project license**. This is documented as a public-distribution
   consideration; no license was invented.
 
 ## Normal-user privilege behavior
@@ -125,7 +125,7 @@ claim of separate-machine testing is made.
 
 The packaged desktop UI was visually inspected on Windows: Library, Recently Added, Add Movies,
 Operation History, Settings, TMDB attribution, Movie Details, and Check Library Files were present;
-the DropSort theme/font/resources rendered and the window remained responsive. A final clean-build
+the TBD Movies theme/font/resources rendered and the window remained responsive. A final clean-build
 launch repeated process/runtime initialization; the unavailable desktop-control connector prevented
 a second screenshot, but the final rebuild changed only release documentation placement.
 
@@ -206,7 +206,7 @@ guards.
 - No separate clean Windows machine/VM was available; verification used a clean-profile approximation.
 - The executable is unsigned and may trigger SmartScreen.
 - Live TMDB search/poster acquisition was not reverified in Phase 6B without a user credential.
-- DropSort has no explicit project license.
+- TBD Movies has no explicit project license.
 - Cross-volume execution and destructive/ambiguous recovery remain automated-simulation verified,
   not manually exercised on real ambiguous files.
 - There is no installer, updater, automatic/bulk organization, folder watcher, TV library, subtitle

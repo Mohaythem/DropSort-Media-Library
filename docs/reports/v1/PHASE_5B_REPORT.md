@@ -1,4 +1,4 @@
-# DropSort Phase 5B Report
+# TBD Movies Phase 5B Report
 
 Phase 5B is GREEN on native Windows (Python 3.12 / NTFS).
 
@@ -37,15 +37,15 @@ shutdown waits for pending tasks.
 
 ## Files created
 
-- `src/dropsort/library/operations/__init__.py`
-- `src/dropsort/library/operations/errors.py`
-- `src/dropsort/library/operations/models.py`
-- `src/dropsort/library/operations/repositories.py`
-- `src/dropsort/database/repositories/operation_history.py`
-- `src/dropsort/application/dto/operation_history.py`
-- `src/dropsort/application/use_cases/operation_history.py`
-- `src/dropsort/ui/history/__init__.py`
-- `src/dropsort/ui/history/view.py`
+- `src/TBD Movies/library/operations/__init__.py`
+- `src/TBD Movies/library/operations/errors.py`
+- `src/TBD Movies/library/operations/models.py`
+- `src/TBD Movies/library/operations/repositories.py`
+- `src/TBD Movies/database/repositories/operation_history.py`
+- `src/TBD Movies/application/dto/operation_history.py`
+- `src/TBD Movies/application/use_cases/operation_history.py`
+- `src/TBD Movies/ui/history/__init__.py`
+- `src/TBD Movies/ui/history/view.py`
 - `tests/unit/application/test_operation_history_dto.py`
 - `tests/unit/application/test_operation_history_failures.py`
 - `tests/unit/application/test_operation_history_architecture.py`
@@ -59,18 +59,18 @@ shutdown waits for pending tasks.
 
 ## Files modified
 
-- `src/dropsort/application/bootstrap/desktop.py`
-- `src/dropsort/application/errors.py`
-- `src/dropsort/application/use_cases/__init__.py`
-- `src/dropsort/application/use_cases/organize_media_file.py`
-- `src/dropsort/core/operations/__init__.py`
-- `src/dropsort/core/operations/models.py`
-- `src/dropsort/core/operations/recovery.py`
-- `src/dropsort/core/operations/service.py`
-- `src/dropsort/database/repositories/__init__.py`
-- `src/dropsort/database/repositories/file_operations.py`
-- `src/dropsort/ui/contracts.py`
-- `src/dropsort/ui/main_window/window.py`
+- `src/TBD Movies/application/bootstrap/desktop.py`
+- `src/TBD Movies/application/errors.py`
+- `src/TBD Movies/application/use_cases/__init__.py`
+- `src/TBD Movies/application/use_cases/organize_media_file.py`
+- `src/TBD Movies/core/operations/__init__.py`
+- `src/TBD Movies/core/operations/models.py`
+- `src/TBD Movies/core/operations/recovery.py`
+- `src/TBD Movies/core/operations/service.py`
+- `src/TBD Movies/database/repositories/__init__.py`
+- `src/TBD Movies/database/repositories/file_operations.py`
+- `src/TBD Movies/ui/contracts.py`
+- `src/TBD Movies/ui/main_window/window.py`
 - `tests/unit/ui/test_desktop_bootstrap.py`
 - `README.md`
 - `docs/status/PROJECT_STATUS.md`

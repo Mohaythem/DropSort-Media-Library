@@ -1,12 +1,12 @@
-# DropSort Python Baseline — Deep Audit
+# TBD Movies Python Baseline — Deep Audit
 
 Audit date: 2026-08-23  
 Authoritative product document: `docs/source/The Idea-v3.md`  
-Audited baseline: `D:\DropSort_ chat\DropSort`, before feature changes
+Audited baseline: `D:\TBD Movies_ chat\TBD Movies`, before feature changes
 
 ## 1. Executive Summary
 
-DropSort is a substantial Python/PySide6/SQLite Windows desktop application, not a skeleton or abandoned rewrite. Its strongest area is the filesystem mutation core: approved-root checks, collision prevention, durable operation journaling, content verification, database commit ordering, and ambiguity-preserving recovery are implemented and tested. Stable `Movie`, `MediaFile`, and `WatchEvent` identities exist, and missing files remain registered rather than being deleted.
+TBD Movies is a substantial Python/PySide6/SQLite Windows desktop application, not a skeleton or abandoned rewrite. Its strongest area is the filesystem mutation core: approved-root checks, collision prevention, durable operation journaling, content verification, database commit ordering, and ambiguity-preserving recovery are implemented and tested. Stable `Movie`, `MediaFile`, and `WatchEvent` identities exist, and missing files remain registered rather than being deleted.
 
 At this audit's original baseline, startup automatically reconciled every registered file and progress
 could cause repeated full Library queries. Python Stabilization Pass 1 remediated those two findings.
@@ -21,15 +21,15 @@ Pass 1 and Pass 2 implementation and verification deltas without rewriting the o
 
 ## 2. Selected Project Root and Why
 
-Selected root: `D:\DropSort_ chat\DropSort`.
+Selected root: `D:\TBD Movies_ chat\TBD Movies`.
 
 Evidence:
 
-- `pyproject.toml` defines the `dropsort` package, Python requirement, dependencies, pytest configuration, and scripts.
-- `src/dropsort/__main__.py` is the active module entry point.
-- `src/dropsort/application/bootstrap/desktop.py` composes the database, migrations, application services, and PySide6 window.
-- `tests/` imports and exercises the same `src/dropsort` package.
-- `DropSort.spec`, `packaging/build_release.ps1`, migrations, assets, and current V2 reports all reference this tree.
+- `pyproject.toml` defines the `TBD Movies` package, Python requirement, dependencies, pytest configuration, and scripts.
+- `src/TBD Movies/__main__.py` is the active module entry point.
+- `src/TBD Movies/application/bootstrap/desktop.py` composes the database, migrations, application services, and PySide6 window.
+- `tests/` imports and exercises the same `src/TBD Movies` package.
+- `TBD Movies.spec`, `packaging/build_release.ps1`, migrations, assets, and current V2 reports all reference this tree.
 - `docs/source/The Idea-v3.md` is present in the selected root and explicitly governs the renewed Python direction.
 - No pre-existing `.git` repository was present. Numerous `.build-*`, `.pytest-*`, virtual-environment, coverage, release, and ZIP artifacts are generated outputs, not competing source roots.
 
@@ -41,16 +41,16 @@ Recommended future change: keep this root canonical and move historical reports 
 
 - Python `>=3.11`; verified interpreter: Python 3.12.10.
 - PySide6 `>=6.11.1,<7`; verified: 6.11.1.
-- SQLite through the standard library, with foreign keys, WAL, and `synchronous=FULL` in `src/dropsort/database/connection/sqlite.py:15-22`.
+- SQLite through the standard library, with foreign keys, WAL, and `synchronous=FULL` in `src/TBD Movies/database/connection/sqlite.py:15-22`.
 - pytest; verified: 9.1.1.
-- PyInstaller one-folder Windows packaging through `DropSort.spec`.
-- Process entry: `python -m dropsort` → `src/dropsort/__main__.py:1-5` → `run_desktop_app()`.
-- Console script: `dropsort = dropsort.__main__:main` in `pyproject.toml`.
+- PyInstaller one-folder Windows packaging through `TBD Movies.spec`.
+- Process entry: `python -m TBD Movies` → `src/TBD Movies/__main__.py:1-5` → `run_desktop_app()`.
+- Console script: `TBD Movies = TBD Movies.__main__:main` in `pyproject.toml`.
 
 ## 4. Repository / Module Map
 
 ~~~text
-src/dropsort/
+src/TBD Movies/
 ├─ domain/                 stable entities, personal state, policies
 ├─ application/            use cases, ports, DTOs, configuration
 ├─ database/               SQLite connection, migrations, repositories
@@ -64,7 +64,7 @@ src/dropsort/
 tests/                     unit and integration tests
 packaging/                 release builder and verifier
 docs/                      architecture, ADRs, specs, reviews, source copies
-.codex/skills/             DropSort-specific safety skills
+.codex/skills/             TBD Movies-specific safety skills
 ~~~
 
 Architectural boundary observed: UI code receives application-facing action objects; SQLite, HTTP, and filesystem mutation are composed outside widgets. The failing SQL-string architecture test is triggered by localized prose in `ui/localization.py`, not an embedded SQL call.
@@ -72,7 +72,7 @@ Architectural boundary observed: UI code receives application-facing action obje
 ## 5. Startup Flow
 
 ~~~text
-python -m dropsort
+python -m TBD Movies
   → __main__.main
   → desktop.run_desktop_app
   → QApplication + single-instance guard
@@ -88,9 +88,9 @@ python -m dropsort
               → QtTaskRunner → ReconcileLibraryUseCase.execute()
 ~~~
 
-Concrete chain: `src/dropsort/application/bootstrap/desktop.py:536-563`, `467-525`, `src/dropsort/ui/main_window/window.py:322-442`, `552-565`, and `864-900`.
+Concrete chain: `src/TBD Movies/application/bootstrap/desktop.py:536-563`, `467-525`, `src/TBD Movies/ui/main_window/window.py:322-442`, `552-565`, and `864-900`.
 
-Observed fact: the first Library entry starts automatic filesystem reconciliation. `ReconcileLibraryUseCase.execute()` lists the catalog in batches and performs `lstat` checks for each registered file (`src/dropsort/application/use_cases/reconcile_library_files.py:58-120`). Status-changing progress invokes `_refresh_library_snapshot()`, which calls `LibraryView.show_library()`.
+Observed fact: the first Library entry starts automatic filesystem reconciliation. `ReconcileLibraryUseCase.execute()` lists the catalog in batches and performs `lstat` checks for each registered file (`src/TBD Movies/application/use_cases/reconcile_library_files.py:58-120`). Status-changing progress invokes `_refresh_library_snapshot()`, which calls `LibraryView.show_library()`.
 
 Inference: startup is “load, then automatic Check-like work,” not the local-state-only startup required by `The Idea-v3.md`. A changing library can be queried and diffed multiple times during that worker.
 
@@ -112,7 +112,7 @@ MainWindow.show_library
               → relayout only when required
 ~~~
 
-Evidence: `src/dropsort/ui/library/library_view.py:170-202`; `src/dropsort/application/use_cases/list_movies.py:13-22`; `src/dropsort/database/repositories/library_queries.py:17-40`; `src/dropsort/ui/library/movie_grid.py:58-128,163-219`.
+Evidence: `src/TBD Movies/ui/library/library_view.py:170-202`; `src/TBD Movies/application/use_cases/list_movies.py:13-22`; `src/TBD Movies/database/repositories/library_queries.py:17-40`; `src/TBD Movies/ui/library/movie_grid.py:58-128,163-219`.
 
 Observed fact: navigation is cached, and the grid preserves card identity by `movie_id`; it does not blindly destroy the entire grid. Each actual refresh still runs the full summary query and recreates all DTO values. There is an item-level details query, but no item-level summary/update contract for the Library grid.
 
@@ -124,10 +124,10 @@ Recommended future change: add a query for one Library summary and an item-speci
 
 Observed facts:
 
-1. `_on_automatic_reconciliation_progress()` refreshes the Library whenever `status_changes` increases (`src/dropsort/ui/main_window/window.py:888-900`).
-2. `_refresh_library_snapshot()` reloads the full visible Library and invalidates/refreshes dependent projections (`src/dropsort/ui/main_window/window.py:773-806`).
+1. `_on_automatic_reconciliation_progress()` refreshes the Library whenever `status_changes` increases (`src/TBD Movies/ui/main_window/window.py:888-900`).
+2. `_refresh_library_snapshot()` reloads the full visible Library and invalidates/refreshes dependent projections (`src/TBD Movies/ui/main_window/window.py:773-806`).
 3. `MovieGrid.set_items()` diffs by stable ID, so only DTO changes replace cards.
-4. A replaced `MovieCard` starts poster loading if it has a poster reference (`src/dropsort/ui/library/movie_card.py:63-68`).
+4. A replaced `MovieCard` starts poster loading if it has a poster reference (`src/TBD Movies/ui/library/movie_card.py:63-68`).
 5. Ordinary cached navigation does not reload unchanged data.
 
 Inference: visible flicker is most plausibly caused by repeated broad query/diff/layout/poster activity during automatic reconciliation, not by unconditional whole-grid destruction.
@@ -141,7 +141,7 @@ Observed facts:
 - `movies.id INTEGER PRIMARY KEY` and unique `(provider, external_id)` are created in migration 0001.
 - `media_files.id INTEGER PRIMARY KEY`, nullable `movie_id`, unique normalized `path_key`, and `PRESENT|MISSING` status are persisted.
 - `watch_events.id` and `movie_id` are stable in migration 0004.
-- Domain entities expose stable IDs in `src/dropsort/library/movies/models.py:77-90,163-198` and `library/personal/models.py:46-54`.
+- Domain entities expose stable IDs in `src/TBD Movies/library/movies/models.py:77-90,163-198` and `library/personal/models.py:46-54`.
 - Relink/path updates mutate the same media-file row rather than replacing identity (`database/repositories/media_files.py:74-86,251-285`).
 - Reconciliation marks `MISSING`; it does not delete the movie or media-file record.
 
@@ -184,7 +184,7 @@ button → playback adapter → validate current path
   └─ absent: MissingMediaFileError → UI message only
 ~~~
 
-Evidence: `src/dropsort/library/playback/windows.py:21-71`.
+Evidence: `src/TBD Movies/library/playback/windows.py:21-71`.
 
 Inference: reconciliation follows the contract, but click-time discovery does not persist MISSING state, so UI/SQLite truth can remain stale.
 
@@ -198,8 +198,8 @@ Observed facts:
 - `ProposeMovieImport` calls provider search and returns `METADATA_UNAVAILABLE` when metadata cannot be reached (`application/media/propose_movie_import.py:47-124,177-193`).
 - `ConfirmMovieImport` requires a provider candidate and calls `provider.get_movie()` before registration (`application/media/confirm_movie_import.py:35-69`).
 - The schema requires provider/external ID; no pending local-only metadata identity exists.
-- Card construction requests a poster; `PosterAssetService` is cache-first but `TmdbPosterSource` performs HTTP on a miss (`src/dropsort/ui/library/movie_card.py:63-68`, `src/dropsort/posters/service.py:23-39`, `posters/providers/tmdb.py:40-64`).
-- Library and Personal Library text search are in-memory and make no network requests (`src/dropsort/ui/library/search.py:8-38`).
+- Card construction requests a poster; `PosterAssetService` is cache-first but `TmdbPosterSource` performs HTTP on a miss (`src/TBD Movies/ui/library/movie_card.py:63-68`, `src/TBD Movies/posters/service.py:23-39`, `posters/providers/tmdb.py:40-64`).
+- Library and Personal Library text search are in-memory and make no network requests (`src/TBD Movies/ui/library/search.py:8-38`).
 
 Inference: local registration is incorrectly coupled to TMDB enrichment, and opening Library can cause bounded background TMDB traffic on poster-cache misses.
 
@@ -220,7 +220,7 @@ Check Library navigation/button
   → MainWindow performs one dependent refresh
 ~~~
 
-Evidence: `src/dropsort/ui/reconciliation/page.py:203-230,286-300`; `application/use_cases/check_library.py:36-198`; `ui/src/dropsort/ui/main_window/window.py:425-428,604-615`.
+Evidence: `src/TBD Movies/ui/reconciliation/page.py:203-230,286-300`; `application/use_cases/check_library.py:36-198`; `ui/src/TBD Movies/ui/main_window/window.py:425-428,604-615`.
 
 Observed fact: the visible Check Library workflow is explicit/manual, can mark missing, does not delete catalog rows, and refreshes after completion. The lower-level reconciliation is also invoked automatically at startup.
 
@@ -264,7 +264,7 @@ Recommended future change: keep this engine unchanged until a dedicated adversar
 
 Observed facts:
 
-- `QtTaskRunner` owns one retained `QThread` per task, queues progress, rejects stale delivery, and waits during shutdown (`src/dropsort/ui/common/tasks.py:97-193`).
+- `QtTaskRunner` owns one retained `QThread` per task, queues progress, rejects stale delivery, and waits during shutdown (`src/TBD Movies/ui/common/tasks.py:97-193`).
 - Poster work uses a separate `QThreadPool` capped at four (`ui/posters/loader.py:45-99`).
 - Add Movies batches row creation with zero-delay timers.
 - A shared runner permits multiple application tasks; mutation use cases use locks.
@@ -279,7 +279,7 @@ Recommended future change: remove the startup task and narrow refresh signals by
 
 Observed facts:
 
-- Library search filters loaded `MovieListItem` values by title/original title/year (`src/dropsort/ui/library/search.py:8-38`).
+- Library search filters loaded `MovieListItem` values by title/original title/year (`src/TBD Movies/ui/library/search.py:8-38`).
 - Personal Library search filters its cached section.
 - Search does not query SQLite, call TMDB, or start workers.
 - Grid filtering hides/shows retained cards rather than creating duplicates.
@@ -316,7 +316,7 @@ Settings confirmation
   → preserve user movie files and operation journal
 ~~~
 
-Evidence: `src/dropsort/application/use_cases/clear_library_data.py:19-60`; `src/dropsort/database/repositories/library_maintenance.py:22-65`.
+Evidence: `src/TBD Movies/application/use_cases/clear_library_data.py:19-60`; `src/TBD Movies/database/repositories/library_maintenance.py:22-65`.
 
 Observed fact: physical movie files are untouched, and recovery-relevant operations are protected. Active liked/blacklisted/watchlisted state and visible watch history keep referenced movies alive.
 
@@ -330,8 +330,8 @@ Observed facts:
 
 - Runtime DB, poster cache, config, and logs resolve under per-user AppData (`application/runtime/paths.py:22-40`).
 - Logging rotates and redacts secret patterns (`application/runtime/logging.py:9-47`).
-- `DropSort.spec` bundles migrations, Fluent icons, fonts, TMDB assets, icons, and license notices.
-- `packaging/build_release.ps1` assumes `.venv\Scripts\pyinstaller.exe` and writes `release/DropSort`.
+- `TBD Movies.spec` bundles migrations, Fluent icons, fonts, TMDB assets, icons, and license notices.
+- `packaging/build_release.ps1` assumes `.venv\Scripts\pyinstaller.exe` and writes `release/TBD Movies`.
 - `pyproject.toml` package-data does not enumerate SQL migrations, Fluent SVGs, or application icons.
 
 Inference: the PyInstaller path is likely complete, but a wheel/non-editable installation may omit runtime resources. Packaged visual behavior, live TMDB, normal-user launch, and DPI variants were not rerun.
@@ -493,7 +493,7 @@ Generated artifacts, runtime DBs, caches, environments, release output, and ZIP 
 
 ## 26. GitHub Upload Result
 
-Target: `https://github.com/Mohaythem/DropSort-Media-Library`  
+Target: `https://github.com/Mohaythem/TBD Movies-Media-Library`  
 Branch: `codex`  
 Remote base inspected: `d5d7fb2f0887904ee2f882eae7cb6421568f5522`  
 Integration: the dedicated audited-baseline branch descends from the fetched remote history; remote `Skills.md` is preserved. The accidental `main` upload is removed with ordinary revert commits, never force-push or history rewrite.
