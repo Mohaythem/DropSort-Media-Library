@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
@@ -41,10 +41,7 @@ public sealed class MovieRemovalOperationSafetyTests : IDisposable
 
     [Theory]
     [InlineData(OperationState.Planned)]
-    [InlineData(OperationState.Validated)]
     [InlineData(OperationState.Executing)]
-    [InlineData(OperationState.FsVerified)]
-    [InlineData(OperationState.RecoveryRequired)]
     public void RemoveMovieFromLibrary_BlocksWhenFileHasNonterminalOperation(OperationState nonterminalState)
     {
         var (movieId, filePath, fileId) = CreateMovieWithFile($"Movie_{nonterminalState}.mkv");

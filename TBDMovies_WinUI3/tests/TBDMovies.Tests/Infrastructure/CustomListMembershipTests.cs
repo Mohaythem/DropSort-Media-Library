@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.IO;
 using TBDMovies.Domain.Library.Personal;
@@ -175,58 +175,33 @@ public sealed class CustomListMembershipTests : IDisposable
     }
 
     [Fact]
-    public void CreateCustomList_RejectsExactDuplicateName()
+    public void CreateCustomList_RejectsDuplicateAndEquivalentNames()
     {
         var repo = Repo();
         repo.CreateCustomList("Weekend", Now);
+        repo.CreateCustomList("Épica", Now);
+
         Assert.Throws<TBDMovies.Application.DuplicateCustomListNameException>(
             () => repo.CreateCustomList("Weekend", Now));
-    }
-
-    [Fact]
-    public void CreateCustomList_RejectsCaseOnlyDuplicate()
-    {
-        var repo = Repo();
-        repo.CreateCustomList("Weekend", Now);
         Assert.Throws<TBDMovies.Application.DuplicateCustomListNameException>(
             () => repo.CreateCustomList("weekend", Now));
-    }
-
-    [Fact]
-    public void CreateCustomList_RejectsWhitespaceEquivalentDuplicate()
-    {
-        var repo = Repo();
-        repo.CreateCustomList("Weekend", Now);
         Assert.Throws<TBDMovies.Application.DuplicateCustomListNameException>(
             () => repo.CreateCustomList("  Weekend  ", Now));
-    }
-
-    [Fact]
-    public void CreateCustomList_RejectsAccentedNonAsciiCaseEquivalentDuplicate()
-    {
-        var repo = Repo();
-        repo.CreateCustomList("Épica", Now);
-        // SQLite lower() would not fold É/é; the .NET OrdinalIgnoreCase comparison must.
+        // SQLite lower() would not fold É/é; the .NET OrdinalIgnoreCase comparison must:
         Assert.Throws<TBDMovies.Application.DuplicateCustomListNameException>(
             () => repo.CreateCustomList("épica", Now));
     }
 
     [Fact]
-    public void RenameCustomList_RejectsAccentedCaseEquivalentOfAnotherList()
+    public void RenameCustomList_RejectsDuplicateAndEquivalentOfAnotherList()
     {
         var repo = Repo();
         var weekend = repo.CreateCustomList("Weekend", Now);
         repo.CreateCustomList("Épica", Now);
+        repo.CreateCustomList("Horror", Now);
+
         Assert.Throws<TBDMovies.Application.DuplicateCustomListNameException>(
             () => repo.RenameCustomList(weekend, "ÉPICA", Now));
-    }
-
-    [Fact]
-    public void RenameCustomList_RejectsDuplicateOfAnotherList()
-    {
-        var repo = Repo();
-        var weekend = repo.CreateCustomList("Weekend", Now);
-        repo.CreateCustomList("Horror", Now);
         Assert.Throws<TBDMovies.Application.DuplicateCustomListNameException>(
             () => repo.RenameCustomList(weekend, "horror", Now));
     }

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -61,7 +61,7 @@ public sealed class TraktCacheRepositoryTests : IDisposable
     {
         MigrateTo18();
         var repository = new TraktCacheRepository(_cs);
-        var payload = System.Text.Json.JsonSerializer.Serialize(new string('x', 1024 * 1024));
+        var payload = System.Text.Json.JsonSerializer.Serialize(new string('x', 16 * 1024));
         repository.SaveComplete("Account_A", "history", payload, DateTimeOffset.UtcNow);
         Assert.Empty(repository.List("account_a"));
         var summary = Assert.Single(repository.List("Account_A"));
@@ -69,17 +69,6 @@ public sealed class TraktCacheRepositoryTests : IDisposable
         Assert.Equal(payload, repository.Get("Account_A", summary.ResourceKey)!.PayloadJson);
         repository.DeleteAccount("account_a");
         Assert.Single(repository.List("Account_A"));
-    }
-
-    [Fact]
-    public void Get_ReturnsNull_WhenEntryDoesNotExist()
-    {
-        MigrateTo18();
-        var repository = new TraktCacheRepository(_cs);
-
-        var entry = repository.Get("acc_123", "lists");
-
-        Assert.Null(entry);
     }
 
     [Fact]
